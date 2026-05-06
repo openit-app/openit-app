@@ -3,6 +3,7 @@ import { fsList, fsRead, fsDelete } from "../lib/api";
 import { writeToActiveSession } from "./activeSession";
 import { EntityCardGrid, type EntityCard } from "./EntityCardGrid";
 import { Button } from "../ui";
+import styles from "./ToolsPanel.module.css";
 
 type SkillEntry = {
   name: string;
@@ -12,7 +13,7 @@ type SkillEntry = {
 };
 
 /**
- * Skills station — combined view of slash commands (.claude/skills/)
+ * Skills station — tabbed view of slash commands (.claude/skills/)
  * and custom skills (filestores/skills/). Rendered when the admin
  * clicks the Skills station tile on the Workbench.
  */
@@ -23,6 +24,7 @@ export function SkillsStation({
   repo: string;
   onOpen: (path: string) => void;
 }) {
+  const [activeTab, setActiveTab] = useState<"slash" | "custom">("slash");
   const [slashCommands, setSlashCommands] = useState<SkillEntry[]>([]);
   const [customSkills, setCustomSkills] = useState<SkillEntry[]>([]);
   const [tick, setTick] = useState(0);
@@ -38,7 +40,6 @@ export function SkillsStation({
         const root = `${repo}/.claude/skills`;
         const nodes = await fsList(root);
         const prefix = `${root}/`;
-        // Each direct child directory contains a SKILL.md
         const dirs = nodes.filter((n) => {
           if (!n.is_dir) return false;
           const tail = n.path.startsWith(prefix) ? n.path.slice(prefix.length) : "";
@@ -50,7 +51,6 @@ export function SkillsStation({
             let description = "";
             try {
               const raw = await fsRead(skillMdPath);
-              // Extract description from YAML frontmatter
               const fmMatch = raw.match(/^---\r?\n([\s\S]*?)\r?\n---/);
               if (fmMatch) {
                 const descLine = fmMatch[1]
@@ -64,7 +64,6 @@ export function SkillsStation({
                 }
               }
               if (!description) {
-                // Fallback: first non-empty non-heading line after frontmatter
                 const body = fmMatch ? raw.slice(fmMatch[0].length) : raw;
                 for (const line of body.split("\n")) {
                   const trimmed = line.trim();
@@ -73,15 +72,11 @@ export function SkillsStation({
                   break;
                 }
               }
-            } catch {
-              /* SKILL.md missing or unreadable */
-            }
+            } catch { /* SKILL.md missing */ }
             entries.push({ name: d.name, description, path: skillMdPath });
           }),
         );
-      } catch {
-        /* .claude/skills/ doesn't exist yet */
-      }
+      } catch { /* .claude/skills/ doesn't exist */ }
       entries.sort((a, b) => a.name.localeCompare(b.name));
       if (!cancelled) setSlashCommands(entries);
     })();
@@ -116,15 +111,11 @@ export function SkillsStation({
                 description = trimmed.slice(0, 140);
                 break;
               }
-            } catch {
-              /* unreadable */
-            }
+            } catch { /* unreadable */ }
             entries.push({ name, description, path: f.path });
           }),
         );
-      } catch {
-        /* filestores/skills/ doesn't exist yet */
-      }
+      } catch { /* filestores/skills/ doesn't exist */ }
       entries.sort((a, b) => a.name.localeCompare(b.name));
       if (!cancelled) setCustomSkills(entries);
     })();
@@ -163,62 +154,78 @@ export function SkillsStation({
     },
   }));
 
-  const sectionHeaderStyle: React.CSSProperties = {
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "space-between",
-    margin: "16px 0 4px",
-  };
-
-  const sectionTitleStyle: React.CSSProperties = {
-    fontSize: 13,
-    fontWeight: 600,
-    color: "var(--text)",
-  };
-
   return (
-    <div style={{ padding: "12px 16px" }}>
-      {/* Slash Commands */}
-      <div style={sectionHeaderStyle}>
-        <span style={sectionTitleStyle}>Slash Commands</span>
-        <Button
-          variant="ghost"
-          size="sm"
-          onClick={() =>
-            writeToActiveSession(
-              "Help me create a new slash command for this project. Ask me what I want it to do.\r",
-            )
-          }
-        >
-          + New
-        </Button>
-      </div>
-      <EntityCardGrid
-        kind="skills"
-        cards={slashCards}
-        empty="No slash commands yet. Click + New to create one."
-      />
+    <div className={styles.panel}>
+      <h2 className={styles.heading}>Skills</h2>
 
-      {/* Custom Skills */}
-      <div style={{ ...sectionHeaderStyle, marginTop: 24 }}>
-        <span style={sectionTitleStyle}>Custom Skills</span>
-        <Button
-          variant="ghost"
-          size="sm"
-          onClick={() =>
-            writeToActiveSession(
-              "Help me create a custom skill for this project and save it to filestores/skills/. Ask me what I want it to do.\r",
-            )
-          }
+      <div className={styles.tabStrip}>
+        <button
+          type="button"
+          className={`${styles.tab} ${activeTab === "slash" ? styles.tabActive : ""}`}
+          onClick={() => setActiveTab("slash")}
         >
-          + New
-        </Button>
+          Slash Commands
+        </button>
+        <button
+          type="button"
+          className={`${styles.tab} ${activeTab === "custom" ? styles.tabActive : ""}`}
+          onClick={() => setActiveTab("custom")}
+        >
+          Custom Skills
+        </button>
       </div>
-      <EntityCardGrid
-        kind="skills"
-        cards={customCards}
-        empty="No custom skills yet. Click + New to create one."
-      />
+
+      {activeTab === "slash" && (
+        <>
+          <p className={styles.tagline}>
+            Pre-installed commands you can run with <code>/</code> in Claude.
+          </p>
+          <div style={{ display: "flex", justifyContent: "flex-end", margin: "0 0 8px" }}>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() =>
+                writeToActiveSession(
+                  "Help me create a new slash command for this project. Ask me what I want it to do.\r",
+                )
+              }
+            >
+              + New
+            </Button>
+          </div>
+          <EntityCardGrid
+            kind="skills"
+            cards={slashCards}
+            empty="No slash commands yet. Click + New to create one."
+          />
+        </>
+      )}
+
+      {activeTab === "custom" && (
+        <>
+          <p className={styles.tagline}>
+            Workflow prompts you or Claude have captured. Reusable across sessions.
+          </p>
+          <div style={{ display: "flex", justifyContent: "flex-end", margin: "0 0 8px" }}>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() =>
+                writeToActiveSession(
+                  "Help me create a custom skill for this project and save it to filestores/skills/. Ask me what I want it to do.\r",
+                )
+              }
+            >
+              + New
+            </Button>
+          </div>
+          <EntityCardGrid
+            kind="skills"
+            cards={customCards}
+            empty="No custom skills yet. Click + New to create one."
+          />
+        </>
+      )}
     </div>
   );
 }

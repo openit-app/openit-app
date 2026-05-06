@@ -105,6 +105,17 @@ async function migrateFlatTriage(repo: string): Promise<void> {
         content += (content ? "\n\n## Runtime context\n\n" : "") + local;
       }
       await entityWriteFile(repo, "agents", "triage.md", content);
+      // Clean up old folder — delete all files inside, then the dir itself
+      try {
+        const { fsList, fsDelete } = await import("./lib/api");
+        const old = await fsList(`${repo}/agents/triage`);
+        for (const f of old) {
+          if (!f.is_dir) await fsDelete(f.path).catch(() => {});
+        }
+        // Remove empty dir via invoke (no dedicated command, but
+        // entity_clear_dir wipes contents; the dir stays but is empty)
+        await invoke("entity_clear_dir", { repo, subdir: "agents/triage" }).catch(() => {});
+      } catch { /* cleanup is best-effort */ }
       console.log("[migrate] V2 agents/triage/ folder → agents/triage.md");
     } catch (e) {
       console.error("[migrate] V2→V3 agent migration failed:", e);

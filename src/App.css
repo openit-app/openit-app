@@ -4491,7 +4491,7 @@ input.viewer-title.viewer-title-rename {
 .entity-card-add-claude {
   position: absolute;
   top: 50%;
-  right: 66px;
+  right: 76px;
   transform: translateY(-50%);
   display: none;
   z-index: 1;
@@ -4504,7 +4504,7 @@ input.viewer-title.viewer-title-rename {
 .entity-card-run {
   position: absolute;
   top: 50%;
-  right: 38px;
+  right: 43px;
   transform: translateY(-50%);
   display: none;
   z-index: 1;
