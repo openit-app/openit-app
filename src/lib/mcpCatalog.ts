@@ -79,17 +79,7 @@ export const MCP_CATALOG: McpEntry[] = [
     docsUrl: "https://www.figma.com/developers",
     iconHint: "figma",
   },
-  {
-    id: "stripe",
-    name: "Stripe MCP",
-    description: "Payments, subscriptions, invoices, and customer data.",
-    transport: "http",
-    endpoint: "https://mcp.stripe.com",
-    envVars: [],
-    authHint: "Authenticates via Stripe OAuth in the browser.",
-    docsUrl: "https://stripe.com/docs",
-    iconHint: "stripe",
-  },
+  // Stripe: CLI preferred (in toolsCatalog.ts)
   {
     id: "paypal",
     name: "PayPal",
@@ -190,28 +180,8 @@ export const MCP_CATALOG: McpEntry[] = [
     docsUrl: "https://www.servicenow.com/community/",
     iconHint: "servicenow",
   },
-  {
-    id: "pagerduty-mcp",
-    name: "PagerDuty MCP",
-    description: "Incidents, alerts, escalations, and on-call schedules.",
-    transport: "stdio",
-    endpoint: "npx -y @pagerduty/mcp-server",
-    envVars: ["PAGERDUTY_API_KEY"],
-    authHint: "Generate a REST API key at yourorg.pagerduty.com/api-keys.",
-    docsUrl: "https://developer.pagerduty.com/docs/",
-    iconHint: "pagerduty",
-  },
-  {
-    id: "datadog-mcp",
-    name: "Datadog MCP",
-    description: "Metrics, logs, traces, dashboards, and incident management.",
-    transport: "stdio",
-    endpoint: "npx -y @datadog/mcp-server",
-    envVars: ["DD_API_KEY", "DD_APP_KEY"],
-    authHint: "Get API and App keys from app.datadoghq.com/organization-settings/api-keys.",
-    docsUrl: "https://docs.datadoghq.com/",
-    iconHint: "datadog",
-  },
+  // PagerDuty: CLI preferred (in toolsCatalog.ts)
+  // Datadog: CLI preferred (in toolsCatalog.ts)
 ];
 
 export function findMcpEntry(id: string): McpEntry | undefined {

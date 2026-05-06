@@ -83,15 +83,85 @@ fn read_mcp_servers_from_file(path: &PathBuf, source: &str) -> Vec<InstalledMcp>
     result
 }
 
+/// Read project-scoped MCP servers from `~/.claude.json`. Claude Code
+/// stores these under `.projects.<absolute_path>.mcpServers` when you
+/// run `claude mcp add` inside a project directory.
+fn read_project_scoped_mcps(claude_json: &PathBuf, repo_path: &str) -> Vec<InstalledMcp> {
+    let raw = match fs::read_to_string(claude_json) {
+        Ok(s) => s,
+        Err(_) => return Vec::new(),
+    };
+    let parsed: serde_json::Value = match serde_json::from_str(&raw) {
+        Ok(v) => v,
+        Err(_) => return Vec::new(),
+    };
+    let projects = match parsed.get("projects") {
+        Some(serde_json::Value::Object(map)) => map,
+        _ => return Vec::new(),
+    };
+    // The key is the absolute repo path. Try exact match first,
+    // then try with/without trailing slash.
+    let project = projects
+        .get(repo_path)
+        .or_else(|| projects.get(&format!("{}/", repo_path)))
+        .or_else(|| projects.get(repo_path.trim_end_matches('/')));
+    let servers = match project {
+        Some(proj) => match proj.get("mcpServers") {
+            Some(serde_json::Value::Object(map)) => map,
+            _ => return Vec::new(),
+        },
+        None => return Vec::new(),
+    };
+
+    let mut result = Vec::new();
+    for (name, value) in servers {
+        let entry: McpServerEntry = match serde_json::from_value(value.clone()) {
+            Ok(e) => e,
+            Err(_) => continue,
+        };
+        let (transport, command_or_url) = if let Some(url) = &entry.url {
+            let t = entry.transport_type.as_deref().unwrap_or("http");
+            (t.to_string(), url.clone())
+        } else if let Some(cmd) = &entry.command {
+            let full = if let Some(args) = &entry.args {
+                format!("{} {}", cmd, args.join(" "))
+            } else {
+                cmd.clone()
+            };
+            ("stdio".to_string(), full)
+        } else {
+            continue;
+        };
+        result.push(InstalledMcp {
+            name: name.clone(),
+            source: "claude-code-project".to_string(),
+            transport,
+            command_or_url,
+        });
+    }
+    result
+}
+
 /// List all MCP servers installed across Claude Code config, Claude
-/// Desktop config, and the project-level `.mcp.json`. Dedupes by name
+/// Desktop config, and the project-level configs. Dedupes by name
 /// (first source wins). Missing/malformed files are silently skipped.
 #[tauri::command]
 pub fn list_installed_mcps(repo: Option<String>) -> Vec<InstalledMcp> {
     let mut seen = HashMap::new();
     let mut result = Vec::new();
 
-    // 1. ~/.claude.json (Claude Code user-level config)
+    // 1. ~/.claude.json — project-scoped servers (most specific)
+    if let (Some(home), Some(ref repo_path)) = (home_dir(), &repo) {
+        let path = home.join(".claude.json");
+        for mcp in read_project_scoped_mcps(&path, repo_path) {
+            if !seen.contains_key(&mcp.name) {
+                seen.insert(mcp.name.clone(), true);
+                result.push(mcp);
+            }
+        }
+    }
+
+    // 2. ~/.claude.json — user-level servers
     if let Some(home) = home_dir() {
         let path = home.join(".claude.json");
         for mcp in read_mcp_servers_from_file(&path, "claude-code") {
