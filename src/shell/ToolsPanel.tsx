@@ -2,15 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { listInstalledMcps, type InstalledMcp } from "../lib/api";
 import { MCP_CATALOG, type McpEntry } from "../lib/mcpCatalog";
 import { CATALOG, type CatalogEntry } from "../lib/toolsCatalog";
-import {
-  getTargetOs,
-  installTool,
-  listInstalled,
-  removeHintOnly,
-  requestAgentInstall,
-  requestAgentUninstall,
-  type TargetOs,
-} from "../lib/toolsInstall";
+import { listInstalled } from "../lib/toolsInstall";
 import { Button } from "../ui";
 import { writeToActiveSession } from "./activeSession";
 import styles from "./ToolsPanel.module.css";
@@ -18,32 +10,14 @@ import styles from "./ToolsPanel.module.css";
 /// Tools catalog rendered into the center pane via the `tools` entity
 /// route.
 ///
-/// **macOS:** programmatic `brew install` runs directly so the UI sees
-/// deterministic state. On brew failure the inline error block surfaces
-/// the captured stderr and offers an "Ask Claude to debug" handoff.
-///
-/// **Windows / Linux:** there's no programmatic happy path — too much
-/// per-OS, per-tool variation to maintain. Click Install hands off to
-/// Claude immediately with the target OS as context; the card flips to
-/// "Sent to Claude →" and the user watches the agent work.
-
-type CardStatus =
-  | { kind: "idle" }
-  | { kind: "busy"; verb: "install" | "uninstall" }
-  | {
-      kind: "failed";
-      verb: "install" | "uninstall";
-      stderr: string;
-      claudeSessionMissing?: boolean;
-    }
-  | { kind: "handed-off" };
+/// All install/remove actions are delegated to Claude via
+/// `writeToActiveSession`. This keeps the UI cross-platform and
+/// transparent — the user sees exactly what Claude runs.
 
 export function ToolsPanel({ projectRoot }: { projectRoot: string | null }) {
   const [activeTab, setActiveTab] = useState<"cli" | "mcp">("cli");
   const [installed, setInstalled] = useState<Set<string>>(new Set());
   const [search, setSearch] = useState("");
-  const [statuses, setStatuses] = useState<Record<string, CardStatus>>({});
-  const [targetOs, setTargetOs] = useState<TargetOs | null>(null);
 
   // MCP-specific state
   const [mcpSearch, setMcpSearch] = useState("");
@@ -67,10 +41,6 @@ export function ToolsPanel({ projectRoot }: { projectRoot: string | null }) {
       console.error("[ToolsPanel] listInstalledMcps failed:", e);
     }
   };
-
-  useEffect(() => {
-    void getTargetOs().then(setTargetOs);
-  }, []);
 
   useEffect(() => {
     refreshInstalled();
@@ -132,107 +102,36 @@ export function ToolsPanel({ projectRoot }: { projectRoot: string | null }) {
     [],
   );
 
-  const setStatus = (id: string, status: CardStatus) =>
-    setStatuses((prev) => ({ ...prev, [id]: status }));
+  // ── CLI card actions — all delegate to the active Claude session ──
 
-  /// Fire the "Sent to Claude" feedback transient. After 4s the card
-  /// drops back to its baseline state — the user's eye is in the chat
-  /// watching Claude work, and the catalog will reflect reality on
-  /// next `listInstalled` refresh.
-  const flashHandedOff = (id: string) => {
-    setStatus(id, { kind: "handed-off" });
-    setTimeout(() => {
-      setStatuses((prev) => {
-        if (prev[id]?.kind !== "handed-off") return prev;
-        const next = { ...prev };
-        delete next[id];
-        return next;
-      });
-    }, 4000);
+  const onCliInstall = async (entry: CatalogEntry) => {
+    await writeToActiveSession(
+      `Install ${entry.name} (${entry.binary}) on this machine. Use brew on macOS, apt/snap on Linux, or winget/choco on Windows. After installing, verify with \`which ${entry.binary}\`.\r`,
+    );
+    // Refresh after delays so the installed status catches up.
+    setTimeout(() => void refreshInstalled(), 5000);
+    setTimeout(() => void refreshInstalled(), 10000);
   };
 
-  const onInstall = async (entry: CatalogEntry) => {
-    if (!projectRoot || !targetOs) return;
-    if (targetOs !== "macos") {
-      // Non-mac: hand off to Claude immediately. No brew on this box.
-      const sent = await requestAgentInstall(entry, {
-        kind: "non-macos",
-        targetOs,
-      });
-      if (!sent) {
-        setStatus(entry.id, {
-          kind: "failed",
-          verb: "install",
-          stderr: "No active Claude session.",
-          claudeSessionMissing: true,
-        });
-        return;
-      }
-      flashHandedOff(entry.id);
-      return;
-    }
-
-    // macOS happy path: programmatic brew install.
-    setStatus(entry.id, { kind: "busy", verb: "install" });
-    try {
-      await installTool(projectRoot, entry);
-      setStatus(entry.id, { kind: "idle" });
-      await refreshInstalled();
-    } catch (e) {
-      const stderr = e instanceof Error ? e.message : String(e);
-      setStatus(entry.id, { kind: "failed", verb: "install", stderr });
-    }
+  const onCliRemove = async (entry: CatalogEntry) => {
+    await writeToActiveSession(
+      `Uninstall ${entry.name} (${entry.binary}) from this machine. Use brew uninstall on macOS, apt remove on Linux, etc.\r`,
+    );
+    setTimeout(() => void refreshInstalled(), 5000);
+    setTimeout(() => void refreshInstalled(), 10000);
   };
 
-const onAskClaude = async (entry: CatalogEntry, status: CardStatus) => {
-    if (status.kind !== "failed") return;
-    // Brew-failed handoff carries the captured stderr. Same agent
-    // path as the non-mac install, different context.
-    const sent =
-      status.verb === "install"
-        ? await requestAgentInstall(entry, {
-            kind: "brew-failed",
-            stderr: status.stderr,
-          })
-        : await requestAgentUninstall(entry, {
-            kind: "brew-failed",
-            stderr: status.stderr,
-          });
-    if (!sent) {
-      setStatus(entry.id, { ...status, claudeSessionMissing: true });
-      return;
-    }
-    flashHandedOff(entry.id);
+  const onCliExplore = async (entry: CatalogEntry) => {
+    await writeToActiveSession(`What can I do with ${entry.name}?\r`);
   };
 
-  const onRemoveHintOnly = async (entry: CatalogEntry) => {
-    if (!projectRoot) return;
-    try {
-      await removeHintOnly(projectRoot, entry);
-      setStatus(entry.id, { kind: "idle" });
-      await refreshInstalled();
-    } catch (e) {
-      const stderr = e instanceof Error ? e.message : String(e);
-      setStatus(entry.id, { kind: "failed", verb: "uninstall", stderr });
-    }
-  };
+  // ── MCP card actions ──
 
-  /// Hand-off: ask the active Claude session what the admin can do
-  /// with a freshly installed tool. Trailing newline so Claude actually
-  /// dispatches the question instead of leaving it parked in the
-  /// composer. No-op (without UI noise) if Claude isn't running yet —
-  /// the user can re-click once a session is up.
-  const onAskWhatCanIDo = async (entry: CatalogEntry) => {
-    const prompt = `What can I do with ${entry.name}?`;
-    await writeToActiveSession(prompt + "\r");
+  const onMcpExplore = async (name: string) => {
+    await writeToActiveSession(
+      `What can I do with the ${name} MCP server?\r`,
+    );
   };
-
-  const onDismiss = (id: string) =>
-    setStatuses((prev) => {
-      const next = { ...prev };
-      delete next[id];
-      return next;
-    });
 
   const onConnectMcp = async (entry: McpEntry) => {
     // For entries with env vars, check all are filled in.
@@ -325,13 +224,9 @@ const onAskClaude = async (entry: CatalogEntry, status: CardStatus) => {
                 key={entry.id}
                 entry={entry}
                 installed={installed.has(entry.id)}
-                status={statuses[entry.id] ?? { kind: "idle" }}
-                targetOs={targetOs}
-                onInstall={() => onInstall(entry)}
-                onAskWhatCanIDo={() => onAskWhatCanIDo(entry)}
-                onAskClaude={(s) => onAskClaude(entry, s)}
-                onRemoveHintOnly={() => onRemoveHintOnly(entry)}
-                onDismiss={() => onDismiss(entry.id)}
+                onInstall={() => onCliInstall(entry)}
+                onRemove={() => onCliRemove(entry)}
+                onExplore={() => onCliExplore(entry)}
               />
             ))}
           </div>
@@ -364,6 +259,7 @@ const onAskClaude = async (entry: CatalogEntry, status: CardStatus) => {
                   mcp={mcp}
                   needsAuth={oauthCatalogIds.has(mcp.name)}
                   onAuthenticate={onAuthenticateMcp}
+                  onExplore={() => onMcpExplore(mcp.name)}
                   onRemove={() => onRemoveMcp(mcp.name)}
                 />
               ))}
@@ -399,49 +295,16 @@ const onAskClaude = async (entry: CatalogEntry, status: CardStatus) => {
 function ToolCard({
   entry,
   installed,
-  status,
-  targetOs,
   onInstall,
-  onAskWhatCanIDo,
-  onAskClaude,
-  onRemoveHintOnly,
-  onDismiss,
+  onRemove,
+  onExplore,
 }: {
   entry: CatalogEntry;
   installed: boolean;
-  status: CardStatus;
-  targetOs: TargetOs | null;
   onInstall: () => void;
-  onAskWhatCanIDo: () => void;
-  onAskClaude: (s: CardStatus) => void;
-  onRemoveHintOnly: () => void;
-  onDismiss: () => void;
+  onRemove: () => void;
+  onExplore: () => void;
 }) {
-  const busy = status.kind === "busy";
-  const handedOff = status.kind === "handed-off";
-  const isMac = targetOs === "macos";
-
-  // For an installed tool, the headline action is "What can I do with
-  // this?" — that's the question new users actually have once a tool
-  // is on disk. Uninstall demotes to a subtle link (rendered after
-  // the primary CTA) so the destructive action doesn't dominate the
-  // card. For an uninstalled tool, the install CTA stays primary.
-  let primaryLabel: string;
-  let primaryHandler: () => void;
-  if (handedOff) {
-    primaryLabel = "Sent to Claude →";
-    primaryHandler = () => {};
-  } else if (busy) {
-    primaryLabel = status.verb === "install" ? "Installing…" : "Uninstalling…";
-    primaryHandler = () => {};
-  } else if (installed) {
-    primaryLabel = "What can I do with this?";
-    primaryHandler = onAskWhatCanIDo;
-  } else {
-    primaryLabel = isMac ? "Install" : "Install via Claude →";
-    primaryHandler = onInstall;
-  }
-
   return (
     <div className={styles.card}>
       <div className={styles.cardHeader}>
@@ -455,26 +318,17 @@ function ToolCard({
       <p className={styles.cardDesc}>{entry.description}</p>
       <div className={styles.cardActions}>
         {installed ? (
-          <Button
-            variant="link"
-            size="sm"
-            onClick={primaryHandler}
-            disabled={busy || handedOff || targetOs === null}
-          >
-            {handedOff
-              ? "Sent to Claude →"
-              : busy
-                ? "Uninstalling…"
-                : "What can I do with this? →"}
-          </Button>
+          <>
+            <Button variant="link" size="sm" onClick={onExplore}>
+              What can I do with this? →
+            </Button>
+            <Button variant="ghost" size="sm" onClick={onRemove}>
+              Remove
+            </Button>
+          </>
         ) : (
-          <Button
-            variant="primary"
-            onClick={primaryHandler}
-            disabled={busy || handedOff || targetOs === null}
-            loading={busy}
-          >
-            {primaryLabel}
+          <Button variant="primary" onClick={onInstall}>
+            Install
           </Button>
         )}
         <a
@@ -486,47 +340,6 @@ function ToolCard({
           docs ↗
         </a>
       </div>
-      {status.kind === "failed" && (
-        <div className={styles.error}>
-          <span>
-            {status.verb === "install" ? "Install failed." : "Uninstall failed."}
-          </span>
-          <pre className={styles.errorStderr}>{status.stderr}</pre>
-          {status.verb === "uninstall" && isMac && (
-            <span className={styles.errorHelper}>
-              The CLAUDE.md hint may still be present — use "Just dismiss the
-              hint" if you want to clean it up without retrying brew.
-            </span>
-          )}
-          {status.claudeSessionMissing && (
-            <span className={styles.errorHelper}>
-              No active Claude session — start Claude in the right pane and try
-              "Ask Claude to debug" again.
-            </span>
-          )}
-          <div className={styles.errorActions}>
-            <Button
-              variant="secondary"
-              size="sm"
-              onClick={() => onAskClaude(status)}
-            >
-              Ask Claude to debug ↗
-            </Button>
-            {status.verb === "uninstall" && isMac && (
-              <Button
-                variant="secondary"
-                size="sm"
-                onClick={onRemoveHintOnly}
-              >
-                Just dismiss the hint
-              </Button>
-            )}
-            <Button variant="ghost" size="sm" onClick={onDismiss}>
-              Dismiss
-            </Button>
-          </div>
-        </div>
-      )}
     </div>
   );
 }
@@ -552,11 +365,13 @@ function InstalledMcpCard({
   mcp,
   needsAuth,
   onAuthenticate,
+  onExplore,
   onRemove,
 }: {
   mcp: InstalledMcp;
   needsAuth: boolean;
   onAuthenticate: () => void;
+  onExplore: () => void;
   onRemove: () => void;
 }) {
   return (
@@ -579,6 +394,9 @@ function InstalledMcpCard({
         ) : (
           <span className={styles.mcpConnectedLabel}>Connected</span>
         )}
+        <Button variant="link" size="sm" onClick={onExplore}>
+          What can I do with this? →
+        </Button>
         <Button variant="ghost" size="sm" onClick={onRemove}>
           Remove
         </Button>
