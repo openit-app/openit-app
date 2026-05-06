@@ -1,5 +1,5 @@
 {
-  "version": "2026-05-01-001",
+  "version": "2026-05-06-001",
   "bubbles": [
     { "label": "Answer ticket", "skill": "/answer-ticket" }
   ],
@@ -11,6 +11,7 @@
     { "path": "skills/connect-slack.md" },
     { "path": "skills/conversation-to-automation.md" },
     { "path": "skills/report.md" },
+    { "path": "skills/salesforce-gmail.md" },
     { "path": "schemas/tickets._schema.json" },
     { "path": "schemas/people._schema.json" },
     { "path": "agents/triage/triage.template.json" },
