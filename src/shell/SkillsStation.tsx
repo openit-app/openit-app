@@ -156,7 +156,7 @@ export function SkillsStation({
 
   return (
     <div className={styles.panel}>
-      <div className={styles.tabStrip}>
+      <div className={styles.tabStrip} style={{ display: "flex", alignItems: "center" }}>
         <button
           type="button"
           className={`${styles.tab} ${activeTab === "slash" ? styles.tabActive : ""}`}
@@ -171,6 +171,20 @@ export function SkillsStation({
         >
           Custom Skills
         </button>
+        <span style={{ flex: 1 }} />
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={() =>
+            writeToActiveSession(
+              activeTab === "slash"
+                ? "Help me create a new slash command for this project. Ask me what I want it to do.\r"
+                : "Help me create a custom skill for this project and save it to filestores/skills/. Ask me what I want it to do.\r",
+            )
+          }
+        >
+          + New
+        </Button>
       </div>
 
       {activeTab === "slash" && (
@@ -178,19 +192,6 @@ export function SkillsStation({
           <p className={styles.tagline}>
             Pre-installed commands you can run with <code>/</code> in Claude.
           </p>
-          <div style={{ display: "flex", justifyContent: "flex-end", margin: "0 0 8px" }}>
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() =>
-                writeToActiveSession(
-                  "Help me create a new slash command for this project. Ask me what I want it to do.\r",
-                )
-              }
-            >
-              + New
-            </Button>
-          </div>
           <EntityCardGrid
             kind="skills"
             cards={slashCards}
@@ -204,19 +205,6 @@ export function SkillsStation({
           <p className={styles.tagline}>
             Workflow prompts you or Claude have captured. Reusable across sessions.
           </p>
-          <div style={{ display: "flex", justifyContent: "flex-end", margin: "0 0 8px" }}>
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() =>
-                writeToActiveSession(
-                  "Help me create a custom skill for this project and save it to filestores/skills/. Ask me what I want it to do.\r",
-                )
-              }
-            >
-              + New
-            </Button>
-          </div>
           <EntityCardGrid
             kind="skills"
             cards={customCards}

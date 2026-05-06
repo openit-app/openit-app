@@ -1531,6 +1531,7 @@ export function Viewer({
         return `Agent traces — ${source.subject} (${source.docs.length} turn${source.docs.length === 1 ? "" : "s"})`;
       case "people-list":        return "People";
       case "tools": return "Tools";
+      case "skills-station": return "Skills";
       default: return "";
     }
   };
