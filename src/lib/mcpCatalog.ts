@@ -204,7 +204,3 @@ export const MCP_CATALOG: McpEntry[] = [
     iconHint: "microsoft365",
   },
 ];
-
-export function findMcpEntry(id: string): McpEntry | undefined {
-  return MCP_CATALOG.find((e) => e.id === id);
-}

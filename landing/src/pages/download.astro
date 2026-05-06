@@ -3,6 +3,7 @@ import BaseLayout from "../layouts/BaseLayout.astro";
 import { getLatestRelease } from "../lib/release.ts";
 
 const release = await getLatestRelease();
+const githubUrl = "https://github.com/pinkfish-ai/openit-app";
 ---
 <BaseLayout title="Download OpenIT">
   <h1>Download OpenIT</h1>
@@ -41,8 +42,30 @@ const release = await getLatestRelease();
   <h2>Install</h2>
   <p>
     Open the DMG, drag <strong>OpenIT.app</strong> into <strong>/Applications</strong>,
-    and launch. OpenIT is signed with an Apple Developer ID and notarized by
-    Apple, so Gatekeeper won't prompt on first launch.
+    and launch. On first launch, macOS may show a Gatekeeper prompt — open
+    <strong>System Settings &rarr; Privacy &amp; Security</strong> and click
+    "Open Anyway" next to OpenIT.
+  </p>
+
+  <h2>Build from source</h2>
+  <p>
+    OpenIT is open source. If you prefer to build it yourself or want to
+    contribute:
+  </p>
+  <pre><code>git clone {githubUrl}.git
+cd openit-app
+npm install
+npm run tauri:build</code></pre>
+  <p>
+    Requires Node.js &ge; 20 and Rust (stable). See the
+    <a href={`${githubUrl}#build-from-source`}>README</a> for details.
+  </p>
+
+  <h2>Linux &amp; Windows</h2>
+  <p>
+    Not yet available as pre-built binaries. Tauri supports all three platforms,
+    so building from source on Linux or Windows should work today.
+    <a href={`${githubUrl}/issues`}>Open an issue</a> if you hit problems.
   </p>
 
   <h2>Updates</h2>

@@ -62,25 +62,6 @@ export async function stateLoad(): Promise<AppPersistedState> {
   return invoke("state_load");
 }
 
-export async function stateSave(state: AppPersistedState): Promise<void> {
-  return invoke("state_save", { state });
-}
-
-export async function keychainSet(slot: string, value: string): Promise<void> {
-  return invoke("keychain_set", { slot, value });
-}
-
-export async function keychainGet(slot: string): Promise<string | null> {
-  return invoke("keychain_get", { slot });
-}
-
-export async function keychainDelete(slot: string): Promise<void> {
-  return invoke("keychain_delete", { slot });
-}
-
-export async function keychainProbe(): Promise<boolean> {
-  return invoke("keychain_probe");
-}
 
 export async function claudeDetect(): Promise<string | null> {
   return invoke("claude_detect");
@@ -105,12 +86,6 @@ export function claudeInstall(): Promise<string> {
   return p;
 }
 
-/// Ask the user's Claude CLI (`claude -p`) to summarize the staged diff into
-/// a single commit subject line, matching the style of the recent log.
-/// Returns the trimmed first line; throws on missing CLI or empty staging.
-export async function claudeGenerateCommitMessage(repo: string): Promise<string> {
-  return invoke("claude_generate_commit_message", { repo });
-}
 
 export type BootstrapResult = { path: string; created: boolean };
 
@@ -144,13 +119,6 @@ export async function createWorkspace(path: string, name: string): Promise<Works
   return invoke("create_workspace", { path, name });
 }
 
-export async function setActiveWorkspace(path: string): Promise<WorkspaceRegistry> {
-  return invoke("set_active_workspace", { path });
-}
-
-export async function removeWorkspace(path: string): Promise<WorkspaceRegistry> {
-  return invoke("remove_workspace", { path });
-}
 
 // ---------------------------------------------------------------------------
 // MCP discovery
@@ -191,17 +159,6 @@ export async function intakeStart(repo: string): Promise<string> {
 /// when the SSH session ends — laptop sleep, app close, network
 /// loss. That ephemerality is intentional; it's the upgrade-to-cloud
 /// pitch.
-export async function tunnelStart(localUrl: string): Promise<string> {
-  return invoke("tunnel_start", { localUrl });
-}
-
-export async function tunnelStop(): Promise<void> {
-  return invoke("tunnel_stop");
-}
-
-export async function tunnelUrl(): Promise<string | null> {
-  return invoke("tunnel_url");
-}
 
 // ---------------------------------------------------------------------------
 // Slack — local listener supervisor (V1: DM-only, runs while OpenIT is open).
@@ -266,12 +223,6 @@ export async function slackValidateBotToken(
   return invoke("slack_validate_bot_token", { botToken });
 }
 
-export async function slackDisconnect(args: {
-  repo: string;
-  orgId: string;
-}): Promise<void> {
-  return invoke("slack_disconnect", { repo: args.repo, orgId: args.orgId });
-}
 
 export async function slackConfigRead(repo: string): Promise<SlackConfig | null> {
   return invoke("slack_config_read", { repo });
@@ -297,15 +248,6 @@ export async function slackListenerStatus(): Promise<SlackStatus> {
   return invoke("slack_listener_status");
 }
 
-export async function slackListenerSendIntro(args: {
-  targetEmail: string;
-  text: string;
-}): Promise<void> {
-  return invoke("slack_listener_send_intro", {
-    targetEmail: args.targetEmail,
-    text: args.text,
-  });
-}
 
 export type KbLocalFile = { filename: string; mtime_ms: number | null; size: number };
 export type KbFileState = {
@@ -356,31 +298,11 @@ export type KbStatePersisted = {
   last_pull_at_ms?: number | null;
 };
 
-export async function kbInit(repo: string): Promise<string> {
-  return invoke("kb_init", { repo });
-}
-
-export async function kbListLocal(repo: string): Promise<KbLocalFile[]> {
-  // 2026-04-27 plural rename: KB articles live under
-  // `knowledge-bases/<collection>/`. Cloud-sync targets `default`.
-  return invoke("entity_list_local", { repo, subdir: "knowledge-bases/default" });
-}
 
 export async function kbDeleteFile(repo: string, filename: string): Promise<void> {
   return invoke("kb_delete_file", { repo, filename });
 }
 
-export async function kbReadFile(repo: string, filename: string): Promise<string> {
-  return invoke("kb_read_file", { repo, filename });
-}
-
-export async function kbWriteFile(
-  repo: string,
-  filename: string,
-  content: string,
-): Promise<void> {
-  return invoke("kb_write_file", { repo, filename, content });
-}
 
 export async function kbWriteFileBytes(
   repo: string,
@@ -406,10 +328,6 @@ export async function kbStateSave(
 // Filestore local commands (mirrors kb_* but for filestore/ directory)
 // ---------------------------------------------------------------------------
 
-export async function fsStoreInit(repo: string): Promise<string> {
-  return invoke("fs_store_init", { repo });
-}
-
 /// Generic entity_list_local wrapper. Pass the subdir relative to repo
 /// (e.g. "filestores/library", "filestores/docs-123", "knowledge-bases/default").
 /// Returns local files in that directory only.
@@ -420,24 +338,6 @@ export async function entityListLocal(
   return invoke("entity_list_local", { repo, subdir });
 }
 
-export async function fsStoreListLocal(repo: string): Promise<KbLocalFile[]> {
-  // Legacy: lists files in the default filestores/library/ directory.
-  // For multi-collection sync, use entityListLocal with the collection-specific
-  // subdir (e.g. filestores/<collection-name>/) instead.
-  return invoke("entity_list_local", { repo, subdir: "filestores/library" });
-}
-
-export async function fsStoreReadFile(repo: string, filename: string): Promise<string> {
-  return invoke("fs_store_read_file", { repo, filename });
-}
-
-export async function fsStoreWriteFile(
-  repo: string,
-  filename: string,
-  content: string,
-): Promise<void> {
-  return invoke("fs_store_write_file", { repo, filename, content });
-}
 
 export async function fsStoreWriteFileBytes(
   repo: string,
@@ -460,16 +360,6 @@ export async function fsStoreStateSave(
   return invoke("entity_state_save", { repo, name: "fs", state });
 }
 
-export async function datastoreStateLoad(repo: string): Promise<KbStatePersisted> {
-  return invoke("entity_state_load", { repo, name: "datastore" });
-}
-
-export async function datastoreStateSave(
-  repo: string,
-  state: KbStatePersisted,
-): Promise<void> {
-  return invoke("entity_state_save", { repo, name: "datastore", state });
-}
 
 export async function entityWriteFile(repo: string, subdir: string, filename: string, content: string): Promise<void> {
   return invoke("entity_write_file", { repo, subdir, filename, content });
@@ -492,13 +382,6 @@ export async function entityRenameFile(
   return invoke("entity_rename_file", { repo, subdir, from, to });
 }
 
-export async function entityClearDir(repo: string, subdir: string): Promise<void> {
-  return invoke("entity_clear_dir", { repo, subdir });
-}
-
-export async function kbSupportedExtensions(): Promise<string[]> {
-  return invoke("kb_supported_extensions");
-}
 
 /// Run the local helpdesk-overview script
 /// (`.claude/scripts/report-overview.mjs`) in the given repo and
