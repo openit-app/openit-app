@@ -100,21 +100,37 @@ export function ToolsPanel({ projectRoot }: { projectRoot: string | null }) {
     [installedMcps],
   );
 
-  const sortedFilteredMcps = useMemo(() => {
+  // Catalog entries whose id is NOT already installed — the "Add More" pool.
+  const catalogNotInstalled = useMemo(() => {
     const q = mcpSearch.trim().toLowerCase();
-    const matched = q
-      ? MCP_CATALOG.filter(
+    const pool = MCP_CATALOG.filter((e) => !installedMcpNames.has(e.id));
+    return q
+      ? pool.filter(
           (e) =>
             e.name.toLowerCase().includes(q) ||
             e.description.toLowerCase().includes(q),
         )
-      : MCP_CATALOG;
-    return [...matched].sort((a, b) => {
-      const aIns = installedMcpNames.has(a.id) ? 0 : 1;
-      const bIns = installedMcpNames.has(b.id) ? 0 : 1;
-      return aIns - bIns;
-    });
+      : pool;
   }, [mcpSearch, installedMcpNames]);
+
+  // Installed MCPs filtered by search — the "Your Connections" list.
+  const filteredInstalledMcps = useMemo(() => {
+    const q = mcpSearch.trim().toLowerCase();
+    return q
+      ? installedMcps.filter((m) => m.name.toLowerCase().includes(q))
+      : installedMcps;
+  }, [mcpSearch, installedMcps]);
+
+  // Set of catalog ids that use HTTP + no env vars (OAuth flow — need /mcp auth).
+  const oauthCatalogIds = useMemo(
+    () =>
+      new Set(
+        MCP_CATALOG.filter(
+          (e) => e.transport === "http" && e.envVars.length === 0,
+        ).map((e) => e.id),
+      ),
+    [],
+  );
 
   const setStatus = (id: string, status: CardStatus) =>
     setStatuses((prev) => ({ ...prev, [id]: status }));
@@ -244,6 +260,10 @@ const onAskClaude = async (entry: CatalogEntry, status: CardStatus) => {
     setTimeout(() => void refreshInstalledMcps(), 10000);
   };
 
+  const onAuthenticateMcp = async () => {
+    await writeToActiveSession("/mcp\r");
+  };
+
   const setMcpEnvVar = (entryId: string, varName: string, value: string) => {
     setMcpEnvInputs((prev) => ({
       ...prev,
@@ -325,20 +345,44 @@ const onAskClaude = async (entry: CatalogEntry, status: CardStatus) => {
             value={mcpSearch}
             onChange={(e) => setMcpSearch(e.target.value)}
           />
-          <div className={styles.grid}>
-            {sortedFilteredMcps.map((entry) => (
-              <McpCard
-                key={entry.id}
-                entry={entry}
-                connected={installedMcpNames.has(entry.id)}
-                envInputs={mcpEnvInputs[entry.id] ?? {}}
-                onEnvChange={(varName, value) =>
-                  setMcpEnvVar(entry.id, varName, value)
-                }
-                onConnect={() => onConnectMcp(entry)}
-              />
-            ))}
-          </div>
+
+          {/* Section 1: Your Connections */}
+          <h3 className={styles.sectionHeading}>Your Connections</h3>
+          {filteredInstalledMcps.length === 0 ? (
+            <p className={styles.mcpEmptyHint}>No connections yet.</p>
+          ) : (
+            <div className={styles.grid}>
+              {filteredInstalledMcps.map((mcp) => (
+                <InstalledMcpCard
+                  key={`${mcp.source}-${mcp.name}`}
+                  mcp={mcp}
+                  needsAuth={oauthCatalogIds.has(mcp.name)}
+                  onAuthenticate={onAuthenticateMcp}
+                />
+              ))}
+            </div>
+          )}
+
+          {/* Section 2: Add More */}
+          {catalogNotInstalled.length > 0 && (
+            <>
+              <h3 className={styles.sectionHeading}>Add More</h3>
+              <div className={styles.grid}>
+                {catalogNotInstalled.map((entry) => (
+                  <McpCard
+                    key={entry.id}
+                    entry={entry}
+                    connected={false}
+                    envInputs={mcpEnvInputs[entry.id] ?? {}}
+                    onEnvChange={(varName, value) =>
+                      setMcpEnvVar(entry.id, varName, value)
+                    }
+                    onConnect={() => onConnectMcp(entry)}
+                  />
+                ))}
+              </div>
+            </>
+          )}
         </>
       )}
     </div>
@@ -481,7 +525,58 @@ function ToolCard({
 }
 
 // ---------------------------------------------------------------------------
-// MCP card
+// Installed MCP card — shown in "Your Connections"
+// ---------------------------------------------------------------------------
+
+function sourceBadgeLabel(source: string): string {
+  switch (source) {
+    case "claude-code":
+      return "user";
+    case "claude-code-project":
+      return "project";
+    case "claude-desktop":
+      return "claude.ai";
+    default:
+      return source;
+  }
+}
+
+function InstalledMcpCard({
+  mcp,
+  needsAuth,
+  onAuthenticate,
+}: {
+  mcp: InstalledMcp;
+  needsAuth: boolean;
+  onAuthenticate: () => void;
+}) {
+  return (
+    <div className={styles.card}>
+      <div className={styles.cardHeader}>
+        <span className={styles.cardTitle}>
+          <span className={styles.installedDot} aria-hidden />
+          {mcp.name}
+          <span className={styles.mcpSourceBadge}>
+            {sourceBadgeLabel(mcp.source)}
+          </span>
+        </span>
+        <span className={styles.mcpTransportBadge}>{mcp.transport}</span>
+      </div>
+      <div className={styles.cardActions}>
+        {needsAuth ? (
+          <Button variant="primary" size="sm" onClick={onAuthenticate}>
+            Authenticate
+          </Button>
+        ) : (
+          <span className={styles.mcpConnectedLabel}>Connected</span>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// MCP catalog card — shown in "Add More"
 // ---------------------------------------------------------------------------
 
 function McpCard({

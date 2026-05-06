@@ -238,3 +238,40 @@
   color: var(--accent);
   font-weight: 500;
 }
+
+/* Section headings inside the MCP tab */
+
+.sectionHeading {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text);
+  margin: 8px 0 0;
+}
+
+.mcpEmptyHint {
+  font-size: 13px;
+  color: var(--text-muted);
+  margin: 0;
+  font-style: italic;
+}
+
+.mcpSourceBadge {
+  font-size: 10px;
+  font-weight: 500;
+  color: var(--text-muted);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  padding: 1px 6px;
+  border-radius: 3px;
+}
+
+.mcpTransportBadge {
+  font-size: 10px;
+  font-weight: 500;
+  font-family: var(--font-mono);
+  color: var(--text-muted);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  padding: 1px 6px;
+  border-radius: 3px;
+}
