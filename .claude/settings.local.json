@@ -5,7 +5,11 @@
       "Bash(mv ~/OpenIT/local/.claude/skills/report.md ~/OpenIT/local/.claude/skills/report/SKILL.md)",
       "Read(//Users/benjaminrigby/OpenIT/local/.claude/skills/**)",
       "WebSearch",
-      "WebFetch(domain:api.anthropic.com)"
+      "WebFetch(domain:api.anthropic.com)",
+      "Bash(git commit:*)",
+      "Bash(git push:*)",
+      "Bash(git add:*)",
+      "Bash(git reset:*)"
     ]
   }
 }

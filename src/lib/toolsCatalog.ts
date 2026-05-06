@@ -165,6 +165,90 @@ export const CATALOG: CatalogEntry[] = [
       "Microsoft 365 CLI (`m365`) is installed. Covers Outlook, Teams, SharePoint, OneDrive, Entra ID. Auth via `m365 login`. Run `m365 --help` for the full surface.",
     docsUrl: "https://pnp.github.io/cli-microsoft365/",
   },
+  // --- Infrastructure & DevOps ---
+  {
+    id: "terraform",
+    name: "Terraform",
+    description: "Infrastructure as code: plan, apply, state for any cloud.",
+    binary: "terraform",
+    brewPkg: "hashicorp/tap/terraform",
+    claudeMdHint:
+      "Terraform (`terraform`) is installed. Use it for infrastructure-as-code — `terraform plan`, `terraform apply`. Run `terraform --help` for the full surface.",
+    docsUrl: "https://developer.hashicorp.com/terraform/docs",
+  },
+  {
+    id: "kubectl",
+    name: "Kubernetes CLI",
+    description: "Kubernetes cluster admin: pods, services, deployments, logs.",
+    binary: "kubectl",
+    brewPkg: "kubectl",
+    claudeMdHint:
+      "Kubernetes CLI (`kubectl`) is installed. Use it for cluster operations — context via `kubectl config use-context`. Run `kubectl --help` for the full surface.",
+    docsUrl: "https://kubernetes.io/docs/reference/kubectl/",
+  },
+  {
+    id: "snyk",
+    name: "Snyk CLI",
+    description: "Security scanning: vulnerabilities, license issues, IaC misconfigs.",
+    binary: "snyk",
+    brewPkg: "snyk",
+    claudeMdHint:
+      "Snyk CLI (`snyk`) is installed. Use it for security scanning — auth via `snyk auth`. Run `snyk test` to scan. Run `snyk --help` for the full surface.",
+    docsUrl: "https://docs.snyk.io/snyk-cli",
+  },
+  // --- Identity & MDM ---
+  {
+    id: "jamf",
+    name: "Jamf Pro CLI",
+    description: "Apple device management: computers, policies, profiles, inventory.",
+    binary: "jamf",
+    brewPkg: "jamf-pro-cli",
+    claudeMdHint:
+      "Jamf Pro CLI (`jamf`) is installed. Use it for Apple device management — auth via `jamf auth`. Run `jamf --help` for the full surface.",
+    docsUrl: "https://learn.jamf.com/en-US/bundle/jamf-pro-documentation-current/page/Jamf_Pro_CLI.html",
+  },
+  {
+    id: "jumpcloud",
+    name: "JumpCloud CLI",
+    description: "Directory & identity admin: users, groups, devices, policies.",
+    binary: "jcapi",
+    brewPkg: "jumpcloud/tap/jcapi",
+    claudeMdHint:
+      "JumpCloud CLI (`jcapi`) is installed. Use it for directory operations — users, groups, device management. Run `jcapi --help` for the full surface.",
+    docsUrl: "https://docs.jumpcloud.com/api/",
+  },
+  // --- Observability & Incidents ---
+  {
+    id: "datadog",
+    name: "Datadog CLI",
+    description: "Monitoring: metrics, logs, traces, dashboards, incidents.",
+    binary: "datadog-ci",
+    brewPkg: "datadog/datadog/datadog-ci",
+    claudeMdHint:
+      "Datadog CLI (`datadog-ci`) is installed. Use it for CI/CD integration, synthetics, and metric submission. Run `datadog-ci --help` for the full surface.",
+    docsUrl: "https://docs.datadoghq.com/continuous_integration/",
+  },
+  {
+    id: "pagerduty",
+    name: "PagerDuty CLI",
+    description: "Incident management: alerts, escalations, on-call schedules.",
+    binary: "pd",
+    brewPkg: "martindstone/pagerduty-cli/pd",
+    claudeMdHint:
+      "PagerDuty CLI (`pd`) is installed. Use it for incident management — auth via `pd login`. Run `pd --help` for the full surface.",
+    docsUrl: "https://github.com/martindstone/pagerduty-cli",
+  },
+  // --- Support & Tickets ---
+  {
+    id: "zendesk",
+    name: "Zendesk CLI (ZCLI)",
+    description: "Zendesk admin: tickets, users, orgs, apps, themes.",
+    binary: "zcli",
+    brewPkg: "zendesk/tap/zcli",
+    claudeMdHint:
+      "Zendesk CLI (`zcli`) is installed. Use it for Zendesk admin and app development — auth via `zcli login`. Run `zcli --help` for the full surface.",
+    docsUrl: "https://developer.zendesk.com/documentation/apps/getting-started/using-zcli/",
+  },
 ];
 
 export function findEntry(id: string): CatalogEntry | undefined {
