@@ -24,7 +24,6 @@ import { ConflictBanner } from "./ConflictBanner";
 import { FileExplorer } from "./FileExplorer";
 import { EscalatedTicketBanner } from "./EscalatedTicketBanner";
 import { AgentActivityBanner } from "./AgentActivityBanner";
-import { PromptBubbles, type Bubble } from "./PromptBubbles";
 // SourceControl removed — local-first mode has no commit/push UI.
 // Phase 2 re-introduces it gated to syncMode === "git".
 import { Viewer, type ViewerSource } from "./Viewer";
@@ -120,7 +119,6 @@ function capStack(s: ViewerSource[]): ViewerSource[] {
 
 export function Shell({
   repo,
-  bubbles,
   intakeUrl,
   dock,
   slackOrgId,
@@ -129,7 +127,6 @@ export function Shell({
   registerManualPull,
 }: {
   repo: string | null;
-  bubbles: Bubble[];
   /** Current intake server URL (or null if not yet started). Substituted
    *  into `{{INTAKE_URL}}` placeholders in markdown content (e.g. the
    *  welcome doc). */
@@ -222,7 +219,6 @@ export function Shell({
       return { source: target, back: nextBack, forward: nextForward };
     });
   }, []);
-  const [conflictBubbles, setConflictBubbles] = useState<Bubble[]>([]);
   const [fsTick, setFsTick] = useState(0);
   const [showFiles, setShowFiles] = useState(false);
   const [pulling, setPulling] = useState(false);
@@ -500,11 +496,6 @@ export function Shell({
   // landing page. Getting-started.md is reachable from the file tree
   // or the header "Getting Started" button.
 
-  // Conflict detection was cloud-sync driven (kbSync). In local-only
-  // mode there are no remote conflicts, so keep the bubble list empty.
-  useEffect(() => {
-    setConflictBubbles([]);
-  }, [repo]);
 
   useEffect(() => {
     if (syncLines.length > 0) setSource({ kind: "sync", lines: syncLines });
@@ -732,7 +723,6 @@ export function Shell({
                 stagedBotToken={stagedSlackBotToken}
                 onStagedBotTokenChange={onStagedSlackBotTokenChange}
               />
-              <PromptBubbles extraBubbles={conflictBubbles} bubbles={bubbles} />
             </div>
           ),
         };

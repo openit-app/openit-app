@@ -28,17 +28,10 @@ import { onFsChanged } from "./lib/fsWatcher";
 import { useToast } from "./Toast";
 import { Button, TitleRail } from "./ui";
 import { StatusChips } from "./shell/StatusBar";
-import { syncSkillsToDisk, readSyncedPluginVersion, type Bubble as ManifestBubble } from "./lib/skillsSync";
+import { syncSkillsToDisk, readSyncedPluginVersion } from "./lib/skillsSync";
 import { seedIfEmpty } from "./lib/seed";
 import { invoke } from "@tauri-apps/api/core";
-import { type Bubble as PromptBubble } from "./shell/PromptBubbles";
 import "./App.css";
-
-const DEFAULT_BUBBLES: PromptBubble[] = [
-  { label: "Reports", prompt: "/reports weekly-digest" },
-  { label: "Access", prompt: "/access map" },
-  { label: "People", prompt: "/people" },
-];
 
 
 /// Is the bundled plugin already synced at the *current* manifest version?
@@ -78,12 +71,6 @@ async function bundledPluginIsCurrent(repo: string): Promise<boolean> {
   }
 }
 
-function convertBubblesForPrompt(manifestBubbles: ManifestBubble[]): PromptBubble[] {
-  return manifestBubbles.map((b) => ({
-    label: b.label,
-    prompt: b.skill,
-  }));
-}
 
 // ---------------------------------------------------------------------------
 // V1 → V2 folder-layout migration for the triage agent.
@@ -136,7 +123,6 @@ function App() {
   const [repo, setRepo] = useState<string | null>(null);
   const [loaded, setLoaded] = useState(false);
   const [bypassOnboarding, setBypassOnboarding] = useState(false);
-  const [bubbles, setBubbles] = useState<PromptBubble[]>(DEFAULT_BUBBLES);
   const [intakeServerUrl, setIntakeServerUrl] = useState<string | null>(null);
   const [slackConfig, setSlackConfig] = useState<SlackConfig | null>(null);
   const [slackStatus, setSlackStatus] = useState<SlackStatus | null>(null);
@@ -167,10 +153,7 @@ function App() {
 
       if (!(await bundledPluginIsCurrent(result.path))) {
         syncSkillsToDisk(result.path)
-          .then((manifest) => {
-            console.log("[app] plugin sync complete, bubbles:", manifest.bubbles);
-            setBubbles(convertBubblesForPrompt(manifest.bubbles));
-          })
+          .then(() => console.log("[app] plugin sync complete"))
           .catch((e) => console.error("plugin sync failed:", e));
       }
     } catch (e) {
@@ -582,7 +565,6 @@ function App() {
       <Shell
         key={repo ?? "none"}
         repo={repo}
-        bubbles={bubbles}
         intakeUrl={intakeServerUrl}
         dock={dock}
         slackOrgId={slackOrgId}
