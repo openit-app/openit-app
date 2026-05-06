@@ -379,9 +379,6 @@ function InstalledMcpCard({
         <span className={styles.cardTitle}>
           <span className={styles.installedDot} aria-hidden />
           {mcp.name}
-          <span className={styles.mcpSourceBadge}>
-            {sourceBadgeLabel(mcp.source)}
-          </span>
         </span>
         <span className={styles.installedPill}>Installed</span>
       </div>
