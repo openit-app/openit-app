@@ -129,4 +129,4 @@ See existing files in those directories for examples.
 
 ## License
 
-By contributing, you agree that your contributions will be licensed under the same license as the project. See [LICENSE](LICENSE).
+By contributing, you agree that your contributions will be licensed under the Apache License 2.0. See [LICENSE](LICENSE).

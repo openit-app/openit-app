@@ -96,7 +96,7 @@ See [**CONTRIBUTING.md**](CONTRIBUTING.md) for dev setup, coding standards, and 
 
 ## License
 
-See [LICENSE](LICENSE) for details.
+Apache License 2.0 — see [LICENSE](LICENSE) for details.
 
 ---
 
