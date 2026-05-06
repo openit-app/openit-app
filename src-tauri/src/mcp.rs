@@ -32,8 +32,28 @@ struct McpServerEntry {
 
 fn home_dir() -> Option<PathBuf> {
     std::env::var("HOME")
+        .or_else(|_| std::env::var("USERPROFILE"))
         .ok()
         .map(PathBuf::from)
+}
+
+/// Claude Desktop config path — platform-specific.
+fn claude_desktop_config_path() -> Option<PathBuf> {
+    let home = home_dir()?;
+    #[cfg(target_os = "macos")]
+    {
+        Some(home.join("Library/Application Support/Claude/claude_desktop_config.json"))
+    }
+    #[cfg(target_os = "windows")]
+    {
+        std::env::var("APPDATA").ok().map(|appdata| {
+            PathBuf::from(appdata).join("Claude").join("claude_desktop_config.json")
+        })
+    }
+    #[cfg(target_os = "linux")]
+    {
+        Some(home.join(".config/Claude/claude_desktop_config.json"))
+    }
 }
 
 /// Read MCP servers from a JSON file that has a top-level `mcpServers` key.
@@ -172,13 +192,8 @@ pub fn list_installed_mcps(repo: Option<String>) -> Vec<InstalledMcp> {
         }
     }
 
-    // 2. Claude Desktop config
-    if let Some(home) = home_dir() {
-        let path = home
-            .join("Library")
-            .join("Application Support")
-            .join("Claude")
-            .join("claude_desktop_config.json");
+    // 3. Claude Desktop config (platform-specific path)
+    if let Some(path) = claude_desktop_config_path() {
         for mcp in read_mcp_servers_from_file(&path, "claude-desktop") {
             if !seen.contains_key(&mcp.name) {
                 seen.insert(mcp.name.clone(), true);

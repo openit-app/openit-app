@@ -126,12 +126,37 @@ pub struct SlackConfig {
     pub allowed_domains: Vec<String>,
 }
 
+/// Cross-platform app data directory.
+fn app_data_dir() -> Result<PathBuf, String> {
+    #[cfg(target_os = "macos")]
+    {
+        let home = std::env::var("HOME").map_err(|_| "HOME not set".to_string())?;
+        Ok(PathBuf::from(home).join("Library").join("Application Support"))
+    }
+    #[cfg(target_os = "windows")]
+    {
+        std::env::var("APPDATA")
+            .map(PathBuf::from)
+            .map_err(|_| "APPDATA not set".to_string())
+    }
+    #[cfg(target_os = "linux")]
+    {
+        let home = std::env::var("HOME").map_err(|_| "HOME not set".to_string())?;
+        Ok(PathBuf::from(home).join(".local").join("share"))
+    }
+}
+
 /// Build the app-support path for a vault's Slack config.
 ///
-/// Layout: `~/Library/Application Support/OpenIT/<hash>/credentials/slack.json`
+/// Layout: `<app-data>/OpenIT/<hash>/credentials/slack.json`
 /// where `<hash>` is the first 16 hex chars of the SHA-256 of the
 /// canonical vault path. Creates the `credentials/` directory with
-/// 0o700 permissions if it doesn't already exist.
+/// 0o700 permissions (Unix) if it doesn't already exist.
+///
+/// Platform paths:
+///   macOS:   ~/Library/Application Support/OpenIT/<hash>/credentials/
+///   Linux:   ~/.local/share/OpenIT/<hash>/credentials/
+///   Windows: %APPDATA%/OpenIT/<hash>/credentials/
 fn app_support_slack_config_path(repo: &Path) -> Result<PathBuf, String> {
     let canonical = repo
         .canonicalize()
@@ -143,10 +168,8 @@ fn app_support_slack_config_path(repo: &Path) -> Result<PathBuf, String> {
         .map(|b| format!("{:02x}", b))
         .collect();
 
-    let home = std::env::var("HOME").map_err(|_| "HOME not set".to_string())?;
-    let cred_dir = PathBuf::from(home)
-        .join("Library")
-        .join("Application Support")
+    let base = app_data_dir()?;
+    let cred_dir = base
         .join("OpenIT")
         .join(&hash_hex)
         .join("credentials");
