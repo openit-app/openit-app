@@ -4,7 +4,6 @@ import { Shell } from "./shell/Shell";
 import { CommandPalette } from "./shell/CommandPalette";
 import {
   createWorkspace,
-  entityDeleteFile,
   entityWriteFile,
   fsRead,
   intakeStart,
@@ -75,8 +74,8 @@ async function bundledPluginIsCurrent(repo: string): Promise<boolean> {
 // ---------------------------------------------------------------------------
 // V1 → V2 folder-layout migration for the triage agent.
 // Reads a flat `agents/triage.json` and moves it into the
-// `agents/triage/{triage.json, common.md}` folder structure.
-// Idempotent: no-ops when the folder layout already exists.
+// Agent migration: V1 (flat JSON) and V2 (folder with 4 files) both
+// collapse to V3 (single markdown file). Idempotent.
 // ---------------------------------------------------------------------------
 
 async function fileExistsOnDisk(repo: string, relPath: string): Promise<boolean> {
@@ -89,33 +88,43 @@ async function fileExistsOnDisk(repo: string, relPath: string): Promise<boolean>
 }
 
 async function migrateFlatTriage(repo: string): Promise<void> {
-  const flatExists = await fileExistsOnDisk(repo, "agents/triage.json");
-  const folderExists = await fileExistsOnDisk(repo, "agents/triage/triage.json");
-  if (!flatExists || folderExists) return;
+  // Already on V3 — single markdown file
+  if (await fileExistsOnDisk(repo, "agents/triage.md")) return;
 
-  try {
-    const content = await fsRead(`${repo}/agents/triage.json`);
-    const parsed = JSON.parse(content) as {
-      instructions?: unknown;
-      [k: string]: unknown;
-    };
-    const { instructions, ...structured } = parsed;
-
-    await entityWriteFile(
-      repo,
-      "agents/triage",
-      "triage.json",
-      JSON.stringify(structured, null, 2),
-    );
-
-    if (typeof instructions === "string" && instructions.length > 0) {
-      await entityWriteFile(repo, "agents/triage", "common.md", instructions);
+  // V2 → V3: merge common.md + local.md into triage.md
+  const hasCommon = await fileExistsOnDisk(repo, "agents/triage/common.md");
+  const hasLocal = await fileExistsOnDisk(repo, "agents/triage/local.md");
+  if (hasCommon || hasLocal) {
+    try {
+      let content = "";
+      if (hasCommon) {
+        content += await fsRead(`${repo}/agents/triage/common.md`);
+      }
+      if (hasLocal) {
+        const local = await fsRead(`${repo}/agents/triage/local.md`);
+        content += (content ? "\n\n## Runtime context\n\n" : "") + local;
+      }
+      await entityWriteFile(repo, "agents", "triage.md", content);
+      console.log("[migrate] V2 agents/triage/ folder → agents/triage.md");
+    } catch (e) {
+      console.error("[migrate] V2→V3 agent migration failed:", e);
     }
+    return;
+  }
 
-    await entityDeleteFile(repo, "agents", "triage.json");
-    console.log("[migrate] flat agents/triage.json → agents/triage/ folder");
-  } catch (e) {
-    console.error("[migrate] V2 folder migration failed:", e);
+  // V1 → V3: flat triage.json with instructions field
+  if (await fileExistsOnDisk(repo, "agents/triage.json")) {
+    try {
+      const raw = await fsRead(`${repo}/agents/triage.json`);
+      const parsed = JSON.parse(raw) as { instructions?: unknown };
+      const instructions = typeof parsed.instructions === "string" ? parsed.instructions : "";
+      if (instructions) {
+        await entityWriteFile(repo, "agents", "triage.md", instructions);
+        console.log("[migrate] V1 agents/triage.json → agents/triage.md");
+      }
+    } catch (e) {
+      console.error("[migrate] V1→V3 agent migration failed:", e);
+    }
   }
 }
 
