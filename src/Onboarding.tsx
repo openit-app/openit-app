@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
+import { open as openDialog } from "@tauri-apps/plugin-dialog";
 import {
   claudeDetect,
   claudeInstall,
@@ -6,6 +7,9 @@ import {
 import { Button } from "./ui";
 
 const CLAUDE_INSTALL_DOCS = "https://docs.anthropic.com/claude/docs/claude-code";
+const DEFAULT_VAULT_PATH = `${
+  typeof window !== "undefined" ? "" : ""
+}~/OpenIT/Personal`;
 
 type StepProps = {
   n: number;
@@ -29,19 +33,18 @@ function Step({ n, title, state, detail, action }: StepProps) {
 }
 
 export function Onboarding({
-  onContinue,
+  onOpenVault,
 }: {
-  onContinue: () => void;
+  onOpenVault: (path: string) => Promise<void>;
 }) {
   const [claudePath, setClaudePath] = useState<string | null | "loading" | "installing">(
     "loading",
   );
   const [claudeInstallError, setClaudeInstallError] = useState<string | null>(null);
+  const [vaultPath, setVaultPath] = useState<string | null>(null);
+  const [opening, setOpening] = useState(false);
 
-  // Auto-install Claude Code on first run if it's missing. The native
-  // installer drops the binary at ~/.local/bin/claude and updates the user's
-  // shell rc; the Rust side also probes that dir directly so the GUI app
-  // sees the binary without a terminal restart.
+  // Auto-install Claude Code on first run if it's missing.
   useEffect(() => {
     let cancelled = false;
     (async () => {
@@ -88,13 +91,34 @@ export function Onboarding({
     }
   }, []);
 
+  const pickFolder = useCallback(async () => {
+    const selected = await openDialog({
+      directory: true,
+      multiple: false,
+      title: "Choose a folder for your vault",
+    });
+    if (typeof selected === "string") {
+      setVaultPath(selected);
+    }
+  }, []);
+
+  const handleOpen = useCallback(async () => {
+    setOpening(true);
+    try {
+      await onOpenVault(vaultPath ?? "");
+    } catch (e) {
+      console.error("[onboarding] open vault failed:", e);
+      setOpening(false);
+    }
+  }, [vaultPath, onOpenVault]);
+
   const claudeReady = typeof claudePath === "string" && claudePath !== null;
 
   return (
     <div className="onboard">
       <div className="onboard-card">
         <div className="onboard-wordmark">
-          <span className="onboard-title">OpenIT</span>
+          <span className="onboard-title">Open<em>IT</em></span>
           <span className="onboard-tagline">get IT done</span>
         </div>
         <p className="onboard-subtitle">
@@ -164,13 +188,37 @@ export function Onboarding({
           }
         />
 
+        <Step
+          n={2}
+          title={vaultPath ? "Vault selected" : "Choose your vault folder"}
+          state={vaultPath ? "done" : "active"}
+          detail={
+            vaultPath ? (
+              <code className="onboard-path">{vaultPath}</code>
+            ) : (
+              <span>
+                Pick any folder — your desktop, Dropbox, iCloud Drive, or
+                the default <code>{DEFAULT_VAULT_PATH}</code>. Your data
+                lives here as plain files.
+              </span>
+            )
+          }
+          action={
+            <Button variant="secondary" onClick={pickFolder}>
+              {vaultPath ? "Change" : "Browse..."}
+            </Button>
+          }
+        />
+
         <div className="onboard-actions">
           <Button
             variant="primary"
             size="lg"
-            onClick={onContinue}
+            onClick={handleOpen}
+            loading={opening}
+            disabled={opening}
           >
-            Continue
+            {vaultPath ? "Open Vault" : "Use Default"}
           </Button>
         </div>
       </div>

@@ -44,20 +44,21 @@ pub struct BootstrapResult {
     pub created: bool,
 }
 
-/// Make sure `~/OpenIT/<org_id>/` exists (default: `~/OpenIT/Personal/`).
-/// Returns the absolute path and whether it was newly created. Lives at the
-/// home root (not under ~/Documents) so macOS TCC doesn't block fs/git ops
-/// in dev or in unsigned builds.
+/// Make sure the vault directory exists and has the standard layout.
+/// Accepts an arbitrary absolute path. Returns the path and whether
+/// it was newly created. When `vault_path` is empty, defaults to
+/// `~/OpenIT/Personal/`.
 #[tauri::command]
-pub fn project_bootstrap(org_name: String, org_id: String) -> Result<BootstrapResult, String> {
-    let home = std::env::var("HOME").map_err(|_| "HOME not set".to_string())?;
-    if org_id.is_empty() {
-        return Err("org_id cannot be empty".into());
-    }
-    let path: PathBuf = [&home, "OpenIT", &org_id].iter().collect();
+pub fn project_bootstrap(vault_path: Option<String>) -> Result<BootstrapResult, String> {
+    let path: PathBuf = match vault_path.as_deref() {
+        Some(p) if !p.is_empty() => PathBuf::from(p),
+        _ => {
+            let home = std::env::var("HOME").map_err(|_| "HOME not set".to_string())?;
+            [&home, "OpenIT", "Personal"].iter().collect()
+        }
+    };
 
     let already_existed = path.exists();
-    let _ = (org_name, org_id);
     if !already_existed {
         fs::create_dir_all(&path).map_err(|e| format!("create_dir_all failed: {}", e))?;
 

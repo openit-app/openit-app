@@ -18,6 +18,7 @@ mod tools;
 mod tunnel;
 mod user_identity;
 mod watcher;
+mod workspaces;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
@@ -70,6 +71,10 @@ pub fn run() {
             keychain::keychain_delete,
             keychain::keychain_probe,
             project::project_bootstrap,
+            workspaces::list_workspaces,
+            workspaces::create_workspace,
+            workspaces::set_active_workspace,
+            workspaces::remove_workspace,
             reports::report_overview_run,
             scripts::script_run,
             kb::kb_init,

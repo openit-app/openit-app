@@ -114,11 +114,42 @@ export async function claudeGenerateCommitMessage(repo: string): Promise<string>
 
 export type BootstrapResult = { path: string; created: boolean };
 
-export async function projectBootstrap(args: {
-  orgName: string;
-  orgId: string;
-}): Promise<BootstrapResult> {
-  return invoke("project_bootstrap", { orgName: args.orgName, orgId: args.orgId });
+/// Bootstrap a vault at the given path. Creates standard subdirs,
+/// getting-started.md, and .openit/config.json if missing. Defaults
+/// to `~/OpenIT/Personal/` when path is omitted.
+export async function projectBootstrap(vaultPath?: string): Promise<BootstrapResult> {
+  return invoke("project_bootstrap", { vaultPath: vaultPath ?? null });
+}
+
+// ---------------------------------------------------------------------------
+// Workspace registry — tracks which vaults the user has opened.
+// ---------------------------------------------------------------------------
+
+export type WorkspaceEntry = {
+  path: string;
+  name: string;
+  lastOpenedAt: number;
+};
+
+export type WorkspaceRegistry = {
+  workspaces: WorkspaceEntry[];
+  active: string | null;
+};
+
+export async function listWorkspaces(): Promise<WorkspaceRegistry> {
+  return invoke("list_workspaces");
+}
+
+export async function createWorkspace(path: string, name: string): Promise<WorkspaceRegistry> {
+  return invoke("create_workspace", { path, name });
+}
+
+export async function setActiveWorkspace(path: string): Promise<WorkspaceRegistry> {
+  return invoke("set_active_workspace", { path });
+}
+
+export async function removeWorkspace(path: string): Promise<WorkspaceRegistry> {
+  return invoke("remove_workspace", { path });
 }
 
 /// Start the localhost ticket-intake HTTP server scoped to `repo`.

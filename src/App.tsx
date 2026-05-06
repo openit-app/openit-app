@@ -3,17 +3,18 @@ import { Onboarding } from "./Onboarding";
 import { Shell } from "./shell/Shell";
 import { CommandPalette } from "./shell/CommandPalette";
 import {
+  createWorkspace,
   entityDeleteFile,
   entityWriteFile,
   fsRead,
   intakeStart,
+  listWorkspaces,
   projectBootstrap,
   slackConfigRead,
   slackListenerStart,
   slackListenerStatus,
   slackListenerStop,
   stateLoad,
-  stateSave,
   type SlackConfig,
   type SlackStatus,
 } from "./lib/api";
@@ -39,11 +40,6 @@ const DEFAULT_BUBBLES: PromptBubble[] = [
   { label: "People", prompt: "/people" },
 ];
 
-// Default project identity for the local workspace.
-// Folder lands at `~/OpenIT/Personal/`. Stable across launches so the
-// same local helpdesk is reopened on relaunch.
-const LOCAL_ORG_ID = "Personal";
-const LOCAL_ORG_NAME = "Personal";
 
 /// Is the bundled plugin already synced at the *current* manifest version?
 /// Returns true when both (a) the triage-agent install sentinel exists
@@ -150,6 +146,38 @@ function App() {
   // `{"skill":"connect-slack","dock":"bot-token-paste"|null}` and the
   // fs-watcher below picks it up.
   const [dock, setDock] = useState<DockKind | undefined>(undefined);
+
+  /// Open a vault: bootstrap its layout, run migrations, sync plugin,
+  /// set as active repo. Shared by boot (registry has an active path)
+  /// and the vault picker (user chose a new folder).
+  const openVault = useCallback(async (vaultPath: string) => {
+    try {
+      const result = await projectBootstrap(vaultPath);
+      console.log("[app] vault bootstrapped:", result.path, result.created ? "(new)" : "(existing)");
+
+      try {
+        await migrateFlatTriage(result.path);
+      } catch (e) {
+        console.warn("[app] migration failed (non-fatal):", e);
+      }
+
+      setRepo(result.path);
+      setBypassOnboarding(true);
+      setLoaded(true);
+
+      if (!(await bundledPluginIsCurrent(result.path))) {
+        syncSkillsToDisk(result.path)
+          .then((manifest) => {
+            console.log("[app] plugin sync complete, bubbles:", manifest.bubbles);
+            setBubbles(convertBubblesForPrompt(manifest.bubbles));
+          })
+          .catch((e) => console.error("plugin sync failed:", e));
+      }
+    } catch (e) {
+      console.error("[app] openVault failed:", e);
+      setLoaded(true);
+    }
+  }, []);
   // xoxb- token staged in App-level state between the bot-token-paste
   // and app-token-paste moments. Survives re-renders / unmounts of
   // the SkillActionDock. In-memory only — Keychain takes over after
@@ -416,86 +444,44 @@ function App() {
     return () => window.removeEventListener("openit:create-samples", onCreateSamples);
   }, [repo]);
 
-  // Boot sequence — local-only. No auth, no cloud sync.
-  // 1. stateLoad() to recover the last-used repo path
-  // 2. projectBootstrap into ~/OpenIT/local/ if needed
-  // 3. migrateFlatTriage (V1 → V2 folder layout, local-only migration)
-  // 4. syncSkillsToDisk if the bundled plugin version is ahead of disk
-  // 5. setRepo, setBypassOnboarding(true), finish
+  // Boot sequence — registry-driven.
+  // 1. Read workspace registry for the active vault path
+  // 2. If no workspaces, show the vault picker (onboarding)
+  // 3. If active workspace exists, bootstrap it and load
   useEffect(() => {
-    stateLoad()
-      .then(async (s) => {
-        // Repos created before we moved out of ~/Documents are stale — TCC blocks
-        // fs/git ops there. Discard so we re-bootstrap into the new ~/OpenIT/ root.
-        const stale = s.last_repo?.includes("/Documents/OpenIT/") ?? false;
-        const lastRepo = stale ? null : s.last_repo;
-        if (stale) {
-          console.log("[app] discarding legacy ~/Documents/OpenIT/ last_repo");
-        }
-        console.log("[app] startup state:", {
-          hasRepo: !!lastRepo,
-          localOnly: true,
+    listWorkspaces()
+      .then(async (reg) => {
+        const activePath = reg.active;
+        console.log("[app] startup:", {
+          workspaces: reg.workspaces.length,
+          active: activePath,
         });
 
-        try {
-          console.log("[app] local-only bootstrap");
-          let projectPath: string;
-          if (lastRepo) {
-            // Re-run bootstrap so idempotent layout guards in project.rs
-            // (e.g. creating new top-level dirs like `reports/` that
-            // shipped after the project was first initialized) fire on
-            // existing projects. Rust gates first-run side effects on
-            // `!already_existed`, so this is safe to call.
-            try {
-              await projectBootstrap({ orgName: LOCAL_ORG_NAME, orgId: LOCAL_ORG_ID });
-            } catch (e) {
-              console.warn("[app] local-relaunch bootstrap failed (non-fatal):", e);
-            }
-            projectPath = lastRepo;
-          } else {
-            const result = await projectBootstrap({
-              orgName: LOCAL_ORG_NAME,
-              orgId: LOCAL_ORG_ID,
-            });
-            projectPath = result.path;
-            await stateSave({
-              last_repo: projectPath,
-              pane_sizes: s.pane_sizes ?? null,
-              pinned_bubbles: s.pinned_bubbles ?? null,
-              onboarding_complete: s.onboarding_complete ?? false,
-            });
-          }
-
-          // V1 → V2 migration must complete before syncSkillsToDisk
-          // touches `agents/triage/`. Otherwise the bundled plugin
-          // writes the folder layout first, the shim sees
-          // `folderExists=true` and bails — silently abandoning the
-          // user's V1 `instructions` in the orphaned flat file.
+        if (!activePath) {
+          // No workspace — show the vault picker (onboarding).
+          // Also check legacy stateLoad for migration from Phase 1.
           try {
-            await migrateFlatTriage(projectPath);
-          } catch (e) {
-            console.warn("[app] migration failed (non-fatal):", e);
+            const s = await stateLoad();
+            if (s.last_repo && !s.last_repo.includes("/Documents/OpenIT/")) {
+              // Migrate: register the legacy repo as a workspace
+              const name = s.last_repo.split("/").filter(Boolean).pop() ?? "Personal";
+              await createWorkspace(s.last_repo, name);
+              await openVault(s.last_repo);
+              return;
+            }
+          } catch {
+            // No legacy state — show picker
           }
-
-          setRepo(projectPath);
-          setBypassOnboarding(true);
-
-          // Sync the bundled plugin if the sentinel triage agent file
-          // isn't on disk yet or the version is out of date.
-          if (!(await bundledPluginIsCurrent(projectPath))) {
-            syncSkillsToDisk(projectPath, null)
-              .then((manifest) => {
-                console.log("[app] bundled skill sync complete, bubbles:", manifest.bubbles);
-                setBubbles(convertBubblesForPrompt(manifest.bubbles));
-              })
-              .catch((e) => console.error("bundled skill sync failed:", e));
-          }
-        } catch (e) {
-          console.error("[app] local-only bootstrap failed:", e);
+          setLoaded(true);
+          return;
         }
-        setLoaded(true);
+
+        await openVault(activePath);
       })
-      .catch(() => setLoaded(true));
+      .catch((e) => {
+        console.error("[app] boot failed:", e);
+        setLoaded(true);
+      });
   }, []);
 
   // Localhost ticket-intake server lifecycle. Tied to `repo` — start
@@ -547,7 +533,11 @@ function App() {
   if (showOnboarding) {
     return (
       <Onboarding
-        onContinue={() => setBypassOnboarding(true)}
+        onOpenVault={async (path: string) => {
+          const name = path.split("/").filter(Boolean).pop() ?? "Vault";
+          await createWorkspace(path, name);
+          await openVault(path);
+        }}
       />
     );
   }
