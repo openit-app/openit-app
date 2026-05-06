@@ -24,7 +24,7 @@ const STATIONS: Station[] = [
   { id: "reports",   kind: "reports",   rel: "reports",           countMode: "files" },
   { id: "people",    kind: "people",    rel: "databases/people",  countMode: "json-rows" },
   { id: "knowledge", kind: "knowledge", rel: "knowledge-bases",   countMode: "dirs" },
-  { id: "agents",    kind: "agents",    rel: "agents",            countMode: "dirs" },
+  { id: "agents",    kind: "agents",    rel: "agents",            countMode: "files" },
   // Skills + scripts (PIN-5829) — admin-curated artifacts captured by
   // /conversation-to-automation. Both live as filestore subdirs and
   // mirror into .claude/ for native discovery; here we surface the
@@ -102,12 +102,35 @@ export function Workbench({
           // Tools is a synthetic station — counted from `which`
           // detection per catalog entry, not from a real directory.
           if (s.id === "tools") {
+            // CLI installed + MCP installed
             try {
-              const ids = await listInstalledTools();
-              next[s.id] = ids.size;
+              const cliCount = (await listInstalledTools()).size;
+              let mcpCount = 0;
+              try {
+                const { listInstalledMcps } = await import("../lib/api");
+                mcpCount = (await listInstalledMcps(repo ?? undefined)).length;
+              } catch { /* MCP scan optional */ }
+              next[s.id] = cliCount + mcpCount;
             } catch {
               next[s.id] = 0;
             }
+            return;
+          }
+          if (s.id === "skills") {
+            // Slash commands (.claude/skills/ dirs) + custom (filestores/skills/ files)
+            let slashCount = 0;
+            let customCount = 0;
+            try {
+              const slashRoot = `${repo}/.claude/skills`;
+              const slashItems = await fsList(slashRoot);
+              slashCount = directChildren(slashItems, slashRoot).filter((n) => n.is_dir).length;
+            } catch { /* .claude/skills/ may not exist */ }
+            try {
+              const customRoot = `${repo}/filestores/skills`;
+              const customItems = await fsList(customRoot);
+              customCount = directChildren(customItems, customRoot).filter((n) => !n.is_dir && n.name.endsWith(".md")).length;
+            } catch { /* filestores/skills/ may not exist */ }
+            next[s.id] = slashCount + customCount;
             return;
           }
           try {

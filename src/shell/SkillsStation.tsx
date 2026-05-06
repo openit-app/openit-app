@@ -156,8 +156,6 @@ export function SkillsStation({
 
   return (
     <div className={styles.panel}>
-      <h2 className={styles.heading}>Skills</h2>
-
       <div className={styles.tabStrip}>
         <button
           type="button"

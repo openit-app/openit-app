@@ -260,7 +260,7 @@ function EntityCardItem({
       </div>
     </Tag>
   );
-  if (!c.onDelete && !c.onRun && !c.onAddToClaude) return card;
+  if (!c.onDelete && !c.onRun) return card;
   // Action buttons (run, delete) have to sit OUTSIDE the card's
   // <button> element — nesting interactive controls inside a button
   // is invalid HTML and the click target collapses. Wrap card +
@@ -271,22 +271,6 @@ function EntityCardItem({
   return (
     <div className="entity-card-wrapper">
       {card}
-      {c.onAddToClaude && (
-        <Button
-          variant="ghost"
-          size="sm"
-          iconOnly
-          className="entity-card-add-claude"
-          title={`Add to Claude`}
-          aria-label={`Add ${c.title} to Claude`}
-          onClick={(e) => {
-            e.stopPropagation();
-            void c.onAddToClaude?.();
-          }}
-        >
-          <svg width={14} height={14} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><path d="M12 5v14"/><path d="M5 12h14"/></svg>
-        </Button>
-      )}
       {c.onRun && (
         <Button
           variant="ghost"
