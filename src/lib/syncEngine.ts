@@ -2,7 +2,7 @@
 // and the auto-commit helper. Cloud pull/push pipeline and collection sync
 // have been removed — entity sync files and their adapters are deleted.
 
-import { gitCommitPaths, type KbStatePersisted } from "./api";
+import type { KbStatePersisted } from "./api";
 
 export type Manifest = KbStatePersisted;
 
@@ -119,32 +119,6 @@ export type Conflict = {
   workingTreePath: string;
   reason: "local-and-remote-changed";
 };
-
-// ---------------------------------------------------------------------------
-// Per-repo+entity serializer. Pull, push, and bootstrap-write all serialize
-// on this lock so manifest mutations can never race. KB historically used a
-// module-level Promise queue; we mirror that semantics per (repo, prefix)
-// since two different entities (e.g. KB pull + datastore pull) don't need
-// to wait for each other, but two operations on the same entity must.
-// ---------------------------------------------------------------------------
-
-const repoLocks = new Map<string, Promise<unknown>>();
-
-function lockKey(repo: string, prefix: string): string {
-  return `${prefix}:${repo}`;
-}
-
-export function withRepoLock<T>(
-  repo: string,
-  prefix: string,
-  fn: () => Promise<T>,
-): Promise<T> {
-  const key = lockKey(repo, prefix);
-  const previous = repoLocks.get(key) ?? Promise.resolve();
-  const next = previous.catch(() => undefined).then(fn);
-  repoLocks.set(key, next.catch(() => undefined));
-  return next;
-}
 
 // ---------------------------------------------------------------------------
 // Conflict aggregate. Every successful pull call replaces this adapter's
@@ -338,29 +312,3 @@ export function buildConflictPrompt(
   return lines.join("\n");
 }
 
-// ---------------------------------------------------------------------------
-// Auto-commit helper. Centralises the gitignore-safe pathspec rule: the
-// engine NEVER passes `*.server.*` paths to git_commit_paths because git
-// rejects gitignored paths and would drop the whole batch. Adapters add
-// only canonical paths to `touched`; engine just commits.
-// ---------------------------------------------------------------------------
-
-export async function commitTouched(
-  repo: string,
-  touched: string[],
-  message: string,
-): Promise<void> {
-  if (touched.length === 0) return;
-  // Serialize commits across all entity prefixes through a dedicated
-  // `(repo, "git")` queue. Per-prefix locks already prevent two ops
-  // on the same entity from racing, but they don't prevent kb-push and
-  // filestore-pull from hitting `gitCommitPaths` concurrently — which
-  // races on `.git/index.lock`.
-  await withRepoLock(repo, "git", async () => {
-    try {
-      await gitCommitPaths(repo, touched, message);
-    } catch (e) {
-      console.warn(`[syncEngine] commit failed (${message}):`, e);
-    }
-  });
-}

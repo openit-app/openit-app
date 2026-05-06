@@ -2,8 +2,6 @@ mod agent_trace;
 mod claude;
 mod filestore;
 mod fs_tree;
-mod git_history;
-mod git_ops;
 mod intake;
 mod kb;
 mod keychain;
@@ -18,6 +16,7 @@ mod slack;
 mod state;
 mod tools;
 mod tunnel;
+mod user_identity;
 mod watcher;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -57,20 +56,7 @@ pub fn run() {
             fs_tree::fs_reveal,
             fs_tree::fs_open,
             fs_tree::fs_delete,
-            git_history::git_log,
-            git_history::git_diff,
-            git_ops::git_ensure_repo,
-            git_ops::git_add_and_commit,
-            git_ops::git_commit_paths,
-            git_ops::git_status_short,
-            git_ops::git_stage,
-            git_ops::git_unstage,
-            git_ops::git_commit_staged,
-            git_ops::git_discard,
-            git_ops::git_file_diff,
-            git_ops::git_has_conflict_markers,
-            git_ops::git_diff_name_only,
-            git_ops::git_global_user_email,
+            user_identity::global_user_email,
             claude::claude_generate_commit_message,
             tools::tools_is_installed,
             tools::tools_target_os,

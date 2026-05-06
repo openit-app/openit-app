@@ -23,79 +23,11 @@ export async function fsDelete(path: string): Promise<void> {
   return invoke("fs_delete", { path });
 }
 
-export type GitCommit = {
-  sha: string;
-  short_sha: string;
-  author: string;
-  date: string;
-  subject: string;
-};
-
-export async function gitLog(repo: string): Promise<GitCommit[]> {
-  return invoke("git_log", { repo });
-}
-
-export async function gitDiff(repo: string, sha: string): Promise<string> {
-  return invoke("git_diff", { repo, sha });
-}
-
-export async function gitEnsureRepo(repo: string): Promise<void> {
-  return invoke("git_ensure_repo", { repo });
-}
-
-export async function gitAddAndCommit(repo: string, message: string): Promise<boolean> {
-  return invoke("git_add_and_commit", { repo, message });
-}
-
-/// Stage exactly the given paths (relative to repo root) and commit. Used by
-/// the sync layer so auto-commits never sweep up unrelated user WIP.
-export async function gitCommitPaths(
-  repo: string,
-  paths: string[],
-  message: string,
-): Promise<boolean> {
-  return invoke("git_commit_paths", { repo, paths, message });
-}
-
-export type GitFileStatus = { path: string; status: string; staged: boolean };
-
-export async function gitStatusShort(repo: string): Promise<GitFileStatus[]> {
-  return invoke("git_status_short", { repo });
-}
-
-export async function gitStage(repo: string, paths: string[]): Promise<void> {
-  return invoke("git_stage", { repo, paths });
-}
-
-export async function gitUnstage(repo: string, paths: string[]): Promise<void> {
-  return invoke("git_unstage", { repo, paths });
-}
-
-export async function gitCommitStaged(repo: string, message: string): Promise<boolean> {
-  return invoke("git_commit_staged", { repo, message });
-}
-
-export async function gitDiscard(repo: string, paths: string[]): Promise<void> {
-  return invoke("git_discard", { repo, paths });
-}
-
-export async function gitFileDiff(repo: string, path: string): Promise<string> {
-  return invoke("git_file_diff", { repo, path });
-}
-
-export async function gitHasConflictMarkers(repo: string): Promise<boolean> {
-  return invoke("git_has_conflict_markers", { repo });
-}
-
-export async function gitDiffNameOnly(repo: string, baseSha: string): Promise<string[]> {
-  return invoke("git_diff_name_only", { repo, baseSha });
-}
-
 /// User's global git email — used as a best-guess admin identity for
 /// in-app writes (conversation reply, etc.). Returns null when git's
 /// user.email is unset, blank, or the project-local placeholder.
-export async function gitGlobalUserEmail(): Promise<string | null> {
-  return invoke<string | null>("git_global_user_email");
+export async function globalUserEmail(): Promise<string | null> {
+  return invoke<string | null>("global_user_email");
 }
 
 /// Generic binary write to `<repo>/<subdir>/<filename>`. Used by the

@@ -14,11 +14,9 @@ import {
   fsDelete,
   fsList,
   fsReveal,
-  gitStatusShort,
   kbDeleteFile,
   kbWriteFileBytes,
   type FileNode,
-  type GitFileStatus,
 } from "../lib/api";
 import { subscribeConflicts, type AggregatedConflict } from "../lib/syncEngine";
 import type { DataCollection, MemoryItem } from "../lib/localTypes";
@@ -26,12 +24,6 @@ import type { DataCollection, MemoryItem } from "../lib/localTypes";
 function relPath(repo: string, absPath: string): string {
   const prefix = `${repo}/`;
   return absPath.startsWith(prefix) ? absPath.slice(prefix.length) : absPath;
-}
-
-function gitStatusForPath(rel: string, rows: GitFileStatus[]): GitFileStatus | undefined {
-  const direct = rows.find((r) => r.path === rel);
-  if (direct) return direct;
-  return rows.find((r) => rel.startsWith(`${r.path}/`));
 }
 
 /**
@@ -181,41 +173,22 @@ function friendlyDroppedFilename(fileName: string, urlHint?: string): string {
 function fileColorClass(
   n: FileNode,
   repo: string,
-  gitRows: GitFileStatus[],
   conflictPaths: Set<string>,
 ): string {
   if (n.is_dir) return "";
   const rel = relPath(repo, n.path);
-  // Engine-tracked conflict on the canonical path beats git's view.
   if (conflictPaths.has(rel)) return "file-color-conflict";
-  const st = gitStatusForPath(rel, gitRows);
-  if (!st) return "";
-  if (st.status === "UU") return "file-color-conflict";
-  if (st.status === "?") return "file-color-untracked";
-  if (st.status === "M") return "file-color-modified";
-  if (st.status === "A") return "file-color-added";
-  if (st.status === "D") return "file-color-deleted";
   return "";
 }
 
 function fileStatusBadge(
   n: FileNode,
   repo: string,
-  gitRows: GitFileStatus[],
   conflictPaths: Set<string>,
 ): string | null {
   if (n.is_dir) return null;
   const rel = relPath(repo, n.path);
-  // Conflict marker takes priority over git status — the user needs to
-  // resolve the conflict before the modified/untracked state matters.
   if (conflictPaths.has(rel)) return "⚠";
-  const st = gitStatusForPath(rel, gitRows);
-  if (!st) return null;
-  if (st.status === "UU") return "⚠";
-  if (st.status === "?") return "U";
-  if (st.status === "M") return "M";
-  if (st.status === "A") return "A";
-  if (st.status === "D") return "D";
   return null;
 }
 
@@ -292,7 +265,6 @@ export function FileExplorer({
   const [dragOver, setDragOver] = useState(false);
   const [dropTargetPath, setDropTargetPath] = useState<string | null>(null);
   const [rejectedFiles, setRejectedFiles] = useState<string[]>([]);
-  const [gitRows, setGitRows] = useState<GitFileStatus[]>([]);
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number; path: string; isDir: boolean } | null>(null);
   // Two-click delete confirm — `window.confirm` is blocked by Tauri
   // permissions; this is the inline alternative. Click "Delete" once →
@@ -404,17 +376,6 @@ export function FileExplorer({
       return changed ? next : prev;
     });
   }, [selectedPath, repo]);
-
-  // Git status — refreshes on fs watcher events (fsTick) instead of polling
-  useEffect(() => {
-    if (!repo) {
-      setGitRows([]);
-      return;
-    }
-    gitStatusShort(repo)
-      .then(setGitRows)
-      .catch(() => setGitRows([]));
-  }, [repo, fsTick]);
 
   const hasCollapsedOnceRef = useRef(false);
 
@@ -718,8 +679,8 @@ export function FileExplorer({
           const rel = n.path.startsWith(repo + "/") ? n.path.slice(repo.length + 1) : n.name;
           const depth = rel.split("/").length - 1;
           const isCollapsedRow = collapsed.has(n.path);
-          const colorClass = repo ? fileColorClass(n, repo, gitRows, conflictPaths) : "";
-          const badge = repo ? fileStatusBadge(n, repo, gitRows, conflictPaths) : null;
+          const colorClass = repo ? fileColorClass(n, repo, conflictPaths) : "";
+          const badge = repo ? fileStatusBadge(n, repo, conflictPaths) : null;
           return (
             <li
               key={n.path}

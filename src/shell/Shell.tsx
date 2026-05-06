@@ -5,9 +5,6 @@ import {
   entityWriteFile,
   fsDelete,
   fsRead,
-  gitCommitStaged,
-  gitStage,
-  gitStatusShort,
   stateLoad,
   type AppPersistedState,
 } from "../lib/api";
@@ -545,39 +542,13 @@ export function Shell({
           console.warn("[shell] failed to delete push-request:", e);
         }
 
-        // Local-only mode: auto-commit any pending working-tree
-        // changes, then write a result file so the script's poll
-        // loop can exit. No cloud push.
-        onSyncLine("─── push triggered by Claude (local-only) ───");
+        // Local-only mode: git has been removed. Just write a success
+        // result file so the script's poll loop can exit.
+        onSyncLine("─── push triggered by Claude (local-only, no-op) ───");
+        onSyncLine("▸ git removed — nothing to commit");
 
-        const lines: string[] = [];
-        const onLine = (line: string) => {
-          lines.push(line);
-          onSyncLine(line);
-        };
-        let status: "ok" | "error" = "ok";
-        let errorPayload: { code: string; message: string } | undefined;
-
-        try {
-          const wsStatus = await gitStatusShort(repo);
-          if (wsStatus.length > 0) {
-            const unstaged = wsStatus.filter((f) => !f.staged).map((f) => f.path);
-            if (unstaged.length > 0) await gitStage(repo, unstaged);
-            const ts = new Date().toISOString();
-            await gitCommitStaged(repo, `local: auto-commit @ ${ts}`);
-            onLine("▸ auto-committed local changes");
-          } else {
-            onLine("▸ nothing to commit");
-          }
-        } catch (e) {
-          status = "error";
-          errorPayload = { code: "commit_failed", message: String(e) };
-          onLine(`✗ local commit failed: ${errorPayload.message}`);
-        }
-
-        // Always write the result file — a script may be polling.
         const payload = JSON.stringify(
-          { status, error: errorPayload, lines, finishedAt: new Date().toISOString() },
+          { status: "ok", lines: ["git removed — nothing to commit"], finishedAt: new Date().toISOString() },
           null,
           2,
         );

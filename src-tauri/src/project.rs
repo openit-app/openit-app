@@ -4,7 +4,6 @@ use std::path::{Path, PathBuf};
 
 use serde::Serialize;
 
-use crate::git_ops;
 
 /// Find a free destination filename in `dir` for a migration. If
 /// `<name>` doesn't exist returns it; otherwise tries
@@ -214,10 +213,6 @@ pub fn project_bootstrap(org_name: String, org_id: String) -> Result<BootstrapRe
         }
         let _ = fs::remove_dir(&legacy_kb);
     }
-
-    // Local git for sync history (idempotent if `.git` already exists).
-    git_ops::git_ensure_repo(path.to_string_lossy().into_owned())
-        .map_err(|e| format!("git init failed: {}", e))?;
 
     Ok(BootstrapResult {
         path: path.to_string_lossy().into_owned(),

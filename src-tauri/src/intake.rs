@@ -2135,41 +2135,10 @@ async fn write_agent_turn(repo: &Path, ticket_id: &str, body: &str) -> Result<()
 }
 
 /// Stage and commit the per-turn intake writes (ticket file,
-/// conversation thread, people row) so they don't surface as
-/// uncommitted noise in the admin's Versions panel. Errors are
-/// non-fatal — the writes already landed on disk; a missed commit
-/// just means the next chat turn (or a manual commit) will sweep
-/// them up.
-///
-/// `git_commit_paths` is a sync function that shells out to `git`,
-/// so we run it on the blocking pool. The cost is negligible
-/// compared to the ~3-5s claude-p turn it follows.
-async fn auto_commit_chat_turn(repo: &Path, ticket_id: &str, email: &str) {
-    let repo_str = repo.to_string_lossy().into_owned();
-    let people_key = sanitize_email_key(email);
-    // Pass the conversation directory rather than each individual
-    // msg-*.json file: `git add -- <dir>` picks up the asker's turn
-    // AND the agent's reply written later in the same handler. If the
-    // ticket or people row didn't change (e.g. terminal-state
-    // follow-up that skipped mark_status), `git diff --cached` will
-    // simply find no changes for them and the commit shrinks to
-    // whatever did move.
-    let paths = vec![
-        format!("databases/tickets/{}.json", ticket_id),
-        format!("databases/conversations/{}", ticket_id),
-        format!("databases/people/{}.json", people_key),
-    ];
-    let message = format!("intake: chat turn for ticket {}", ticket_id);
-    match tokio::task::spawn_blocking(move || {
-        crate::git_ops::git_commit_paths(repo_str, paths, message)
-    })
-    .await
-    {
-        Err(join_err) => eprintln!("[intake/chat] auto_commit join error: {}", join_err),
-        Ok(Err(commit_err)) => eprintln!("[intake/chat] auto_commit failed: {}", commit_err),
-        Ok(Ok(_)) => {}
-    }
-}
+/// No-op — git has been removed. Chat-turn files land on disk via the
+/// write calls above; no commit step needed. Kept as a stub so callers
+/// don't need restructuring.
+async fn auto_commit_chat_turn(_repo: &Path, _ticket_id: &str, _email: &str) {}
 
 fn first_line_truncated(s: &str, max: usize) -> String {
     let line = s.lines().next().unwrap_or(s).trim();

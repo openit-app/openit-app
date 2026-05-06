@@ -1229,14 +1229,14 @@ export function Viewer({
     setReportError(null);
   }, [source]);
   useEffect(() => {
-    // Fetch the admin's git email once and cache it so the composer
-    // doesn't re-shell for every thread open. Falls back to "admin"
-    // if git's user.email isn't set globally.
+    // Fetch the admin's email once and cache it so the composer
+    // doesn't re-invoke for every thread open. Falls back to "admin"
+    // if user.email isn't set globally.
     let cancelled = false;
     (async () => {
       try {
-        const { gitGlobalUserEmail } = await import("../lib/api");
-        const email = await gitGlobalUserEmail();
+        const { globalUserEmail } = await import("../lib/api");
+        const email = await globalUserEmail();
         if (!cancelled) setAdminEmail(email);
       } catch {
         /* leave as null — composer falls back to "admin" */
