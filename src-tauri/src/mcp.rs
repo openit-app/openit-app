@@ -117,7 +117,19 @@ pub fn list_installed_mcps(repo: Option<String>) -> Vec<InstalledMcp> {
         }
     }
 
-    // 3. Project-level .mcp.json
+    // 3. Project-level .claude/settings.local.json
+    // `claude mcp add` writes project-scoped servers here.
+    if let Some(ref repo_path) = repo {
+        let path = PathBuf::from(repo_path).join(".claude").join("settings.local.json");
+        for mcp in read_mcp_servers_from_file(&path, "project") {
+            if !seen.contains_key(&mcp.name) {
+                seen.insert(mcp.name.clone(), true);
+                result.push(mcp);
+            }
+        }
+    }
+
+    // 4. Project-level .mcp.json (legacy / manual config)
     if let Some(repo_path) = repo {
         let path = PathBuf::from(&repo_path).join(".mcp.json");
         for mcp in read_mcp_servers_from_file(&path, "project") {

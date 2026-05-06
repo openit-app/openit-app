@@ -238,8 +238,10 @@ const onAskClaude = async (entry: CatalogEntry, status: CardStatus) => {
       const cmd = `claude mcp add ${entry.id} --transport stdio -- ${parts.join(" ")}`;
       await writeToActiveSession(cmd + "\r");
     }
-    // Refresh after a short delay to let Claude process the command.
-    setTimeout(() => void refreshInstalledMcps(), 3000);
+    // Refresh after delays to let Claude write the config file.
+    setTimeout(() => void refreshInstalledMcps(), 2000);
+    setTimeout(() => void refreshInstalledMcps(), 5000);
+    setTimeout(() => void refreshInstalledMcps(), 10000);
   };
 
   const setMcpEnvVar = (entryId: string, varName: string, value: string) => {
