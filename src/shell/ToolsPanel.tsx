@@ -275,7 +275,6 @@ export function ToolsPanel({ projectRoot }: { projectRoot: string | null }) {
                   <McpCard
                     key={entry.id}
                     entry={entry}
-                    connected={false}
                     envInputs={mcpEnvInputs[entry.id] ?? {}}
                     onEnvChange={(varName, value) =>
                       setMcpEnvVar(entry.id, varName, value)
@@ -384,15 +383,13 @@ function InstalledMcpCard({
             {sourceBadgeLabel(mcp.source)}
           </span>
         </span>
-        <span className={styles.mcpTransportBadge}>{mcp.transport}</span>
+        <span className={styles.installedPill}>Installed</span>
       </div>
       <div className={styles.cardActions}>
-        {needsAuth ? (
+        {needsAuth && (
           <Button variant="primary" size="sm" onClick={onAuthenticate}>
             Authenticate
           </Button>
-        ) : (
-          <span className={styles.mcpConnectedLabel}>Connected</span>
         )}
         <Button variant="link" size="sm" onClick={onExplore}>
           What can I do with this? →
@@ -411,13 +408,11 @@ function InstalledMcpCard({
 
 function McpCard({
   entry,
-  connected,
   envInputs,
   onEnvChange,
   onConnect,
 }: {
   entry: McpEntry;
-  connected: boolean;
   envInputs: Record<string, string>;
   onEnvChange: (varName: string, value: string) => void;
   onConnect: () => void;
@@ -430,15 +425,12 @@ function McpCard({
     <div className={styles.card}>
       <div className={styles.cardHeader}>
         <span className={styles.cardTitle}>
-          {connected && <span className={styles.installedDot} aria-hidden />}
           {entry.name}
         </span>
-        {connected && <span className={styles.installedPill}>Connected</span>}
       </div>
       <p className={styles.cardDesc}>{entry.description}</p>
 
-      {/* Env var inputs for servers that require credentials */}
-      {needsEnv && !connected && (
+      {needsEnv && (
         <div className={styles.mcpEnvBlock}>
           {entry.envVars.map((varName) => (
             <input
@@ -455,17 +447,13 @@ function McpCard({
       )}
 
       <div className={styles.cardActions}>
-        {connected ? (
-          <span className={styles.mcpConnectedLabel}>Connected</span>
-        ) : (
-          <Button
-            variant="primary"
-            onClick={onConnect}
-            disabled={!allEnvFilled}
-          >
-            Connect
-          </Button>
-        )}
+        <Button
+          variant="primary"
+          onClick={onConnect}
+          disabled={!allEnvFilled}
+        >
+          Connect
+        </Button>
         <a
           className={styles.docsLink}
           href={entry.docsUrl}
