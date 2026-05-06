@@ -347,18 +347,6 @@ function ToolCard({
 // Installed MCP card — shown in "Your Connections"
 // ---------------------------------------------------------------------------
 
-function sourceBadgeLabel(source: string): string {
-  switch (source) {
-    case "claude-code":
-      return "global";
-    case "claude-code-project":
-      return "this vault";
-    case "claude-desktop":
-      return "Claude app";
-    default:
-      return source;
-  }
-}
 
 function InstalledMcpCard({
   mcp,
