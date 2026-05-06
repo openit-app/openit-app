@@ -7,9 +7,7 @@ mod git_ops;
 mod intake;
 mod kb;
 mod keychain;
-mod oauth_callback;
 mod openit_config;
-mod pinkfish;
 mod project;
 mod pty;
 mod reports;
@@ -45,7 +43,6 @@ pub fn run() {
         .manage(watcher::WatcherState::default())
         .manage(intake::IntakeState::default())
         .manage(tunnel::TunnelState::default())
-        .manage(oauth_callback::OauthCallbackState::default())
         .manage(slack::SlackSupervisorState::default())
         .invoke_handler(tauri::generate_handler![
             pty::pty_spawn,
@@ -86,14 +83,7 @@ pub fn run() {
             keychain::keychain_get,
             keychain::keychain_delete,
             keychain::keychain_probe,
-            pinkfish::pinkfish_oauth_exchange,
-            pinkfish::pinkfish_list_orgs,
-            pinkfish::pinkfish_list_connections,
-            pinkfish::pinkfish_mcp_call,
             project::project_bootstrap,
-            project::project_bind_to_cloud,
-            project::project_get_cloud_binding,
-            project::project_update_last_sync_at,
             reports::report_overview_run,
             scripts::script_run,
             kb::kb_init,
@@ -134,9 +124,6 @@ pub fn run() {
             tunnel::tunnel_start,
             tunnel::tunnel_stop,
             tunnel::tunnel_url,
-            oauth_callback::oauth_callback_start,
-            oauth_callback::oauth_callback_await,
-            oauth_callback::oauth_callback_cancel,
             agent_trace::agent_trace_latest,
             skill_canvas::skill_state_read,
             skill_canvas::skill_state_write,

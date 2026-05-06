@@ -6,7 +6,7 @@ import type {
   PersonSummary,
   ViewerSource,
 } from "./types";
-import type { DataCollection } from "../lib/skillsApi";
+import type { DataCollection } from "../lib/localTypes";
 
 /**
  * Given an absolute file path, determine if it's an entity file
@@ -964,7 +964,7 @@ export async function resolvePathToSource(
           itemNoun: builtin?.itemNoun ?? "file",
           description:
             builtin?.description ??
-            "User-created filestore. Files here cloud-sync as their own collection when you connect to Pinkfish.",
+            "User-created filestore.",
           isBuiltin: !!builtin,
         });
       }

@@ -64,7 +64,7 @@ export function ConflictBanner() {
       <span className="conflict-banner-text">
         {conflicts.length} sync conflict
         {conflicts.length === 1 ? "" : "s"}. Local edits diverge from
-        Pinkfish on <strong>{first.workingTreePath}</strong>
+        remote on <strong>{first.workingTreePath}</strong>
         {others > 0
           ? ` and ${others} other file${others === 1 ? "" : "s"}`
           : ""}

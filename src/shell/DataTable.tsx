@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import type { DataCollection, MemoryItem } from "../lib/skillsApi";
+import type { DataCollection, MemoryItem } from "../lib/localTypes";
 import { TrashIcon } from "./TrashIcon";
 
 type Props = {
@@ -26,7 +26,7 @@ function formatCell(value: unknown, fieldType: string): string {
 export function DataTable({ collection, items, hasMore, onLoadMore, onRowClick, onRowDelete }: Props) {
   const [sort, setSort] = useState<SortState>(null);
 
-  const fields = collection.schema?.fields ?? [];
+  const fields = (collection.schema as { fields?: Array<Record<string, unknown>> })?.fields ?? [];
 
   const handleHeaderClick = (fieldId: string) => {
     setSort((prev) => {
@@ -91,15 +91,15 @@ export function DataTable({ collection, items, hasMore, onLoadMore, onRowClick, 
             >
               Key{sort?.fieldId === "key" ? (sort.direction === "asc" ? " \u25B2" : " \u25BC") : ""}
             </th>
-            {fields.map((field) => (
+            {fields.map((field: Record<string, unknown>) => (
               <th
-                key={field.id}
-                onClick={() => handleHeaderClick(field.id)}
+                key={field.id as string}
+                onClick={() => handleHeaderClick(field.id as string)}
                 style={{ cursor: "pointer" }}
               >
-                {field.label}
+                {field.label as string}
                 {sort?.fieldId === field.id
-                  ? sort.direction === "asc"
+                  ? sort?.direction === "asc"
                     ? " \u25B2"
                     : " \u25BC"
                   : ""}
@@ -116,9 +116,9 @@ export function DataTable({ collection, items, hasMore, onLoadMore, onRowClick, 
               onClick={onRowClick && row.key ? () => onRowClick(row.key) : undefined}
             >
               <td className="data-table-cell">{row.key}</td>
-              {fields.map((field) => (
-                <td key={field.id} className="data-table-cell">
-                  {formatCell(row.parsed[field.id], field.type)}
+              {fields.map((field: Record<string, unknown>) => (
+                <td key={field.id as string} className="data-table-cell">
+                  {formatCell(row.parsed[field.id as string], field.type as string)}
                 </td>
               ))}
               {onRowDelete && (

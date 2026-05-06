@@ -11,24 +11,8 @@ import {
   stateLoad,
   type AppPersistedState,
 } from "../lib/api";
-import { pushAllEntities } from "../lib/pushAll";
-import { clearConflictsForPrefix } from "../lib/syncEngine";
-import {
-  buildKbConflictPrompt,
-  getSyncStatus,
-  kbHasServerShadowFiles,
-  pullAllKbNow,
-  subscribeSync,
-} from "../lib/kbSync";
-import {
-  getFilestoreSyncStatus,
-  pullOnce as filestorePullOnce,
-  displayFilestoreName,
-} from "../lib/filestoreSync";
-import { pullDatastoresOnce } from "../lib/datastoreSync";
-import { loadCreds } from "../lib/pinkfishAuth";
 import { fsWatchStart, fsWatchStop, onFsChanged } from "../lib/fsWatcher";
-import { startAutoCommitDriver, stopAutoCommitDriver } from "../lib/autoCommitDriver";
+// Auto-commit disabled in local-first mode.
 import { startSkillMirrorDriver, stopSkillMirrorDriver } from "../lib/skillMirror";
 import { ChatPane } from "./ChatPane";
 import { ChatShellHeader } from "./ChatShellHeader";
@@ -44,15 +28,14 @@ import { FileExplorer } from "./FileExplorer";
 import { EscalatedTicketBanner } from "./EscalatedTicketBanner";
 import { AgentActivityBanner } from "./AgentActivityBanner";
 import { PromptBubbles, type Bubble } from "./PromptBubbles";
-import { SourceControl } from "./SourceControl";
+// SourceControl removed — local-first mode has no commit/push UI.
+// Phase 2 re-introduces it gated to syncMode === "git".
 import { Viewer, type ViewerSource } from "./Viewer";
-import { PaneBody, Tab, TabStrip } from "../ui";
+// Tab, TabStrip, PaneBody removed — left pane is now just FileExplorer.
 import type { DockKind } from "../lib/skillState";
 import { resolvePathToSource } from "./entityRouting";
 import { sourceToTreePath } from "./sourceToTreePath";
 import { SkillActionDock } from "./SkillActionDock";
-
-type LeftTab = "overview" | "files" | "source-control";
 
 /// Stable id for each pane. Used to drive reordering — the user can
 /// drag a pane's grip onto another pane and the layout state tracks
@@ -140,42 +123,27 @@ function capStack(s: ViewerSource[]): ViewerSource[] {
 
 export function Shell({
   repo,
-  syncLines,
-  onSyncLine,
   bubbles,
-  cloudConnected,
   intakeUrl,
-  tunnelUrl,
   dock,
   slackOrgId,
   stagedSlackBotToken,
   onStagedSlackBotTokenChange,
   registerManualPull,
-  registerSwitchToSync,
-  registerShowCloudCta,
 }: {
   repo: string | null;
-  syncLines: string[];
-  onSyncLine: (line: string) => void;
   bubbles: Bubble[];
-  /** Whether Pinkfish creds are loaded. Drives the Sync-to-Cloud button:
-   *  push when true, CTA-to-connect when false. */
-  cloudConnected: boolean;
   /** Current intake server URL (or null if not yet started). Substituted
    *  into `{{INTAKE_URL}}` placeholders in markdown content (e.g. the
-   *  welcome doc) only when the public tunnel URL isn't available. */
+   *  welcome doc). */
   intakeUrl: string | null;
-  /** Public tunnel URL for the intake server (e.g. `https://xxx.lhr.life`).
-   *  Preferred over `intakeUrl` for `{{INTAKE_URL}}` substitution so the
-   *  welcome doc's CTA link is shareable instead of pointing at localhost. */
-  tunnelUrl: string | null;
   /** Which secret-paste affordance the chat-anchored
    *  SkillActionDock should surface, if any. Driven by the
    *  `.openit/skill-state/connect-slack.json` side channel (read in
    *  App.tsx). The dock renders nothing when this is null/undefined.
    */
   dock: DockKind | undefined;
-  /** Pinkfish orgId (or "" for local-only) — needed by
+  /** orgId (or "" for local-only) — needed by
    *  SkillActionDock when it calls slack_connect (Keychain slot is
    *  scoped per org). */
   slackOrgId: string;
@@ -188,15 +156,15 @@ export function Shell({
   onStagedSlackBotTokenChange: (t: string | null) => void;
   /** Register the manual-pull handler so the command palette can call it. */
   registerManualPull: (fn: () => void) => void;
-  /** Register the switch-to-sync-tab handler so the command palette can call it. */
-  registerSwitchToSync: (fn: () => void) => void;
-  /** Register the show-cloud-cta handler so the App header pill and the
-   *  command palette can route a "Connect to Cloud" click into the CTA
-   *  pitch page in the center pane (instead of jumping straight into
-   *  the onboarding flow). */
-  registerShowCloudCta: (fn: () => void) => void;
 }) {
   const [state, setState] = useState<AppPersistedState | null>(null);
+  // Local sync-line log — used by SourceControl's commit flow and by the
+  // push-from-marker watcher. Previously owned by App.tsx for cloud
+  // sync; now purely local.
+  const [syncLines, setSyncLines] = useState<string[]>([]);
+  const onSyncLine = useCallback((line: string) => {
+    setSyncLines((prev) => [...prev, line]);
+  }, []);
   /// Single combined nav state for the center-pane viewer. Source +
   /// back/forward stacks live together so every transition is one
   /// pure `setNav` call — earlier split-state version had side-effect
@@ -258,9 +226,8 @@ export function Shell({
     });
   }, []);
   const [conflictBubbles, setConflictBubbles] = useState<Bubble[]>([]);
-  const [leftTab, setLeftTab] = useState<LeftTab>("overview");
   const [fsTick, setFsTick] = useState(0);
-  const [changeCount, setChangeCount] = useState(0);
+  const [showFiles, setShowFiles] = useState(false);
   const [pulling, setPulling] = useState(false);
   const [paneOrder, setPaneOrder] = useState<PaneId[]>(DEFAULT_PANE_ORDER);
   const [draggingPaneId, setDraggingPaneId] = useState<PaneId | null>(null);
@@ -360,81 +327,14 @@ export function Shell({
     setChatSessionKey((k) => k + 1);
   }, []);
 
+  // Manual pull is a no-op in local-only mode (no cloud to pull from).
+  // Kept as a stub so the command palette registration doesn't break.
   const handleManualPull = useCallback(async () => {
     if (!repo || pulling) return;
     setPulling(true);
-    onSyncLine("─── manual pull ───");
-    try {
-      const creds = await loadCreds().catch(() => null);
-      if (!creds) {
-        onSyncLine("✗ pull: not authenticated");
-        return;
-      }
-
-      // Run pulls SEQUENTIALLY, not in parallel — each pull's auto-commit
-      // takes the .git/index.lock briefly, and concurrent commits race on
-      // that lock. Losing the race surfaces as a warning + uncommitted
-      // pulled files showing up in the Deploy tab. Sequencing is fine
-      // perf-wise (each pull is ~hundreds of ms; user-facing) and aligns
-      // the streaming output too.
-
-      // KB pull
-      const kbCollections = getSyncStatus().collections;
-      if (kbCollections.length === 0) {
-        onSyncLine("▸ pull: kb skipped (no collections)");
-      } else {
-        onSyncLine(
-          `▸ pull: kb (${kbCollections.length} collection${kbCollections.length === 1 ? "" : "s"})`,
-        );
-        try {
-          await pullAllKbNow({ creds, repo });
-          onSyncLine("  ✓ kb pull complete");
-        } catch (e) {
-          console.error("[manual pull] kb failed:", e);
-          onSyncLine(`  ✗ kb pull failed: ${String(e)}`);
-        }
-      }
-
-      // Filestore pull
-      const fsCollections = getFilestoreSyncStatus().collections;
-      if (fsCollections.length === 0) {
-        onSyncLine("▸ pull: filestore skipped (no collections)");
-      } else {
-        onSyncLine(`▸ pull: filestore (${fsCollections.length} collection${fsCollections.length === 1 ? "" : "s"})`);
-        for (const c of fsCollections) {
-          // Strip the `openit-` prefix for the user-facing line — internal
-          // logs and error reports keep the canonical name.
-          const displayName = displayFilestoreName(c.name);
-          try {
-            const r = await filestorePullOnce({ creds, repo, collection: c });
-            onSyncLine(`  ✓ ${displayName} — ${r.downloaded}/${r.total} downloaded`);
-          } catch (e) {
-            console.error(`[manual pull] filestore (${c.name}) failed:`, e);
-            onSyncLine(`  ✗ ${displayName} failed: ${String(e)}`);
-          }
-        }
-      }
-
-      // Datastore pull
-      onSyncLine("▸ pull: datastores");
-      try {
-        const r = await pullDatastoresOnce({ creds, repo });
-        onSyncLine(
-          `  ✓ datastore pull complete — ${r.pulled} row(s) updated, ${r.conflicts.length} conflict${r.conflicts.length === 1 ? "" : "s"}`,
-        );
-        for (const c of r.conflicts) {
-          onSyncLine(`    ⚠ conflict: ${c.collectionName}/${c.key}.json — ${c.reason}`);
-        }
-      } catch (e) {
-        console.error("[manual pull] datastore failed:", e);
-        onSyncLine(`  ✗ datastore pull failed: ${String(e)}`);
-      }
-
-      onSyncLine("─── pull done ───");
-      bumpFs();
-    } finally {
-      setPulling(false);
-    }
+    onSyncLine("─── local mode: nothing to pull ───");
+    bumpFs();
+    setPulling(false);
   }, [repo, pulling, bumpFs, onSyncLine]);
 
   useEffect(() => {
@@ -447,18 +347,13 @@ export function Shell({
   useEffect(() => {
     registerManualPull(() => void handleManualPull());
   }, [registerManualPull, handleManualPull]);
+
+  // Home button handler — flip back to the Workbench in the left pane.
   useEffect(() => {
-    registerSwitchToSync(() => setLeftTab("source-control"));
-  }, [registerSwitchToSync]);
-  useEffect(() => {
-    registerShowCloudCta(() => {
-      if (!repo) return;
-      const path = `${repo}/connect-to-cloud.md`;
-      resolvePathToSource(path, repo)
-        .then(setSource)
-        .catch((e) => console.error("[shell] cloud-cta resolution failed:", e));
-    });
-  }, [registerShowCloudCta]);
+    const onHome = () => setShowFiles(false);
+    window.addEventListener("openit:show-home", onHome);
+    return () => window.removeEventListener("openit:show-home", onHome);
+  }, []);
 
   // Auto-open getting-started.md on first load — and re-open on demand
   // when the App-header "Getting Started" button dispatches the
@@ -604,40 +499,14 @@ export function Shell({
     };
   }, [fsTick, repo]);
 
-  // First-load auto-open of getting-started.md (only when nothing else
-  // is loaded yet). Resolves through the same path-to-source pipeline
-  // as a regular markdown click so `{{INTAKE_URL}}` substitution and
-  // the markdown viewer kick in unchanged.
-  useEffect(() => {
-    if (repo && !source) {
-      const welcomePath = `${repo}/getting-started.md`;
-      resolvePathToSource(welcomePath, repo)
-        .then(setSource)
-        .catch((e) => console.error("[shell] welcome resolution failed:", e));
-    }
-  }, [repo, source]);
+  // No auto-open on first load — the Workbench dashboard is the
+  // landing page. Getting-started.md is reachable from the file tree
+  // or the header "Getting Started" button.
 
+  // Conflict detection was cloud-sync driven (kbSync). In local-only
+  // mode there are no remote conflicts, so keep the bubble list empty.
   useEffect(() => {
-    if (!repo) {
-      setConflictBubbles([]);
-      return;
-    }
-    const refresh = async () => {
-      const hasShadow = await kbHasServerShadowFiles(repo);
-      const sync = getSyncStatus();
-      if (sync.conflicts.length > 0 || hasShadow) {
-        const prompt = await buildKbConflictPrompt(repo);
-        if (prompt) {
-          setConflictBubbles([{ label: "Resolve merge conflicts", prompt, variant: "conflict" }]);
-          return;
-        }
-      }
-      setConflictBubbles([]);
-    };
-    void refresh();
-    return subscribeSync(() => {
-      void refresh();
-    });
+    setConflictBubbles([]);
   }, [repo]);
 
   useEffect(() => {
@@ -661,20 +530,14 @@ export function Shell({
       try {
         const requestPath = `${repo}/.openit/push-request.json`;
 
-        // Confirm the marker actually exists. If not, this fs event
-        // came from something else (the script's own cleanup, a stale
-        // event from a prior run, etc.) — bail without writing a
-        // result file. Writing one regardless would let a *concurrent*
-        // sync-push.mjs poll loop read it and report success even
-        // though no push ran, leaving its real request marker
-        // stranded on disk.
+        // Confirm the marker actually exists.
         try {
           await fsRead(requestPath);
         } catch {
           return;
         }
 
-        // We own this push. Delete the marker first so a watcher
+        // We own this request. Delete the marker first so a watcher
         // event for the deletion itself doesn't loop us.
         try {
           await fsDelete(requestPath);
@@ -682,29 +545,10 @@ export function Shell({
           console.warn("[shell] failed to delete push-request:", e);
         }
 
-        // Clear the conflict aggregate immediately so the banner
-        // disappears as soon as the user confirms the sync. The push
-        // pre-pulls each entity inside pushAllEntities — if a true
-        // remote-side conflict still exists after the merge, that pull
-        // will repopulate the aggregate. So clearing optimistically is
-        // safe and gives the snappy "banner gone now" UX the user
-        // expected.
-        for (const p of [
-          // 2026-04-27 plural rename: KB adapter prefix is now
-          // `knowledge-bases/default`. Filestore split: prefix matches
-          // what the adapter writes (`filestores/library`). Both
-          // operational sub-collections (attachments under filestores,
-          // user-created KBs) aren't sync-tracked in V1 and don't
-          // generate conflicts.
-          "knowledge-bases/default",
-          "filestores/library",
-          "datastore",
-          "agent",
-          "workflow",
-        ]) {
-          clearConflictsForPrefix(p);
-        }
-        onSyncLine("─── push triggered by Claude ───");
+        // Local-only mode: auto-commit any pending working-tree
+        // changes, then write a result file so the script's poll
+        // loop can exit. No cloud push.
+        onSyncLine("─── push triggered by Claude (local-only) ───");
 
         const lines: string[] = [];
         const onLine = (line: string) => {
@@ -712,55 +556,26 @@ export function Shell({
           onSyncLine(line);
         };
         let status: "ok" | "error" = "ok";
-        // Result-file `error` becomes the script's `error` field verbatim.
-        // Keep it shaped as `{ code, message }` so callers can branch on
-        // a stable code instead of grepping the message.
         let errorPayload: { code: string; message: string } | undefined;
 
-        // Local-only short-circuit: no Pinkfish creds → there's nothing to
-        // push. Write a structured `not_connected` result so sync-push.mjs
-        // exits with a clear code Claude can see.
-        const creds = await loadCreds().catch(() => null);
-        if (!creds) {
-          status = "error";
-          errorPayload = {
-            code: "not_connected",
-            message:
-              "OpenIT isn't connected to Pinkfish — local edits stay on disk only. Connect via the header pill to enable cloud sync.",
-          };
-          onLine(`✗ sync: ${errorPayload.message}`);
-        } else {
-          try {
-            // Auto-commit any pending working-tree changes BEFORE pushing.
-            // After Claude's merge, disk has the merged content but git
-            // HEAD still has the pre-merge content, so `git status` reports
-            // a pending change. If the user picked remote, local now
-            // matches remote and the push reports `0 ok, 0 failed` — the
-            // user is left staring at "1 change to push" forever. Commit
-            // here so HEAD catches up. Same pattern handleCommit uses.
-            try {
-              const wsStatus = await gitStatusShort(repo);
-              if (wsStatus.length > 0) {
-                const unstaged = wsStatus.filter((f) => !f.staged).map((f) => f.path);
-                if (unstaged.length > 0) await gitStage(repo, unstaged);
-                const ts = new Date().toISOString();
-                await gitCommitStaged(repo, `sync: claude-resolve auto-commit @ ${ts}`);
-                onLine("▸ sync: auto-committed merged files");
-              }
-            } catch (e) {
-              console.warn("[shell] auto-commit before push failed:", e);
-            }
-
-            await pushAllEntities(repo, onLine);
-          } catch (e) {
-            status = "error";
-            errorPayload = { code: "push_failed", message: String(e) };
-            onLine(`✗ sync: push trigger failed: ${errorPayload.message}`);
+        try {
+          const wsStatus = await gitStatusShort(repo);
+          if (wsStatus.length > 0) {
+            const unstaged = wsStatus.filter((f) => !f.staged).map((f) => f.path);
+            if (unstaged.length > 0) await gitStage(repo, unstaged);
+            const ts = new Date().toISOString();
+            await gitCommitStaged(repo, `local: auto-commit @ ${ts}`);
+            onLine("▸ auto-committed local changes");
+          } else {
+            onLine("▸ nothing to commit");
           }
+        } catch (e) {
+          status = "error";
+          errorPayload = { code: "commit_failed", message: String(e) };
+          onLine(`✗ local commit failed: ${errorPayload.message}`);
         }
 
-        // Always write the result file when we got this far — we
-        // claimed ownership of the marker and a script may be polling.
+        // Always write the result file — a script may be polling.
         const payload = JSON.stringify(
           { status, error: errorPayload, lines, finishedAt: new Date().toISOString() },
           null,
@@ -790,12 +605,9 @@ export function Shell({
           );
           if (hit) void runPushFromMarker();
         });
-        // Start the auto-commit driver alongside the watcher so any
-        // write to `databases/{tickets,conversations,people}/` lands
-        // in a commit regardless of who wrote it (chat-intake server,
-        // admin Claude via /answer-ticket, manual edits). See the
-        // module header for scope rationale.
-        await startAutoCommitDriver(repo);
+        // Auto-commit disabled in local-first mode — user controls
+        // git explicitly in Phase 2 git mode. Files save to disk and
+        // that's the sync gesture.
         // Mirror filestore-side skills + scripts into `.claude/` so
         // Claude Code's slash registry and Bash tool find them
         // natively. Source of truth stays in `filestores/`. (PIN-5829.)
@@ -807,7 +619,6 @@ export function Shell({
 
     return () => {
       unlisten?.();
-      void stopAutoCommitDriver();
       void stopSkillMirrorDriver();
       fsWatchStop().catch(() => {});
     };
@@ -863,50 +674,7 @@ export function Shell({
               onDragLeave={(e) => onPaneDragLeave("left", e)}
               onDrop={(e) => onPaneDrop("left", e)}
             >
-              {/*
-               * Left-pane tabs: Overview + Sync only.
-               *
-               * The Explorer tab was removed deliberately. The
-               * canonical entry point to the raw file tree is the
-               * "File explorer · advanced" link inside Workbench
-               * (rendered in the Overview panel below). The
-               * Overview tab stays "active" for both
-               * leftTab="overview" and leftTab="files" so the
-               * file-tree view doesn't orphan the tab strip.
-               *
-               * If you're about to add the Explorer tab back,
-               * remove the Workbench link FIRST so we don't end
-               * up with two competing entry points.
-               */}
-              <div className="left-tabs">
-                <TabStrip fill className="left-tabs-strip">
-                  <Tab
-                    active={leftTab === "overview" || leftTab === "files"}
-                    onClick={() => setLeftTab("overview")}
-                  >
-                    Overview
-                  </Tab>
-                  <Tab
-                    active={leftTab === "source-control"}
-                    count={changeCount}
-                    onClick={() => setLeftTab("source-control")}
-                  >
-                    Sync
-                  </Tab>
-                </TabStrip>
-              </div>
-              <PaneBody hidden={leftTab !== "overview"}>
-                <Workbench
-                  repo={repo}
-                  fsTick={fsTick}
-                  onOpen={async (path) => {
-                    const resolved = await resolvePathToSource(path, repo);
-                    setSource(resolved);
-                  }}
-                  onShowFiles={() => setLeftTab("files")}
-                />
-              </PaneBody>
-              <PaneBody flush hidden={leftTab !== "files"}>
+              {showFiles ? (
                 <FileExplorer
                   repo={repo}
                   onSelect={async (path) => {
@@ -918,27 +686,20 @@ export function Shell({
                   fsTick={fsTick}
                   onFsChange={bumpFs}
                   selectedPath={sourceToTreePath(source, repo)}
-                  active={leftTab === "files"}
+                  active={true}
+                  onBack={() => setShowFiles(false)}
                 />
-              </PaneBody>
-              <PaneBody flush hidden={leftTab !== "source-control"}>
-                <SourceControl
+              ) : (
+                <Workbench
                   repo={repo}
-                  active={leftTab === "source-control"}
-                  onShowDiff={(text) => setSource({ kind: "diff", text })}
-                  onSyncLine={onSyncLine}
-                  onFsChange={bumpFs}
-                  onChangeCount={setChangeCount}
-                  cloudConnected={cloudConnected}
-                  onConnectRequest={() => {
-                    if (!repo) return;
-                    const path = `${repo}/connect-to-cloud.md`;
-                    resolvePathToSource(path, repo)
-                      .then(setSource)
-                      .catch((e) => console.error("[shell] cloud-cta resolution failed:", e));
+                  fsTick={fsTick}
+                  onOpen={async (path) => {
+                    const resolved = await resolvePathToSource(path, repo);
+                    setSource(resolved);
                   }}
+                  onShowFiles={() => setShowFiles(true)}
                 />
-              </PaneBody>
+              )}
             </div>
           ),
           center: (
@@ -958,7 +719,6 @@ export function Shell({
                 repo={repo ?? ""}
                 fsTick={fsTick}
                 intakeUrl={intakeUrl}
-                tunnelUrl={tunnelUrl}
                 welcomeFlashKey={welcomeFlashKey}
                 onOpenPath={async (path) => {
                   const resolved = await resolvePathToSource(path, repo);

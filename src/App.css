@@ -3935,6 +3935,7 @@ input.viewer-title.viewer-title-rename {
   display: flex;
   flex-direction: column;
   gap: 14px;
+  padding: 12px;
 }
 
 /* TODAY card — was a single <button>; v5 splits it into two click

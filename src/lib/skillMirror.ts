@@ -6,7 +6,7 @@
 // scripts via `/conversation-to-automation` or by editing files under
 // `filestores/skills/` or `filestores/scripts/` directly. Those land in
 // the cloud filestore, sync across devices, and are visible in the
-// Pinkfish dashboard alongside library docs.
+// cloud dashboard alongside library docs.
 //
 // To make Claude Code natively discover skills (slash-command
 // autocomplete, lazy-load on `/foo` invoke) and scripts (`Bash`

@@ -1,5 +1,4 @@
 import { invoke } from "@tauri-apps/api/core";
-import { type PinkfishCreds } from "./pinkfishAuth";
 
 export type Skill = {
   name: string;
@@ -55,7 +54,7 @@ async function writeSyncedPluginVersion(repo: string, version: string): Promise<
 /// re-enable by restoring the `creds` branch that calls
 /// `skills_fetch_manifest` (Rust command stays registered).
 export async function fetchSkillsManifest(
-  _creds: PinkfishCreds | null,
+  _creds?: unknown,
 ): Promise<PluginManifest> {
   const manifestJson = await invoke<string>("skills_fetch_bundled_manifest");
   return JSON.parse(manifestJson);
@@ -63,7 +62,7 @@ export async function fetchSkillsManifest(
 
 export async function fetchSkillFile(
   skillPath: string,
-  _creds: PinkfishCreds | null,
+  _creds?: unknown,
 ): Promise<string> {
   return await invoke<string>("skills_fetch_bundled_file", { skillPath });
 }
@@ -181,7 +180,7 @@ function ensureSkillFrontmatter(skillName: string, content: string): string {
 
 export async function syncSkillsToDisk(
   repo: string,
-  creds: PinkfishCreds | null,
+  creds?: unknown,
   onLog?: (msg: string) => void,
 ): Promise<{ bubbles: Bubble[] }> {
   // Slug = repo basename. Same value used by kbSync / datastoreSync to

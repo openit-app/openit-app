@@ -44,7 +44,7 @@ use tokio::time::timeout;
 
 /// Keychain service id matches the rest of the app
 /// (`keychain.rs::SERVICE`). Slot names below are scoped per
-/// orgId so two projects with different Pinkfish orgs don't share
+/// orgId so two projects with different orgs don't share
 /// tokens. Empty `org_id` (cloud not connected) maps to a
 /// `local` qualifier so the slot is still well-formed.
 const KEYCHAIN_SERVICE: &str = "ai.pinkfish.openit";

@@ -20,12 +20,8 @@ import {
   type FileNode,
   type GitFileStatus,
 } from "../lib/api";
-import { subscribeSync, type SyncStatus } from "../lib/kbSync";
-import { subscribeFilestoreSync, type FilestoreSyncStatus } from "../lib/filestoreSync";
 import { subscribeConflicts, type AggregatedConflict } from "../lib/syncEngine";
-import { loadCreds } from "../lib/pinkfishAuth";
-import { resolveProjectDatastores, fetchDatastoreItems, fetchDatastoreSchema } from "../lib/datastoreSync";
-import type { DataCollection, MemoryItem } from "../lib/skillsApi";
+import type { DataCollection, MemoryItem } from "../lib/localTypes";
 
 function relPath(repo: string, absPath: string): string {
   const prefix = `${repo}/`;
@@ -40,7 +36,7 @@ function gitStatusForPath(rel: string, rows: GitFileStatus[]): GitFileStatus | u
 
 /**
  * Display-only name transform. The actual on-disk folder name is the
- * collection's full Pinkfish name (e.g. `openit-people-653713545258`),
+ * collection's full cloud name (e.g. `openit-people-653713545258`),
  * but in the tree we strip the `openit-` prefix and the trailing
  * `-<orgId>` so users see just `people` / `tickets`. Only applies to
  * top-level `databases/openit-*` directories — leaves filenames inside
@@ -113,7 +109,7 @@ function prettyName(
     const rowKey = rowMatch[2];
     const col = datastores.find((d) => d.name === colName);
     if (col) {
-      const fieldId = pickDisplayFieldId(col.schema);
+      const fieldId = pickDisplayFieldId(col.schema as { fields?: Array<{ id?: string; label?: string; type?: string }> } | undefined);
       if (fieldId) {
         const item = datastoreItems[col.id]?.items.find(
           (i) => (i.key || i.id) === rowKey,
@@ -237,7 +233,7 @@ function isKbSupported(filename: string): boolean {
 /**
  * COLLECTION LOADING & SYNC PROCESS
  * 
- * 1. ON FIRST CONNECT (user enters Pinkfish credentials):
+ * 1. ON FIRST CONNECT (user connects):
  *    - loadOnce() fires in background (does NOT block UI)
  *    - Resolves collections: fetches /datacollection/all, creates defaults if missing
  *    - Collections with eventual consistency: 2-sec delay before re-fetching to confirm
@@ -269,6 +265,7 @@ export function FileExplorer({
   onFsChange,
   selectedPath,
   active,
+  onBack,
 }: {
   repo: string | null;
   onSelect: (path: string) => void;
@@ -284,11 +281,14 @@ export function FileExplorer({
    *  scroll-into-view: we only yank the tree when the user can actually
    *  see it, so background canvas changes don't move scroll position. */
   active?: boolean;
+  /** When set, a back arrow renders in the toolbar to return to the
+   *  Workbench overview. Omit when the explorer is the only left-pane
+   *  view (future full-time explorer mode). */
+  onBack?: () => void;
 }) {
   const [nodes, setNodes] = useState<FileNode[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
-  const [sync, setSync] = useState<SyncStatus | null>(null);
   const [dragOver, setDragOver] = useState(false);
   const [dropTargetPath, setDropTargetPath] = useState<string | null>(null);
   const [rejectedFiles, setRejectedFiles] = useState<string[]>([]);
@@ -306,8 +306,8 @@ export function FileExplorer({
   const [showSystemFiles, setShowSystemFiles] = useState(false);
 
   // Virtual resource state
-  const [datastores, setDatastores] = useState<DataCollection[]>([]);
-  const [datastoreItems, setDatastoreItems] = useState<
+  const [datastores] = useState<DataCollection[]>([]);
+  const [datastoreItems] = useState<
     Record<string, { items: MemoryItem[]; hasMore: boolean; schema?: any }>
   >({});
   // (agents/workflows in-memory state was only used by the drag-emit
@@ -315,8 +315,6 @@ export function FileExplorer({
   // in App.tsx own the actual sync; FileExplorer reads them off disk
   // via fsList for tree rendering.)
   // (loadingResources removed — initial load is fast enough)
-
-  const [fsSync, setFsSync] = useState<FilestoreSyncStatus | null>(null);
 
   // Engine conflict aggregate — drives the per-file conflict marker
   // (⚠) on canonicals so the user can see at a glance which files
@@ -329,8 +327,6 @@ export function FileExplorer({
     [engineConflicts],
   );
   
-  useEffect(() => subscribeSync(setSync), []);
-  useEffect(() => subscribeFilestoreSync(setFsSync), []);
 
   // Ref captures the latest selectedPath without forcing reload to
   // re-fire on every canvas change. Used by the first-load branch below
@@ -378,9 +374,6 @@ export function FileExplorer({
     reload();
   }, [reload, fsTick]);
 
-  useEffect(() => {
-    if (sync?.phase === "ready") reload();
-  }, [sync?.phase, sync?.lastPullAt, reload]);
 
   // Ref + last-scrolled marker so we only yank the tree once per
   // (path, becoming-active) transition. The matching scroll effect lives
@@ -412,10 +405,6 @@ export function FileExplorer({
     });
   }, [selectedPath, repo]);
 
-  useEffect(() => {
-    if (fsSync?.phase === "ready") reload();
-  }, [fsSync?.phase, fsSync?.lastPullAt, reload]);
-
   // Git status — refreshes on fs watcher events (fsTick) instead of polling
   useEffect(() => {
     if (!repo) {
@@ -427,86 +416,7 @@ export function FileExplorer({
       .catch(() => setGitRows([]));
   }, [repo, fsTick]);
 
-  const initialLoadDoneRef = useRef(false);
   const hasCollapsedOnceRef = useRef(false);
-
-  // Load resources once on mount, write to disk, then set up silent background polling
-  useEffect(() => {
-    let cancelled = false;
-
-    async function loadOnce() {
-      const creds = await loadCreds();
-      if (!creds || cancelled) return;
-
-      try {
-        const ds = await resolveProjectDatastores(creds).catch(
-          () => [] as DataCollection[],
-        );
-        if (cancelled) return;
-        setDatastores(ds);
-
-        const itemsMap: Record<string, { items: MemoryItem[]; hasMore: boolean; schema?: any }> = {};
-        await Promise.all(
-          ds.map(async (col) => {
-            try {
-              console.log(`[FileExplorer] fetching items for datastore: ${col.name}`);
-              const [resp, schema] = await Promise.all([
-                fetchDatastoreItems(creds, col.id, 100, 0),
-                fetchDatastoreSchema(creds, col.id).catch(() => undefined),
-              ]);
-              itemsMap[col.id] = { 
-                items: resp.items, 
-                hasMore: resp.pagination.hasNextPage, 
-                schema: schema || resp.schema 
-              };
-              // Add schema to collection for writing to disk
-              if (schema || resp.schema) {
-                col.schema = schema || resp.schema;
-              }
-              console.log(`[FileExplorer] fetched ${resp.items.length} items for ${col.name}`);
-            } catch (e) {
-              console.warn(`[FileExplorer] failed to fetch items for ${col.name}:`, e);
-              itemsMap[col.id] = { items: [], hasMore: false };
-            }
-          }),
-        );
-        if (cancelled) return;
-        setDatastoreItems(itemsMap);
-
-        // Disk-writing + auto-committing for all five entities runs
-        // through the engine-driven start*Sync calls (App.tsx + modal).
-        // The engine commits ONLY the paths it just pulled, scoped via
-        // gitCommitPaths. FileExplorer used to do a broad
-        // gitAddAndCommit(... "sync: update from Pinkfish") here, which
-        // swept up the user's pending edits (including Claude's merge
-        // result) under a misleading message — leaving "no changes" in
-        // the Sync tab. Removed.
-        if (repo) reload();
-        initialLoadDoneRef.current = true;
-      } catch (e) {
-        console.warn("[FileExplorer] loadOnce failed:", e);
-      }
-    }
-
-    // Background poll — update state silently, no disk writes, no reload
-    async function pollSilently() {
-      if (!initialLoadDoneRef.current) return;
-      const creds = await loadCreds();
-      if (!creds || cancelled) return;
-      try {
-        const ds = await resolveProjectDatastores(creds).catch(
-          () => [] as DataCollection[],
-        );
-        if (cancelled) return;
-        setDatastores(ds);
-      } catch { /* silent */ }
-    }
-
-    loadOnce();
-    const interval = setInterval(pollSilently, 60_000);
-    return () => { cancelled = true; clearInterval(interval); };
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [repo]);
 
   // System / scaffolding entries hidden by default. The toggle in
   // the toolbar exposes them when the user wants to inspect:
@@ -766,6 +676,17 @@ export function FileExplorer({
       onDrop={onDrop}
     >
       <div className="explorer-toolbar">
+        {onBack && (
+          <Button
+            variant="ghost"
+            size="sm"
+            iconOnly
+            onClick={onBack}
+            title="Back to overview"
+          >
+            <svg width={14} height={14} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" aria-hidden><path d="M19 12H5"/><path d="M12 19l-7-7 7-7"/></svg>
+          </Button>
+        )}
         <Button
           variant="ghost"
           size="sm"
@@ -883,7 +804,7 @@ export function FileExplorer({
               }
               onDragStart={(e) => {
                 // Drop the file (or collection-directory) path as the
-                // reference. Previously we built rich `[Pinkfish ...]`
+                // reference. Previously we built rich cloud references
                 // blobs with id + content inline, but those clutter the
                 // chat and Claude can read the path itself when it
                 // needs the content.
@@ -957,33 +878,6 @@ export function FileExplorer({
         </div>
       )}
 
-      {sync && sync.conflicts.length > 0 && (
-        <div className="kb-conflicts">
-          <div className="kb-conflicts-header">Merge conflicts</div>
-          <p className="kb-conflicts-hint">
-            Server copies saved as <code>*.server.*</code> next to yours. Use the{" "}
-            <strong>Resolve merge conflicts</strong> prompt below Claude, then delete the shadow
-            files when done.
-          </p>
-          <ul>
-            {sync.conflicts.map((c) => (
-              <li key={c.filename}>
-                <button
-                  type="button"
-                  className="kb-conflict-link"
-                  onClick={() =>
-                    // 2026-04-27 plural rename: KB conflicts surface
-                    // for the cloud-synced default collection.
-                    onSelect(`${repo}/knowledge-bases/default/${c.filename}`)
-                  }
-                >
-                  <code>{c.filename}</code>
-                </button>
-              </li>
-            ))}
-          </ul>
-        </div>
-      )}
       {contextMenu && (
         <>
           <div

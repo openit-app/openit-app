@@ -14,7 +14,7 @@
 //! per field, so `{ "ticketLifecycle": { "escalateOnAdminReply": false } }`
 //! keeps every other field at its compiled-in default.
 //!
-//! This file is local-only state: not synced to Pinkfish (`.openit/` is
+//! This file is local-only state: not synced externally (`.openit/` is
 //! local by design).
 
 use serde::{Deserialize, Serialize};

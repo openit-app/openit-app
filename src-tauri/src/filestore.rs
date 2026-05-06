@@ -78,8 +78,8 @@ pub async fn datastore_list_collections(
         .map_err(|e| format!("Failed to read response: {}", e))
 }
 
-/// Extract environment root URL from app-api URL.
-/// e.g., "https://app-api.dev20.pinkfish.dev/..." -> "https://dev20.pinkfish.dev"
+/// Extract environment root URL from the platform API URL.
+/// Strips the `app-api.` prefix to derive the environment root.
 fn extract_env_root(app_api_url: &str) -> Result<String, String> {
     let url =
         reqwest::Url::parse(app_api_url).map_err(|e| format!("Invalid app-api URL: {}", e))?;

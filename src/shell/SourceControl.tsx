@@ -12,7 +12,6 @@ import {
   type GitCommit,
   type GitFileStatus,
 } from "../lib/api";
-import { pushAllEntities } from "../lib/pushAll";
 import { Button } from "../ui";
 
 type Props = {
@@ -21,17 +20,10 @@ type Props = {
    *  pre-fill so the user lands on a ready-to-click form. */
   active?: boolean;
   onShowDiff: (text: string) => void;
-  onSyncLine: (line: string) => void;
   onFsChange?: () => void;
   /** Called whenever the count of uncommitted changes changes — used to
    *  drive the badge on the Sync tab label. */
   onChangeCount?: (n: number) => void;
-  /** Whether Pinkfish creds are loaded. Drives the Sync-to-Cloud button:
-   *  push when true, CTA-to-connect when false. */
-  cloudConnected: boolean;
-  /** Called when the user clicks Sync to Cloud while not connected.
-   *  App-level handler opens the OAuth flow. */
-  onConnectRequest: () => void;
 };
 
 function statusLabel(s: string): string {
@@ -105,7 +97,7 @@ function relativeTime(dateStr: string): string {
   return dateStr.split("T")[0];
 }
 
-export function SourceControl({ repo, active, onShowDiff, onSyncLine, onFsChange, onChangeCount, cloudConnected, onConnectRequest }: Props) {
+export function SourceControl({ repo, active, onShowDiff, onFsChange, onChangeCount }: Props) {
   const [files, setFiles] = useState<GitFileStatus[]>([]);
   const [commits, setCommits] = useState<GitCommit[]>([]);
   const [commitMsg, setCommitMsg] = useState("");
@@ -220,47 +212,24 @@ export function SourceControl({ repo, active, onShowDiff, onSyncLine, onFsChange
   const handleCommit = async () => {
     if (!repo) return;
     const hasPending = staged.length > 0 || unstaged.length > 0;
-
-    // Local-mode + nothing pending → button is the connect CTA (there's
-    // nothing to commit and no cloud to push to). Local-mode + pending
-    // changes → just commit locally. Cloud-connected → today's commit
-    // + push behavior.
-    if (!cloudConnected && !hasPending) {
-      onConnectRequest();
-      return;
-    }
+    if (!hasPending) return;
 
     setCommitting(true);
     setError(null);
     try {
-      if (hasPending) {
-        // VSCode-style smart commit: when nothing is staged, stage
-        // everything (the user clearly meant "commit it all"). When
-        // something IS staged, only commit those — respect the user's
-        // explicit selection.
-        const committedSet = staged.length > 0 ? staged : files;
-        if (staged.length === 0 && unstaged.length > 0) {
-          await gitStage(repo, unstaged.map((f) => f.path));
-        }
-        const msg = commitMsg.trim() || defaultCommitMessage(committedSet);
-        await gitCommitStaged(repo, msg);
-        setCommitMsg("");
-        refresh();
-        onFsChange?.();
+      // VSCode-style smart commit: when nothing is staged, stage
+      // everything (the user clearly meant "commit it all"). When
+      // something IS staged, only commit those — respect the user's
+      // explicit selection.
+      const committedSet = staged.length > 0 ? staged : files;
+      if (staged.length === 0 && unstaged.length > 0) {
+        await gitStage(repo, unstaged.map((f) => f.path));
       }
-
-      // Push only when connected — local-only mode has nothing to push
-      // to. The push internals use content equality and catch silent
-      // drift between local and remote (e.g. post-conflict-resolve
-      // state where the merged content sits unpushed).
-      if (cloudConnected) {
-        await pushAllEntities(repo, onSyncLine);
-        if (!hasPending) {
-          // After push the engine's poll will detect the now-matching
-          // content and the conflict aggregate will clear naturally.
-          refresh();
-        }
-      }
+      const msg = commitMsg.trim() || defaultCommitMessage(committedSet);
+      await gitCommitStaged(repo, msg);
+      setCommitMsg("");
+      refresh();
+      onFsChange?.();
     } catch (e) {
       setError(String(e));
     } finally {
@@ -307,25 +276,15 @@ export function SourceControl({ repo, active, onShowDiff, onSyncLine, onFsChange
           variant="primary"
           size="sm"
           onClick={handleCommit}
-          disabled={committing}
+          disabled={committing || files.length === 0}
           loading={committing}
           title={
             files.length > 0
-              ? cloudConnected
-                ? "Commit and sync to Cloud"
-                : "Commit locally (Connect to Cloud to also sync)"
-              : cloudConnected
-                ? "Sync with Cloud (catches silent content drift)"
-                : "Connect to Cloud to enable sync"
+              ? "Commit changes locally"
+              : "No changes to commit"
           }
         >
-          {committing
-            ? "…"
-            : files.length > 0
-              ? cloudConnected
-                ? "Commit & Push"
-                : "Commit"
-              : "Sync with Cloud"}
+          {committing ? "..." : "Commit"}
         </Button>
       </div>
       {error && <div className="sc-error">{error}</div>}

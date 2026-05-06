@@ -9,7 +9,7 @@
 //   2. The admin's Claude in the right pane following `/answer-ticket`
 //      or similar skills — admin replies, ticket status flips, KB
 //      article authoring (NOT covered here, see below).
-//   3. The cloud sync engines pulling from Pinkfish — those already
+//   3. The cloud sync engines pulling from remote — those already
 //      auto-commit via their own `gitCommitPaths` calls.
 //
 // Source 1 commits inside the Rust handler. Source 3 commits inside

@@ -150,36 +150,6 @@ export async function keychainProbe(): Promise<boolean> {
   return invoke("keychain_probe");
 }
 
-export type OauthResult = {
-  access_token: string;
-  expires_in: number | null;
-  token_type: string | null;
-  scope: string | null;
-};
-
-export async function pinkfishOauthExchange(args: {
-  clientId: string;
-  clientSecret: string;
-  scope: string;
-  tokenUrl?: string | null;
-}): Promise<OauthResult> {
-  return invoke("pinkfish_oauth_exchange", {
-    clientId: args.clientId,
-    clientSecret: args.clientSecret,
-    scope: args.scope,
-    tokenUrl: args.tokenUrl ?? null,
-  });
-}
-
-export type OrgRow = {
-  id: string;
-  name: string;
-  can_read: boolean;
-  can_write: boolean;
-  administer: boolean;
-  parent_id: string | null;
-};
-
 export async function claudeDetect(): Promise<string | null> {
   return invoke("claude_detect");
 }
@@ -217,49 +187,6 @@ export async function projectBootstrap(args: {
   orgId: string;
 }): Promise<BootstrapResult> {
   return invoke("project_bootstrap", { orgName: args.orgName, orgId: args.orgId });
-}
-
-/// Cloud-binding marker stored at `<repo>/.openit/cloud.json`. Records which
-/// Pinkfish org the folder is currently bound to. Phase 1 of V2 sync (PIN-5775)
-/// — replaces the `~/OpenIT/<orgId>/` folder convention with a per-folder
-/// metadata file so the user keeps working in their existing folder when they
-/// connect to cloud.
-export type CloudBinding = {
-  orgId: string;
-  orgName: string;
-  /// Unix epoch milliseconds when the binding was first written.
-  connectedAt: number;
-  /// Unix epoch ms of the most recent successful sync. `null` until the first
-  /// poll completes.
-  lastSyncAt: number | null;
-};
-
-/// Write `.openit/cloud.json` for `repo`. Idempotent for the same `orgId`
-/// (preserves `connectedAt`); rejects with an error if the folder is already
-/// bound to a different org so the caller can surface a clear conflict
-/// instead of silently overwriting.
-export async function projectBindToCloud(args: {
-  repo: string;
-  orgId: string;
-  orgName: string;
-}): Promise<CloudBinding> {
-  return invoke("project_bind_to_cloud", {
-    repo: args.repo,
-    orgId: args.orgId,
-    orgName: args.orgName,
-  });
-}
-
-/// Read the binding. `null` for unbound folders.
-export async function projectGetCloudBinding(repo: string): Promise<CloudBinding | null> {
-  return invoke("project_get_cloud_binding", { repo });
-}
-
-/// Refresh `lastSyncAt` to the current time. No-op (resolves) if the folder
-/// is unbound — sync engines call this after every successful poll without
-/// having to special-case the local-only path.
-export async function projectUpdateLastSyncAt(repo: string): Promise<void> {
-  return invoke("project_update_last_sync_at", { repo });
 }
 
 /// Start the localhost ticket-intake HTTP server scoped to `repo`.
@@ -398,35 +325,6 @@ export async function slackListenerSendIntro(args: {
   });
 }
 
-export async function pinkfishListOrgs(args: {
-  accessToken: string;
-  orgId: string;
-  accountUrl?: string | null;
-}): Promise<OrgRow[]> {
-  return invoke("pinkfish_list_orgs", {
-    accessToken: args.accessToken,
-    orgId: args.orgId,
-    accountUrl: args.accountUrl ?? null,
-  });
-}
-
-export type UserConnection = {
-  id: string;
-  name: string;
-  service_key: string;
-  status: string;
-};
-
-export async function pinkfishListConnections(args: {
-  accessToken: string;
-  connectionsUrl?: string | null;
-}): Promise<UserConnection[]> {
-  return invoke("pinkfish_list_connections", {
-    accessToken: args.accessToken,
-    connectionsUrl: args.connectionsUrl ?? null,
-  });
-}
-
 export type KbLocalFile = { filename: string; mtime_ms: number | null; size: number };
 export type KbFileState = {
   remote_version: string;
@@ -522,63 +420,6 @@ export async function kbStateSave(
   return invoke("entity_state_save", { repo, name: "kb", state });
 }
 
-export async function kbDownloadToLocal(
-  repo: string,
-  filename: string,
-  url: string,
-  subdir?: string,
-): Promise<void> {
-  return invoke("kb_download_to_local", { repo, filename, url, subdir });
-}
-
-export type KbUploadResult = {
-  id: string;
-  filename: string;
-  file_url: string | null;
-  file_size: number | null;
-  mime_type: string | null;
-};
-
-export type KbRemoteFile = {
-  id: string;
-  filename: string;
-  signed_url: string | null;
-  file_size: number | null;
-  mime_type: string | null;
-  updated_at: string;
-};
-
-export async function kbListRemote(args: {
-  collectionId: string;
-  skillsBaseUrl: string;
-  accessToken: string;
-}): Promise<KbRemoteFile[]> {
-  return invoke("kb_list_remote", {
-    collectionId: args.collectionId,
-    skillsBaseUrl: args.skillsBaseUrl,
-    accessToken: args.accessToken,
-  });
-}
-
-export async function kbUploadFile(args: {
-  repo: string;
-  filename: string;
-  collectionId: string;
-  skillsBaseUrl: string;
-  accessToken: string;
-  subdir?: string;
-}): Promise<KbUploadResult> {
-  return invoke("kb_upload_file", {
-    repo: args.repo,
-    filename: args.filename,
-    collectionId: args.collectionId,
-    skillsBaseUrl: args.skillsBaseUrl,
-    accessToken: args.accessToken,
-    subdir: args.subdir,
-  });
-}
-
-
 // ---------------------------------------------------------------------------
 // Filestore local commands (mirrors kb_* but for filestore/ directory)
 // ---------------------------------------------------------------------------
@@ -648,59 +489,6 @@ export async function datastoreStateSave(
   return invoke("entity_state_save", { repo, name: "datastore", state });
 }
 
-export async function fsStoreDownloadToLocal(
-  repo: string,
-  filename: string,
-  url: string,
-  subdir?: string,
-): Promise<void> {
-  return invoke("fs_store_download_to_local", { repo, filename, url, subdir: subdir ?? null });
-}
-
-export async function fsStoreUploadFile(args: {
-  repo: string;
-  filename: string;
-  collectionId: string;
-  skillsBaseUrl: string;
-  accessToken: string;
-  subdir?: string;
-}): Promise<KbUploadResult> {
-  return invoke("fs_store_upload_file", {
-    repo: args.repo,
-    filename: args.filename,
-    collectionId: args.collectionId,
-    skillsBaseUrl: args.skillsBaseUrl,
-    accessToken: args.accessToken,
-    subdir: args.subdir ?? null,
-  });
-}
-
-/// PIN-5847: filestore push uses the signed-URL flow
-/// (`/filestorage/items/upload-request` + signed GCS PUT). Server
-/// sanitizes filename via `formatFileName` and dedupes the Firestore
-/// row by `filename + collectionId`, so same-name re-pushes overwrite
-/// in place — no UUID prefix, no duplicate accumulation. KB push
-/// stays on multipart `kbUploadFile` because the vector-store
-/// indexing pipeline only runs there; a KB twin will follow once
-/// indexing is decoupled server-side.
-export async function fsStoreUploadFileSigned(args: {
-  repo: string;
-  filename: string;
-  collectionId: string;
-  skillsBaseUrl: string;
-  accessToken: string;
-  subdir?: string;
-}): Promise<KbUploadResult> {
-  return invoke("fs_store_upload_via_signed_url", {
-    repo: args.repo,
-    filename: args.filename,
-    collectionId: args.collectionId,
-    skillsBaseUrl: args.skillsBaseUrl,
-    accessToken: args.accessToken,
-    subdir: args.subdir ?? null,
-  });
-}
-
 export async function entityWriteFile(repo: string, subdir: string, filename: string, content: string): Promise<void> {
   return invoke("entity_write_file", { repo, subdir, filename, content });
 }
@@ -757,26 +545,6 @@ export async function scriptRun(
   return invoke("script_run", { repo, scriptPath });
 }
 
-/// Generic JSON-RPC tools/call against any Pinkfish MCP server. Returns the
-/// raw JSON-RPC envelope; callers pluck `.result.structuredContent` etc.
-export async function pinkfishMcpCall(args: {
-  accessToken: string;
-  orgId: string;
-  server: string;
-  tool: string;
-  arguments: unknown;
-  baseUrl?: string | null;
-}): Promise<{ result?: { structuredContent?: unknown; content?: unknown }; error?: unknown }> {
-  return invoke("pinkfish_mcp_call", {
-    accessToken: args.accessToken,
-    orgId: args.orgId,
-    server: args.server,
-    tool: args.tool,
-    arguments: args.arguments,
-    baseUrl: args.baseUrl ?? null,
-  });
-}
-
 import type { TraceDoc } from "../shell/types";
 
 /// Latest persisted agent-trace doc for a ticket, or null if none yet.
@@ -789,36 +557,3 @@ export async function agentTraceLatest(
   return invoke("agent_trace_latest", { repo, ticketId });
 }
 
-// ---------------------------------------------------------------------------
-// OAuth callback listener (V1 Connect to Cloud)
-// ---------------------------------------------------------------------------
-
-export type OauthCallbackStartResult = { url: string; port: number };
-export type OauthCallbackCreds = {
-  client_id: string;
-  client_secret: string;
-  org_id: string;
-  token_url: string;
-};
-
-/// Spin up a localhost HTTP listener that the web app's /openit/connect
-/// page POSTs Pinkfish creds to after the user authorizes. Returns the
-/// callback URL to embed in the browser query string.
-export async function oauthCallbackStart(
-  expectedState: string,
-): Promise<OauthCallbackStartResult> {
-  return invoke("oauth_callback_start", { expectedState });
-}
-
-/// Block until the listener receives a state-matching callback (or
-/// times out after 5 minutes). Resolves with the creds from the form
-/// body. The listener is torn down regardless of outcome.
-export async function oauthCallbackAwait(): Promise<OauthCallbackCreds> {
-  return invoke("oauth_callback_await");
-}
-
-/// User-cancellable: drops the listener mid-flow without waiting for
-/// timeout. Idempotent — safe to call when no listener is running.
-export async function oauthCallbackCancel(): Promise<void> {
-  return invoke("oauth_callback_cancel");
-}
