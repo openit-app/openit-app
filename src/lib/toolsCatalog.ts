@@ -124,13 +124,13 @@ export const CATALOG: CatalogEntry[] = [
       "Stripe CLI (`stripe`) is installed. Auth via `stripe login`. Use it for billing lookups (`stripe customers retrieve`, `stripe events list`, `stripe logs tail`). Run `stripe --help` for the full surface.",
     docsUrl: "https://stripe.com/docs/stripe-cli",
   },
-  // --- IT admin SaaS tools (customer-driven) ---
+  // --- IT admin SaaS tools (verified brew formulas) ---
   {
     id: "sf",
     name: "Salesforce CLI",
     description: "Salesforce admin: orgs, metadata, SOQL queries, data, deploy.",
     binary: "sf",
-    brewPkg: "salesforcecli",
+    brewPkg: "salesforce-cli",
     claudeMdHint:
       "Salesforce CLI (`sf`) is installed. Use it for Salesforce operations — auth via `sf org login web`. Query with `sf data query --query 'SELECT ...'`. Run `sf --help` for the full surface.",
     docsUrl: "https://developer.salesforce.com/tools/salesforcecli",
@@ -140,48 +140,18 @@ export const CATALOG: CatalogEntry[] = [
     name: "Google Workspace CLI",
     description: "Gmail, Drive, Calendar, Sheets, Docs, Chat, Admin — unified.",
     binary: "gws",
-    brewPkg: "googleworkspace/tap/gws",
+    brewPkg: "googleworkspace-cli",
     claudeMdHint:
       "Google Workspace CLI (`gws`) is installed. Covers Gmail, Drive, Calendar, Sheets, Docs, Chat, Admin. Auth via `gws auth setup`. Run `gws --help` for the full surface.",
     docsUrl: "https://github.com/googleworkspace/cli",
   },
-  {
-    id: "hs",
-    name: "HubSpot CLI",
-    description: "HubSpot CRM: contacts, deals, tickets, marketing, reports.",
-    binary: "hs",
-    brewPkg: "hubspot-cli",
-    claudeMdHint:
-      "HubSpot CLI (`hs`) is installed. Use it for HubSpot CRM operations — auth via `hs auth`. Run `hs --help` for the full surface.",
-    docsUrl: "https://developers.hubspot.com/docs/developer-tooling/local-development/hubspot-cli/reference",
-  },
-  {
-    id: "m365",
-    name: "Microsoft 365 CLI",
-    description: "Outlook, Teams, SharePoint, OneDrive, Entra ID admin.",
-    binary: "m365",
-    brewPkg: "m365",
-    claudeMdHint:
-      "Microsoft 365 CLI (`m365`) is installed. Covers Outlook, Teams, SharePoint, OneDrive, Entra ID. Auth via `m365 login`. Run `m365 --help` for the full surface.",
-    docsUrl: "https://pnp.github.io/cli-microsoft365/",
-  },
-  // --- Infrastructure & DevOps ---
-  {
-    id: "terraform",
-    name: "Terraform",
-    description: "Infrastructure as code: plan, apply, state for any cloud.",
-    binary: "terraform",
-    brewPkg: "hashicorp/tap/terraform",
-    claudeMdHint:
-      "Terraform (`terraform`) is installed. Use it for infrastructure-as-code — `terraform plan`, `terraform apply`. Run `terraform --help` for the full surface.",
-    docsUrl: "https://developer.hashicorp.com/terraform/docs",
-  },
+  // --- Infrastructure & DevOps (verified brew formulas) ---
   {
     id: "kubectl",
     name: "Kubernetes CLI",
     description: "Kubernetes cluster admin: pods, services, deployments, logs.",
     binary: "kubectl",
-    brewPkg: "kubectl",
+    brewPkg: "kubernetes-cli",
     claudeMdHint:
       "Kubernetes CLI (`kubectl`) is installed. Use it for cluster operations — context via `kubectl config use-context`. Run `kubectl --help` for the full surface.",
     docsUrl: "https://kubernetes.io/docs/reference/kubectl/",
@@ -191,63 +161,10 @@ export const CATALOG: CatalogEntry[] = [
     name: "Snyk CLI",
     description: "Security scanning: vulnerabilities, license issues, IaC misconfigs.",
     binary: "snyk",
-    brewPkg: "snyk",
+    brewPkg: "snyk-cli",
     claudeMdHint:
       "Snyk CLI (`snyk`) is installed. Use it for security scanning — auth via `snyk auth`. Run `snyk test` to scan. Run `snyk --help` for the full surface.",
     docsUrl: "https://docs.snyk.io/snyk-cli",
-  },
-  // --- Identity & MDM ---
-  {
-    id: "jamf",
-    name: "Jamf Pro CLI",
-    description: "Apple device management: computers, policies, profiles, inventory.",
-    binary: "jamf",
-    brewPkg: "jamf-pro-cli",
-    claudeMdHint:
-      "Jamf Pro CLI (`jamf`) is installed. Use it for Apple device management — auth via `jamf auth`. Run `jamf --help` for the full surface.",
-    docsUrl: "https://learn.jamf.com/en-US/bundle/jamf-pro-documentation-current/page/Jamf_Pro_CLI.html",
-  },
-  {
-    id: "jumpcloud",
-    name: "JumpCloud CLI",
-    description: "Directory & identity admin: users, groups, devices, policies.",
-    binary: "jcapi",
-    brewPkg: "jumpcloud/tap/jcapi",
-    claudeMdHint:
-      "JumpCloud CLI (`jcapi`) is installed. Use it for directory operations — users, groups, device management. Run `jcapi --help` for the full surface.",
-    docsUrl: "https://docs.jumpcloud.com/api/",
-  },
-  // --- Observability & Incidents ---
-  {
-    id: "datadog",
-    name: "Datadog CLI",
-    description: "Monitoring: metrics, logs, traces, dashboards, incidents.",
-    binary: "datadog-ci",
-    brewPkg: "datadog/datadog/datadog-ci",
-    claudeMdHint:
-      "Datadog CLI (`datadog-ci`) is installed. Use it for CI/CD integration, synthetics, and metric submission. Run `datadog-ci --help` for the full surface.",
-    docsUrl: "https://docs.datadoghq.com/continuous_integration/",
-  },
-  {
-    id: "pagerduty",
-    name: "PagerDuty CLI",
-    description: "Incident management: alerts, escalations, on-call schedules.",
-    binary: "pd",
-    brewPkg: "martindstone/pagerduty-cli/pd",
-    claudeMdHint:
-      "PagerDuty CLI (`pd`) is installed. Use it for incident management — auth via `pd login`. Run `pd --help` for the full surface.",
-    docsUrl: "https://github.com/martindstone/pagerduty-cli",
-  },
-  // --- Support & Tickets ---
-  {
-    id: "zendesk",
-    name: "Zendesk CLI (ZCLI)",
-    description: "Zendesk admin: tickets, users, orgs, apps, themes.",
-    binary: "zcli",
-    brewPkg: "zendesk/tap/zcli",
-    claudeMdHint:
-      "Zendesk CLI (`zcli`) is installed. Use it for Zendesk admin and app development — auth via `zcli login`. Run `zcli --help` for the full surface.",
-    docsUrl: "https://developer.zendesk.com/documentation/apps/getting-started/using-zcli/",
   },
 ];
 

@@ -180,8 +180,29 @@ export const MCP_CATALOG: McpEntry[] = [
     docsUrl: "https://www.servicenow.com/community/",
     iconHint: "servicenow",
   },
-  // PagerDuty: CLI preferred (in toolsCatalog.ts)
-  // Datadog: CLI preferred (in toolsCatalog.ts)
+  // --- Customer-required services (no brew formula, npm/MCP only) ---
+  {
+    id: "hubspot",
+    name: "HubSpot",
+    description: "CRM: contacts, deals, tickets, marketing, reports.",
+    transport: "stdio",
+    endpoint: "npx -y @hubspot/mcp-server",
+    envVars: ["PRIVATE_APP_ACCESS_TOKEN"],
+    authHint: "Create a private app at app.hubspot.com/private-apps → copy the access token.",
+    docsUrl: "https://developers.hubspot.com/mcp",
+    iconHint: "hubspot",
+  },
+  {
+    id: "microsoft365",
+    name: "Microsoft 365",
+    description: "Outlook, Teams, SharePoint, OneDrive, Entra ID.",
+    transport: "stdio",
+    endpoint: "npx -y @softeria/ms-365-mcp-server",
+    envVars: ["MS365_CLIENT_ID", "MS365_TENANT_ID"],
+    authHint: "Register an app at portal.azure.com → App registrations → copy Client ID and Tenant ID.",
+    docsUrl: "https://github.com/softeria/ms-365-mcp-server",
+    iconHint: "microsoft365",
+  },
 ];
 
 export function findMcpEntry(id: string): McpEntry | undefined {
