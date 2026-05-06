@@ -264,6 +264,12 @@ const onAskClaude = async (entry: CatalogEntry, status: CardStatus) => {
     await writeToActiveSession("/mcp\r");
   };
 
+  const onRemoveMcp = async (name: string) => {
+    await writeToActiveSession(`claude mcp remove ${name}\r`);
+    setTimeout(() => void refreshInstalledMcps(), 2000);
+    setTimeout(() => void refreshInstalledMcps(), 5000);
+  };
+
   const setMcpEnvVar = (entryId: string, varName: string, value: string) => {
     setMcpEnvInputs((prev) => ({
       ...prev,
@@ -358,6 +364,7 @@ const onAskClaude = async (entry: CatalogEntry, status: CardStatus) => {
                   mcp={mcp}
                   needsAuth={oauthCatalogIds.has(mcp.name)}
                   onAuthenticate={onAuthenticateMcp}
+                  onRemove={() => onRemoveMcp(mcp.name)}
                 />
               ))}
             </div>
@@ -531,11 +538,11 @@ function ToolCard({
 function sourceBadgeLabel(source: string): string {
   switch (source) {
     case "claude-code":
-      return "user";
+      return "global";
     case "claude-code-project":
-      return "project";
+      return "this vault";
     case "claude-desktop":
-      return "claude.ai";
+      return "Claude app";
     default:
       return source;
   }
@@ -545,10 +552,12 @@ function InstalledMcpCard({
   mcp,
   needsAuth,
   onAuthenticate,
+  onRemove,
 }: {
   mcp: InstalledMcp;
   needsAuth: boolean;
   onAuthenticate: () => void;
+  onRemove: () => void;
 }) {
   return (
     <div className={styles.card}>
@@ -570,6 +579,9 @@ function InstalledMcpCard({
         ) : (
           <span className={styles.mcpConnectedLabel}>Connected</span>
         )}
+        <Button variant="ghost" size="sm" onClick={onRemove}>
+          Remove
+        </Button>
       </div>
     </div>
   );
