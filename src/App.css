@@ -4487,6 +4487,20 @@ input.viewer-title.viewer-title-rename {
 /* Run affordance — same hover-reveal pattern as delete, but anchored
    to the LEFT of the delete slot so the destructive button stays on
    the far edge. Offset by ~28px (icon button width + breathing room). */
+/* Add to Claude — hover-revealed, leftmost of the action trio. */
+.entity-card-add-claude {
+  position: absolute;
+  top: 50%;
+  right: 66px;
+  transform: translateY(-50%);
+  display: none;
+  z-index: 1;
+}
+
+.entity-card-wrapper:hover .entity-card-add-claude {
+  display: inline-flex;
+}
+
 .entity-card-run {
   position: absolute;
   top: 50%;

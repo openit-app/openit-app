@@ -2981,6 +2981,26 @@ export function Viewer({
                   }
                 }
               : undefined,
+          // "Add to Claude" — inject a contextual prompt into the
+          // active Claude session. The prompt varies per entity kind
+          // so Claude knows how to act on the reference.
+          onAddToClaude: (() => {
+            const rel = repo ? toRepoRelative(repo, f.path) : f.name;
+            switch (source.entity) {
+              case "agents":
+                return () => { void writeToActiveSession(`Read and follow the agent instructions in ${rel}\r`); };
+              case "skills":
+                return () => { void writeToActiveSession(`/${f.displayName}\r`); };
+              case "knowledge-base":
+                return () => { void writeToActiveSession(`Read the knowledge base article at ${rel}\r`); };
+              case "scripts":
+                return () => { void writeToActiveSession(`Run the script at ${rel}\r`); };
+              case "reports":
+                return () => { void writeToActiveSession(`Read the report at ${rel}\r`); };
+              default:
+                return undefined;
+            }
+          })(),
         };
       });
       // Drag-and-drop upload from the desktop is enabled for the two

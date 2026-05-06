@@ -44,6 +44,10 @@ export type EntityCard = {
    *  so the card's onClick (which would open the file) doesn't
    *  fire alongside the run. */
   onRun?: () => void | Promise<void>;
+  /** When set, the card shows an "Add to Claude" hover button that
+   *  injects a reference (slash command, file path, etc.) into the
+   *  active Claude session. */
+  onAddToClaude?: () => void | Promise<void>;
 };
 
 /**
@@ -100,7 +104,7 @@ export function EntityCardGrid({
           card={c}
           fallbackIcon={meta.icon}
           onContextMenu={(x, y) => {
-            if (!c.onDelete && !c.onReveal) return;
+            if (!c.onDelete && !c.onReveal && !c.onAddToClaude) return;
             setMenu({ cardKey: c.key, x, y });
           }}
         />
@@ -120,6 +124,18 @@ export function EntityCardGrid({
             style={{ top: menu.y, left: menu.x }}
             role="menu"
           >
+            {activeCard.onAddToClaude && (
+              <Button
+                variant="ghost"
+                className="context-menu-item"
+                onClick={() => {
+                  void activeCard.onAddToClaude?.();
+                  setMenu(null);
+                }}
+              >
+                Add to Claude
+              </Button>
+            )}
             {activeCard.onReveal && (
               <Button
                 variant="ghost"
@@ -213,7 +229,7 @@ function EntityCardItem({
       onClick={c.onClick}
       onKeyDown={onKeyDown}
       onContextMenu={(e) => {
-        if (!c.onDelete && !c.onReveal) return;
+        if (!c.onDelete && !c.onReveal && !c.onAddToClaude) return;
         e.preventDefault();
         onContextMenu(e.clientX, e.clientY);
       }}
@@ -244,7 +260,7 @@ function EntityCardItem({
       </div>
     </Tag>
   );
-  if (!c.onDelete && !c.onRun) return card;
+  if (!c.onDelete && !c.onRun && !c.onAddToClaude) return card;
   // Action buttons (run, delete) have to sit OUTSIDE the card's
   // <button> element — nesting interactive controls inside a button
   // is invalid HTML and the click target collapses. Wrap card +
@@ -255,6 +271,22 @@ function EntityCardItem({
   return (
     <div className="entity-card-wrapper">
       {card}
+      {c.onAddToClaude && (
+        <Button
+          variant="ghost"
+          size="sm"
+          iconOnly
+          className="entity-card-add-claude"
+          title={`Add to Claude`}
+          aria-label={`Add ${c.title} to Claude`}
+          onClick={(e) => {
+            e.stopPropagation();
+            void c.onAddToClaude?.();
+          }}
+        >
+          <svg width={14} height={14} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><path d="M12 5v14"/><path d="M5 12h14"/></svg>
+        </Button>
+      )}
       {c.onRun && (
         <Button
           variant="ghost"
