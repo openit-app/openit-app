@@ -1,4 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
+import { listInstalledMcps, type InstalledMcp } from "../lib/api";
+import { MCP_CATALOG, type McpEntry } from "../lib/mcpCatalog";
 import { CATALOG, type CatalogEntry } from "../lib/toolsCatalog";
 import {
   getTargetOs,
@@ -37,10 +39,16 @@ type CardStatus =
   | { kind: "handed-off" };
 
 export function ToolsPanel({ projectRoot }: { projectRoot: string | null }) {
+  const [activeTab, setActiveTab] = useState<"cli" | "mcp">("cli");
   const [installed, setInstalled] = useState<Set<string>>(new Set());
   const [search, setSearch] = useState("");
   const [statuses, setStatuses] = useState<Record<string, CardStatus>>({});
   const [targetOs, setTargetOs] = useState<TargetOs | null>(null);
+
+  // MCP-specific state
+  const [mcpSearch, setMcpSearch] = useState("");
+  const [installedMcps, setInstalledMcps] = useState<InstalledMcp[]>([]);
+  const [mcpEnvInputs, setMcpEnvInputs] = useState<Record<string, Record<string, string>>>({});
 
   const refreshInstalled = async () => {
     if (!projectRoot) return;
@@ -51,12 +59,22 @@ export function ToolsPanel({ projectRoot }: { projectRoot: string | null }) {
     }
   };
 
+  const refreshInstalledMcps = async () => {
+    if (!projectRoot) return;
+    try {
+      setInstalledMcps(await listInstalledMcps(projectRoot));
+    } catch (e) {
+      console.error("[ToolsPanel] listInstalledMcps failed:", e);
+    }
+  };
+
   useEffect(() => {
     void getTargetOs().then(setTargetOs);
   }, []);
 
   useEffect(() => {
     refreshInstalled();
+    refreshInstalledMcps();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [projectRoot]);
 
@@ -76,6 +94,27 @@ export function ToolsPanel({ projectRoot }: { projectRoot: string | null }) {
       return aIns - bIns;
     });
   }, [search, installed]);
+
+  const installedMcpNames = useMemo(
+    () => new Set(installedMcps.map((m) => m.name)),
+    [installedMcps],
+  );
+
+  const sortedFilteredMcps = useMemo(() => {
+    const q = mcpSearch.trim().toLowerCase();
+    const matched = q
+      ? MCP_CATALOG.filter(
+          (e) =>
+            e.name.toLowerCase().includes(q) ||
+            e.description.toLowerCase().includes(q),
+        )
+      : MCP_CATALOG;
+    return [...matched].sort((a, b) => {
+      const aIns = installedMcpNames.has(a.id) ? 0 : 1;
+      const bIns = installedMcpNames.has(b.id) ? 0 : 1;
+      return aIns - bIns;
+    });
+  }, [mcpSearch, installedMcpNames]);
 
   const setStatus = (id: string, status: CardStatus) =>
     setStatuses((prev) => ({ ...prev, [id]: status }));
@@ -179,6 +218,37 @@ const onAskClaude = async (entry: CatalogEntry, status: CardStatus) => {
       return next;
     });
 
+  const onConnectMcp = async (entry: McpEntry) => {
+    // For entries with env vars, check all are filled in.
+    if (entry.envVars.length > 0) {
+      const vals = mcpEnvInputs[entry.id] ?? {};
+      const missing = entry.envVars.filter((v) => !vals[v]?.trim());
+      if (missing.length > 0) return; // inputs not filled yet
+      // Build: claude mcp add <slug> --transport stdio -e KEY=VAL ... -- npx -y <pkg>
+      const envFlags = entry.envVars.map((v) => `-e ${v}=${vals[v].trim()}`).join(" ");
+      const parts = entry.endpoint.split(" "); // e.g. ["npx", "-y", "@pkg/name"]
+      const cmd = `claude mcp add ${entry.id} --transport ${entry.transport} ${envFlags} -- ${parts.join(" ")}`;
+      await writeToActiveSession(cmd + "\r");
+    } else if (entry.transport === "http") {
+      const cmd = `claude mcp add ${entry.id} --transport http ${entry.endpoint}`;
+      await writeToActiveSession(cmd + "\r");
+    } else {
+      // stdio with no env vars
+      const parts = entry.endpoint.split(" ");
+      const cmd = `claude mcp add ${entry.id} --transport stdio -- ${parts.join(" ")}`;
+      await writeToActiveSession(cmd + "\r");
+    }
+    // Refresh after a short delay to let Claude process the command.
+    setTimeout(() => void refreshInstalledMcps(), 3000);
+  };
+
+  const setMcpEnvVar = (entryId: string, varName: string, value: string) => {
+    setMcpEnvInputs((prev) => ({
+      ...prev,
+      [entryId]: { ...(prev[entryId] ?? {}), [varName]: value },
+    }));
+  };
+
   if (!projectRoot) {
     return (
       <div className={styles.panel}>
@@ -190,32 +260,85 @@ const onAskClaude = async (entry: CatalogEntry, status: CardStatus) => {
   return (
     <div className={styles.panel}>
       <h2 className={styles.heading}>Give your agent hands</h2>
-      <p className={styles.tagline}>
-        Install tools so Claude can act on your IT systems via Bash.
-      </p>
-      <input
-        type="text"
-        className={styles.search}
-        placeholder="Search…"
-        value={search}
-        onChange={(e) => setSearch(e.target.value)}
-      />
-      <div className={styles.grid}>
-        {sortedFiltered.map((entry) => (
-          <ToolCard
-            key={entry.id}
-            entry={entry}
-            installed={installed.has(entry.id)}
-            status={statuses[entry.id] ?? { kind: "idle" }}
-            targetOs={targetOs}
-            onInstall={() => onInstall(entry)}
-            onAskWhatCanIDo={() => onAskWhatCanIDo(entry)}
-            onAskClaude={(s) => onAskClaude(entry, s)}
-            onRemoveHintOnly={() => onRemoveHintOnly(entry)}
-            onDismiss={() => onDismiss(entry.id)}
-          />
-        ))}
+
+      {/* Tab strip */}
+      <div className={styles.tabStrip}>
+        <button
+          type="button"
+          className={`${styles.tab} ${activeTab === "cli" ? styles.tabActive : ""}`}
+          onClick={() => setActiveTab("cli")}
+        >
+          CLI
+        </button>
+        <button
+          type="button"
+          className={`${styles.tab} ${activeTab === "mcp" ? styles.tabActive : ""}`}
+          onClick={() => setActiveTab("mcp")}
+        >
+          MCP
+        </button>
       </div>
+
+      {activeTab === "cli" && (
+        <>
+          <p className={styles.tagline}>
+            Install tools so Claude can act on your IT systems via Bash.
+          </p>
+          <input
+            type="text"
+            className={styles.search}
+            placeholder="Search…"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+          />
+          <div className={styles.grid}>
+            {sortedFiltered.map((entry) => (
+              <ToolCard
+                key={entry.id}
+                entry={entry}
+                installed={installed.has(entry.id)}
+                status={statuses[entry.id] ?? { kind: "idle" }}
+                targetOs={targetOs}
+                onInstall={() => onInstall(entry)}
+                onAskWhatCanIDo={() => onAskWhatCanIDo(entry)}
+                onAskClaude={(s) => onAskClaude(entry, s)}
+                onRemoveHintOnly={() => onRemoveHintOnly(entry)}
+                onDismiss={() => onDismiss(entry.id)}
+              />
+            ))}
+          </div>
+        </>
+      )}
+
+      {activeTab === "mcp" && (
+        <>
+          <p className={styles.tagline}>
+            Add MCP servers so Claude can interact with your SaaS tools
+            directly.
+          </p>
+          <input
+            type="text"
+            className={styles.search}
+            placeholder="Search MCP servers…"
+            value={mcpSearch}
+            onChange={(e) => setMcpSearch(e.target.value)}
+          />
+          <div className={styles.grid}>
+            {sortedFilteredMcps.map((entry) => (
+              <McpCard
+                key={entry.id}
+                entry={entry}
+                connected={installedMcpNames.has(entry.id)}
+                envInputs={mcpEnvInputs[entry.id] ?? {}}
+                onEnvChange={(varName, value) =>
+                  setMcpEnvVar(entry.id, varName, value)
+                }
+                onConnect={() => onConnectMcp(entry)}
+              />
+            ))}
+          </div>
+        </>
+      )}
     </div>
   );
 }
@@ -351,6 +474,80 @@ function ToolCard({
           </div>
         </div>
       )}
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// MCP card
+// ---------------------------------------------------------------------------
+
+function McpCard({
+  entry,
+  connected,
+  envInputs,
+  onEnvChange,
+  onConnect,
+}: {
+  entry: McpEntry;
+  connected: boolean;
+  envInputs: Record<string, string>;
+  onEnvChange: (varName: string, value: string) => void;
+  onConnect: () => void;
+}) {
+  const needsEnv = entry.envVars.length > 0;
+  const allEnvFilled =
+    !needsEnv || entry.envVars.every((v) => envInputs[v]?.trim());
+
+  return (
+    <div className={styles.card}>
+      <div className={styles.cardHeader}>
+        <span className={styles.cardTitle}>
+          {connected && <span className={styles.installedDot} aria-hidden />}
+          {entry.name}
+        </span>
+        {connected && <span className={styles.installedPill}>Connected</span>}
+      </div>
+      <p className={styles.cardDesc}>{entry.description}</p>
+
+      {/* Env var inputs for servers that require credentials */}
+      {needsEnv && !connected && (
+        <div className={styles.mcpEnvBlock}>
+          {entry.envVars.map((varName) => (
+            <input
+              key={varName}
+              type="text"
+              className={styles.mcpEnvInput}
+              placeholder={varName}
+              value={envInputs[varName] ?? ""}
+              onChange={(e) => onEnvChange(varName, e.target.value)}
+            />
+          ))}
+          <span className={styles.mcpAuthHint}>{entry.authHint}</span>
+        </div>
+      )}
+
+      <div className={styles.cardActions}>
+        {connected ? (
+          <span className={styles.mcpConnectedLabel}>Connected</span>
+        ) : (
+          <Button
+            variant="primary"
+            onClick={onConnect}
+            disabled={!allEnvFilled}
+          >
+            Connect
+          </Button>
+        )}
+        <a
+          className={styles.docsLink}
+          href={entry.docsUrl}
+          target="_blank"
+          rel="noreferrer"
+        >
+          docs ↗
+        </a>
+      </div>
     </div>
   );
 }

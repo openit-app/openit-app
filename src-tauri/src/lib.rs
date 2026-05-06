@@ -4,6 +4,7 @@ mod filestore;
 mod fs_tree;
 mod intake;
 mod kb;
+mod mcp;
 mod keychain;
 mod openit_config;
 mod project;
@@ -70,6 +71,7 @@ pub fn run() {
             keychain::keychain_get,
             keychain::keychain_delete,
             keychain::keychain_probe,
+            mcp::list_installed_mcps,
             project::project_bootstrap,
             workspaces::list_workspaces,
             workspaces::create_workspace,

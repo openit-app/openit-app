@@ -124,6 +124,47 @@ export const CATALOG: CatalogEntry[] = [
       "Stripe CLI (`stripe`) is installed. Auth via `stripe login`. Use it for billing lookups (`stripe customers retrieve`, `stripe events list`, `stripe logs tail`). Run `stripe --help` for the full surface.",
     docsUrl: "https://stripe.com/docs/stripe-cli",
   },
+  // --- IT admin SaaS tools (customer-driven) ---
+  {
+    id: "sf",
+    name: "Salesforce CLI",
+    description: "Salesforce admin: orgs, metadata, SOQL queries, data, deploy.",
+    binary: "sf",
+    brewPkg: "salesforcecli",
+    claudeMdHint:
+      "Salesforce CLI (`sf`) is installed. Use it for Salesforce operations — auth via `sf org login web`. Query with `sf data query --query 'SELECT ...'`. Run `sf --help` for the full surface.",
+    docsUrl: "https://developer.salesforce.com/tools/salesforcecli",
+  },
+  {
+    id: "gws",
+    name: "Google Workspace CLI",
+    description: "Gmail, Drive, Calendar, Sheets, Docs, Chat, Admin — unified.",
+    binary: "gws",
+    brewPkg: "googleworkspace/tap/gws",
+    claudeMdHint:
+      "Google Workspace CLI (`gws`) is installed. Covers Gmail, Drive, Calendar, Sheets, Docs, Chat, Admin. Auth via `gws auth setup`. Run `gws --help` for the full surface.",
+    docsUrl: "https://github.com/googleworkspace/cli",
+  },
+  {
+    id: "hs",
+    name: "HubSpot CLI",
+    description: "HubSpot CRM: contacts, deals, tickets, marketing, reports.",
+    binary: "hs",
+    brewPkg: "hubspot-cli",
+    claudeMdHint:
+      "HubSpot CLI (`hs`) is installed. Use it for HubSpot CRM operations — auth via `hs auth`. Run `hs --help` for the full surface.",
+    docsUrl: "https://developers.hubspot.com/docs/developer-tooling/local-development/hubspot-cli/reference",
+  },
+  {
+    id: "m365",
+    name: "Microsoft 365 CLI",
+    description: "Outlook, Teams, SharePoint, OneDrive, Entra ID admin.",
+    binary: "m365",
+    brewPkg: "m365",
+    claudeMdHint:
+      "Microsoft 365 CLI (`m365`) is installed. Covers Outlook, Teams, SharePoint, OneDrive, Entra ID. Auth via `m365 login`. Run `m365 --help` for the full surface.",
+    docsUrl: "https://pnp.github.io/cli-microsoft365/",
+  },
 ];
 
 export function findEntry(id: string): CatalogEntry | undefined {

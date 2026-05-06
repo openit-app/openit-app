@@ -152,6 +152,25 @@ export async function removeWorkspace(path: string): Promise<WorkspaceRegistry> 
   return invoke("remove_workspace", { path });
 }
 
+// ---------------------------------------------------------------------------
+// MCP discovery
+// ---------------------------------------------------------------------------
+
+export type InstalledMcp = {
+  name: string;
+  source: string; // "claude-code" | "claude-desktop" | "project"
+  transport: string; // "stdio" | "http" | "sse"
+  command_or_url: string;
+};
+
+export async function listInstalledMcps(repo?: string): Promise<InstalledMcp[]> {
+  return invoke("list_installed_mcps", { repo: repo ?? null });
+}
+
+// ---------------------------------------------------------------------------
+// Intake server
+// ---------------------------------------------------------------------------
+
 /// Start the localhost ticket-intake HTTP server scoped to `repo`.
 /// Returns the URL clients hit (e.g. `http://127.0.0.1:54123`). If a
 /// server is already running, it's stopped first so calling this on

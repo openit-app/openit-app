@@ -171,3 +171,70 @@
 
 /* .errorRecovery / .errorDismiss removed — replaced by <Button>
    variant=secondary / variant=ghost. */
+
+/* Tab strip — CLI / MCP switcher */
+
+.tabStrip {
+  display: flex;
+  gap: 0;
+  border-bottom: 1px solid var(--border);
+  margin-bottom: 4px;
+}
+
+.tab {
+  all: unset;
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text-muted);
+  padding: 6px 12px;
+  border-bottom: 2px solid transparent;
+  transition: color 0.15s, border-color 0.15s;
+}
+
+.tab:hover {
+  color: var(--text);
+}
+
+.tabActive {
+  color: var(--text);
+  border-bottom-color: var(--accent);
+}
+
+/* MCP card extras */
+
+.mcpEnvBlock {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.mcpEnvInput {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 5px 8px;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  font-size: 12px;
+  font-family: var(--font-mono);
+  background: var(--surface);
+  color: var(--text);
+}
+
+.mcpEnvInput:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+
+.mcpAuthHint {
+  font-size: 11px;
+  color: var(--text-muted);
+  font-style: italic;
+  line-height: 1.4;
+}
+
+.mcpConnectedLabel {
+  font-size: 12px;
+  color: var(--accent);
+  font-weight: 500;
+}
