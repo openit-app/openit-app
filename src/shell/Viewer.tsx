@@ -11,6 +11,7 @@ import { EntityCardGrid } from "./EntityCardGrid";
 import { FileThumbnail, isImageFile } from "./FileThumbnail";
 import { EntityBadge, type EntityKind } from "./entityIcons";
 import { ToolsPanel } from "./ToolsPanel";
+import { SkillsStation } from "./SkillsStation";
 import { TrashIcon } from "./TrashIcon";
 import { useToast } from "../Toast";
 import { Button, TabStrip, Tab } from "../ui";
@@ -1408,6 +1409,11 @@ export function Viewer({
       return;
     }
     if (source.kind === "tools") {
+      setMode("rendered");
+      setContent("");
+      return;
+    }
+    if (source.kind === "skills-station") {
       setMode("rendered");
       setContent("");
       return;
@@ -2813,6 +2819,10 @@ export function Viewer({
       return <ToolsPanel projectRoot={repo} />;
     }
 
+    if (source.kind === "skills-station") {
+      return <SkillsStation repo={repo} onOpen={(p) => onOpenPath && void onOpenPath(p)} />;
+    }
+
     // `filestores/attachments/` welcome stub + per-ticket roll-up.
     // The lead paragraph explains what lives in this folder so an
     // admin clicking it for the first time understands the split
@@ -3705,6 +3715,9 @@ export function Viewer({
         break;
       case "tools":
         headerKind = "tools";
+        break;
+      case "skills-station":
+        headerKind = "skills";
         break;
     }
   }

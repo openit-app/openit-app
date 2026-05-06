@@ -36,6 +36,11 @@ export async function resolvePathToSource(
   // per catalog entry.
   if (rel === "tools" || rel === "tools/") return { kind: "tools" };
 
+  // Skills station — intercept before the generic entity-folder routing
+  // so `filestores/skills` renders the combined slash-commands + custom
+  // skills view instead of the plain file list.
+  if (rel === "filestores/skills") return { kind: "skills-station" };
+
   // .openit/agent-traces/<ticketId>/ (folder) → agent-trace-list:
   // every per-turn trace for this ticket, oldest-first, stacked
   // with separators in the viewer.

@@ -104,6 +104,8 @@ function sourceKey(s: ViewerSource): string {
       return "knowledge-bases-list";
     case "tools":
       return "tools";
+    case "skills-station":
+      return "skills-station";
     case "script-output":
       return `script-output:${s.script}`;
     case "draft-file":

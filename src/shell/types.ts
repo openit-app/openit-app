@@ -232,4 +232,5 @@ export type ViewerSource =
   // Reachable via the Workbench station only — there's no `tools/` dir in
   // the file explorer.
   | { kind: "tools" }
+  | { kind: "skills-station" }
   | null;
