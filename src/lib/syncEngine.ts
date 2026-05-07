@@ -1,5 +1,9 @@
-// Local-only sync engine utilities: conflict tracking and prompt builder.
-// Cloud pull/push pipeline and collection sync have been removed.
+// Sync engine utilities: conflict tracking and prompt builder.
+//
+// In local-only mode the conflict infrastructure is inert (nothing populates
+// conflictsByPrefix). It's retained because the cloud sync pipeline — which
+// does populate it — will be re-enabled when users connect to Pinkfish.
+// ConflictBanner and subscribeConflicts safely no-op when the map is empty.
 
 export type Conflict = {
   manifestKey: string;
