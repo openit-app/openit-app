@@ -18,19 +18,6 @@ import { CATALOG, type CatalogEntry } from "./toolsCatalog";
 
 export type TargetOs = "macos" | "windows" | "linux" | "unknown";
 
-/// Cached after the first call — the OS doesn't change at runtime.
-let cachedTargetOs: TargetOs | null = null;
-
-export async function getTargetOs(): Promise<TargetOs> {
-  if (cachedTargetOs) return cachedTargetOs;
-  try {
-    const os = await invoke<string>("tools_target_os");
-    cachedTargetOs = (os as TargetOs) ?? "unknown";
-  } catch {
-    cachedTargetOs = "unknown";
-  }
-  return cachedTargetOs;
-}
 
 /// Returns the set of catalog ids whose binary is currently on PATH.
 export async function listInstalled(): Promise<Set<string>> {

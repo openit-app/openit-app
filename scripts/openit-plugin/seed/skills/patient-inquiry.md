@@ -1,5 +1,5 @@
 ---
-name: Patient Inquiry Setup
+name: patient-inquiry
 description: Set up a patient/researcher inquiry agent that self-serves answers from your organization's knowledge base.
 ---
 

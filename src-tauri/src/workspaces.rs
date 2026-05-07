@@ -129,13 +129,19 @@ pub fn remove_workspace(path: String) -> Result<WorkspaceRegistry, String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::sync::Mutex;
 
-    // Tests use a temp HOME so we don't corrupt real registry.
-    // Each test sets HOME to a unique tempdir.
+    // Guard against parallel test execution — set_var("HOME") is process-global.
+    static HOME_MUTEX: Mutex<()> = Mutex::new(());
 
     fn with_temp_home<F: FnOnce()>(f: F) {
+        let _lock = HOME_MUTEX.lock().unwrap();
         let dir = tempfile::TempDir::new().expect("tempdir");
-        std::env::set_var("HOME", dir.path());
+        let path = dir.path().to_path_buf();
+        #[cfg(target_os = "macos")]
+        std::fs::create_dir_all(path.join("Library").join("Application Support"))
+            .expect("pre-create app support");
+        std::env::set_var("HOME", &path);
         f();
     }
 

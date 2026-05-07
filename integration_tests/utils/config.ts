@@ -36,7 +36,7 @@ export function loadConfig(): IntegrationTestConfig | null {
   }
 }
 
-export function requireConfig(): IntegrationTestConfig {
+function requireConfig(): IntegrationTestConfig {
   const config = loadConfig();
   if (!config) {
     throw new Error(

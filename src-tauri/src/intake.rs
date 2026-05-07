@@ -637,7 +637,7 @@ async fn chat_turn(
     } else {
         let clf_claude =
             which::which("claude").unwrap_or_else(|_| std::path::PathBuf::from("claude"));
-        let name = classify_agent(&repo, &trimmed, &clf_claude).await;
+        let name = classify_agent(&repo, trimmed, &clf_claude).await;
         // Persist the choice into the session so subsequent turns skip routing.
         {
             let mut sessions = state.sessions.lock().await;

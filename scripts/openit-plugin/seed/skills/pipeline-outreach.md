@@ -1,5 +1,5 @@
 ---
-name: Pipeline Report & Outreach
+name: pipeline-outreach
 description: Pull a Salesforce pipeline report, draft personalized emails for prospects in a specific stage, and send via Gmail.
 ---
 

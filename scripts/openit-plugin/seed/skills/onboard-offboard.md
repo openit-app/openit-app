@@ -1,5 +1,5 @@
 ---
-name: Onboard / Offboard
+name: onboard-offboard
 description: Grant or revoke access across Slack, Zoom, Salesforce, Office 365, and other systems when employees join or leave.
 ---
 

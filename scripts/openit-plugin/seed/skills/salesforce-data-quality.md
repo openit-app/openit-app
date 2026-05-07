@@ -1,5 +1,5 @@
 ---
-name: Salesforce Data Quality
+name: salesforce-data-quality
 description: Find duplicate records, fix dirty data, merge dupes, and trace why records are missing from reports.
 ---
 

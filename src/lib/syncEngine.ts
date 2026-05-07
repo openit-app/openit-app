@@ -1,116 +1,9 @@
-// Local-only sync engine utilities: locks, conflict tracking, shadow helpers,
-// and the auto-commit helper. Cloud pull/push pipeline and collection sync
-// have been removed — entity sync files and their adapters are deleted.
-
-import type { KbStatePersisted } from "./api";
-
-export type Manifest = KbStatePersisted;
-
-/// Thrown by push adapters when the server reports a version conflict
-/// (PATCH 409 today; future entities can map other "you're behind"
-/// signals to the same class). Cross-cutting so any push wrapper can
-/// catch it without each entity defining its own.
-export class OutOfSync extends Error {
-  constructor(public readonly serverHint?: string) {
-    super(serverHint ? `out of sync: ${serverHint}` : "out of sync");
-    this.name = "OutOfSync";
-  }
-}
-
-/// Sentinel `pulled_at_mtime_ms` value the resolve script writes when
-/// flipping a row into "force-push" state after a user-resolved
-/// conflict. Any real local mtime exceeds it, so the engine's
-/// `localChanged = mtime > pulled_at_mtime_ms` test is guaranteed to
-/// fire. Mirrored in `scripts/openit-plugin/sync-resolve-conflict.mjs`
-/// — keep the two values in sync.
-export const FORCE_PUSH_MTIME_SENTINEL = 1;
-
-// ---------------------------------------------------------------------------
-// Shared shadow-filename helpers. Single source of truth for the
-// `<base>.server.<ext>` convention used by every text/binary entity.
-// Datastore uses a fixed `.json` extension so it doesn't call these
-// directly — but it uses the same classifyAsShadow check.
-// ---------------------------------------------------------------------------
-
-const SHADOW_MARKER = ".server.";
-
-/// `runbook.md` → `runbook.server.md`. Returned filename keeps the
-/// extension so downstream tooling (mime detection, viewers, etc.) still
-/// recognises the format.
-export function shadowFilename(filename: string): string {
-  const dot = filename.lastIndexOf(".");
-  if (dot <= 0 || dot === filename.length - 1) return `${filename}.server`;
-  return `${filename.slice(0, dot)}.server.${filename.slice(dot + 1)}`;
-}
-
-/// `runbook.server.md` → `runbook.md`. Inverse of shadowFilename.
-export function canonicalFromShadow(filename: string): string {
-  const i = filename.indexOf(SHADOW_MARKER);
-  if (i < 0) return filename;
-  return `${filename.slice(0, i)}.${filename.slice(i + SHADOW_MARKER.length)}`;
-}
-
-/// Necessary-but-not-sufficient: filename literally contains the shadow
-/// marker. Use `classifyAsShadow` for the authoritative check that also
-/// verifies a canonical sibling exists.
-export function looksLikeShadow(filename: string): boolean {
-  return filename.includes(SHADOW_MARKER);
-}
-
-/// Authoritative shadow classification. A file is a shadow IFF its
-/// filename matches the `<base>.server.<ext>` pattern AND its canonical
-/// sibling (`<base>.<ext>`) is also present in `siblingNames`.
-///
-/// `siblingNames` should contain the FULL set of local filenames in the
-/// scope being checked — do NOT pre-filter shadow-shaped names out.
-/// A legitimate `a.server.conf` (no `a.conf` sibling) returns false; a
-/// `b.server.conf` with a `b.conf` sibling returns true. Pre-filtering
-/// would cause a follow-on conflict shadow `a.server.server.conf` to
-/// go undetected because its canonical-form (`a.server.conf`) was
-/// excluded from the sibling set.
-export function classifyAsShadow(
-  filename: string,
-  siblingNames: Set<string>,
-): boolean {
-  if (!looksLikeShadow(filename)) return false;
-  return siblingNames.has(canonicalFromShadow(filename));
-}
-
-/// Sort-key recursive serializer. Two semantically-equal JSON values
-/// produce the same string regardless of key order in the source.
-/// Falls through arrays/primitives unchanged; only object key ordering
-/// is normalized.
-function canonicalJsonString(value: unknown): string {
-  if (value === null || typeof value !== "object") return JSON.stringify(value);
-  if (Array.isArray(value)) {
-    return `[${value.map(canonicalJsonString).join(",")}]`;
-  }
-  const keys = Object.keys(value as Record<string, unknown>).sort();
-  const parts = keys.map((k) => {
-    const v = (value as Record<string, unknown>)[k];
-    return `${JSON.stringify(k)}:${canonicalJsonString(v)}`;
-  });
-  return `{${parts.join(",")}}`;
-}
-
-/// Equivalence check for the bootstrap-adoption content compare.
-/// A naive byte compare false-positives on harmless drift: trailing
-/// newline from an editor save, CRLF vs LF on Windows, key order
-/// differences from a different stringify path. We try a JSON-aware
-/// canonical compare first (handles all three for datastore rows,
-/// which are the only adapters using inlineContent today). If either
-/// side isn't valid JSON, we fall back to a whitespace-trimmed string
-/// compare, which still neutralises the trailing-newline + CRLF cases.
-export function contentsEquivalent(a: string, b: string): boolean {
-  if (a === b) return true;
-  try {
-    const aJ = JSON.parse(a);
-    const bJ = JSON.parse(b);
-    return canonicalJsonString(aJ) === canonicalJsonString(bJ);
-  } catch {
-    return a.replace(/\r\n/g, "\n").trimEnd() === b.replace(/\r\n/g, "\n").trimEnd();
-  }
-}
+// Sync engine utilities: conflict tracking and prompt builder.
+//
+// In local-only mode the conflict infrastructure is inert (nothing populates
+// conflictsByPrefix). It's retained because the cloud sync pipeline — which
+// does populate it — will be re-enabled when users connect to Pinkfish.
+// ConflictBanner and subscribeConflicts safely no-op when the map is empty.
 
 export type Conflict = {
   manifestKey: string;
@@ -142,17 +35,6 @@ function snapshotConflicts(): AggregatedConflict[] {
   return out;
 }
 
-function emitConflicts() {
-  const snapshot = snapshotConflicts();
-  for (const fn of conflictSubscribers) {
-    try {
-      fn(snapshot);
-    } catch (e) {
-      console.error("[syncEngine] conflict subscriber threw:", e);
-    }
-  }
-}
-
 export function subscribeConflicts(
   fn: (c: AggregatedConflict[]) => void,
 ): () => void {
@@ -165,31 +47,17 @@ export function subscribeConflicts(
   };
 }
 
-/// Drop a single entity's conflict contribution. Wrappers call this from
-/// their stop functions so a stale entry can't outlive its sync.
-export function clearConflictsForPrefix(prefix: string): void {
-  if (conflictsByPrefix.delete(prefix)) emitConflicts();
+// ---------------------------------------------------------------------------
+// Shadow-filename helper (used only by buildConflictPrompt)
+// ---------------------------------------------------------------------------
+
+function shadowFilename(filename: string): string {
+  const dot = filename.lastIndexOf(".");
+  if (dot <= 0 || dot === filename.length - 1) return `${filename}.server`;
+  return `${filename.slice(0, dot)}.server.${filename.slice(dot + 1)}`;
 }
 
-/// True if at least one aggregated conflict exists for this prefix.
-export function hasConflictsForPrefix(prefix: string): boolean {
-  const list = conflictsByPrefix.get(prefix);
-  return list != null && list.length > 0;
-}
-
-/// Snapshot of conflicts for a single prefix. Same prefix-granularity
-/// rules as `hasConflictsForPrefix`.
-export function getConflictsForPrefix(prefix: string): AggregatedConflict[] {
-  const list = conflictsByPrefix.get(prefix);
-  return list != null ? [...list] : [];
-}
-
-/// Compute the on-disk shadow path for a conflict's canonical
-/// workingTreePath. e.g. `databases/openit-people-XXX/p123.json`
-/// → `databases/openit-people-XXX/p123.server.json`. Used by the
-/// "Resolve in Claude" prompt builder so it can point Claude at both
-/// sides of every conflict.
-export function shadowPath(workingTreePath: string): string {
+function shadowPath(workingTreePath: string): string {
   const slash = workingTreePath.lastIndexOf("/");
   const dir = slash >= 0 ? workingTreePath.slice(0, slash + 1) : "";
   const filename = slash >= 0 ? workingTreePath.slice(slash + 1) : workingTreePath;
@@ -311,4 +179,3 @@ export function buildConflictPrompt(
 
   return lines.join("\n");
 }
-

@@ -90,8 +90,8 @@ describe("routeFile", () => {
     });
 
     it("routes nested .md files under agents/<folder> through the default rule", () => {
-      // common.md / cloud.md / local.md ride the default fallback —
-      // the agent template rule only fires for .template.json basenames.
+      // Nested agent .md files (not top-level) fall through to the
+      // default rule which preserves the original path structure.
       expect(routeFile("agents/triage/common.md", slug)).toEqual({
         subdir: "agents/triage",
         filename: "common.md",

@@ -178,27 +178,6 @@ export const ENTITY_META: Record<EntityKind, EntityMetaEntry> = {
 
 // ── Convenience accessors used by call sites ──────────────────────
 
-/// Map of just the icons — kept for backwards compatibility with
-/// existing imports. New code should prefer ENTITY_META directly.
-export const EntityIcons = {
-  inbox: InboxIcon,
-  reports: ReportsIcon,
-  people: PersonIcon,
-  knowledge: KnowledgeIcon,
-  knowledgeBase: KnowledgeIcon,
-  knowledgeBases: KnowledgeIcon,
-  files: FilesIcon,
-  library: FilesIcon,
-  filestores: FilesIcon,
-  agents: AgentsIcon,
-  attachments: AttachmentsIcon,
-  databases: DatabasesIcon,
-  workflows: WorkflowsIcon,
-  tools: ToolsIcon,
-  skills: SkillsIcon,
-  scripts: ScriptsIcon,
-};
-
 // ── EntityBadge component (used in viewer headers) ────────────────
 
 /// Small tinted badge: tone-colored glyph square + label text.

@@ -42,20 +42,6 @@ export async function skillStateRead(
   return invoke("skill_state_read", { repo, skill });
 }
 
-export async function skillStateWrite(
-  repo: string,
-  skill: string,
-  state: SkillState,
-): Promise<void> {
-  return invoke("skill_state_write", { repo, skill, state });
-}
-
-export async function skillStateClear(
-  repo: string,
-  skill: string,
-): Promise<void> {
-  return invoke("skill_state_clear", { repo, skill });
-}
 
 /// Inject a slash command (or any line of text) into the active
 /// Claude PTY. Trailing carriage return commits the line. No-op
