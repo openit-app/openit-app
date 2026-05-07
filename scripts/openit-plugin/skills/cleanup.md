@@ -1,5 +1,5 @@
 ---
-name: Cleanup Sample Data
+name: cleanup
 description: Remove all sample/demo data from the vault so you start fresh with a clean slate.
 ---
 

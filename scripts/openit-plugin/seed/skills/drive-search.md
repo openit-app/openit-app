@@ -1,5 +1,5 @@
 ---
-name: Drive Search
+name: drive-search
 description: Search Google Drive in natural language — find documents, spreadsheets, and files without knowing where they are.
 ---
 

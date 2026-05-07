@@ -1,5 +1,5 @@
 ---
-name: Salesforce + Gmail
+name: salesforce-gmail
 description: Bridge Salesforce and Gmail — pull reports, email prospect lists, correct records, and move opportunities.
 ---
 

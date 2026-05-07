@@ -1,5 +1,5 @@
 ---
-name: Slack to Knowledge Base
+name: slack-to-kb
 description: Mine repeated Q&A from Slack channels and turn them into reusable knowledge base articles.
 ---
 

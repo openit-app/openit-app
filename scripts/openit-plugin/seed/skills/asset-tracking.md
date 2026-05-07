@@ -1,5 +1,5 @@
 ---
-name: Asset Tracking
+name: asset-tracking
 description: Query and manage device/asset inventory in Monday.com — who owns what, who has extras, trigger offboarding.
 ---
 
