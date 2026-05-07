@@ -24,14 +24,9 @@ const STATIONS: Station[] = [
   { id: "reports",   kind: "reports",   rel: "reports",           countMode: "files" },
   { id: "people",    kind: "people",    rel: "databases/people",  countMode: "json-rows" },
   { id: "knowledge", kind: "knowledge", rel: "knowledge-bases",   countMode: "files" },
-  { id: "agents",    kind: "agents",    rel: "agents",            countMode: "files" },
-  // Skills + scripts (PIN-5829) — admin-curated artifacts captured by
-  // /conversation-to-automation. Both live as filestore subdirs and
-  // mirror into .claude/ for native discovery; here we surface the
-  // filestore copy (source of truth) so admin edits land in the right
-  // place.
   { id: "access",    kind: "access",    rel: "databases/access",   countMode: "json-rows" },
   { id: "assets",    kind: "assets",    rel: "databases/assets",   countMode: "json-rows" },
+  { id: "agents",    kind: "agents",    rel: "agents",            countMode: "files" },
   { id: "skills",    kind: "skills",    rel: "filestores/skills",  countMode: "files" },
   { id: "scripts",   kind: "scripts",   rel: "filestores/scripts", countMode: "files" },
   // Tools is synthetic — no on-disk directory at all (so it doesn't

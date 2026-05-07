@@ -4630,6 +4630,9 @@ input.viewer-title.viewer-title-rename {
   display: flex;
   flex-direction: column;
   gap: 3px;
+  /* Reserve space for hover-revealed action buttons (delete, run, etc.)
+     so text doesn't sit under the icons. */
+  padding-right: 28px;
 }
 
 .entity-card-row {
