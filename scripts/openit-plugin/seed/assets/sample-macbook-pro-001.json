@@ -1,0 +1,13 @@
+{
+  "name": "MacBook Pro 14\" (2025)",
+  "type": "laptop",
+  "serialNumber": "C02ZW1ABCDEF",
+  "assignedTo": "jane.smith@acme.org",
+  "status": "assigned",
+  "assignedDate": "2026-04-15",
+  "purchaseDate": "2025-09-10",
+  "cost": 2499,
+  "notes": "Shipped to remote worker via FedEx. AppleCare until 2028-09.",
+  "createdAt": "2025-09-15T10:00:00Z",
+  "updatedAt": "2026-04-15T09:30:00Z"
+}
