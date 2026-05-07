@@ -40,6 +40,7 @@
     { "path": "seed/conversations/sample-ticket-5/msg-1745667000000-ee01.json" },
     { "path": "seed/conversations/sample-ticket-5/msg-1745669100000-ee02.json" },
     { "path": "seed/skills/hello-world.md" },
+    { "path": "seed/skills/pipeline-outreach.md" },
     { "path": "seed/scripts/hello-world.mjs" }
   ]
 }
