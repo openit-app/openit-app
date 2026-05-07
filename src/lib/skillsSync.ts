@@ -118,7 +118,8 @@ export function routeFile(
     };
   }
   // Agent markdown files: agents/triage.md → agents/triage.md
-  if (filePath.startsWith("agents/") && filePath.endsWith(".md")) {
+  // Only matches top-level .md files (not nested like agents/triage/common.md)
+  if (filePath.startsWith("agents/") && filePath.endsWith(".md") && !filePath.slice("agents/".length).includes("/")) {
     const filename = filePath.replace("agents/", "");
     return { subdir: "agents", filename, substituteSlug: false };
   }
