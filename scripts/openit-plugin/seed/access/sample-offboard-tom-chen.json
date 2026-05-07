@@ -1,0 +1,19 @@
+{
+  "action": "offboard",
+  "employee": "Tom Chen",
+  "email": "tom.chen@acme.org",
+  "role": "Research Associate",
+  "department": "Research",
+  "date": "2026-03-28",
+  "systems": {
+    "slack": { "status": "done", "details": "Deactivated workspace account" },
+    "salesforce": { "status": "done", "details": "Deactivated user, transferred 3 open cases to sarah@acme.org" },
+    "office365": { "status": "done", "details": "Disabled account, converted mailbox to shared, forwarding to manager" },
+    "zoom": { "status": "done", "details": "Removed licensed user" },
+    "monday": { "status": "done", "details": "Removed from all boards, reassigned 5 items to team lead" },
+    "1password": { "status": "manual", "details": "Admin to revoke vault access in 1Password dashboard" }
+  },
+  "performedBy": "admin@acme.org",
+  "notes": "Last day March 28. Laptop returned to IT closet. Exit interview completed.",
+  "createdAt": "2026-03-28T16:00:00Z"
+}
