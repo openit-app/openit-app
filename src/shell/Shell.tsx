@@ -500,9 +500,17 @@ export function Shell({
     };
   }, [fsTick, repo]);
 
-  // No auto-open on first load — the Workbench dashboard is the
-  // landing page. Getting-started.md is reachable from the file tree
-  // or the header "Getting Started" button.
+  // Auto-open getting-started.md in the center pane on first load
+  // so new users see the welcome guide immediately. The Workbench
+  // overview stays in the left pane.
+  useEffect(() => {
+    if (repo && !source) {
+      const welcomePath = `${repo}/getting-started.md`;
+      resolvePathToSource(welcomePath, repo)
+        .then(setSource)
+        .catch((e) => console.error("[shell] welcome resolution failed:", e));
+    }
+  }, [repo]); // eslint-disable-line react-hooks/exhaustive-deps
 
 
   useEffect(() => {
