@@ -49,7 +49,6 @@
     { "path": "seed/assets/sample-macbook-air-002.json" },
     { "path": "seed/assets/sample-dell-monitor-003.json" },
     { "path": "seed/skills/hello-world.md" },
-    { "path": "seed/skills/it-ticketing-setup.md" },
     { "path": "seed/skills/asset-tracking.md" },
     { "path": "seed/skills/drive-search.md" },
     { "path": "seed/skills/patient-inquiry.md" },
