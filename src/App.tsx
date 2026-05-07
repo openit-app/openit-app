@@ -205,7 +205,7 @@ function App() {
     injectIntoChat("/connect-slack").catch((e) =>
       console.warn("[app] inject /connect-slack failed:", e),
     );
-  }, [repo]);
+  }, [repo, slackConfig]);
 
   // Global cmd-K / ctrl-K listener — opens the command palette from
   // anywhere in the app. We use a window listener (not document
