@@ -43,6 +43,7 @@
     { "path": "seed/conversations/sample-ticket-5/msg-1745667000000-ee01.json" },
     { "path": "seed/conversations/sample-ticket-5/msg-1745669100000-ee02.json" },
     { "path": "seed/reports/sample-2026-05-01-weekly-overview.md" },
+    { "path": "seed/reports/sample-2026-04-28-pipeline-outreach.md" },
     { "path": "seed/access/sample-onboard-jane-smith.json" },
     { "path": "seed/access/sample-offboard-tom-chen.json" },
     { "path": "seed/assets/sample-macbook-pro-001.json" },
