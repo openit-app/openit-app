@@ -80,12 +80,49 @@ After all exports are complete:
 
 After the first successful run, offer to set up a recurring backup:
 
-"Want me to schedule this to run automatically? I can set it up as a monthly routine using Claude Code routines."
+"Want me to schedule this to run automatically every month? I'll need to set up a couple of things first."
 
-If the admin says yes, guide them:
-- Run `/schedule monthly backup on the 1st at 6am`
-- This creates a Claude Code routine that runs this same flow on the 1st of each month
-- The routine needs the same MCP connectors (Salesforce, HubSpot, Monday, Google Drive)
+Claude Code routines run on Anthropic's cloud, which needs a GitHub repo to clone. Walk through the setup:
+
+### Step 1: Check prerequisites
+
+- **GitHub CLI** (`gh`) must be installed. Check with `which gh`. If missing, tell the admin to install it from the Tools station.
+- **GitHub auth**: Check with `gh auth status`. If not logged in, run `gh auth login`.
+- **Claude Pro/Max/Team/Enterprise plan** with Claude Code on the web enabled.
+
+### Step 2: Create a GitHub repo for the vault (first time only)
+
+Check if the vault is already a GitHub repo:
+```bash
+gh repo view 2>/dev/null
+```
+
+If not, create one:
+```bash
+git init
+git add -A
+git commit -m "initial: OpenIT vault"
+gh repo create openit-vault --private --source=. --push
+```
+
+Confirm with the admin: "I'll create a private GitHub repo called 'openit-vault' to store your project. This is needed for scheduled routines to work. OK?"
+
+### Step 3: Wire up the routine
+
+```
+/schedule monthly backup on the 1st at 6am
+```
+
+Make sure the routine includes the same MCP connectors the backup needs (Salesforce, HubSpot, Monday, Google Drive).
+
+### Step 4: Save for future use
+
+After the first scheduling setup succeeds, write a KB article at `knowledge-bases/default/scheduling-setup.md` documenting:
+- That the vault is connected to GitHub at `<repo-url>`
+- How to add new scheduled routines (just run `/schedule`)
+- The MCP connectors that are wired up
+
+This way, future scheduling requests skip the setup and go straight to `/schedule`.
 
 ## Tone
 
