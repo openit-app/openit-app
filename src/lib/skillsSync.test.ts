@@ -89,12 +89,12 @@ describe("routeFile", () => {
       });
     });
 
-    it("routes nested .md files under agents/ to flat agents dir", () => {
-      // After agent simplification, agents/triage/common.md routes to
-      // subdir: "agents" with filename preserving the relative path.
+    it("routes nested .md files under agents/<folder> through the default rule", () => {
+      // Nested agent .md files (not top-level) fall through to the
+      // default rule which preserves the original path structure.
       expect(routeFile("agents/triage/common.md", slug)).toEqual({
-        subdir: "agents",
-        filename: "triage/common.md",
+        subdir: "agents/triage",
+        filename: "common.md",
         substituteSlug: false,
       });
     });
