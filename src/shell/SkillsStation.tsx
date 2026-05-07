@@ -8,16 +8,11 @@ import styles from "./ToolsPanel.module.css";
 type SkillEntry = {
   name: string;
   description: string;
-  /** Absolute path to the file the card opens / deletes. */
   path: string;
 };
 
-/**
- * Skills station — unified list of all skills from .claude/skills/.
- * Every skill is a slash command in Claude (type `/name` to invoke).
- * Custom skills authored under filestores/skills/ are mirrored here
- * by skillMirror, so one list covers everything.
- */
+let lastSkillsTab: "system" | "custom" = "system";
+
 export function SkillsStation({
   repo,
   onOpen,
@@ -25,11 +20,18 @@ export function SkillsStation({
   repo: string;
   onOpen: (path: string) => void;
 }) {
-  const [skills, setSkills] = useState<SkillEntry[]>([]);
+  const [activeTab, setActiveTabRaw] = useState<"system" | "custom">(lastSkillsTab);
+  const setActiveTab = (tab: "system" | "custom") => {
+    lastSkillsTab = tab;
+    setActiveTabRaw(tab);
+  };
+  const [systemSkills, setSystemSkills] = useState<SkillEntry[]>([]);
+  const [customSkills, setCustomSkills] = useState<SkillEntry[]>([]);
   const [tick, setTick] = useState(0);
 
   const refresh = useCallback(() => setTick((t) => t + 1), []);
 
+  // Load system skills from .claude/skills/
   useEffect(() => {
     let cancelled = false;
     (async () => {
@@ -76,30 +78,97 @@ export function SkillsStation({
         );
       } catch { /* .claude/skills/ doesn't exist */ }
       entries.sort((a, b) => a.name.localeCompare(b.name));
-      if (!cancelled) setSkills(entries);
+      if (!cancelled) setSystemSkills(entries);
     })();
     return () => { cancelled = true; };
   }, [repo, tick]);
 
-  const cards: EntityCard[] = skills.map((s) => ({
-    key: s.name,
-    title: s.name,
-    description: s.description || undefined,
-    onClick: () => onOpen(s.path),
-    onAddToClaude: async () => { await writeToActiveSession(`/${s.name}\r`); },
-    onDelete: async () => {
-      if (!window.confirm(`Delete skill "${s.name}"?`)) return;
-      await fsDelete(s.path);
-      refresh();
-    },
-  }));
+  // Load custom skills from filestores/skills/
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      const entries: SkillEntry[] = [];
+      try {
+        const root = `${repo}/filestores/skills`;
+        const nodes = await fsList(root);
+        const prefix = `${root}/`;
+        const files = nodes.filter((n) => {
+          if (n.is_dir) return false;
+          const tail = n.path.startsWith(prefix) ? n.path.slice(prefix.length) : "";
+          if (!tail || tail.includes("/")) return false;
+          if (n.name.includes(".server.")) return false;
+          return n.name.endsWith(".md");
+        });
+        await Promise.all(
+          files.map(async (f) => {
+            const name = f.name.replace(/\.md$/, "");
+            let description = "";
+            try {
+              const raw = await fsRead(f.path);
+              const fmMatch = raw.match(/^---\r?\n([\s\S]*?)\r?\n---/);
+              if (fmMatch) {
+                const descLine = fmMatch[1]
+                  .split("\n")
+                  .find((l) => l.trim().startsWith("description:"));
+                if (descLine) {
+                  description = descLine
+                    .replace(/^description:\s*/, "")
+                    .replace(/^["']|["']$/g, "")
+                    .trim();
+                }
+              }
+              if (!description) {
+                const body = fmMatch ? raw.slice(fmMatch[0].length) : raw;
+                for (const line of body.split("\n")) {
+                  const trimmed = line.trim();
+                  if (!trimmed || trimmed.startsWith("#")) continue;
+                  description = trimmed.slice(0, 140);
+                  break;
+                }
+              }
+            } catch { /* unreadable */ }
+            entries.push({ name, description, path: f.path });
+          }),
+        );
+      } catch { /* filestores/skills/ doesn't exist */ }
+      entries.sort((a, b) => a.name.localeCompare(b.name));
+      if (!cancelled) setCustomSkills(entries);
+    })();
+    return () => { cancelled = true; };
+  }, [repo, tick]);
+
+  const buildCards = (skills: SkillEntry[], isSystem: boolean): EntityCard[] =>
+    skills.map((s) => ({
+      key: `${isSystem ? "sys" : "custom"}-${s.name}`,
+      title: s.name,
+      description: s.description || undefined,
+      onClick: () => onOpen(s.path),
+      onAddToClaude: async () => { await writeToActiveSession(`/${s.name}\r`); },
+      onDelete: async () => {
+        if (!window.confirm(`Delete skill "${s.name}"?`)) return;
+        await fsDelete(s.path);
+        refresh();
+      },
+    }));
 
   return (
     <div className={styles.panel}>
       <div className={styles.tabStrip} style={{ display: "flex", alignItems: "center" }}>
-        <span className={styles.tagline} style={{ flex: 1 }}>
-          Type <code>/name</code> in Claude to run a skill.
-        </span>
+        <button
+          type="button"
+          className={`${styles.tab} ${activeTab === "system" ? styles.tabActive : ""}`}
+          onClick={() => setActiveTab("system")}
+        >
+          System
+        </button>
+        <button
+          type="button"
+          className={`${styles.tab} ${activeTab === "custom" ? styles.tabActive : ""}`}
+          onClick={() => setActiveTab("custom")}
+        >
+          Custom
+        </button>
+        <span style={{ flex: 1 }} />
         <Button
           variant="ghost"
           size="sm"
@@ -113,11 +182,31 @@ export function SkillsStation({
         </Button>
       </div>
 
-      <EntityCardGrid
-        kind="skills"
-        cards={cards}
-        empty="No skills yet. Click + New to create one."
-      />
+      {activeTab === "system" && (
+        <>
+          <p className={styles.tagline}>
+            Skills that ship with OpenIT. Type <code>/name</code> in Claude to run.
+          </p>
+          <EntityCardGrid
+            kind="skills"
+            cards={buildCards(systemSkills, true)}
+            empty="No system skills found."
+          />
+        </>
+      )}
+
+      {activeTab === "custom" && (
+        <>
+          <p className={styles.tagline}>
+            Skills you or Claude have created. Reusable across sessions.
+          </p>
+          <EntityCardGrid
+            kind="skills"
+            cards={buildCards(customSkills, false)}
+            empty="No custom skills yet. Click + New to create one."
+          />
+        </>
+      )}
     </div>
   );
 }

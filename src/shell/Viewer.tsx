@@ -1606,10 +1606,10 @@ export function Viewer({
     if (source.kind === "datastore-schema")
       return `${repo}/databases/${source.collection.name}/_schema.json`;
     if (source.kind === "entity-folder") {
-      // Reports already has dedicated header actions (generate
-      // overview / ask for custom report) — a generic "add to chat"
-      // link there would feel redundant.
-      if (source.entity === "reports") return null;
+      // Reports and agents don't need "add to chat" on the list view.
+      // Reports has its own header actions; agents' "add to chat"
+      // belongs on the individual agent file view, not the list.
+      if (source.entity === "reports" || source.entity === "agents") return null;
       return `${repo}/${source.path}`;
     }
     if (source.kind === "people-list") return `${repo}/databases/people`;
@@ -3009,10 +3009,12 @@ export function Viewer({
                       {r.name || r.key}
                     </span>
                     {r.status && (
-                      <span className="thread-card-status">{r.status}</span>
+                      <span className={`thread-card-status ${r.status === "available" ? "thread-card-status-ok" : r.status === "assigned" ? "thread-card-status-info" : r.status === "decommissioned" || r.status === "repair" ? "thread-card-status-warn" : ""}`}>
+                        {r.status}
+                      </span>
                     )}
                   </div>
-                  <div className="thread-card-meta">
+                  <div className="thread-card-meta" style={{ paddingRight: 32 }}>
                     {r.type && (
                       <span className="thread-card-asker">{r.type}</span>
                     )}
@@ -3390,7 +3392,7 @@ export function Viewer({
           {folderUploadError && (
             <p className="viewer-edit-error">{folderUploadError}</p>
           )}
-          {cards.length > 1 && (
+          {cards.length > 3 && (
             <div className="viewer-folder-toolbar">
               <Button
                 variant="ghost"

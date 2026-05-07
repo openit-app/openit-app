@@ -1070,6 +1070,23 @@ input.viewer-title.viewer-title-rename {
   border-color: #82c39a;
 }
 
+/* Asset / access status tones — applied via thread-card-status-{tone} */
+.thread-card-status-ok {
+  color: #1f4d2c;
+  background: #e8f5ec;
+  border-color: #82c39a;
+}
+.thread-card-status-info {
+  color: #1a3a5c;
+  background: #e3f0fa;
+  border-color: #7fb3d8;
+}
+.thread-card-status-warn {
+  color: #6b3a0a;
+  background: #fef3e2;
+  border-color: #d4a54a;
+}
+
 .thread-card-meta {
   display: flex;
   flex-wrap: wrap;
