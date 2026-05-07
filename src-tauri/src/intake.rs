@@ -741,7 +741,7 @@ async fn chat_turn(
     // Write the agent's reply turn to disk deterministically. The
     // skill is told not to write conversation turns — only emit the
     // status marker — so the server controls sender + role + body.
-    let _ = write_agent_turn(&repo, &ticket_id, &reply_body).await;
+    let _ = write_agent_turn(&repo, &ticket_id, &reply_body, &agent_name).await;
 
     // Apply the agent's decision. Three valid outcomes:
     //   Answered  → ticket → `open`     (KB hit; conversation alive)
@@ -2222,10 +2222,14 @@ fn iso_one_second_ago() -> String {
 }
 
 /// Write the agent's reply turn to
-/// `databases/conversations/<ticket_id>/msg-*.json`. Sender is
-/// hardcoded to `triage` so the admin sees a stable label instead
-/// of whatever the agent decides to call itself.
-async fn write_agent_turn(repo: &Path, ticket_id: &str, body: &str) -> Result<(), String> {
+/// `databases/conversations/<ticket_id>/msg-*.json`. Sender is the
+/// agent name so the admin sees which agent handled the conversation.
+async fn write_agent_turn(
+    repo: &Path,
+    ticket_id: &str,
+    body: &str,
+    agent_name: &str,
+) -> Result<(), String> {
     let conv_dir = repo.join("databases").join("conversations").join(ticket_id);
     tokio::fs::create_dir_all(&conv_dir)
         .await
@@ -2245,7 +2249,7 @@ async fn write_agent_turn(repo: &Path, ticket_id: &str, body: &str) -> Result<()
         "id": msg_id,
         "ticketId": ticket_id,
         "role": "agent",
-        "sender": "triage",
+        "sender": agent_name,
         "timestamp": now_iso(),
         "body": body,
     });
