@@ -1535,7 +1535,7 @@ async fn spawn_claude_chat(
     prompt: &str,
     persister: Option<&LiveTracePersister>,
 ) -> Result<ChatTurnOutput, String> {
-    let claude_path = resolve_claude_binary()
+    let claude_path = crate::pty::locate_claude()
         .ok_or_else(|| "Claude CLI not found on PATH. Install claude (see https://docs.anthropic.com/claude/docs/claude-code) and ensure it's reachable from this app.".to_string())?;
     // `--permission-mode bypassPermissions` so the headless run can
     // Write/Edit ticket+conversation files and Bash the kb-search
@@ -1555,8 +1555,8 @@ async fn spawn_claude_chat(
     // `kill_on_drop(true)` so a timeout (or any early-return below)
     // reaps the subprocess instead of leaving an orphaned `claude`
     // running with the user's prompt.
-    let mut child = TokioCommand::new(&claude_path)
-        .arg("-p")
+    let mut cmd = TokioCommand::new(&claude_path);
+    cmd.arg("-p")
         .arg("--verbose")
         .arg("--output-format")
         .arg("stream-json")
@@ -1568,7 +1568,13 @@ async fn spawn_claude_chat(
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
-        .kill_on_drop(true)
+        .kill_on_drop(true);
+    // Mirror the PTY's PATH augmentation so `claude` itself can find
+    // tools it shells out to (git, gh, node, …) on a GUI-launched app.
+    if let Some(path) = crate::pty::augmented_path() {
+        cmd.env("PATH", path);
+    }
+    let mut child = cmd
         .spawn()
         .map_err(|e| format!("spawn claude: {}", e))?;
 
