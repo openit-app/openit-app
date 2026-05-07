@@ -55,7 +55,7 @@
     { "path": "seed/skills/slack-to-kb.md" },
     { "path": "seed/skills/salesforce-data-quality.md" },
     { "path": "seed/skills/onboard-offboard.md" },
-    { "path": "seed/skills/cleanup.md" },
+    { "path": "skills/cleanup.md" },
     { "path": "seed/scripts/hello-world.mjs" }
   ]
 }
