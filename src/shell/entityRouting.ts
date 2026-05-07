@@ -1,6 +1,8 @@
 import { fsRead, fsList, entityWriteFile } from "../lib/api";
 import { loadOpenitConfig } from "../lib/openitConfig";
 import type {
+  AccessSummary,
+  AssetSummary,
   ConversationThreadSummary,
   ConversationTurn,
   PersonSummary,
@@ -40,6 +42,7 @@ export async function resolvePathToSource(
   // so `filestores/skills` renders the combined slash-commands + custom
   // skills view instead of the plain file list.
   if (rel === "filestores/skills") return { kind: "skills-station" };
+  if (rel === "filestores/scripts") return { kind: "scripts-station" };
 
   // .openit/agent-traces/<ticketId>/ (folder) → agent-trace-list:
   // every per-turn trace for this ticket, oldest-first, stacked
@@ -472,6 +475,92 @@ export async function resolvePathToSource(
           kind: "people-list",
           view: "cards",
           people,
+          collection: col,
+          items,
+        };
+      }
+
+      // Access log gets a card-list view identical to people.
+      if (colName === "access") {
+        const records: AccessSummary[] = items
+          .map((it): AccessSummary | null => {
+            const c = it.content as Record<string, unknown> | null;
+            if (!c || typeof c !== "object") return null;
+            return {
+              key: typeof it.key === "string" ? it.key : it.id,
+              action:
+                typeof (c as { action?: unknown }).action === "string"
+                  ? ((c as { action: string }).action)
+                  : "",
+              employee:
+                typeof (c as { employee?: unknown }).employee === "string"
+                  ? ((c as { employee: string }).employee)
+                  : "",
+              email:
+                typeof (c as { email?: unknown }).email === "string"
+                  ? ((c as { email: string }).email)
+                  : "",
+              role:
+                typeof (c as { role?: unknown }).role === "string"
+                  ? ((c as { role: string }).role)
+                  : "",
+              date:
+                typeof (c as { date?: unknown }).date === "string"
+                  ? ((c as { date: string }).date)
+                  : "",
+            };
+          })
+          .filter((r): r is AccessSummary => r !== null)
+          .sort((a, b) =>
+            (a.employee || a.email || a.key).localeCompare(b.employee || b.email || b.key),
+          );
+        return {
+          kind: "access-list",
+          view: "cards",
+          records,
+          collection: col,
+          items,
+        };
+      }
+
+      // Asset inventory gets a card-list view identical to people.
+      if (colName === "assets") {
+        const records: AssetSummary[] = items
+          .map((it): AssetSummary | null => {
+            const c = it.content as Record<string, unknown> | null;
+            if (!c || typeof c !== "object") return null;
+            return {
+              key: typeof it.key === "string" ? it.key : it.id,
+              name:
+                typeof (c as { name?: unknown }).name === "string"
+                  ? ((c as { name: string }).name)
+                  : "",
+              type:
+                typeof (c as { type?: unknown }).type === "string"
+                  ? ((c as { type: string }).type)
+                  : "",
+              serialNumber:
+                typeof (c as { serialNumber?: unknown }).serialNumber === "string"
+                  ? ((c as { serialNumber: string }).serialNumber)
+                  : "",
+              assignedTo:
+                typeof (c as { assignedTo?: unknown }).assignedTo === "string"
+                  ? ((c as { assignedTo: string }).assignedTo)
+                  : "",
+              status:
+                typeof (c as { status?: unknown }).status === "string"
+                  ? ((c as { status: string }).status)
+                  : "",
+            };
+          })
+          .filter((r): r is AssetSummary => r !== null)
+          .sort((a, b) =>
+            (a.name || a.key).localeCompare(b.name || b.key),
+          );
+        return {
+          kind: "assets-list",
+          view: "cards",
+          records,
           collection: col,
           items,
         };

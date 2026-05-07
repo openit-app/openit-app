@@ -27,6 +27,8 @@ export function sourceToTreePath(
       return `${repo}/databases/conversations`;
 
     case "people-list":
+    case "access-list":
+    case "assets-list":
       return `${repo}/databases/${source.collection.name}`;
 
     case "datastore-table":
@@ -70,6 +72,7 @@ export function sourceToTreePath(
     case "agent-trace-list":
     case "tools":
     case "skills-station":
+    case "scripts-station":
     case "script-output":
     case "draft-file":
       return null;

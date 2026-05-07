@@ -12,6 +12,7 @@ import { FileThumbnail, isImageFile } from "./FileThumbnail";
 import { EntityBadge, type EntityKind } from "./entityIcons";
 import { ToolsPanel } from "./ToolsPanel";
 import { SkillsStation } from "./SkillsStation";
+import { ScriptsStation } from "./ScriptsStation";
 import { TrashIcon } from "./TrashIcon";
 import { useToast } from "../Toast";
 import { Button, TabStrip, Tab } from "../ui";
@@ -1061,6 +1062,8 @@ export function Viewer({
   // for the lifetime of this Viewer instance so flipping into a
   // ticket and back doesn't reset the admin's preferred mode.
   const [peopleView, setPeopleView] = useState<"cards" | "table">("cards");
+  const [accessView, setAccessView] = useState<"cards" | "table">("cards");
+  const [assetsView, setAssetsView] = useState<"cards" | "table">("cards");
 
   // Edit-mode state for the markdown viewer. `editDraft` is the
   // textarea value (decoupled from `content` so unsaved edits don't
@@ -1408,12 +1411,27 @@ export function Viewer({
       setContent("");
       return;
     }
+    if (source.kind === "access-list") {
+      setMode("rendered");
+      setContent("");
+      return;
+    }
+    if (source.kind === "assets-list") {
+      setMode("rendered");
+      setContent("");
+      return;
+    }
     if (source.kind === "tools") {
       setMode("rendered");
       setContent("");
       return;
     }
     if (source.kind === "skills-station") {
+      setMode("rendered");
+      setContent("");
+      return;
+    }
+    if (source.kind === "scripts-station") {
       setMode("rendered");
       setContent("");
       return;
@@ -1541,8 +1559,11 @@ export function Viewer({
       case "agent-trace-list":
         return `Agent traces — ${source.subject} (${source.docs.length} turn${source.docs.length === 1 ? "" : "s"})`;
       case "people-list":        return "People";
+      case "access-list":        return "Access";
+      case "assets-list":        return "Assets";
       case "tools": return "Tools";
       case "skills-station": return "Skills";
+      case "scripts-station": return "Scripts";
       default: return "";
     }
   };
@@ -1560,6 +1581,8 @@ export function Viewer({
   const showRowTabs = source.kind === "datastore-row";
   const showAgentTabs = source.kind === "agent";
   const showPeopleTabs = source.kind === "people-list";
+  const showAccessTabs = source.kind === "access-list";
+  const showAssetsTabs = source.kind === "assets-list";
   const showConversationsFilter = source.kind === "conversations-list";
 
   // Path used by the "add to chat →" header link. Any source that maps
@@ -1590,6 +1613,8 @@ export function Viewer({
       return `${repo}/${source.path}`;
     }
     if (source.kind === "people-list") return `${repo}/databases/people`;
+    if (source.kind === "access-list") return `${repo}/databases/access`;
+    if (source.kind === "assets-list") return `${repo}/databases/assets`;
     if (source.kind === "conversations-list")
       return `${repo}/databases/conversations`;
     if (source.kind === "agent")
@@ -2805,6 +2830,230 @@ export function Viewer({
       );
     }
 
+    // Access log — card or table view, toggled in the
+    // top-right of the viewer header (see `showAccessTabs` below).
+    if (source.kind === "access-list") {
+      const view = accessView;
+      if (view === "table") {
+        return (
+          <div className="viewer-summary viewer-access">
+            {folderUploadError && (
+              <p className="viewer-edit-error">{folderUploadError}</p>
+            )}
+            <DataTable
+              collection={source.collection}
+              items={source.items}
+              onRowClick={(key) => {
+                const filePath = `${repo}/databases/${source.collection.name}/${key}.json`;
+                writeToActiveSession(filePath + " ");
+              }}
+              onRowDelete={
+                repo
+                  ? (key) =>
+                      deleteFileInSubdir(
+                        repo,
+                        `databases/${source.collection.name}`,
+                        `${key}.json`,
+                        setFolderUploadError,
+                        showToast,
+                      )
+                  : undefined
+              }
+            />
+          </div>
+        );
+      }
+
+      if (source.records.length === 0) {
+        return (
+          <div className="viewer-summary viewer-access">
+            <p className="summary-desc">
+              No access records yet. Onboard and offboard actions will appear here.
+            </p>
+          </div>
+        );
+      }
+
+      return (
+        <div className="viewer-summary viewer-access">
+          {folderUploadError && (
+            <p className="viewer-edit-error">{folderUploadError}</p>
+          )}
+          <div className="viewer-thread-list">
+            {source.records.map((r) => (
+              <div key={r.key} className="thread-card-wrapper">
+                <button
+                  type="button"
+                  className="thread-card thread-card-person"
+                  onClick={() => {
+                    if (onOpenPath) {
+                      void onOpenPath(`${repo}/databases/access/${r.key}.json`);
+                    }
+                  }}
+                  title={`Open ${r.employee || r.email || r.key}`}
+                >
+                  <div className="thread-card-row">
+                    <span className="thread-card-subject">
+                      {r.employee || r.email || r.key}
+                    </span>
+                    {r.action && (
+                      <span className="thread-card-status">{r.action}</span>
+                    )}
+                  </div>
+                  <div className="thread-card-meta">
+                    {r.email && r.email !== r.employee && (
+                      <span className="thread-card-asker">{r.email}</span>
+                    )}
+                    {r.role && (
+                      <span className="thread-card-count">{r.role}</span>
+                    )}
+                    {r.date && (
+                      <span className="thread-card-count">{r.date}</span>
+                    )}
+                  </div>
+                </button>
+                {repo && (
+                  <Button
+                    variant="ghost"
+                    tone="destructive"
+                    size="sm"
+                    iconOnly
+                    className="entity-card-delete thread-card-delete"
+                    title={`Delete ${r.employee || r.email || r.key}`}
+                    aria-label={`Delete ${r.employee || r.email || r.key}`}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      void deleteFileInSubdir(
+                        repo,
+                        "databases/access",
+                        `${r.key}.json`,
+                        setFolderUploadError,
+                        showToast,
+                      );
+                    }}
+                  >
+                    <TrashIcon />
+                  </Button>
+                )}
+              </div>
+            ))}
+          </div>
+        </div>
+      );
+    }
+
+    // Asset inventory — card or table view, toggled in the
+    // top-right of the viewer header (see `showAssetsTabs` below).
+    if (source.kind === "assets-list") {
+      const view = assetsView;
+      if (view === "table") {
+        return (
+          <div className="viewer-summary viewer-assets">
+            {folderUploadError && (
+              <p className="viewer-edit-error">{folderUploadError}</p>
+            )}
+            <DataTable
+              collection={source.collection}
+              items={source.items}
+              onRowClick={(key) => {
+                const filePath = `${repo}/databases/${source.collection.name}/${key}.json`;
+                writeToActiveSession(filePath + " ");
+              }}
+              onRowDelete={
+                repo
+                  ? (key) =>
+                      deleteFileInSubdir(
+                        repo,
+                        `databases/${source.collection.name}`,
+                        `${key}.json`,
+                        setFolderUploadError,
+                        showToast,
+                      )
+                  : undefined
+              }
+            />
+          </div>
+        );
+      }
+
+      if (source.records.length === 0) {
+        return (
+          <div className="viewer-summary viewer-assets">
+            <p className="summary-desc">
+              No assets yet. Devices and equipment will appear here once tracked.
+            </p>
+          </div>
+        );
+      }
+
+      return (
+        <div className="viewer-summary viewer-assets">
+          {folderUploadError && (
+            <p className="viewer-edit-error">{folderUploadError}</p>
+          )}
+          <div className="viewer-thread-list">
+            {source.records.map((r) => (
+              <div key={r.key} className="thread-card-wrapper">
+                <button
+                  type="button"
+                  className="thread-card thread-card-person"
+                  onClick={() => {
+                    if (onOpenPath) {
+                      void onOpenPath(`${repo}/databases/assets/${r.key}.json`);
+                    }
+                  }}
+                  title={`Open ${r.name || r.key}`}
+                >
+                  <div className="thread-card-row">
+                    <span className="thread-card-subject">
+                      {r.name || r.key}
+                    </span>
+                    {r.status && (
+                      <span className="thread-card-status">{r.status}</span>
+                    )}
+                  </div>
+                  <div className="thread-card-meta">
+                    {r.type && (
+                      <span className="thread-card-asker">{r.type}</span>
+                    )}
+                    {r.assignedTo && (
+                      <span className="thread-card-count">{r.assignedTo}</span>
+                    )}
+                    {r.serialNumber && (
+                      <span className="thread-card-count">{r.serialNumber}</span>
+                    )}
+                  </div>
+                </button>
+                {repo && (
+                  <Button
+                    variant="ghost"
+                    tone="destructive"
+                    size="sm"
+                    iconOnly
+                    className="entity-card-delete thread-card-delete"
+                    title={`Delete ${r.name || r.key}`}
+                    aria-label={`Delete ${r.name || r.key}`}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      void deleteFileInSubdir(
+                        repo,
+                        "databases/assets",
+                        `${r.key}.json`,
+                        setFolderUploadError,
+                        showToast,
+                      );
+                    }}
+                  >
+                    <TrashIcon />
+                  </Button>
+                )}
+              </div>
+            ))}
+          </div>
+        </div>
+      );
+    }
+
     // Top-level `filestores/` parent. Two cards (attachments,
     // library) — same layout as databases-list. Click attachments →
     // attachments-folder welcome stub. Click library → entity-folder
@@ -2878,6 +3127,10 @@ export function Viewer({
 
     if (source.kind === "skills-station") {
       return <SkillsStation repo={repo} onOpen={(p) => onOpenPath && void onOpenPath(p)} />;
+    }
+
+    if (source.kind === "scripts-station") {
+      return <ScriptsStation repo={repo} onOpen={(p) => onOpenPath && void onOpenPath(p)} onShowSource={onShowSource} />;
     }
 
     // `filestores/attachments/` welcome stub + per-ticket roll-up.
@@ -3778,11 +4031,20 @@ export function Viewer({
       case "people-list":
         headerKind = "people";
         break;
+      case "access-list":
+        headerKind = "access";
+        break;
+      case "assets-list":
+        headerKind = "assets";
+        break;
       case "tools":
         headerKind = "tools";
         break;
       case "skills-station":
         headerKind = "skills";
+        break;
+      case "scripts-station":
+        headerKind = "scripts";
         break;
     }
   }
@@ -4082,6 +4344,38 @@ export function Viewer({
             <Tab
               active={peopleView === "table"}
               onClick={() => setPeopleView("table")}
+            >
+              Table
+            </Tab>
+          </TabStrip>
+        )}
+        {showAccessTabs && (
+          <TabStrip variant="segmented">
+            <Tab
+              active={accessView === "cards"}
+              onClick={() => setAccessView("cards")}
+            >
+              Cards
+            </Tab>
+            <Tab
+              active={accessView === "table"}
+              onClick={() => setAccessView("table")}
+            >
+              Table
+            </Tab>
+          </TabStrip>
+        )}
+        {showAssetsTabs && (
+          <TabStrip variant="segmented">
+            <Tab
+              active={assetsView === "cards"}
+              onClick={() => setAssetsView("cards")}
+            >
+              Cards
+            </Tab>
+            <Tab
+              active={assetsView === "table"}
+              onClick={() => setAssetsView("table")}
             >
               Table
             </Tab>

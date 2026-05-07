@@ -106,6 +106,12 @@ function sourceKey(s: ViewerSource): string {
       return "tools";
     case "skills-station":
       return "skills-station";
+    case "scripts-station":
+      return "scripts-station";
+    case "access-list":
+      return "access-list";
+    case "assets-list":
+      return "assets-list";
     case "script-output":
       return `script-output:${s.script}`;
     case "draft-file":

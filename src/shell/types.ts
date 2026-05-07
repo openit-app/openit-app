@@ -54,6 +54,24 @@ export type PersonSummary = {
   channels: string[];
 };
 
+export type AccessSummary = {
+  key: string;
+  action: string;    // "onboard" or "offboard"
+  employee: string;
+  email: string;
+  role: string;
+  date: string;
+};
+
+export type AssetSummary = {
+  key: string;
+  name: string;
+  type: string;       // "laptop", "monitor", etc.
+  serialNumber: string;
+  assignedTo: string;
+  status: string;     // "assigned", "available", etc.
+};
+
 export type ConversationThreadSummary = {
   ticketId: string;
   // Subject pulled from the ticket file; falls back to the first
@@ -129,6 +147,24 @@ export type ViewerSource =
       kind: "people-list";
       view: "cards" | "table";
       people: PersonSummary[];
+      collection: DataCollection;
+      items: MemoryItem[];
+    }
+  // Access log — one row per onboard/offboard action. Same
+  // Cards / Table toggle as people-list.
+  | {
+      kind: "access-list";
+      view: "cards" | "table";
+      records: AccessSummary[];
+      collection: DataCollection;
+      items: MemoryItem[];
+    }
+  // Asset inventory — one row per device / piece of equipment. Same
+  // Cards / Table toggle as people-list.
+  | {
+      kind: "assets-list";
+      view: "cards" | "table";
+      records: AssetSummary[];
       collection: DataCollection;
       items: MemoryItem[];
     }
@@ -233,4 +269,5 @@ export type ViewerSource =
   // the file explorer.
   | { kind: "tools" }
   | { kind: "skills-station" }
+  | { kind: "scripts-station" }
   | null;
