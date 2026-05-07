@@ -1341,99 +1341,51 @@ async fn list_agents(repo: &Path) -> Vec<(String, String)> {
     agents
 }
 
-/// Smart router: classify which agent should handle a message. Uses
-/// a one-shot `claude -p` call with Haiku to pick from the available
-/// agents based on the message content. Falls back to "triage" if
-/// classification fails or only one agent exists.
-async fn classify_agent(repo: &Path, message: &str, claude_path: &Path) -> String {
+/// Smart router: classify which agent should handle a message.
+/// Scores each agent by keyword overlap between the user's message
+/// and the agent's description (first line of its .md file). No LLM
+/// call — instant, zero latency, zero cost, always works.
+/// Falls back to "triage" when scores are tied or no agents exist.
+async fn classify_agent(repo: &Path, message: &str, _claude_path: &Path) -> String {
     let agents = list_agents(repo).await;
     if agents.len() <= 1 {
-        // Only one agent (or none) — no routing needed.
         return agents
             .first()
             .map(|(n, _)| n.clone())
             .unwrap_or_else(|| "triage".to_string());
     }
 
-    let agent_list: String = agents
-        .iter()
-        .map(|(name, desc)| format!("- {name}: {desc}"))
-        .collect::<Vec<_>>()
-        .join("\n");
+    let msg_lower = message.to_lowercase();
+    let msg_words: std::collections::HashSet<&str> = msg_lower.split_whitespace().collect();
 
-    let prompt = format!(
-        "You are a message router. Given the available agents and a user message, \
-         reply with ONLY the agent name that should handle it. Nothing else — just \
-         the name.\n\n\
-         Available agents:\n{agent_list}\n\n\
-         User message: {message}\n\n\
-         Agent name:"
-    );
+    let mut best_name = "triage".to_string();
+    let mut best_score: usize = 0;
 
-    let output = TokioCommand::new(claude_path)
-        .arg("-p")
-        .arg("--model")
-        .arg("haiku")
-        .arg("--output-format")
-        .arg("text")
-        .arg("--max-turns")
-        .arg("1")
-        .current_dir(repo)
-        .stdin(Stdio::piped())
-        .stdout(Stdio::piped())
-        .stderr(Stdio::piped())
-        .kill_on_drop(true)
-        .spawn();
+    for (name, description) in &agents {
+        let desc_lower = description.to_lowercase();
+        let desc_words: std::collections::HashSet<&str> = desc_lower.split_whitespace().collect();
 
-    let Ok(mut child) = output else {
-        eprintln!("[intake/router] failed to spawn claude for classification");
-        return "triage".to_string();
-    };
+        // Score = number of message words that appear in the agent description
+        let overlap = msg_words.intersection(&desc_words).count();
 
-    // Write prompt to stdin and close it so claude reads EOF and processes.
-    if let Some(mut stdin) = child.stdin.take() {
-        let _ = tokio::io::AsyncWriteExt::write_all(&mut stdin, prompt.as_bytes()).await;
-        let _ = tokio::io::AsyncWriteExt::shutdown(&mut stdin).await;
-        // stdin is dropped here, sending EOF to the child
-    }
-
-    let result =
-        match tokio::time::timeout(std::time::Duration::from_secs(15), child.wait_with_output())
-            .await
-        {
-            Ok(Ok(out)) => {
-                let stdout = String::from_utf8_lossy(&out.stdout).trim().to_string();
-                let stderr = String::from_utf8_lossy(&out.stderr);
-                if !stderr.is_empty() {
-                    eprintln!(
-                        "[intake/router] stderr: {}",
-                        stderr.chars().take(200).collect::<String>()
-                    );
-                }
-                stdout
-            }
-            _ => {
-                eprintln!("[intake/router] classification timed out, defaulting to triage");
-                return "triage".to_string();
-            }
+        // Bonus: if the agent name itself appears in the message, strong signal
+        let name_bonus = if msg_lower.contains(&name.to_lowercase()) {
+            5
+        } else {
+            0
         };
 
-    // Validate the response is actually one of our agent names.
-    let cleaned = result.trim().to_lowercase();
-    let matched = agents
-        .iter()
-        .find(|(name, _)| cleaned == name.to_lowercase() || cleaned.contains(&name.to_lowercase()));
+        let total = overlap + name_bonus;
+        eprintln!("[intake/router] agent '{name}' score={total} (overlap={overlap}, name_bonus={name_bonus})");
 
-    match matched {
-        Some((name, _)) => {
-            eprintln!("[intake/router] classified → {name}");
-            name.clone()
-        }
-        None => {
-            eprintln!("[intake/router] unrecognized response '{result}', defaulting to triage");
-            "triage".to_string()
+        if total > best_score {
+            best_score = total;
+            best_name = name.clone();
         }
     }
+
+    eprintln!("[intake/router] classified → {best_name} (score: {best_score})");
+    best_name
 }
 
 /// Compose the prompt for `claude -p`. Format: agent persona, then
