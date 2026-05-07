@@ -1613,8 +1613,10 @@ export function Viewer({
       return `${repo}/${source.path}`;
     }
     if (source.kind === "people-list") return `${repo}/databases/people`;
-    if (source.kind === "access-list") return `${repo}/databases/access`;
-    if (source.kind === "assets-list") return `${repo}/databases/assets`;
+    // Access and assets list views: cards are clickable to edit
+    // individual records — "add to chat" on the list is confusing.
+    if (source.kind === "access-list") return null;
+    if (source.kind === "assets-list") return null;
     if (source.kind === "conversations-list")
       return `${repo}/databases/conversations`;
     if (source.kind === "agent")
@@ -4122,6 +4124,21 @@ export function Viewer({
               {title}
             </button>
           )
+        ) : source && source.kind === "draft-file" && onShowSource ? (
+          <input
+            type="text"
+            className="viewer-title viewer-title-rename"
+            value={title}
+            onChange={(e) => {
+              const newFilename = e.target.value;
+              onShowSource({
+                ...source,
+                filename: newFilename,
+                path: `${repo}/${source.subdir}/${newFilename}`,
+              });
+            }}
+            title="Edit filename before saving"
+          />
         ) : (
           <span className="viewer-title">{title}</span>
         )}
