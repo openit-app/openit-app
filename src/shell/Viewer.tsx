@@ -1563,7 +1563,12 @@ export function Viewer({
   // per-source render branches in the header.
   const chatAddPath: string | null = (() => {
     if (!source) return null;
-    if (source.kind === "file") return source.path;
+    if (source.kind === "file") {
+      // Skill files → send as slash command instead of file path
+      const skillMatch = source.path.match(/\.claude\/skills\/([^/]+)\/SKILL\.md$/);
+      if (skillMatch) return `/${skillMatch[1]}`;
+      return source.path;
+    }
     if (source.kind === "conversation-thread")
       return `${repo}/databases/conversations/${source.ticketId}`;
     if (source.kind === "datastore-row")
