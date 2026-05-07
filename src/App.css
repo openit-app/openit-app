@@ -4632,7 +4632,7 @@ input.viewer-title.viewer-title-rename {
   gap: 3px;
   /* Reserve space for hover-revealed action buttons (delete, run, etc.)
      so text doesn't sit under the icons. */
-  padding-right: 28px;
+  padding-right: 40px;
 }
 
 .entity-card-row {

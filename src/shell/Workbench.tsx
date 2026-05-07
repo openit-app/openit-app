@@ -130,6 +130,22 @@ export function Workbench({
             next[s.id] = slashCount + customCount;
             return;
           }
+          if (s.id === "scripts") {
+            let systemCount = 0;
+            let customCount = 0;
+            try {
+              const sysRoot = `${repo}/.claude/scripts`;
+              const sysItems = await fsList(sysRoot);
+              systemCount = directChildren(sysItems, sysRoot).filter((n) => !n.is_dir && (n.name.endsWith(".mjs") || n.name.endsWith(".js") || n.name.endsWith(".cjs"))).length;
+            } catch { /* .claude/scripts/ may not exist */ }
+            try {
+              const customRoot = `${repo}/filestores/scripts`;
+              const customItems = await fsList(customRoot);
+              customCount = directChildren(customItems, customRoot).filter((n) => !n.is_dir).length;
+            } catch { /* filestores/scripts/ may not exist */ }
+            next[s.id] = systemCount + customCount;
+            return;
+          }
           try {
             const rootAbs = `${repo}/${s.rel}`;
             const items = await fsList(rootAbs);

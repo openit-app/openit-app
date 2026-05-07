@@ -1506,7 +1506,14 @@ export function Viewer({
     return <div className="viewer empty">Select a file from the explorer</div>;
   }
   if (error) {
-    return <div className="viewer error">{error}</div>;
+    const isNotFound = error.includes("os error 2") || error.includes("No such file") || error.includes("not found");
+    return (
+      <div className="viewer error">
+        {isNotFound
+          ? "This file no longer exists. It may have been renamed or deleted."
+          : error}
+      </div>
+    );
   }
 
   // --- Title ---
