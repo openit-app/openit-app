@@ -153,7 +153,11 @@ export function SkillsStation({
     },
   }));
 
-  const customCards: EntityCard[] = customSkills.map((s) => ({
+  // Deduplicate: hide custom skills that already appear as slash commands
+  const slashNames = new Set(slashCommands.map((s) => s.name));
+  const dedupedCustom = customSkills.filter((s) => !slashNames.has(s.name));
+
+  const customCards: EntityCard[] = dedupedCustom.map((s) => ({
     key: `custom-${s.name}`,
     title: s.name,
     description: s.description || undefined,
