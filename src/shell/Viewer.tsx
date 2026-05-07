@@ -1500,8 +1500,14 @@ export function Viewer({
       case "script-output":
         return `Run: ${source.script.split("/").pop() ?? source.script}`;
       case "draft-file": return source.filename;
-      case "datastore-table": return source.collection?.name ?? "Datastore";
-      case "datastore-schema": return `${source.collection?.name ?? "Datastore"} — Schema`;
+      case "datastore-table": {
+        const n = source.collection?.name ?? "Datastore";
+        return n.charAt(0).toUpperCase() + n.slice(1);
+      }
+      case "datastore-schema": {
+        const n = source.collection?.name ?? "Datastore";
+        return `${n.charAt(0).toUpperCase() + n.slice(1)} — Schema`;
+      }
       case "datastore-row": return `${source.collection?.name ?? "Datastore"} / ${source.item?.key || source.item?.id || "Row"}`;
       case "agent": return source.agent?.name ?? "Agent";
       case "workflow": return source.workflow?.name ?? "Workflow";
@@ -1577,7 +1583,7 @@ export function Viewer({
     if (source.kind === "conversations-list")
       return `${repo}/databases/conversations`;
     if (source.kind === "agent")
-      return `${repo}/agents/${source.agent.id || source.agent.name}.json`;
+      return source.path;
     if (source.kind === "workflow")
       return `${repo}/workflows/${source.workflow.id || source.workflow.name}.json`;
     return null;
@@ -1637,7 +1643,7 @@ export function Viewer({
   // nothing behind).
   const newFileAffordance: { onCreate: () => void; title: string } | null =
     source && source.kind === "entity-folder" && repo &&
-    (source.entity === "scripts" || source.entity === "skills")
+    (source.entity === "scripts" || source.entity === "skills" || source.entity === "agents" || source.entity === "knowledge-base")
       ? (() => {
           const ext: "mjs" | "md" = source.entity === "scripts" ? "mjs" : "md";
           const subdirAbs = source.path;
@@ -1645,8 +1651,12 @@ export function Viewer({
           return {
             title:
               source.entity === "scripts"
-                ? "Draft a new untitled.mjs script — Save to commit it"
-                : "Draft a new untitled.md skill — Save to commit it",
+                ? "Draft a new script"
+                : source.entity === "agents"
+                  ? "Draft a new agent"
+                  : source.entity === "knowledge-base"
+                    ? "Draft a new KB article"
+                    : "Draft a new skill",
             onCreate: () => {
               if (!onShowSource) return;
               // Pick the first free `untitled[-N].<ext>` against the
@@ -1674,7 +1684,42 @@ export function Viewer({
             },
           };
         })()
-      : null;
+      : source && source.kind === "datastore-table" && repo && onShowSource
+        ? (() => {
+            const colName = source.collection.name;
+            const subdir = `databases/${colName}`;
+            const fields = (source.collection.schema as { fields?: Array<Record<string, unknown>> })?.fields ?? [];
+            const template: Record<string, unknown> = {};
+            for (const f of fields) {
+              const id = f.id as string;
+              if (id === "createdAt" || id === "updatedAt") {
+                template[id] = new Date().toISOString();
+              } else {
+                template[id] = "";
+              }
+            }
+            return {
+              title: `New ${colName} record`,
+              onCreate: () => {
+                const items = source.items ?? [];
+                const taken = new Set(items.map((i) => `${i.key}.json`));
+                let filename = "new-record.json";
+                let i = 2;
+                while (taken.has(filename)) {
+                  filename = `new-record-${i}.json`;
+                  i += 1;
+                }
+                onShowSource({
+                  kind: "draft-file",
+                  path: `${repo}/${subdir}/${filename}`,
+                  subdir,
+                  filename,
+                  initialContent: JSON.stringify(template, null, 2),
+                });
+              },
+            };
+          })()
+        : null;
 
   // Pre-compute conversation status counts so the header pills can
   // display them without re-walking on each render frame. Memoising
@@ -2106,8 +2151,9 @@ export function Viewer({
           hasMore={tableHasMore}
           onLoadMore={undefined}
           onRowClick={(key) => {
+            // Open the row file for editing
             const filePath = `${repo}/databases/${source.collection.name}/${key}.json`;
-            writeToActiveSession(filePath + " ");
+            if (onOpenPath) void onOpenPath(filePath);
           }}
           onRowDelete={
             repo
@@ -2248,8 +2294,8 @@ export function Viewer({
       return <pre className="viewer-content">{content}</pre>;
     }
 
-    // Agent summary — three modes (rendered / edit / raw) mirror the
-    // datastore-row pattern so agents read & edit the same way as rows.
+
+    // Legacy JSON agent summary (V1/V2) — structured fields + edit form.
     if (source.kind === "agent") {
       const a: Agent = agentOverride ?? source.agent;
 
@@ -3704,6 +3750,14 @@ export function Viewer({
         break;
       case "attachments-folder":
         headerKind = "attachments";
+        break;
+      case "datastore-table":
+        // Map specific collection names to their entity icons
+        if (source.collection.name === "access") headerKind = "access";
+        else if (source.collection.name === "assets") headerKind = "assets";
+        else if (source.collection.name === "people") headerKind = "people";
+        else if (source.collection.name === "tickets") headerKind = "inbox";
+        else headerKind = "databases";
         break;
       case "databases-list":
         headerKind = "databases";
