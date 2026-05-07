@@ -131,7 +131,9 @@ fn app_data_dir() -> Result<PathBuf, String> {
     #[cfg(target_os = "macos")]
     {
         let home = std::env::var("HOME").map_err(|_| "HOME not set".to_string())?;
-        Ok(PathBuf::from(home).join("Library").join("Application Support"))
+        Ok(PathBuf::from(home)
+            .join("Library")
+            .join("Application Support"))
     }
     #[cfg(target_os = "windows")]
     {
@@ -169,14 +171,10 @@ fn app_support_slack_config_path(repo: &Path) -> Result<PathBuf, String> {
         .collect();
 
     let base = app_data_dir()?;
-    let cred_dir = base
-        .join("OpenIT")
-        .join(&hash_hex)
-        .join("credentials");
+    let cred_dir = base.join("OpenIT").join(&hash_hex).join("credentials");
 
     if !cred_dir.is_dir() {
-        std::fs::create_dir_all(&cred_dir)
-            .map_err(|e| format!("create credentials dir: {}", e))?;
+        std::fs::create_dir_all(&cred_dir).map_err(|e| format!("create credentials dir: {}", e))?;
         #[cfg(unix)]
         {
             use std::os::unix::fs::PermissionsExt;
