@@ -1,0 +1,19 @@
+{
+  "action": "onboard",
+  "employee": "Jane Smith",
+  "email": "jane.smith@acme.org",
+  "role": "Program Coordinator",
+  "department": "Programs",
+  "date": "2026-04-15",
+  "systems": {
+    "slack": { "status": "done", "details": "Invited to workspace, added to #general, #programs, #all-hands" },
+    "salesforce": { "status": "done", "details": "Created user, Standard User profile, Programs permission set" },
+    "office365": { "status": "done", "details": "Created account, E3 license, Programs Team security group" },
+    "zoom": { "status": "done", "details": "Added as Licensed user" },
+    "monday": { "status": "done", "details": "Added to Program Tracker and Events Calendar boards" },
+    "hubspot": { "status": "skipped", "details": "Not needed for this role" }
+  },
+  "performedBy": "admin@acme.org",
+  "notes": "Start date April 15. Remote worker — shipped laptop via FedEx.",
+  "createdAt": "2026-04-15T09:30:00Z"
+}

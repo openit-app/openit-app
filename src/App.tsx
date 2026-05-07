@@ -176,6 +176,11 @@ function App() {
           .then(() => console.log("[app] plugin sync complete"))
           .catch((e) => console.error("plugin sync failed:", e));
       }
+
+      // Auto-seed sample data on every launch (idempotent — skips
+      // files that already exist, so user data is never overwritten).
+      seedIfEmpty({ repo: result.path, onLog: (msg) => console.log(`[seed] ${msg}`) })
+        .catch((e) => console.error("seed failed:", e));
     } catch (e) {
       console.error("[app] openVault failed:", e);
       setLoaded(true);
@@ -358,7 +363,7 @@ function App() {
     // status pill from "connected" back to the unconnected pill.
     let unlistenFn: (() => void) | null = null;
     onFsChanged((paths) => {
-      if (paths.some((p) => p.endsWith("/.openit/slack.json"))) {
+      if (paths.some((p) => p.endsWith("/.openit/slack.json") || p.includes("/.openit/skill-state/connect-slack"))) {
         refreshConfig();
         // Reset the auto-start latch so the next reconnect (if any)
         // is allowed to bring the listener back up.

@@ -1,0 +1,75 @@
+{
+  "schemaVersion": "2026-05-06",
+  "name": "openit-access",
+  "type": "datastore",
+  "isStructured": true,
+  "description": "Access management log. Each row records an onboarding or offboarding action — who got (or lost) access to which systems and when.",
+  "fields": [
+    {
+      "id": "action",
+      "label": "Action",
+      "type": "string",
+      "required": true,
+      "comment": "'onboard' or 'offboard'."
+    },
+    {
+      "id": "employee",
+      "label": "Employee",
+      "type": "string",
+      "required": true,
+      "comment": "Full name of the employee."
+    },
+    {
+      "id": "email",
+      "label": "Email",
+      "type": "string",
+      "required": true
+    },
+    {
+      "id": "role",
+      "label": "Role",
+      "type": "string",
+      "nullable": true,
+      "comment": "Job title or role at the time of the action."
+    },
+    {
+      "id": "department",
+      "label": "Department",
+      "type": "string",
+      "nullable": true
+    },
+    {
+      "id": "date",
+      "label": "Date",
+      "type": "date",
+      "required": true,
+      "comment": "Date the onboard/offboard was performed."
+    },
+    {
+      "id": "systems",
+      "label": "Systems",
+      "type": "object",
+      "nullable": true,
+      "comment": "Per-system status. Keys = system name (slack, salesforce, office365, zoom, monday, hubspot). Values = { status: 'done'|'manual'|'skipped', details: string }."
+    },
+    {
+      "id": "performedBy",
+      "label": "Performed by",
+      "type": "string",
+      "nullable": true,
+      "comment": "Admin who ran the onboard/offboard."
+    },
+    {
+      "id": "notes",
+      "label": "Notes",
+      "type": "text",
+      "nullable": true
+    },
+    {
+      "id": "createdAt",
+      "label": "Created",
+      "type": "datetime",
+      "required": true
+    }
+  ]
+}
