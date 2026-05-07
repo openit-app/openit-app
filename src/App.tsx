@@ -363,7 +363,7 @@ function App() {
     // status pill from "connected" back to the unconnected pill.
     let unlistenFn: (() => void) | null = null;
     onFsChanged((paths) => {
-      if (paths.some((p) => p.endsWith("/.openit/slack.json"))) {
+      if (paths.some((p) => p.endsWith("/.openit/slack.json") || p.includes("/.openit/skill-state/connect-slack"))) {
         refreshConfig();
         // Reset the auto-start latch so the next reconnect (if any)
         // is allowed to bring the listener back up.
