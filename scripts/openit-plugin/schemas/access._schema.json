@@ -1,23 +1,16 @@
 {
-  "schemaVersion": "2026-05-06",
+  "schemaVersion": "2026-05-07",
   "name": "openit-access",
   "type": "datastore",
   "isStructured": true,
-  "description": "Access management log. Each row records an onboarding or offboarding action — who got (or lost) access to which systems and when.",
+  "description": "Access matrix — who has access to which systems. Each row links a person to a system with their current access level and status.",
   "fields": [
-    {
-      "id": "action",
-      "label": "Action",
-      "type": "string",
-      "required": true,
-      "comment": "'onboard' or 'offboard'."
-    },
     {
       "id": "employee",
       "label": "Employee",
       "type": "string",
       "required": true,
-      "comment": "Full name of the employee."
+      "comment": "Full name of the person."
     },
     {
       "id": "email",
@@ -26,50 +19,38 @@
       "required": true
     },
     {
-      "id": "role",
-      "label": "Role",
+      "id": "system",
+      "label": "System",
       "type": "string",
-      "nullable": true,
-      "comment": "Job title or role at the time of the action."
-    },
-    {
-      "id": "department",
-      "label": "Department",
-      "type": "string",
-      "nullable": true
-    },
-    {
-      "id": "date",
-      "label": "Date",
-      "type": "date",
       "required": true,
-      "comment": "Date the onboard/offboard was performed."
+      "comment": "Name of the system (Slack, Salesforce, GitHub, AWS, etc.)."
     },
     {
-      "id": "systems",
-      "label": "Systems",
-      "type": "object",
-      "nullable": true,
-      "comment": "Per-system status. Keys = system name (slack, salesforce, office365, zoom, monday, hubspot). Values = { status: 'done'|'manual'|'skipped', details: string }."
-    },
-    {
-      "id": "performedBy",
-      "label": "Performed by",
+      "id": "accessLevel",
+      "label": "Access level",
       "type": "string",
+      "required": true,
+      "comment": "Role or permission level (admin, member, viewer, owner, etc.)."
+    },
+    {
+      "id": "status",
+      "label": "Status",
+      "type": "string",
+      "required": true,
+      "comment": "'active', 'suspended', or 'revoked'."
+    },
+    {
+      "id": "grantedAt",
+      "label": "Granted",
+      "type": "date",
       "nullable": true,
-      "comment": "Admin who ran the onboard/offboard."
+      "comment": "When access was granted."
     },
     {
       "id": "notes",
       "label": "Notes",
       "type": "text",
       "nullable": true
-    },
-    {
-      "id": "createdAt",
-      "label": "Created",
-      "type": "datetime",
-      "required": true
     }
   ]
 }
