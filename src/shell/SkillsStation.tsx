@@ -5,6 +5,10 @@ import { EntityCardGrid, type EntityCard } from "./EntityCardGrid";
 import { Button } from "../ui";
 import styles from "./ToolsPanel.module.css";
 
+// Persist across remounts so navigating back from a skill file
+// returns to the tab the user was on, not always "Slash Commands".
+let lastSkillsTab: "slash" | "custom" = "slash";
+
 type SkillEntry = {
   name: string;
   description: string;
@@ -24,7 +28,11 @@ export function SkillsStation({
   repo: string;
   onOpen: (path: string) => void;
 }) {
-  const [activeTab, setActiveTab] = useState<"slash" | "custom">("slash");
+  const [activeTab, setActiveTabRaw] = useState<"slash" | "custom">(lastSkillsTab);
+  const setActiveTab = (tab: "slash" | "custom") => {
+    lastSkillsTab = tab;
+    setActiveTabRaw(tab);
+  };
   const [slashCommands, setSlashCommands] = useState<SkillEntry[]>([]);
   const [customSkills, setCustomSkills] = useState<SkillEntry[]>([]);
   const [tick, setTick] = useState(0);
