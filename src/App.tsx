@@ -200,6 +200,8 @@ function App() {
   // surfaces behave identically.
   const triggerSlackFlow = useCallback(async () => {
     if (!repo) return;
+    // If already connected, don't re-trigger the setup flow.
+    if (slackConfig) return;
     injectIntoChat("/connect-slack").catch((e) =>
       console.warn("[app] inject /connect-slack failed:", e),
     );
