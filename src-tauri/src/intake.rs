@@ -1317,8 +1317,10 @@ async fn load_agent(repo: &Path, name: &str) -> (String, String) {
 /// (name, first_line_description) pairs.
 async fn list_agents(repo: &Path) -> Vec<(String, String)> {
     let dir = repo.join("agents");
+    eprintln!("[intake/router] scanning agents at: {}", dir.display());
     let mut agents = Vec::new();
     let Ok(mut entries) = tokio::fs::read_dir(&dir).await else {
+        eprintln!("[intake/router] failed to read agents dir");
         return agents;
     };
     while let Ok(Some(entry)) = entries.next_entry().await {
@@ -1336,8 +1338,13 @@ async fn list_agents(repo: &Path) -> Vec<(String, String)> {
             .chars()
             .take(120)
             .collect::<String>();
-        agents.push((agent_name, first_line));
+        agents.push((agent_name.clone(), first_line.clone()));
+        eprintln!(
+            "[intake/router] found agent: {agent_name} — {}",
+            first_line.chars().take(60).collect::<String>()
+        );
     }
+    eprintln!("[intake/router] total agents found: {}", agents.len());
     agents
 }
 
