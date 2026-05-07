@@ -1,0 +1,81 @@
+{
+  "schemaVersion": "2026-05-06",
+  "name": "openit-assets",
+  "type": "datastore",
+  "isStructured": true,
+  "description": "IT asset inventory. Each row is a device or piece of equipment tracked by the org — who owns it, its status, and key identifiers.",
+  "fields": [
+    {
+      "id": "name",
+      "label": "Device name",
+      "type": "string",
+      "required": true,
+      "comment": "Human-readable name, e.g. 'MacBook Pro 14\" (2025)' or 'Dell U2722D Monitor'."
+    },
+    {
+      "id": "type",
+      "label": "Type",
+      "type": "string",
+      "required": true,
+      "comment": "'laptop', 'monitor', 'phone', 'tablet', 'peripheral', 'license', 'other'."
+    },
+    {
+      "id": "serialNumber",
+      "label": "Serial number",
+      "type": "string",
+      "nullable": true
+    },
+    {
+      "id": "assignedTo",
+      "label": "Assigned to",
+      "type": "string",
+      "nullable": true,
+      "comment": "Employee name or email. Null = unassigned / available."
+    },
+    {
+      "id": "status",
+      "label": "Status",
+      "type": "string",
+      "required": true,
+      "comment": "'assigned', 'available', 'returned', 'decommissioned', 'repair'."
+    },
+    {
+      "id": "assignedDate",
+      "label": "Assigned date",
+      "type": "date",
+      "nullable": true,
+      "comment": "When the device was last assigned to someone."
+    },
+    {
+      "id": "purchaseDate",
+      "label": "Purchase date",
+      "type": "date",
+      "nullable": true
+    },
+    {
+      "id": "cost",
+      "label": "Cost",
+      "type": "number",
+      "nullable": true,
+      "comment": "Purchase price in org's currency."
+    },
+    {
+      "id": "notes",
+      "label": "Notes",
+      "type": "text",
+      "nullable": true
+    },
+    {
+      "id": "createdAt",
+      "label": "Created",
+      "type": "datetime",
+      "required": true
+    },
+    {
+      "id": "updatedAt",
+      "label": "Last update",
+      "type": "datetime",
+      "required": true
+    }
+  ]
+}

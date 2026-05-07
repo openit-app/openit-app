@@ -75,6 +75,8 @@ pub fn project_bootstrap(vault_path: Option<String>) -> Result<BootstrapResult, 
             "databases/tickets",
             "databases/people",
             "databases/conversations",
+            "databases/access",
+            "databases/assets",
             // Filestore split into two purpose-specific collections.
             // `attachments` is operational (per-ticket file uploads from
             // the chat intake); `library` is curated (admin's go-to
@@ -96,7 +98,6 @@ pub fn project_bootstrap(vault_path: Option<String>) -> Result<BootstrapResult, 
             // otherwise; admins can `mkdir knowledge-bases/<custom>/`
             // to create additional collections.
             "knowledge-bases",
-            "knowledge-bases/default",
             // On-demand markdown reports — populated by the
             // "Generate overview" button in the explorer (which shells
             // out to .claude/scripts/report-overview.mjs) and by the
@@ -118,7 +119,7 @@ pub fn project_bootstrap(vault_path: Option<String>) -> Result<BootstrapResult, 
     let _ = fs::create_dir_all(path.join("filestores").join("library"));
     let _ = fs::create_dir_all(path.join("filestores").join("skills"));
     let _ = fs::create_dir_all(path.join("filestores").join("scripts"));
-    let _ = fs::create_dir_all(path.join("knowledge-bases").join("default"));
+    let _ = fs::create_dir_all(path.join("knowledge-bases"));
     // Same idempotent guard for `reports/` so projects bootstrapped
     // before the reports feature shipped get the dir on next open.
     let _ = fs::create_dir_all(path.join("reports"));
@@ -202,7 +203,7 @@ pub fn project_bootstrap(vault_path: Option<String>) -> Result<BootstrapResult, 
     // suffix until we find a free slot).
     let legacy_kb = path.join("knowledge-base");
     if legacy_kb.is_dir() {
-        let default_kb = path.join("knowledge-bases").join("default");
+        let default_kb = path.join("knowledge-bases");
         if let Ok(entries) = fs::read_dir(&legacy_kb) {
             for entry in entries.flatten() {
                 let from = entry.path();

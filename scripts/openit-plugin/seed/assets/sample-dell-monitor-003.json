@@ -1,0 +1,13 @@
+{
+  "name": "Dell U2722D 27\" Monitor",
+  "type": "monitor",
+  "serialNumber": "DELL-MN-2722-0042",
+  "assignedTo": "sarah.lee@acme.org",
+  "status": "assigned",
+  "assignedDate": "2025-06-01",
+  "purchaseDate": "2025-05-15",
+  "cost": 519,
+  "notes": "On-site office desk. USB-C hub built in.",
+  "createdAt": "2025-05-20T10:00:00Z",
+  "updatedAt": "2025-06-01T10:00:00Z"
+}

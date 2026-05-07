@@ -1,0 +1,13 @@
+{
+  "name": "MacBook Air 13\" (2024)",
+  "type": "laptop",
+  "serialNumber": "C02YX9GHIJKL",
+  "assignedTo": null,
+  "status": "available",
+  "assignedDate": null,
+  "purchaseDate": "2024-11-20",
+  "cost": 1299,
+  "notes": "Returned by Tom Chen on 2026-03-28. Wiped and ready for reassignment.",
+  "createdAt": "2024-12-01T10:00:00Z",
+  "updatedAt": "2026-03-28T16:00:00Z"
+}

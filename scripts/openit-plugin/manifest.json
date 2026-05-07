@@ -1,5 +1,5 @@
 {
-  "version": "2026-05-06-002",
+  "version": "2026-05-06-004",
   "files": [
     { "path": "CLAUDE.md" },
     { "path": "skills/ai-intake.md" },
@@ -10,7 +10,10 @@
     { "path": "skills/salesforce-gmail.md" },
     { "path": "schemas/tickets._schema.json" },
     { "path": "schemas/people._schema.json" },
+    { "path": "schemas/access._schema.json" },
+    { "path": "schemas/assets._schema.json" },
     { "path": "agents/triage.md" },
+    { "path": "agents/inquiry.md" },
     { "path": "scripts/kb-search.mjs" },
     { "path": "scripts/report-overview.mjs" },
     { "path": "scripts/slack-listen.bundle.cjs" },
@@ -39,8 +42,19 @@
     { "path": "seed/conversations/sample-ticket-4/msg-1745916300000-dd01.json" },
     { "path": "seed/conversations/sample-ticket-5/msg-1745667000000-ee01.json" },
     { "path": "seed/conversations/sample-ticket-5/msg-1745669100000-ee02.json" },
+    { "path": "seed/reports/sample-2026-05-01-weekly-overview.md" },
+    { "path": "seed/access/sample-onboard-jane-smith.json" },
+    { "path": "seed/access/sample-offboard-tom-chen.json" },
+    { "path": "seed/assets/sample-macbook-pro-001.json" },
+    { "path": "seed/assets/sample-macbook-air-002.json" },
+    { "path": "seed/assets/sample-dell-monitor-003.json" },
     { "path": "seed/skills/hello-world.md" },
     { "path": "seed/skills/drive-search.md" },
+    { "path": "seed/skills/patient-inquiry.md" },
+    { "path": "seed/skills/slack-to-kb.md" },
+    { "path": "seed/skills/salesforce-data-quality.md" },
+    { "path": "seed/skills/onboard-offboard.md" },
+    { "path": "seed/skills/cleanup.md" },
     { "path": "seed/scripts/hello-world.mjs" }
   ]
 }
