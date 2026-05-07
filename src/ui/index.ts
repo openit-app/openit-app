@@ -26,8 +26,6 @@ export type { SlackChipProps } from "./SlackChip";
 export { Banner } from "./Banner";
 export type { BannerProps, BannerVariant } from "./Banner";
 
-export type { ToastInput, ToastTone } from "./Toast";
-
 export { PaneBody } from "./Pane";
 export type { PaneBodyProps } from "./Pane";
 

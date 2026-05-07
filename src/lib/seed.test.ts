@@ -65,9 +65,9 @@ describe("seedRoute", () => {
     });
   });
 
-  it("routes seed/knowledge/* → knowledge-bases/default", () => {
+  it("routes seed/knowledge/* → knowledge-bases", () => {
     expect(seedRoute("seed/knowledge/article.md")).toEqual({
-      subdir: "knowledge-bases/default",
+      subdir: "knowledge-bases",
       filename: "article.md",
     });
   });
