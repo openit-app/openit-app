@@ -28,7 +28,7 @@ export function seedRoute(
     return { subdir: "databases/people", filename: manifestPath.replace("seed/people/", "") };
   }
   if (manifestPath.startsWith("seed/knowledge/")) {
-    return { subdir: "knowledge-bases/default", filename: manifestPath.replace("seed/knowledge/", "") };
+    return { subdir: "knowledge-bases", filename: manifestPath.replace("seed/knowledge/", "") };
   }
   if (manifestPath.startsWith("seed/skills/")) {
     return { subdir: "filestores/skills", filename: manifestPath.replace("seed/skills/", "") };

@@ -575,7 +575,6 @@ export async function resolvePathToSource(
   //                     which collection.
   //   reports/      → on-demand generated markdown reports;
   //                  newest sorts to top by filename.
-  const kbCollectionMatch = rel.match(/^knowledge-bases\/([^/]+)$/);
   // Match any direct child of filestores/ that isn't `attachments` (which
   // has its own per-ticket routing further down). `library`, `docs-<orgId>`,
   // and any user-created openit-* collection all render as a generic
@@ -609,7 +608,7 @@ export async function resolvePathToSource(
       ? { entity: "agents" }
       : rel === "workflows"
         ? { entity: "workflows" }
-        : kbCollectionMatch
+        : rel === "knowledge-bases"
           ? { entity: "knowledge-base" }
           : filestoreSubdir === "skills"
             ? { entity: "skills" }

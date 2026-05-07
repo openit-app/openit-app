@@ -3709,6 +3709,14 @@ export function Viewer({
       case "attachments-folder":
         headerKind = "attachments";
         break;
+      case "datastore-table":
+        // Map specific collection names to their entity icons
+        if (source.collection.name === "access") headerKind = "access";
+        else if (source.collection.name === "assets") headerKind = "assets";
+        else if (source.collection.name === "people") headerKind = "people";
+        else if (source.collection.name === "tickets") headerKind = "inbox";
+        else headerKind = "databases";
+        break;
       case "databases-list":
         headerKind = "databases";
         break;

@@ -23,7 +23,7 @@ const STATIONS: Station[] = [
   { id: "inbox",     kind: "inbox",     rel: "databases/tickets", countMode: "json-rows" },
   { id: "reports",   kind: "reports",   rel: "reports",           countMode: "files" },
   { id: "people",    kind: "people",    rel: "databases/people",  countMode: "json-rows" },
-  { id: "knowledge", kind: "knowledge", rel: "knowledge-bases",   countMode: "dirs" },
+  { id: "knowledge", kind: "knowledge", rel: "knowledge-bases",   countMode: "files" },
   { id: "agents",    kind: "agents",    rel: "agents",            countMode: "files" },
   // Skills + scripts (PIN-5829) — admin-curated artifacts captured by
   // /conversation-to-automation. Both live as filestore subdirs and

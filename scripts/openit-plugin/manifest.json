@@ -48,6 +48,7 @@
     { "path": "seed/assets/sample-dell-monitor-003.json" },
     { "path": "seed/skills/hello-world.md" },
     { "path": "seed/skills/onboard-offboard.md" },
+    { "path": "seed/skills/cleanup.md" },
     { "path": "seed/scripts/hello-world.mjs" }
   ]
 }
