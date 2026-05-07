@@ -483,15 +483,11 @@ export async function resolvePathToSource(
     }
   }
 
-  // agents/<name>.md → agent (V3 single markdown file)
+  // agents/<name>.md → render as a regular file (V3 agents are plain
+  // markdown — the full viewer pipeline handles View/Edit/Raw).
   const agentMdMatch = rel.match(/^agents\/([^/]+)\.md$/);
   if (agentMdMatch) {
-    try {
-      const raw = await fsRead(path);
-      return { kind: "agent", agent: { name: agentMdMatch[1], description: raw.split("\n").find((l: string) => l.trim() && !l.startsWith("#"))?.trim().slice(0, 120) ?? "" }, path };
-    } catch {
-      return { kind: "file", path };
-    }
+    return { kind: "file", path };
   }
 
   // agents/<name>.json → agent (legacy V1/V2, still renders)

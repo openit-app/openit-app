@@ -1577,7 +1577,7 @@ export function Viewer({
     if (source.kind === "conversations-list")
       return `${repo}/databases/conversations`;
     if (source.kind === "agent")
-      return `${repo}/agents/${source.agent.id || source.agent.name}.json`;
+      return source.path;
     if (source.kind === "workflow")
       return `${repo}/workflows/${source.workflow.id || source.workflow.name}.json`;
     return null;
@@ -1637,7 +1637,7 @@ export function Viewer({
   // nothing behind).
   const newFileAffordance: { onCreate: () => void; title: string } | null =
     source && source.kind === "entity-folder" && repo &&
-    (source.entity === "scripts" || source.entity === "skills")
+    (source.entity === "scripts" || source.entity === "skills" || source.entity === "agents" || source.entity === "knowledge-base")
       ? (() => {
           const ext: "mjs" | "md" = source.entity === "scripts" ? "mjs" : "md";
           const subdirAbs = source.path;
@@ -1645,8 +1645,12 @@ export function Viewer({
           return {
             title:
               source.entity === "scripts"
-                ? "Draft a new untitled.mjs script — Save to commit it"
-                : "Draft a new untitled.md skill — Save to commit it",
+                ? "Draft a new script"
+                : source.entity === "agents"
+                  ? "Draft a new agent"
+                  : source.entity === "knowledge-base"
+                    ? "Draft a new KB article"
+                    : "Draft a new skill",
             onCreate: () => {
               if (!onShowSource) return;
               // Pick the first free `untitled[-N].<ext>` against the
@@ -2248,8 +2252,8 @@ export function Viewer({
       return <pre className="viewer-content">{content}</pre>;
     }
 
-    // Agent summary — three modes (rendered / edit / raw) mirror the
-    // datastore-row pattern so agents read & edit the same way as rows.
+
+    // Legacy JSON agent summary (V1/V2) — structured fields + edit form.
     if (source.kind === "agent") {
       const a: Agent = agentOverride ?? source.agent;
 
