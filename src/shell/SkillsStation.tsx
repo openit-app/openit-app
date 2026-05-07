@@ -140,7 +140,13 @@ export function SkillsStation({
 
   // ── Card builders ──
 
-  const slashCards: EntityCard[] = slashCommands.map((s) => ({
+  // Deduplicate: custom skills are mirrored into .claude/skills/ by
+  // skillMirror, so they appear in both lists. Show them only under
+  // Custom Skills — the Slash Commands tab is for plugin-shipped commands.
+  const customNames = new Set(customSkills.map((s) => s.name));
+  const dedupedSlash = slashCommands.filter((s) => !customNames.has(s.name));
+
+  const slashCards: EntityCard[] = dedupedSlash.map((s) => ({
     key: `slash-${s.name}`,
     title: s.name,
     description: s.description || undefined,
