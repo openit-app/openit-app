@@ -3088,6 +3088,22 @@ input.viewer-title.viewer-title-rename {
   padding-right: 6px !important;
 }
 
+.data-table-new {
+  background: none;
+  border: 1px solid var(--color-border);
+  color: var(--text);
+  cursor: pointer;
+  padding: 4px 12px;
+  border-radius: var(--r-md);
+  font-size: 12px;
+  font-family: var(--font-display);
+  transition: background var(--t-fast) var(--ease);
+}
+
+.data-table-new:hover {
+  background: var(--color-surface-hover);
+}
+
 .data-table-delete {
   display: none;
   background: none;
