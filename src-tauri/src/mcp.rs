@@ -11,7 +11,7 @@ use std::path::PathBuf;
 #[derive(Serialize, Clone, Debug)]
 pub struct InstalledMcp {
     pub name: String,
-    pub source: String, // "claude-code" | "claude-desktop" | "project"
+    pub source: String,    // "claude-code" | "claude-desktop" | "project"
     pub transport: String, // "stdio" | "http" | "sse"
     pub command_or_url: String,
 }
@@ -47,7 +47,9 @@ fn claude_desktop_config_path() -> Option<PathBuf> {
     #[cfg(target_os = "windows")]
     {
         std::env::var("APPDATA").ok().map(|appdata| {
-            PathBuf::from(appdata).join("Claude").join("claude_desktop_config.json")
+            PathBuf::from(appdata)
+                .join("Claude")
+                .join("claude_desktop_config.json")
         })
     }
     #[cfg(target_os = "linux")]
@@ -205,7 +207,9 @@ pub fn list_installed_mcps(repo: Option<String>) -> Vec<InstalledMcp> {
     // 3. Project-level .claude/settings.local.json
     // `claude mcp add` writes project-scoped servers here.
     if let Some(ref repo_path) = repo {
-        let path = PathBuf::from(repo_path).join(".claude").join("settings.local.json");
+        let path = PathBuf::from(repo_path)
+            .join(".claude")
+            .join("settings.local.json");
         for mcp in read_mcp_servers_from_file(&path, "project") {
             if !seen.contains_key(&mcp.name) {
                 seen.insert(mcp.name.clone(), true);

@@ -4,7 +4,6 @@ use std::path::{Path, PathBuf};
 
 use serde::Serialize;
 
-
 /// Find a free destination filename in `dir` for a migration. If
 /// `<name>` doesn't exist returns it; otherwise tries
 /// `<name>.legacy`, `<name>.legacy.2`, … until a free slot is found.
@@ -220,4 +219,3 @@ pub fn project_bootstrap(vault_path: Option<String>) -> Result<BootstrapResult, 
         created: !already_existed,
     })
 }
-
