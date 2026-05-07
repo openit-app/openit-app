@@ -1494,7 +1494,12 @@ export function Viewer({
   // --- Title ---
   const getTitle = (): string => {
     switch (source.kind) {
-      case "file": return source.path.split("/").pop() ?? source.path;
+      case "file": {
+        // Skill files → show "/skill-name" instead of "SKILL.md"
+        const sm = source.path.match(/\.claude\/skills\/([^/]+)\/SKILL\.md$/);
+        if (sm) return `/${sm[1]}`;
+        return source.path.split("/").pop() ?? source.path;
+      }
       case "sync": return "Sync output";
       case "diff": return "Git diff";
       case "script-output":
