@@ -13,6 +13,7 @@
     { "path": "schemas/access._schema.json" },
     { "path": "schemas/assets._schema.json" },
     { "path": "agents/triage.md" },
+    { "path": "agents/inquiry.md" },
     { "path": "scripts/kb-search.mjs" },
     { "path": "scripts/report-overview.mjs" },
     { "path": "scripts/slack-listen.bundle.cjs" },

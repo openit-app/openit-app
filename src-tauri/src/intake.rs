@@ -115,6 +115,10 @@ struct SessionData {
     /// fields without a follow-up Edit (which would race the stub
     /// writer).
     transport: TransportMeta,
+    /// Which agent handles this session. Set by the smart router on
+    /// the first turn and reused for all subsequent turns. `None`
+    /// means "not yet classified" — triggers the router.
+    agent_name: Option<String>,
 }
 
 /// Sessions idle longer than this are dropped from the in-memory map.
@@ -466,6 +470,7 @@ async fn chat_start(
             history: Vec::new(),
             last_seen_unix: unix_now_secs(),
             transport: req.transport.unwrap_or_default(),
+            agent_name: None,
         },
     );
 
@@ -562,7 +567,7 @@ async fn chat_turn(
     // released before we spawn `claude -p` (which can take seconds).
     // Also bump `last_seen_unix` so the LRU eviction doesn't drop an
     // active session.
-    let (ticket_id, email, history_before, repo, transport) = {
+    let (ticket_id, email, history_before, repo, transport, session_agent_name) = {
         let mut sessions = state.sessions.lock().await;
         let Some(session) = sessions.get_mut(&req.session_id) else {
             return (StatusCode::NOT_FOUND, "unknown session").into_response();
@@ -574,6 +579,7 @@ async fn chat_turn(
             session.history.clone(),
             state.repo.clone(),
             session.transport.clone(),
+            session.agent_name.clone(),
         )
     };
 
@@ -624,8 +630,24 @@ async fn chat_turn(
     let mut history = history_before;
     history.push(user_msg);
 
-    // Read the agent's persona + selected model from agents/triage/.
-    let (agent_instructions, model) = load_triage_agent(&repo).await;
+    // Smart routing: on first turn, classify which agent should handle
+    // this session. Subsequent turns reuse the same agent.
+    let agent_name = if let Some(ref name) = session_agent_name {
+        name.clone()
+    } else {
+        let clf_claude =
+            which::which("claude").unwrap_or_else(|_| std::path::PathBuf::from("claude"));
+        let name = classify_agent(&repo, &trimmed, &clf_claude).await;
+        // Persist the choice into the session so subsequent turns skip routing.
+        {
+            let mut sessions = state.sessions.lock().await;
+            if let Some(s) = sessions.get_mut(&req.session_id) {
+                s.agent_name = Some(name.clone());
+            }
+        }
+        name
+    };
+    let (agent_instructions, model) = load_agent(&repo, &agent_name).await;
 
     // Build the prompt and run claude -p. This is the slow part
     // (~3-5s per turn). The skill is auto-loaded by Claude based on
@@ -1199,76 +1221,185 @@ fn mime_for_attachment(path: &Path) -> String {
 // Helpers — agent invocation, ticket file operations.
 // ---------------------------------------------------------------------------
 
-/// Read the triage agent's persona instructions + selected model. V2
-/// layout: `agents/triage/triage.json` for the structured fields plus
-/// `common.md` + `local.md` for the assembled prompt. The cloud sees
-/// `common + cloud`; we send `common + local` to the local subprocess.
-///
-/// Falls back to V1's flat `agents/triage.json` (with a top-level
-/// `instructions` field) when the folder layout doesn't exist — keeps
-/// `cargo test` and dev-environment runs that haven't gone through the
-/// JS migration shim functional. Per-file missing-block fallback drops
-/// the empty side from the assembly so we never emit a leading or
-/// trailing blank-line.
-async fn load_triage_agent(repo: &Path) -> (String, String) {
-    let folder = repo.join("agents").join("triage");
-    let folder_json = folder.join("triage.json");
+/// Load any agent by name. V3 agents are single `.md` files at
+/// `agents/<name>.md`. Falls back to V2 folder layout and V1 flat
+/// JSON for backwards compat. Returns (instructions, model).
+async fn load_agent(repo: &Path, name: &str) -> (String, String) {
+    // V3: single .md file
+    let md_path = repo.join("agents").join(format!("{name}.md"));
+    if md_path.exists() {
+        let instructions = tokio::fs::read_to_string(&md_path)
+            .await
+            .unwrap_or_else(|_| "You are a helpdesk agent.".to_string());
+        return (instructions, "sonnet".to_string());
+    }
 
-    let (json_path, raw) = if folder_json.exists() {
-        (
-            folder_json.clone(),
-            tokio::fs::read_to_string(&folder_json).await.ok(),
-        )
-    } else {
-        // V1 / pre-migration legacy fallback.
-        let flat = repo.join("agents").join("triage.json");
-        (flat.clone(), tokio::fs::read_to_string(&flat).await.ok())
-    };
-
-    let parsed: Option<serde_json::Value> =
-        raw.as_deref().and_then(|s| serde_json::from_str(s).ok());
-
-    // Model — both layouts use the same `selectedModel` key.
-    let model = parsed
-        .as_ref()
-        .and_then(|v| v.get("selectedModel"))
-        .and_then(|v| v.as_str())
-        .unwrap_or("sonnet")
-        .to_string();
-
-    // V2 path: assemble common + local from sibling .md files. If we
-    // landed on the legacy flat path (json_path != folder layout), fall
-    // through to the V1 `instructions` field instead.
-    let assembled = if json_path == folder_json {
+    // V2: folder layout with JSON + .md siblings
+    let folder = repo.join("agents").join(name);
+    let folder_json = folder.join(format!("{name}.json"));
+    if folder_json.exists() {
+        let raw = tokio::fs::read_to_string(&folder_json).await.ok();
+        let parsed: Option<serde_json::Value> =
+            raw.as_deref().and_then(|s| serde_json::from_str(s).ok());
+        let model = parsed
+            .as_ref()
+            .and_then(|v| v.get("selectedModel"))
+            .and_then(|v| v.as_str())
+            .unwrap_or("sonnet")
+            .to_string();
         let common = tokio::fs::read_to_string(folder.join("common.md"))
             .await
             .unwrap_or_default();
         let local = tokio::fs::read_to_string(folder.join("local.md"))
             .await
             .unwrap_or_default();
-        let common_t = common.trim();
-        let local_t = local.trim();
-        match (common_t.is_empty(), local_t.is_empty()) {
+        let assembled = match (common.trim().is_empty(), local.trim().is_empty()) {
             (true, true) => String::new(),
-            (true, false) => local_t.to_string(),
-            (false, true) => common_t.to_string(),
-            (false, false) => format!("{common_t}\n\n{local_t}"),
+            (true, false) => local.trim().to_string(),
+            (false, true) => common.trim().to_string(),
+            (false, false) => format!("{}\n\n{}", common.trim(), local.trim()),
+        };
+        let instructions = if assembled.is_empty() {
+            "You are a helpdesk agent.".to_string()
+        } else {
+            assembled
+        };
+        return (instructions, model);
+    }
+
+    // V1: flat JSON with instructions field
+    let flat = repo.join("agents").join(format!("{name}.json"));
+    if let Ok(raw) = tokio::fs::read_to_string(&flat).await {
+        if let Ok(parsed) = serde_json::from_str::<serde_json::Value>(&raw) {
+            let model = parsed
+                .get("selectedModel")
+                .and_then(|v| v.as_str())
+                .unwrap_or("sonnet")
+                .to_string();
+            let instructions = parsed
+                .get("instructions")
+                .and_then(|v| v.as_str())
+                .unwrap_or("You are a helpdesk agent.")
+                .to_string();
+            return (instructions, model);
         }
-    } else {
-        parsed
-            .as_ref()
-            .and_then(|v| v.get("instructions"))
-            .and_then(|v| v.as_str())
+    }
+
+    (
+        "You are a helpdesk agent.".to_string(),
+        "sonnet".to_string(),
+    )
+}
+
+/// List available agents by scanning `agents/*.md`. Returns a vec of
+/// (name, first_line_description) pairs.
+async fn list_agents(repo: &Path) -> Vec<(String, String)> {
+    let dir = repo.join("agents");
+    let mut agents = Vec::new();
+    let Ok(mut entries) = tokio::fs::read_dir(&dir).await else {
+        return agents;
+    };
+    while let Ok(Some(entry)) = entries.next_entry().await {
+        let name = entry.file_name().to_string_lossy().to_string();
+        if !name.ends_with(".md") {
+            continue;
+        }
+        let agent_name = name.trim_end_matches(".md").to_string();
+        let first_line = tokio::fs::read_to_string(entry.path())
+            .await
+            .unwrap_or_default()
+            .lines()
+            .find(|l| !l.trim().is_empty())
             .unwrap_or("")
-            .to_string()
+            .chars()
+            .take(120)
+            .collect::<String>();
+        agents.push((agent_name, first_line));
+    }
+    agents
+}
+
+/// Smart router: classify which agent should handle a message. Uses
+/// a one-shot `claude -p` call with Haiku to pick from the available
+/// agents based on the message content. Falls back to "triage" if
+/// classification fails or only one agent exists.
+async fn classify_agent(repo: &Path, message: &str, claude_path: &Path) -> String {
+    let agents = list_agents(repo).await;
+    if agents.len() <= 1 {
+        // Only one agent (or none) — no routing needed.
+        return agents
+            .first()
+            .map(|(n, _)| n.clone())
+            .unwrap_or_else(|| "triage".to_string());
+    }
+
+    let agent_list: String = agents
+        .iter()
+        .map(|(name, desc)| format!("- {name}: {desc}"))
+        .collect::<Vec<_>>()
+        .join("\n");
+
+    let prompt = format!(
+        "You are a message router. Given the available agents and a user message, \
+         reply with ONLY the agent name that should handle it. Nothing else — just \
+         the name.\n\n\
+         Available agents:\n{agent_list}\n\n\
+         User message: {message}\n\n\
+         Agent name:"
+    );
+
+    let output = TokioCommand::new(claude_path)
+        .arg("-p")
+        .arg("--model")
+        .arg("haiku")
+        .arg("--output-format")
+        .arg("text")
+        .arg("--max-turns")
+        .arg("1")
+        .current_dir(repo)
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::null())
+        .kill_on_drop(true)
+        .spawn();
+
+    let Ok(mut child) = output else {
+        eprintln!("[intake/router] failed to spawn claude for classification");
+        return "triage".to_string();
     };
 
-    let instructions = if assembled.is_empty() {
-        "You are a helpdesk triage agent.".to_string()
-    } else {
-        assembled
-    };
-    (instructions, model)
+    if let Some(ref mut stdin) = child.stdin {
+        let _ = tokio::io::AsyncWriteExt::write_all(stdin, prompt.as_bytes()).await;
+        drop(child.stdin.take());
+    }
+
+    let result =
+        match tokio::time::timeout(std::time::Duration::from_secs(10), child.wait_with_output())
+            .await
+        {
+            Ok(Ok(out)) => String::from_utf8_lossy(&out.stdout).trim().to_string(),
+            _ => {
+                eprintln!("[intake/router] classification timed out, defaulting to triage");
+                return "triage".to_string();
+            }
+        };
+
+    // Validate the response is actually one of our agent names.
+    let cleaned = result.trim().to_lowercase();
+    let matched = agents
+        .iter()
+        .find(|(name, _)| cleaned == name.to_lowercase() || cleaned.contains(&name.to_lowercase()));
+
+    match matched {
+        Some((name, _)) => {
+            eprintln!("[intake/router] classified → {name}");
+            name.clone()
+        }
+        None => {
+            eprintln!("[intake/router] unrecognized response '{result}', defaulting to triage");
+            "triage".to_string()
+        }
+    }
 }
 
 /// Compose the prompt for `claude -p`. Format: agent persona, then
