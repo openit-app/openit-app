@@ -88,7 +88,6 @@ Claude Code routines run on Anthropic's cloud, which needs a GitHub repo to clon
 
 - **GitHub CLI** (`gh`) must be installed. Check with `which gh`. If missing, tell the admin to install it from the Tools station.
 - **GitHub auth**: Check with `gh auth status`. If not logged in, run `gh auth login`.
-- **Claude Pro/Max/Team/Enterprise plan** with Claude Code on the web enabled.
 
 ### Step 2: Create a GitHub repo for the vault (first time only)
 
