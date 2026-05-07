@@ -1381,7 +1381,7 @@ async fn classify_agent(repo: &Path, message: &str, claude_path: &Path) -> Strin
         .current_dir(repo)
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
-        .stderr(Stdio::null())
+        .stderr(Stdio::piped())
         .kill_on_drop(true)
         .spawn();
 
@@ -1390,16 +1390,28 @@ async fn classify_agent(repo: &Path, message: &str, claude_path: &Path) -> Strin
         return "triage".to_string();
     };
 
-    if let Some(ref mut stdin) = child.stdin {
-        let _ = tokio::io::AsyncWriteExt::write_all(stdin, prompt.as_bytes()).await;
-        drop(child.stdin.take());
+    // Write prompt to stdin and close it so claude reads EOF and processes.
+    if let Some(mut stdin) = child.stdin.take() {
+        let _ = tokio::io::AsyncWriteExt::write_all(&mut stdin, prompt.as_bytes()).await;
+        let _ = tokio::io::AsyncWriteExt::shutdown(&mut stdin).await;
+        // stdin is dropped here, sending EOF to the child
     }
 
     let result =
-        match tokio::time::timeout(std::time::Duration::from_secs(10), child.wait_with_output())
+        match tokio::time::timeout(std::time::Duration::from_secs(15), child.wait_with_output())
             .await
         {
-            Ok(Ok(out)) => String::from_utf8_lossy(&out.stdout).trim().to_string(),
+            Ok(Ok(out)) => {
+                let stdout = String::from_utf8_lossy(&out.stdout).trim().to_string();
+                let stderr = String::from_utf8_lossy(&out.stderr);
+                if !stderr.is_empty() {
+                    eprintln!(
+                        "[intake/router] stderr: {}",
+                        stderr.chars().take(200).collect::<String>()
+                    );
+                }
+                stdout
+            }
             _ => {
                 eprintln!("[intake/router] classification timed out, defaulting to triage");
                 return "triage".to_string();
