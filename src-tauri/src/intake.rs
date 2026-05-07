@@ -649,6 +649,28 @@ async fn chat_turn(
     };
     let (agent_instructions, model) = load_agent(&repo, &agent_name).await;
 
+    // Stamp the agent name onto the ticket so the admin knows which
+    // agent handled this conversation.
+    {
+        let ticket_path = repo
+            .join("databases")
+            .join("tickets")
+            .join(format!("{ticket_id}.json"));
+        if let Ok(raw) = tokio::fs::read_to_string(&ticket_path).await {
+            if let Ok(mut parsed) = serde_json::from_str::<serde_json::Value>(&raw) {
+                if let Some(obj) = parsed.as_object_mut() {
+                    obj.insert(
+                        "agent".to_string(),
+                        serde_json::Value::String(agent_name.clone()),
+                    );
+                    if let Ok(json) = serde_json::to_string_pretty(&parsed) {
+                        let _ = tokio::fs::write(&ticket_path, json).await;
+                    }
+                }
+            }
+        }
+    }
+
     // Build the prompt and run claude -p. This is the slow part
     // (~3-5s per turn). The skill is auto-loaded by Claude based on
     // the cwd's .claude/skills/ directory.
