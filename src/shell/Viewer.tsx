@@ -1684,7 +1684,42 @@ export function Viewer({
             },
           };
         })()
-      : null;
+      : source && source.kind === "datastore-table" && repo && onShowSource
+        ? (() => {
+            const colName = source.collection.name;
+            const subdir = `databases/${colName}`;
+            const fields = (source.collection.schema as { fields?: Array<Record<string, unknown>> })?.fields ?? [];
+            const template: Record<string, unknown> = {};
+            for (const f of fields) {
+              const id = f.id as string;
+              if (id === "createdAt" || id === "updatedAt") {
+                template[id] = new Date().toISOString();
+              } else {
+                template[id] = "";
+              }
+            }
+            return {
+              title: `New ${colName} record`,
+              onCreate: () => {
+                const items = source.items ?? [];
+                const taken = new Set(items.map((i) => `${i.key}.json`));
+                let filename = "new-record.json";
+                let i = 2;
+                while (taken.has(filename)) {
+                  filename = `new-record-${i}.json`;
+                  i += 1;
+                }
+                onShowSource({
+                  kind: "draft-file",
+                  path: `${repo}/${subdir}/${filename}`,
+                  subdir,
+                  filename,
+                  initialContent: JSON.stringify(template, null, 2),
+                });
+              },
+            };
+          })()
+        : null;
 
   // Pre-compute conversation status counts so the header pills can
   // display them without re-walking on each render frame. Memoising
@@ -2130,40 +2165,6 @@ export function Viewer({
                     setFolderUploadError,
                     showToast,
                   )
-              : undefined
-          }
-          onNewRow={
-            repo && onShowSource
-              ? () => {
-                  // Create a draft file for a new row
-                  const subdir = `databases/${source.collection.name}`;
-                  const existing = tableItems.map((i) => `${i.key}.json`);
-                  const taken = new Set(existing);
-                  let filename = "new-record.json";
-                  let i = 2;
-                  while (taken.has(filename)) {
-                    filename = `new-record-${i}.json`;
-                    i += 1;
-                  }
-                  // Build an empty template from the schema fields
-                  const fields = (source.collection.schema as { fields?: Array<Record<string, unknown>> })?.fields ?? [];
-                  const template: Record<string, unknown> = {};
-                  for (const f of fields) {
-                    const id = f.id as string;
-                    if (id === "createdAt" || id === "updatedAt") {
-                      template[id] = new Date().toISOString();
-                    } else {
-                      template[id] = "";
-                    }
-                  }
-                  onShowSource({
-                    kind: "draft-file",
-                    path: `${repo}/${subdir}/${filename}`,
-                    subdir,
-                    filename,
-                    initialContent: JSON.stringify(template, null, 2),
-                  });
-                }
               : undefined
           }
         />
