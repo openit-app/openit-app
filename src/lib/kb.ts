@@ -1,6 +1,6 @@
 // KB collection resolution. Phase 2 of V2 sync (PIN-5775) shifts this
 // off the `knowledge-base` MCP and onto the same REST `/datacollection/`
-// endpoint the filestore engine uses. Pinkfish-entity CRUD goes REST per
+// endpoint the filestore engine uses. Entity CRUD goes REST per
 // the project's auth/decision tree (see auto-dev/00-autodev-overview.md).
 //
 // The actual resolver (REST list + openit-* prefix filter + dedupe +

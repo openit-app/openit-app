@@ -4,16 +4,14 @@ import remarkGfm from "remark-gfm";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import { ask } from "@tauri-apps/plugin-dialog";
 import { fsRead, fsReadBytes, fsList, fsReveal, reportOverviewRun, entityWriteFile, entityWriteFileBytes, entityDeleteFile, entityListLocal } from "../lib/api";
-import { loadCreds } from "../lib/pinkfishAuth";
-import { fetchDatastoreItems } from "../lib/datastoreSync";
 import { loadOpenitConfig } from "../lib/openitConfig";
-import type { MemoryItem } from "../lib/skillsApi";
-import type { Agent } from "../lib/agentSync";
+import type { MemoryItem, Agent } from "../lib/localTypes";
 import { DataTable } from "./DataTable";
 import { EntityCardGrid } from "./EntityCardGrid";
 import { FileThumbnail, isImageFile } from "./FileThumbnail";
 import { EntityBadge, type EntityKind } from "./entityIcons";
 import { ToolsPanel } from "./ToolsPanel";
+import { SkillsStation } from "./SkillsStation";
 import { TrashIcon } from "./TrashIcon";
 import { useToast } from "../Toast";
 import { Button, TabStrip, Tab } from "../ui";
@@ -140,29 +138,14 @@ async function loadAgentEditState(args: {
   args.setKbs(null);
   args.setDss(null);
   args.setFss(null);
+  // KB and filestore sync modules were removed; these collections are now
+  // discovered from the on-disk folder structure, so we leave them empty.
+  args.setKbs([]);
+  args.setFss([]);
   try {
-    const { getSyncStatus } = await import("../lib/kbSync");
-    const list = getSyncStatus().collections.map((c) => c.name);
-    args.setKbs(list.map(stripOpenitPrefix));
-  } catch {
-    args.setKbs([]);
-  }
-  try {
-    const { getFilestoreSyncStatus } = await import("../lib/filestoreSync");
-    const list = getFilestoreSyncStatus().collections.map((c) => c.name);
-    args.setFss(list.map(stripOpenitPrefix));
-  } catch {
-    args.setFss([]);
-  }
-  try {
-    const { resolveProjectDatastores } = await import("../lib/datastoreSync");
-    const creds = await loadCreds();
-    if (creds) {
-      const cols = await resolveProjectDatastores(creds);
-      args.setDss(cols.map((c) => stripOpenitPrefix(c.name)));
-    } else {
-      args.setDss([]);
-    }
+    const dbPath = `${args.repo}/databases`;
+    const nodes = await fsList(dbPath);
+    args.setDss(nodes.filter((n) => n.is_dir).map((n) => stripOpenitPrefix(n.name)));
   } catch {
     args.setDss([]);
   }
@@ -527,56 +510,62 @@ function AgentRenderedView(props: { agent: Agent; repo: string | null }): ReactN
           <p>{a.introMessage}</p>
         </div>
       )}
-      {a.promptExamples && a.promptExamples.length > 0 && (
+      {Array.isArray(a.promptExamples) && (a.promptExamples as string[]).length > 0 && (
         <div className="summary-section">
           <h3>Prompt bubbles</h3>
           <ul>
-            {a.promptExamples.map((p, i) => (
+            {(a.promptExamples as string[]).map((p: string, i: number) => (
               <li key={i}>{p}</li>
             ))}
           </ul>
         </div>
       )}
-      {a.resources && (
+      {a.resources ? (() => {
+        const res = a.resources as { knowledgeBases?: { name: string }[]; datastores?: { name: string }[]; filestores?: { name: string }[] };
+        return (
         <div className="summary-section">
           <h3>Resources</h3>
           <table className="summary-table">
             <tbody>
-              {a.resources.knowledgeBases && a.resources.knowledgeBases.length > 0 && (
+              {res.knowledgeBases && res.knowledgeBases.length > 0 && (
                 <tr>
                   <td>Knowledge bases</td>
-                  <td>{a.resources.knowledgeBases.map((r) => r.name).join(", ")}</td>
+                  <td>{res.knowledgeBases.map((r: { name: string }) => r.name).join(", ")}</td>
                 </tr>
               )}
-              {a.resources.datastores && a.resources.datastores.length > 0 && (
+              {res.datastores && res.datastores.length > 0 && (
                 <tr>
                   <td>Datastores</td>
-                  <td>{a.resources.datastores.map((r) => r.name).join(", ")}</td>
+                  <td>{res.datastores.map((r: { name: string }) => r.name).join(", ")}</td>
                 </tr>
               )}
-              {a.resources.filestores && a.resources.filestores.length > 0 && (
+              {res.filestores && res.filestores.length > 0 && (
                 <tr>
                   <td>Filestores</td>
-                  <td>{a.resources.filestores.map((r) => r.name).join(", ")}</td>
+                  <td>{res.filestores.map((r: { name: string }) => r.name).join(", ")}</td>
                 </tr>
               )}
             </tbody>
           </table>
         </div>
-      )}
-      {a.tools?.servers && a.tools.servers.length > 0 && (
+        );
+      })() : null}
+      {(() => {
+        const tools = a.tools as { servers?: { name: string }[] } | undefined;
+        return tools?.servers && tools.servers.length > 0 ? (
         <div className="summary-section">
           <h3>Tools</h3>
           <table className="summary-table">
             <tbody>
               <tr>
                 <td>MCP servers</td>
-                <td>{a.tools.servers.map((s) => s.name).join(", ")}</td>
+                <td>{tools.servers.map((s: { name: string }) => s.name).join(", ")}</td>
               </tr>
             </tbody>
           </table>
         </div>
-      )}
+        ) : null;
+      })()}
       {(common || cloud || local) && (
         <div className="summary-section">
           <h3>Instructions</h3>
@@ -849,49 +838,15 @@ function ExternalAnchor({
   ...rest
 }: React.AnchorHTMLAttributes<HTMLAnchorElement>) {
   // openit://cloud-cta — opens the cloud CTA page in the center pane.
-  // Used by the welcome doc's "Connect to Cloud" link so it routes
-  // through the same pitch-page surface as the header pill, sync
-  // panel, and command palette (instead of pasting a skill command
-  // into Claude). App.tsx listens for the event and calls into the
-  // Shell-registered showCloudCta handler.
-  // `openit://skill/connect-to-cloud` is the legacy URL that older
-  // welcome docs still ship with — re-route it to the same CTA event
-  // so existing projects don't try to paste a non-existent skill.
-  if (href === "openit://cloud-cta" || href === "openit://skill/connect-to-cloud") {
-    return (
-      <a
-        href="#"
-        data-openit-cta="cloud"
-        onClick={(e) => {
-          e.preventDefault();
-          e.stopPropagation();
-          window.dispatchEvent(new CustomEvent("openit:show-cloud-cta"));
-        }}
-        {...rest}
-      >
-        {children}
-      </a>
-    );
-  }
-  // openit://connect-cloud — kicks off the OAuth flow directly. Used by
-  // the connect-to-cloud markdown's primary CTA. Distinct from
-  // `openit://cloud-cta` (which opens the pitch page); this one starts
-  // the browser handoff. App.tsx listens and calls browserConnect.start().
-  if (href === "openit://connect-cloud") {
-    return (
-      <a
-        href="#"
-        data-openit-cta="connect-cloud"
-        onClick={(e) => {
-          e.preventDefault();
-          e.stopPropagation();
-          window.dispatchEvent(new CustomEvent("openit:start-cloud-onboarding"));
-        }}
-        {...rest}
-      >
-        {children}
-      </a>
-    );
+  // Cloud CTA links removed — local-first mode has no cloud connection.
+  // Legacy `connect-to-cloud.md` files in existing vaults may still
+  // contain these links; render them as inert text so they don't crash.
+  if (
+    href === "openit://cloud-cta" ||
+    href === "openit://skill/connect-to-cloud" ||
+    href === "openit://connect-cloud"
+  ) {
+    return <span {...rest}>{children}</span>;
   }
   // openit://create-samples — populates the workspace with bundled
   // sample tickets / people / conversations / KB articles. App.tsx
@@ -1042,7 +997,6 @@ export function Viewer({
   repo,
   fsTick,
   intakeUrl,
-  tunnelUrl,
   welcomeFlashKey,
   onOpenPath,
   onShowSource,
@@ -1054,13 +1008,8 @@ export function Viewer({
   source: ViewerSource;
   repo: string;
   fsTick?: number;
-  /** Local intake server URL — fallback for `{{INTAKE_URL}}` substitution
-   *  when the public tunnel isn't up yet. */
+  /** Local intake server URL for `{{INTAKE_URL}}` substitution. */
   intakeUrl?: string | null;
-  /** Public tunnel URL (e.g. `https://xxx.lhr.life`). Preferred over
-   *  `intakeUrl` for `{{INTAKE_URL}}` substitution so CTA links in the
-   *  welcome doc point at the shareable URL instead of localhost. */
-  tunnelUrl?: string | null;
   /** Bumped by the parent when the user clicks "Getting Started" while the
    *  welcome doc is already the active source. Triggers a one-shot flash
    *  animation so the click doesn't look like a no-op. */
@@ -1090,7 +1039,7 @@ export function Viewer({
   // Self-loaded table data for datastore-table
   const [tableItems, setTableItems] = useState<MemoryItem[]>([]);
   const [tableHasMore, setTableHasMore] = useState(false);
-  const [tableLoading, setTableLoading] = useState(false);
+  const [tableLoading, _setTableLoading] = useState(false);
 
   // Live override of the row content for datastore-row sources. Source
   // captures the row at click time; this gets populated when the
@@ -1281,14 +1230,14 @@ export function Viewer({
     setReportError(null);
   }, [source]);
   useEffect(() => {
-    // Fetch the admin's git email once and cache it so the composer
-    // doesn't re-shell for every thread open. Falls back to "admin"
-    // if git's user.email isn't set globally.
+    // Fetch the admin's email once and cache it so the composer
+    // doesn't re-invoke for every thread open. Falls back to "admin"
+    // if user.email isn't set globally.
     let cancelled = false;
     (async () => {
       try {
-        const { gitGlobalUserEmail } = await import("../lib/api");
-        const email = await gitGlobalUserEmail();
+        const { globalUserEmail } = await import("../lib/api");
+        const email = await globalUserEmail();
         if (!cancelled) setAdminEmail(email);
       } catch {
         /* leave as null — composer falls back to "admin" */
@@ -1377,27 +1326,7 @@ export function Viewer({
       setMode("table");
       setContent("");
       setTableItems(source.items ?? []);
-      setTableHasMore(source.hasMore ?? false);
-      // Only fetch from API if we have a real collection ID
-      if (source.collection.id) {
-        setTableLoading(true);
-        let cancelled = false;
-        loadCreds().then(async (creds) => {
-          if (!creds || cancelled) { setTableLoading(false); return; }
-          try {
-            const resp = await fetchDatastoreItems(creds, source.collection.id, 100, 0);
-            if (!cancelled) {
-              setTableItems(resp.items);
-              setTableHasMore(resp.pagination.hasNextPage);
-            }
-          } catch (e) {
-            console.warn("[Viewer] failed to load table items:", e);
-          } finally {
-            if (!cancelled) setTableLoading(false);
-          }
-        });
-        return () => { cancelled = true; };
-      }
+      setTableHasMore(false);
       return;
     }
     if (source.kind === "datastore-row") {
@@ -1412,7 +1341,7 @@ export function Viewer({
         setContent(JSON.stringify(raw, null, 2));
       } else {
         try {
-          setContent(JSON.stringify(JSON.parse(raw), null, 2));
+          setContent(JSON.stringify(JSON.parse(raw as string), null, 2));
         } catch {
           setContent(String(raw));
         }
@@ -1480,6 +1409,11 @@ export function Viewer({
       return;
     }
     if (source.kind === "tools") {
+      setMode("rendered");
+      setContent("");
+      return;
+    }
+    if (source.kind === "skills-station") {
       setMode("rendered");
       setContent("");
       return;
@@ -1566,8 +1500,14 @@ export function Viewer({
       case "script-output":
         return `Run: ${source.script.split("/").pop() ?? source.script}`;
       case "draft-file": return source.filename;
-      case "datastore-table": return source.collection?.name ?? "Datastore";
-      case "datastore-schema": return `${source.collection?.name ?? "Datastore"} — Schema`;
+      case "datastore-table": {
+        const n = source.collection?.name ?? "Datastore";
+        return n.charAt(0).toUpperCase() + n.slice(1);
+      }
+      case "datastore-schema": {
+        const n = source.collection?.name ?? "Datastore";
+        return `${n.charAt(0).toUpperCase() + n.slice(1)} — Schema`;
+      }
       case "datastore-row": return `${source.collection?.name ?? "Datastore"} / ${source.item?.key || source.item?.id || "Row"}`;
       case "agent": return source.agent?.name ?? "Agent";
       case "workflow": return source.workflow?.name ?? "Workflow";
@@ -1597,6 +1537,7 @@ export function Viewer({
         return `Agent traces — ${source.subject} (${source.docs.length} turn${source.docs.length === 1 ? "" : "s"})`;
       case "people-list":        return "People";
       case "tools": return "Tools";
+      case "skills-station": return "Skills";
       default: return "";
     }
   };
@@ -1642,7 +1583,7 @@ export function Viewer({
     if (source.kind === "conversations-list")
       return `${repo}/databases/conversations`;
     if (source.kind === "agent")
-      return `${repo}/agents/${source.agent.id || source.agent.name}.json`;
+      return source.path;
     if (source.kind === "workflow")
       return `${repo}/workflows/${source.workflow.id || source.workflow.name}.json`;
     return null;
@@ -1702,7 +1643,7 @@ export function Viewer({
   // nothing behind).
   const newFileAffordance: { onCreate: () => void; title: string } | null =
     source && source.kind === "entity-folder" && repo &&
-    (source.entity === "scripts" || source.entity === "skills")
+    (source.entity === "scripts" || source.entity === "skills" || source.entity === "agents" || source.entity === "knowledge-base")
       ? (() => {
           const ext: "mjs" | "md" = source.entity === "scripts" ? "mjs" : "md";
           const subdirAbs = source.path;
@@ -1710,8 +1651,12 @@ export function Viewer({
           return {
             title:
               source.entity === "scripts"
-                ? "Draft a new untitled.mjs script — Save to commit it"
-                : "Draft a new untitled.md skill — Save to commit it",
+                ? "Draft a new script"
+                : source.entity === "agents"
+                  ? "Draft a new agent"
+                  : source.entity === "knowledge-base"
+                    ? "Draft a new KB article"
+                    : "Draft a new skill",
             onCreate: () => {
               if (!onShowSource) return;
               // Pick the first free `untitled[-N].<ext>` against the
@@ -1739,7 +1684,42 @@ export function Viewer({
             },
           };
         })()
-      : null;
+      : source && source.kind === "datastore-table" && repo && onShowSource
+        ? (() => {
+            const colName = source.collection.name;
+            const subdir = `databases/${colName}`;
+            const fields = (source.collection.schema as { fields?: Array<Record<string, unknown>> })?.fields ?? [];
+            const template: Record<string, unknown> = {};
+            for (const f of fields) {
+              const id = f.id as string;
+              if (id === "createdAt" || id === "updatedAt") {
+                template[id] = new Date().toISOString();
+              } else {
+                template[id] = "";
+              }
+            }
+            return {
+              title: `New ${colName} record`,
+              onCreate: () => {
+                const items = source.items ?? [];
+                const taken = new Set(items.map((i) => `${i.key}.json`));
+                let filename = "new-record.json";
+                let i = 2;
+                while (taken.has(filename)) {
+                  filename = `new-record-${i}.json`;
+                  i += 1;
+                }
+                onShowSource({
+                  kind: "draft-file",
+                  path: `${repo}/${subdir}/${filename}`,
+                  subdir,
+                  filename,
+                  initialContent: JSON.stringify(template, null, 2),
+                });
+              },
+            };
+          })()
+        : null;
 
   // Pre-compute conversation status counts so the header pills can
   // display them without re-walking on each render frame. Memoising
@@ -1967,9 +1947,7 @@ export function Viewer({
         // the dynamic intake URL that changes per app launch. If the
         // server isn't running yet (intakeUrl is null), strip the link
         // gracefully so we don't render a broken `[text](null)`.
-        // Prefer the public tunnel URL so the CTA is shareable; fall back
-        // to the local intake URL while the tunnel is still coming up.
-        const ctaUrl = tunnelUrl ?? intakeUrl;
+        const ctaUrl = intakeUrl;
         const rendered = ctaUrl
           ? content.split("{{INTAKE_URL}}").join(ctaUrl)
           : content.replace(/\[([^\]]+)\]\(\{\{INTAKE_URL\}\}\)/g, "$1");
@@ -2171,20 +2149,11 @@ export function Viewer({
           collection={source.collection}
           items={tableItems}
           hasMore={tableHasMore}
-          onLoadMore={async () => {
-            const creds = await loadCreds();
-            if (!creds) return;
-            try {
-              const resp = await fetchDatastoreItems(creds, source.collection.id, 100, tableItems.length);
-              setTableItems((prev) => [...prev, ...resp.items]);
-              setTableHasMore(resp.pagination.hasNextPage);
-            } catch (e) {
-              console.warn("[Viewer] load more failed:", e);
-            }
-          }}
+          onLoadMore={undefined}
           onRowClick={(key) => {
+            // Open the row file for editing
             const filePath = `${repo}/databases/${source.collection.name}/${key}.json`;
-            writeToActiveSession(filePath + " ");
+            if (onOpenPath) void onOpenPath(filePath);
           }}
           onRowDelete={
             repo
@@ -2212,7 +2181,7 @@ export function Viewer({
         // form is far easier to scan when reading one row at a time.
         // (Multi-row tables still use DataTable — that's where the
         // horizontal layout pays off.)
-        const fields = (source.collection.schema?.fields ?? []) as Array<{
+        const fields = ((source.collection.schema as Record<string, unknown> | undefined)?.fields ?? []) as Array<{
           id: string;
           label?: string;
           type?: string;
@@ -2325,8 +2294,8 @@ export function Viewer({
       return <pre className="viewer-content">{content}</pre>;
     }
 
-    // Agent summary — three modes (rendered / edit / raw) mirror the
-    // datastore-row pattern so agents read & edit the same way as rows.
+
+    // Legacy JSON agent summary (V1/V2) — structured fields + edit form.
     if (source.kind === "agent") {
       const a: Agent = agentOverride ?? source.agent;
 
@@ -2417,7 +2386,7 @@ export function Viewer({
                 />
               </label>
               <label className="row-edit-field">
-                <span className="row-edit-label">Cloud instructions (Pinkfish runtime)</span>
+                <span className="row-edit-label">Cloud instructions</span>
                 <textarea
                   className="row-edit-textarea"
                   rows={6}
@@ -2567,7 +2536,9 @@ export function Viewer({
         <div className="viewer-summary">
           <h2>{w.name}</h2>
           {w.description && <p className="summary-desc">{w.description}</p>}
-          {w.inputs && w.inputs.length > 0 && (
+          {(() => {
+            const inputs = w.inputs as Array<{ name: string; type: string; required?: boolean }> | undefined;
+            return inputs && inputs.length > 0 ? (
             <div className="summary-section">
               <h3>Inputs</h3>
               <table className="summary-table">
@@ -2575,7 +2546,7 @@ export function Viewer({
                   <tr><th>Name</th><th>Type</th><th>Required</th></tr>
                 </thead>
                 <tbody>
-                  {w.inputs.map((inp, i) => (
+                  {inputs.map((inp: { name: string; type: string; required?: boolean }, i: number) => (
                     <tr key={i}>
                       <td>{inp.name}</td>
                       <td><code>{inp.type}</code></td>
@@ -2585,12 +2556,15 @@ export function Viewer({
                 </tbody>
               </table>
             </div>
-          )}
-          {w.triggers && w.triggers.length > 0 && (
+            ) : null;
+          })()}
+          {(() => {
+            const triggers = w.triggers as Array<{ name: string; url?: string }> | undefined;
+            return triggers && triggers.length > 0 ? (
             <div className="summary-section">
               <h3>Triggers</h3>
               <ul>
-                {w.triggers.map((t, i) => (
+                {triggers.map((t: { name: string; url?: string }, i: number) => (
                   <li key={i}>
                     {t.name}
                     {t.url && <code className="trigger-url">{t.url}</code>}
@@ -2598,7 +2572,8 @@ export function Viewer({
                 ))}
               </ul>
             </div>
-          )}
+            ) : null;
+          })()}
           <div className="summary-section">
             <h3>Details</h3>
             <table className="summary-table">
@@ -2616,7 +2591,7 @@ export function Viewer({
     // view via the parent's onOpenPath callback.
     if (source.kind === "conversations-list") {
       if (source.threads.length === 0) {
-        const sampleUrl = tunnelUrl || intakeUrl || null;
+        const sampleUrl = intakeUrl || null;
         return (
           <div className="viewer-summary">
             <p className="summary-desc">
@@ -2891,6 +2866,10 @@ export function Viewer({
       return <ToolsPanel projectRoot={repo} />;
     }
 
+    if (source.kind === "skills-station") {
+      return <SkillsStation repo={repo} onOpen={(p) => onOpenPath && void onOpenPath(p)} />;
+    }
+
     // `filestores/attachments/` welcome stub + per-ticket roll-up.
     // The lead paragraph explains what lives in this folder so an
     // admin clicking it for the first time understands the split
@@ -3059,6 +3038,26 @@ export function Viewer({
                   }
                 }
               : undefined,
+          // "Add to Claude" — inject a contextual prompt into the
+          // active Claude session. The prompt varies per entity kind
+          // so Claude knows how to act on the reference.
+          onAddToClaude: (() => {
+            const rel = repo ? toRepoRelative(repo, f.path) : f.name;
+            switch (source.entity) {
+              case "agents":
+                return () => { void writeToActiveSession(`Read and follow the agent instructions in ${rel}\r`); };
+              case "skills":
+                return () => { void writeToActiveSession(`/${f.displayName}\r`); };
+              case "knowledge-base":
+                return () => { void writeToActiveSession(`Read the knowledge base article at ${rel}\r`); };
+              case "scripts":
+                return () => { void writeToActiveSession(`Run the script at ${rel}\r`); };
+              case "reports":
+                return () => { void writeToActiveSession(`Read the report at ${rel}\r`); };
+              default:
+                return undefined;
+            }
+          })(),
         };
       });
       // Drag-and-drop upload from the desktop is enabled for the two
@@ -3752,6 +3751,14 @@ export function Viewer({
       case "attachments-folder":
         headerKind = "attachments";
         break;
+      case "datastore-table":
+        // Map specific collection names to their entity icons
+        if (source.collection.name === "access") headerKind = "access";
+        else if (source.collection.name === "assets") headerKind = "assets";
+        else if (source.collection.name === "people") headerKind = "people";
+        else if (source.collection.name === "tickets") headerKind = "inbox";
+        else headerKind = "databases";
+        break;
       case "databases-list":
         headerKind = "databases";
         break;
@@ -3763,6 +3770,9 @@ export function Viewer({
         break;
       case "tools":
         headerKind = "tools";
+        break;
+      case "skills-station":
+        headerKind = "skills";
         break;
     }
   }

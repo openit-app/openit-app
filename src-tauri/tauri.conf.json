@@ -39,7 +39,6 @@
       "../scripts/openit-plugin/agents/triage/*.md": "openit-plugin/agents/triage/",
       "../scripts/openit-plugin/scripts/*.mjs": "openit-plugin/scripts/",
       "../scripts/openit-plugin/scripts/*.yml": "openit-plugin/scripts/",
-      "../scripts/openit-plugin/scripts/slack-listen.bundle.cjs": "openit-plugin/scripts/slack-listen.bundle.cjs",
       "../scripts/openit-plugin/seed/tickets/*.json": "openit-plugin/seed/tickets/",
       "../scripts/openit-plugin/seed/people/*.json": "openit-plugin/seed/people/",
       "../scripts/openit-plugin/seed/knowledge/*.md": "openit-plugin/seed/knowledge/",
@@ -48,6 +47,9 @@
       "../scripts/openit-plugin/seed/conversations/sample-ticket-3/*.json": "openit-plugin/seed/conversations/sample-ticket-3/",
       "../scripts/openit-plugin/seed/conversations/sample-ticket-4/*.json": "openit-plugin/seed/conversations/sample-ticket-4/",
       "../scripts/openit-plugin/seed/conversations/sample-ticket-5/*.json": "openit-plugin/seed/conversations/sample-ticket-5/",
+      "../scripts/openit-plugin/seed/reports/*.md": "openit-plugin/seed/reports/",
+      "../scripts/openit-plugin/seed/access/*.json": "openit-plugin/seed/access/",
+      "../scripts/openit-plugin/seed/assets/*.json": "openit-plugin/seed/assets/",
       "../scripts/openit-plugin/seed/skills/*.md": "openit-plugin/seed/skills/",
       "../scripts/openit-plugin/seed/scripts/*.mjs": "openit-plugin/seed/scripts/"
     },

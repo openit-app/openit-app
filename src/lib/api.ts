@@ -23,79 +23,11 @@ export async function fsDelete(path: string): Promise<void> {
   return invoke("fs_delete", { path });
 }
 
-export type GitCommit = {
-  sha: string;
-  short_sha: string;
-  author: string;
-  date: string;
-  subject: string;
-};
-
-export async function gitLog(repo: string): Promise<GitCommit[]> {
-  return invoke("git_log", { repo });
-}
-
-export async function gitDiff(repo: string, sha: string): Promise<string> {
-  return invoke("git_diff", { repo, sha });
-}
-
-export async function gitEnsureRepo(repo: string): Promise<void> {
-  return invoke("git_ensure_repo", { repo });
-}
-
-export async function gitAddAndCommit(repo: string, message: string): Promise<boolean> {
-  return invoke("git_add_and_commit", { repo, message });
-}
-
-/// Stage exactly the given paths (relative to repo root) and commit. Used by
-/// the sync layer so auto-commits never sweep up unrelated user WIP.
-export async function gitCommitPaths(
-  repo: string,
-  paths: string[],
-  message: string,
-): Promise<boolean> {
-  return invoke("git_commit_paths", { repo, paths, message });
-}
-
-export type GitFileStatus = { path: string; status: string; staged: boolean };
-
-export async function gitStatusShort(repo: string): Promise<GitFileStatus[]> {
-  return invoke("git_status_short", { repo });
-}
-
-export async function gitStage(repo: string, paths: string[]): Promise<void> {
-  return invoke("git_stage", { repo, paths });
-}
-
-export async function gitUnstage(repo: string, paths: string[]): Promise<void> {
-  return invoke("git_unstage", { repo, paths });
-}
-
-export async function gitCommitStaged(repo: string, message: string): Promise<boolean> {
-  return invoke("git_commit_staged", { repo, message });
-}
-
-export async function gitDiscard(repo: string, paths: string[]): Promise<void> {
-  return invoke("git_discard", { repo, paths });
-}
-
-export async function gitFileDiff(repo: string, path: string): Promise<string> {
-  return invoke("git_file_diff", { repo, path });
-}
-
-export async function gitHasConflictMarkers(repo: string): Promise<boolean> {
-  return invoke("git_has_conflict_markers", { repo });
-}
-
-export async function gitDiffNameOnly(repo: string, baseSha: string): Promise<string[]> {
-  return invoke("git_diff_name_only", { repo, baseSha });
-}
-
 /// User's global git email — used as a best-guess admin identity for
 /// in-app writes (conversation reply, etc.). Returns null when git's
 /// user.email is unset, blank, or the project-local placeholder.
-export async function gitGlobalUserEmail(): Promise<string | null> {
-  return invoke<string | null>("git_global_user_email");
+export async function globalUserEmail(): Promise<string | null> {
+  return invoke<string | null>("global_user_email");
 }
 
 /// Generic binary write to `<repo>/<subdir>/<filename>`. Used by the
@@ -130,55 +62,6 @@ export async function stateLoad(): Promise<AppPersistedState> {
   return invoke("state_load");
 }
 
-export async function stateSave(state: AppPersistedState): Promise<void> {
-  return invoke("state_save", { state });
-}
-
-export async function keychainSet(slot: string, value: string): Promise<void> {
-  return invoke("keychain_set", { slot, value });
-}
-
-export async function keychainGet(slot: string): Promise<string | null> {
-  return invoke("keychain_get", { slot });
-}
-
-export async function keychainDelete(slot: string): Promise<void> {
-  return invoke("keychain_delete", { slot });
-}
-
-export async function keychainProbe(): Promise<boolean> {
-  return invoke("keychain_probe");
-}
-
-export type OauthResult = {
-  access_token: string;
-  expires_in: number | null;
-  token_type: string | null;
-  scope: string | null;
-};
-
-export async function pinkfishOauthExchange(args: {
-  clientId: string;
-  clientSecret: string;
-  scope: string;
-  tokenUrl?: string | null;
-}): Promise<OauthResult> {
-  return invoke("pinkfish_oauth_exchange", {
-    clientId: args.clientId,
-    clientSecret: args.clientSecret,
-    scope: args.scope,
-    tokenUrl: args.tokenUrl ?? null,
-  });
-}
-
-export type OrgRow = {
-  id: string;
-  name: string;
-  can_read: boolean;
-  can_write: boolean;
-  administer: boolean;
-  parent_id: string | null;
-};
 
 export async function claudeDetect(): Promise<string | null> {
   return invoke("claude_detect");
@@ -203,64 +86,58 @@ export function claudeInstall(): Promise<string> {
   return p;
 }
 
-/// Ask the user's Claude CLI (`claude -p`) to summarize the staged diff into
-/// a single commit subject line, matching the style of the recent log.
-/// Returns the trimmed first line; throws on missing CLI or empty staging.
-export async function claudeGenerateCommitMessage(repo: string): Promise<string> {
-  return invoke("claude_generate_commit_message", { repo });
-}
 
 export type BootstrapResult = { path: string; created: boolean };
 
-export async function projectBootstrap(args: {
-  orgName: string;
-  orgId: string;
-}): Promise<BootstrapResult> {
-  return invoke("project_bootstrap", { orgName: args.orgName, orgId: args.orgId });
+/// Bootstrap a vault at the given path. Creates standard subdirs,
+/// getting-started.md, and .openit/config.json if missing. Defaults
+/// to `~/OpenIT/Personal/` when path is omitted.
+export async function projectBootstrap(vaultPath?: string): Promise<BootstrapResult> {
+  return invoke("project_bootstrap", { vaultPath: vaultPath ?? null });
 }
 
-/// Cloud-binding marker stored at `<repo>/.openit/cloud.json`. Records which
-/// Pinkfish org the folder is currently bound to. Phase 1 of V2 sync (PIN-5775)
-/// — replaces the `~/OpenIT/<orgId>/` folder convention with a per-folder
-/// metadata file so the user keeps working in their existing folder when they
-/// connect to cloud.
-export type CloudBinding = {
-  orgId: string;
-  orgName: string;
-  /// Unix epoch milliseconds when the binding was first written.
-  connectedAt: number;
-  /// Unix epoch ms of the most recent successful sync. `null` until the first
-  /// poll completes.
-  lastSyncAt: number | null;
+// ---------------------------------------------------------------------------
+// Workspace registry — tracks which vaults the user has opened.
+// ---------------------------------------------------------------------------
+
+export type WorkspaceEntry = {
+  path: string;
+  name: string;
+  lastOpenedAt: number;
 };
 
-/// Write `.openit/cloud.json` for `repo`. Idempotent for the same `orgId`
-/// (preserves `connectedAt`); rejects with an error if the folder is already
-/// bound to a different org so the caller can surface a clear conflict
-/// instead of silently overwriting.
-export async function projectBindToCloud(args: {
-  repo: string;
-  orgId: string;
-  orgName: string;
-}): Promise<CloudBinding> {
-  return invoke("project_bind_to_cloud", {
-    repo: args.repo,
-    orgId: args.orgId,
-    orgName: args.orgName,
-  });
+export type WorkspaceRegistry = {
+  workspaces: WorkspaceEntry[];
+  active: string | null;
+};
+
+export async function listWorkspaces(): Promise<WorkspaceRegistry> {
+  return invoke("list_workspaces");
 }
 
-/// Read the binding. `null` for unbound folders.
-export async function projectGetCloudBinding(repo: string): Promise<CloudBinding | null> {
-  return invoke("project_get_cloud_binding", { repo });
+export async function createWorkspace(path: string, name: string): Promise<WorkspaceRegistry> {
+  return invoke("create_workspace", { path, name });
 }
 
-/// Refresh `lastSyncAt` to the current time. No-op (resolves) if the folder
-/// is unbound — sync engines call this after every successful poll without
-/// having to special-case the local-only path.
-export async function projectUpdateLastSyncAt(repo: string): Promise<void> {
-  return invoke("project_update_last_sync_at", { repo });
+
+// ---------------------------------------------------------------------------
+// MCP discovery
+// ---------------------------------------------------------------------------
+
+export type InstalledMcp = {
+  name: string;
+  source: string; // "claude-code" | "claude-desktop" | "project"
+  transport: string; // "stdio" | "http" | "sse"
+  command_or_url: string;
+};
+
+export async function listInstalledMcps(repo?: string): Promise<InstalledMcp[]> {
+  return invoke("list_installed_mcps", { repo: repo ?? null });
 }
+
+// ---------------------------------------------------------------------------
+// Intake server
+// ---------------------------------------------------------------------------
 
 /// Start the localhost ticket-intake HTTP server scoped to `repo`.
 /// Returns the URL clients hit (e.g. `http://127.0.0.1:54123`). If a
@@ -282,17 +159,6 @@ export async function intakeStart(repo: string): Promise<string> {
 /// when the SSH session ends — laptop sleep, app close, network
 /// loss. That ephemerality is intentional; it's the upgrade-to-cloud
 /// pitch.
-export async function tunnelStart(localUrl: string): Promise<string> {
-  return invoke("tunnel_start", { localUrl });
-}
-
-export async function tunnelStop(): Promise<void> {
-  return invoke("tunnel_stop");
-}
-
-export async function tunnelUrl(): Promise<string | null> {
-  return invoke("tunnel_url");
-}
 
 // ---------------------------------------------------------------------------
 // Slack — local listener supervisor (V1: DM-only, runs while OpenIT is open).
@@ -357,12 +223,6 @@ export async function slackValidateBotToken(
   return invoke("slack_validate_bot_token", { botToken });
 }
 
-export async function slackDisconnect(args: {
-  repo: string;
-  orgId: string;
-}): Promise<void> {
-  return invoke("slack_disconnect", { repo: args.repo, orgId: args.orgId });
-}
 
 export async function slackConfigRead(repo: string): Promise<SlackConfig | null> {
   return invoke("slack_config_read", { repo });
@@ -388,44 +248,6 @@ export async function slackListenerStatus(): Promise<SlackStatus> {
   return invoke("slack_listener_status");
 }
 
-export async function slackListenerSendIntro(args: {
-  targetEmail: string;
-  text: string;
-}): Promise<void> {
-  return invoke("slack_listener_send_intro", {
-    targetEmail: args.targetEmail,
-    text: args.text,
-  });
-}
-
-export async function pinkfishListOrgs(args: {
-  accessToken: string;
-  orgId: string;
-  accountUrl?: string | null;
-}): Promise<OrgRow[]> {
-  return invoke("pinkfish_list_orgs", {
-    accessToken: args.accessToken,
-    orgId: args.orgId,
-    accountUrl: args.accountUrl ?? null,
-  });
-}
-
-export type UserConnection = {
-  id: string;
-  name: string;
-  service_key: string;
-  status: string;
-};
-
-export async function pinkfishListConnections(args: {
-  accessToken: string;
-  connectionsUrl?: string | null;
-}): Promise<UserConnection[]> {
-  return invoke("pinkfish_list_connections", {
-    accessToken: args.accessToken,
-    connectionsUrl: args.connectionsUrl ?? null,
-  });
-}
 
 export type KbLocalFile = { filename: string; mtime_ms: number | null; size: number };
 export type KbFileState = {
@@ -476,31 +298,11 @@ export type KbStatePersisted = {
   last_pull_at_ms?: number | null;
 };
 
-export async function kbInit(repo: string): Promise<string> {
-  return invoke("kb_init", { repo });
-}
-
-export async function kbListLocal(repo: string): Promise<KbLocalFile[]> {
-  // 2026-04-27 plural rename: KB articles live under
-  // `knowledge-bases/<collection>/`. Cloud-sync targets `default`.
-  return invoke("entity_list_local", { repo, subdir: "knowledge-bases/default" });
-}
 
 export async function kbDeleteFile(repo: string, filename: string): Promise<void> {
   return invoke("kb_delete_file", { repo, filename });
 }
 
-export async function kbReadFile(repo: string, filename: string): Promise<string> {
-  return invoke("kb_read_file", { repo, filename });
-}
-
-export async function kbWriteFile(
-  repo: string,
-  filename: string,
-  content: string,
-): Promise<void> {
-  return invoke("kb_write_file", { repo, filename, content });
-}
 
 export async function kbWriteFileBytes(
   repo: string,
@@ -522,70 +324,9 @@ export async function kbStateSave(
   return invoke("entity_state_save", { repo, name: "kb", state });
 }
 
-export async function kbDownloadToLocal(
-  repo: string,
-  filename: string,
-  url: string,
-  subdir?: string,
-): Promise<void> {
-  return invoke("kb_download_to_local", { repo, filename, url, subdir });
-}
-
-export type KbUploadResult = {
-  id: string;
-  filename: string;
-  file_url: string | null;
-  file_size: number | null;
-  mime_type: string | null;
-};
-
-export type KbRemoteFile = {
-  id: string;
-  filename: string;
-  signed_url: string | null;
-  file_size: number | null;
-  mime_type: string | null;
-  updated_at: string;
-};
-
-export async function kbListRemote(args: {
-  collectionId: string;
-  skillsBaseUrl: string;
-  accessToken: string;
-}): Promise<KbRemoteFile[]> {
-  return invoke("kb_list_remote", {
-    collectionId: args.collectionId,
-    skillsBaseUrl: args.skillsBaseUrl,
-    accessToken: args.accessToken,
-  });
-}
-
-export async function kbUploadFile(args: {
-  repo: string;
-  filename: string;
-  collectionId: string;
-  skillsBaseUrl: string;
-  accessToken: string;
-  subdir?: string;
-}): Promise<KbUploadResult> {
-  return invoke("kb_upload_file", {
-    repo: args.repo,
-    filename: args.filename,
-    collectionId: args.collectionId,
-    skillsBaseUrl: args.skillsBaseUrl,
-    accessToken: args.accessToken,
-    subdir: args.subdir,
-  });
-}
-
-
 // ---------------------------------------------------------------------------
 // Filestore local commands (mirrors kb_* but for filestore/ directory)
 // ---------------------------------------------------------------------------
-
-export async function fsStoreInit(repo: string): Promise<string> {
-  return invoke("fs_store_init", { repo });
-}
 
 /// Generic entity_list_local wrapper. Pass the subdir relative to repo
 /// (e.g. "filestores/library", "filestores/docs-123", "knowledge-bases/default").
@@ -597,24 +338,6 @@ export async function entityListLocal(
   return invoke("entity_list_local", { repo, subdir });
 }
 
-export async function fsStoreListLocal(repo: string): Promise<KbLocalFile[]> {
-  // Legacy: lists files in the default filestores/library/ directory.
-  // For multi-collection sync, use entityListLocal with the collection-specific
-  // subdir (e.g. filestores/<collection-name>/) instead.
-  return invoke("entity_list_local", { repo, subdir: "filestores/library" });
-}
-
-export async function fsStoreReadFile(repo: string, filename: string): Promise<string> {
-  return invoke("fs_store_read_file", { repo, filename });
-}
-
-export async function fsStoreWriteFile(
-  repo: string,
-  filename: string,
-  content: string,
-): Promise<void> {
-  return invoke("fs_store_write_file", { repo, filename, content });
-}
 
 export async function fsStoreWriteFileBytes(
   repo: string,
@@ -637,69 +360,6 @@ export async function fsStoreStateSave(
   return invoke("entity_state_save", { repo, name: "fs", state });
 }
 
-export async function datastoreStateLoad(repo: string): Promise<KbStatePersisted> {
-  return invoke("entity_state_load", { repo, name: "datastore" });
-}
-
-export async function datastoreStateSave(
-  repo: string,
-  state: KbStatePersisted,
-): Promise<void> {
-  return invoke("entity_state_save", { repo, name: "datastore", state });
-}
-
-export async function fsStoreDownloadToLocal(
-  repo: string,
-  filename: string,
-  url: string,
-  subdir?: string,
-): Promise<void> {
-  return invoke("fs_store_download_to_local", { repo, filename, url, subdir: subdir ?? null });
-}
-
-export async function fsStoreUploadFile(args: {
-  repo: string;
-  filename: string;
-  collectionId: string;
-  skillsBaseUrl: string;
-  accessToken: string;
-  subdir?: string;
-}): Promise<KbUploadResult> {
-  return invoke("fs_store_upload_file", {
-    repo: args.repo,
-    filename: args.filename,
-    collectionId: args.collectionId,
-    skillsBaseUrl: args.skillsBaseUrl,
-    accessToken: args.accessToken,
-    subdir: args.subdir ?? null,
-  });
-}
-
-/// PIN-5847: filestore push uses the signed-URL flow
-/// (`/filestorage/items/upload-request` + signed GCS PUT). Server
-/// sanitizes filename via `formatFileName` and dedupes the Firestore
-/// row by `filename + collectionId`, so same-name re-pushes overwrite
-/// in place — no UUID prefix, no duplicate accumulation. KB push
-/// stays on multipart `kbUploadFile` because the vector-store
-/// indexing pipeline only runs there; a KB twin will follow once
-/// indexing is decoupled server-side.
-export async function fsStoreUploadFileSigned(args: {
-  repo: string;
-  filename: string;
-  collectionId: string;
-  skillsBaseUrl: string;
-  accessToken: string;
-  subdir?: string;
-}): Promise<KbUploadResult> {
-  return invoke("fs_store_upload_via_signed_url", {
-    repo: args.repo,
-    filename: args.filename,
-    collectionId: args.collectionId,
-    skillsBaseUrl: args.skillsBaseUrl,
-    accessToken: args.accessToken,
-    subdir: args.subdir ?? null,
-  });
-}
 
 export async function entityWriteFile(repo: string, subdir: string, filename: string, content: string): Promise<void> {
   return invoke("entity_write_file", { repo, subdir, filename, content });
@@ -722,13 +382,6 @@ export async function entityRenameFile(
   return invoke("entity_rename_file", { repo, subdir, from, to });
 }
 
-export async function entityClearDir(repo: string, subdir: string): Promise<void> {
-  return invoke("entity_clear_dir", { repo, subdir });
-}
-
-export async function kbSupportedExtensions(): Promise<string[]> {
-  return invoke("kb_supported_extensions");
-}
 
 /// Run the local helpdesk-overview script
 /// (`.claude/scripts/report-overview.mjs`) in the given repo and
@@ -757,26 +410,6 @@ export async function scriptRun(
   return invoke("script_run", { repo, scriptPath });
 }
 
-/// Generic JSON-RPC tools/call against any Pinkfish MCP server. Returns the
-/// raw JSON-RPC envelope; callers pluck `.result.structuredContent` etc.
-export async function pinkfishMcpCall(args: {
-  accessToken: string;
-  orgId: string;
-  server: string;
-  tool: string;
-  arguments: unknown;
-  baseUrl?: string | null;
-}): Promise<{ result?: { structuredContent?: unknown; content?: unknown }; error?: unknown }> {
-  return invoke("pinkfish_mcp_call", {
-    accessToken: args.accessToken,
-    orgId: args.orgId,
-    server: args.server,
-    tool: args.tool,
-    arguments: args.arguments,
-    baseUrl: args.baseUrl ?? null,
-  });
-}
-
 import type { TraceDoc } from "../shell/types";
 
 /// Latest persisted agent-trace doc for a ticket, or null if none yet.
@@ -789,36 +422,3 @@ export async function agentTraceLatest(
   return invoke("agent_trace_latest", { repo, ticketId });
 }
 
-// ---------------------------------------------------------------------------
-// OAuth callback listener (V1 Connect to Cloud)
-// ---------------------------------------------------------------------------
-
-export type OauthCallbackStartResult = { url: string; port: number };
-export type OauthCallbackCreds = {
-  client_id: string;
-  client_secret: string;
-  org_id: string;
-  token_url: string;
-};
-
-/// Spin up a localhost HTTP listener that the web app's /openit/connect
-/// page POSTs Pinkfish creds to after the user authorizes. Returns the
-/// callback URL to embed in the browser query string.
-export async function oauthCallbackStart(
-  expectedState: string,
-): Promise<OauthCallbackStartResult> {
-  return invoke("oauth_callback_start", { expectedState });
-}
-
-/// Block until the listener receives a state-matching callback (or
-/// times out after 5 minutes). Resolves with the creds from the form
-/// body. The listener is torn down regardless of outcome.
-export async function oauthCallbackAwait(): Promise<OauthCallbackCreds> {
-  return invoke("oauth_callback_await");
-}
-
-/// User-cancellable: drops the listener mid-flow without waiting for
-/// timeout. Idempotent — safe to call when no listener is running.
-export async function oauthCallbackCancel(): Promise<void> {
-  return invoke("oauth_callback_cancel");
-}

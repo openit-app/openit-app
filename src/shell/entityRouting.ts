@@ -6,7 +6,7 @@ import type {
   PersonSummary,
   ViewerSource,
 } from "./types";
-import type { DataCollection } from "../lib/skillsApi";
+import type { DataCollection } from "../lib/localTypes";
 
 /**
  * Given an absolute file path, determine if it's an entity file
@@ -35,6 +35,11 @@ export async function resolvePathToSource(
   // viewer. Source of truth for installed state is `which` detection
   // per catalog entry.
   if (rel === "tools" || rel === "tools/") return { kind: "tools" };
+
+  // Skills station — intercept before the generic entity-folder routing
+  // so `filestores/skills` renders the combined slash-commands + custom
+  // skills view instead of the plain file list.
+  if (rel === "filestores/skills") return { kind: "skills-station" };
 
   // .openit/agent-traces/<ticketId>/ (folder) → agent-trace-list:
   // every per-turn trace for this ticket, oldest-first, stacked
@@ -478,32 +483,22 @@ export async function resolvePathToSource(
     }
   }
 
-  // agents/<name>.json → agent (V1 flat layout)
-  const agentMatch = rel.match(/^agents\/(.+)\.json$/);
-  if (agentMatch) {
+  // agents/<name>.md → render as a regular file (V3 agents are plain
+  // markdown — the full viewer pipeline handles View/Edit/Raw).
+  const agentMdMatch = rel.match(/^agents\/([^/]+)\.md$/);
+  if (agentMdMatch) {
+    return { kind: "file", path };
+  }
+
+  // agents/<name>.json → agent (legacy V1/V2, still renders)
+  const agentJsonMatch = rel.match(/^agents\/(.+)\.json$/);
+  if (agentJsonMatch) {
     try {
       const raw = await fsRead(path);
       const agent = JSON.parse(raw);
       return { kind: "agent", agent, path };
     } catch {
       return { kind: "file", path };
-    }
-  }
-
-  // agents/<name>/ → agent (V2 folder layout). The folder click in
-  // Overview / file explorer should resolve to the agent's
-  // structured JSON, not a file-read of the directory itself
-  // (which throws "No such file or directory" through the viewer).
-  const agentFolderMatch = rel.match(/^agents\/([^/]+)\/?$/);
-  if (agentFolderMatch && agentFolderMatch[1] !== "" && !rel.endsWith(".json")) {
-    const folderName = agentFolderMatch[1];
-    const innerPath = `${path.replace(/\/$/, "")}/${folderName}.json`;
-    try {
-      const raw = await fsRead(innerPath);
-      const agent = JSON.parse(raw);
-      return { kind: "agent", agent, path: innerPath };
-    } catch {
-      return { kind: "file", path: innerPath };
     }
   }
 
@@ -580,7 +575,6 @@ export async function resolvePathToSource(
   //                     which collection.
   //   reports/      → on-demand generated markdown reports;
   //                  newest sorts to top by filename.
-  const kbCollectionMatch = rel.match(/^knowledge-bases\/([^/]+)$/);
   // Match any direct child of filestores/ that isn't `attachments` (which
   // has its own per-ticket routing further down). `library`, `docs-<orgId>`,
   // and any user-created openit-* collection all render as a generic
@@ -614,7 +608,7 @@ export async function resolvePathToSource(
       ? { entity: "agents" }
       : rel === "workflows"
         ? { entity: "workflows" }
-        : kbCollectionMatch
+        : rel === "knowledge-bases"
           ? { entity: "knowledge-base" }
           : filestoreSubdir === "skills"
             ? { entity: "skills" }
@@ -636,45 +630,36 @@ export async function resolvePathToSource(
         size: number | null;
       }[] = [];
       const childPrefix = `${path}/`;
-      // V2 agents are folders, not flat .json files. Each agent lives at
-      // `agents/<name>/<name>.json` with sibling .md instruction blocks.
-      // Scan top-level dirs for an inner `<name>/<name>.json` and surface
-      // those as the agent cards.
+      // V3 agents: each agent is a single .md file in agents/.
+      // Display name = filename without extension. Description =
+      // first non-empty, non-heading line from the markdown.
       if (rel === "agents") {
         for (const n of nodes) {
-          if (!n.is_dir) continue;
+          if (n.is_dir) continue;
           const remainder = n.path.startsWith(childPrefix)
             ? n.path.slice(childPrefix.length)
             : "";
           if (!remainder || remainder.includes("/")) continue;
-          if (n.name.startsWith(".")) continue;
-          const agentJsonPath = `${n.path}/${n.name}.json`;
-          let displayName = n.name;
+          if (!n.name.endsWith(".md")) continue;
+          if (n.name.includes(".server.")) continue;
+          const displayName = n.name.replace(/\.md$/, "");
           let description = "";
-          let size: number | null = null;
           try {
-            const raw = await fsRead(agentJsonPath);
-            size = raw.length;
-            const parsed = JSON.parse(raw);
-            if (parsed && typeof parsed === "object") {
-              if (typeof parsed.name === "string" && parsed.name.trim()) {
-                displayName = parsed.name.trim();
-              }
-              if (typeof parsed.description === "string") {
-                description = parsed.description.trim();
-              }
+            const raw = await fsRead(n.path);
+            // First non-empty line that isn't a heading
+            for (const line of raw.split("\n")) {
+              const trimmed = line.trim();
+              if (!trimmed || trimmed.startsWith("#")) continue;
+              description = trimmed.slice(0, 120);
+              break;
             }
-          } catch {
-            // No `<folder>/<folder>.json` — skip this folder. Either
-            // a half-migrated state or a folder the user dropped in.
-            continue;
-          }
+          } catch { /* unreadable */ }
           files.push({
-            name: `${n.name}.json`,
+            name: n.name,
             displayName,
             description,
-            path: agentJsonPath,
-            size,
+            path: n.path,
+            size: null,
           });
         }
         return { kind: "entity-folder", entity: entityFolderEntry.entity, files, path };
@@ -964,7 +949,7 @@ export async function resolvePathToSource(
           itemNoun: builtin?.itemNoun ?? "file",
           description:
             builtin?.description ??
-            "User-created filestore. Files here cloud-sync as their own collection when you connect to Pinkfish.",
+            "User-created filestore.",
           isBuiltin: !!builtin,
         });
       }

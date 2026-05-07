@@ -3088,6 +3088,22 @@ input.viewer-title.viewer-title-rename {
   padding-right: 6px !important;
 }
 
+.data-table-new {
+  background: none;
+  border: 1px solid var(--color-border);
+  color: var(--text);
+  cursor: pointer;
+  padding: 4px 12px;
+  border-radius: var(--r-md);
+  font-size: 12px;
+  font-family: var(--font-display);
+  transition: background var(--t-fast) var(--ease);
+}
+
+.data-table-new:hover {
+  background: var(--color-surface-hover);
+}
+
 .data-table-delete {
   display: none;
   background: none;
@@ -3935,6 +3951,7 @@ input.viewer-title.viewer-title-rename {
   display: flex;
   flex-direction: column;
   gap: 14px;
+  padding: 12px;
 }
 
 /* TODAY card — was a single <button>; v5 splits it into two click
@@ -4486,10 +4503,24 @@ input.viewer-title.viewer-title-rename {
 /* Run affordance — same hover-reveal pattern as delete, but anchored
    to the LEFT of the delete slot so the destructive button stays on
    the far edge. Offset by ~28px (icon button width + breathing room). */
+/* Add to Claude — hover-revealed, leftmost of the action trio. */
+.entity-card-add-claude {
+  position: absolute;
+  top: 50%;
+  right: 76px;
+  transform: translateY(-50%);
+  display: none;
+  z-index: 1;
+}
+
+.entity-card-wrapper:hover .entity-card-add-claude {
+  display: inline-flex;
+}
+
 .entity-card-run {
   position: absolute;
   top: 50%;
-  right: 38px;
+  right: 43px;
   transform: translateY(-50%);
   display: none;
   z-index: 1;

@@ -5,7 +5,7 @@ import { IntakeChip, SlackChip } from "../ui";
  * StatusChips — the live "what's wired up right now" cluster.
  *
  * Two segmented chips, both rendered in the same `[label] [value]`
- * style: the public intake URL and the Slack listener. Project name
+ * style: the local intake URL and the Slack listener. Project name
  * and cloud-binding state are NOT shown here — the right-side
  * "Connect to Cloud" / "Cloud · <org>" button in <TitleRail> already
  * carries that, and the project folder is fixed at `~/OpenIT/local/`
@@ -16,12 +16,13 @@ import { IntakeChip, SlackChip } from "../ui";
  * next to the actionable surface (the sync panel itself).
  */
 export function StatusChips({
-  tunnelUrl,
+  intakeUrl,
   slackConfig,
   slackStatus,
   onConnectSlack,
 }: {
-  tunnelUrl: string | null;
+  /** Local intake server URL (e.g. `http://127.0.0.1:<port>`). */
+  intakeUrl: string | null;
   slackConfig: SlackConfig | null;
   slackStatus: SlackStatus | null;
   /** Click handler for the Slack chip — kicks off the connect-slack
@@ -30,7 +31,7 @@ export function StatusChips({
 }) {
   return (
     <>
-      <IntakeChip sharedUrl={tunnelUrl} />
+      <IntakeChip sharedUrl={intakeUrl} />
       <SlackChip
         config={slackConfig}
         status={slackStatus}

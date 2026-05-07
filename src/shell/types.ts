@@ -1,6 +1,4 @@
-import type { DataCollection, MemoryItem } from "../lib/skillsApi";
-import type { Agent } from "../lib/agentSync";
-import type { Workflow } from "../lib/workflowSync";
+import type { DataCollection, MemoryItem, Agent, Workflow } from "../lib/localTypes";
 
 /// Mirrors `agent_trace::TraceEvent` on the Rust side. Persisted at
 /// `.openit/agent-traces/<ticketId>/<startedAt>.json` per turn; the
@@ -234,4 +232,5 @@ export type ViewerSource =
   // Reachable via the Workbench station only — there's no `tools/` dir in
   // the file explorer.
   | { kind: "tools" }
+  | { kind: "skills-station" }
   | null;

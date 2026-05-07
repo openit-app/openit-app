@@ -2,7 +2,7 @@ import { openUrl } from "@tauri-apps/plugin-opener";
 import styles from "./Chip.module.css";
 
 export interface IntakeChipProps {
-  /** Public tunnel URL (localhost.run). Present once the tunnel is up. */
+  /** Intake server URL (local or public). Present once the server is up. */
   sharedUrl: string | null;
   className?: string;
 }

@@ -8,7 +8,7 @@ use tauri::{AppHandle, Manager, Runtime};
 /// Uses the app-api URL to determine the environment root.
 #[tauri::command]
 pub async fn skills_fetch_manifest(app_api_url: String) -> Result<String, String> {
-    // Extract the environment from app_api_url (e.g., "https://app-api.dev20.pinkfish.dev/..." -> "https://dev20.pinkfish.dev")
+    // Extract the environment root from the app-api URL
     let env_root = extract_env_root(&app_api_url)?;
     let manifest_url = format!(
         "{}/openit-plugin/manifest.json",
@@ -214,8 +214,8 @@ mod tests {
     }
 }
 
-/// Extract environment root URL from app-api URL.
-/// e.g., "https://app-api.dev20.pinkfish.dev/..." -> "https://dev20.pinkfish.dev"
+/// Extract environment root URL from the platform API URL.
+/// Strips the `app-api.` prefix to derive the environment root.
 fn extract_env_root(app_api_url: &str) -> Result<String, String> {
     let url =
         reqwest::Url::parse(app_api_url).map_err(|e| format!("Invalid app-api URL: {}", e))?;

@@ -5,7 +5,7 @@ type Action = {
   id: string;
   label: string;
   hint?: string;
-  group: "Navigate" | "Run" | "Connect" | "Sync";
+  group: "Navigate" | "Run" | "Connect";
   shortcut?: string;
   run: () => void | Promise<void>;
 };
@@ -13,19 +13,15 @@ type Action = {
 export function CommandPalette({
   open,
   onClose,
-  onConnectCloud,
   onConnectSlack,
   onManualPull,
   onOpenWelcome,
-  onSwitchToSync,
 }: {
   open: boolean;
   onClose: () => void;
-  onConnectCloud: () => void;
   onConnectSlack: () => void;
   onManualPull: () => void;
   onOpenWelcome: () => void;
-  onSwitchToSync: () => void;
 }) {
   const [query, setQuery] = useState("");
   const [active, setActive] = useState(0);
@@ -39,13 +35,6 @@ export function CommandPalette({
         hint: "Show the getting-started doc",
         group: "Navigate",
         run: () => onOpenWelcome(),
-      },
-      {
-        id: "sync-tab",
-        label: "Open Sync panel",
-        hint: "See pending changes",
-        group: "Navigate",
-        run: () => onSwitchToSync(),
       },
       {
         id: "reports",
@@ -69,13 +58,6 @@ export function CommandPalette({
         run: async () => { await injectIntoChat("/people"); },
       },
       {
-        id: "connect-cloud",
-        label: "Connect to Pinkfish Cloud",
-        hint: "Sign in & sync",
-        group: "Connect",
-        run: () => onConnectCloud(),
-      },
-      {
         id: "connect-slack",
         label: "Connect Slack",
         hint: "Set up the OpenIT bot",
@@ -84,13 +66,13 @@ export function CommandPalette({
       },
       {
         id: "pull",
-        label: "Pull from Pinkfish",
-        hint: "Refresh from cloud now",
-        group: "Sync",
+        label: "Refresh from disk",
+        hint: "Re-read files from vault",
+        group: "Navigate",
         run: () => onManualPull(),
       },
     ],
-    [onConnectCloud, onConnectSlack, onManualPull, onOpenWelcome, onSwitchToSync],
+    [onConnectSlack, onManualPull, onOpenWelcome],
   );
 
   const filtered = useMemo(() => {
@@ -171,7 +153,7 @@ export function CommandPalette({
         <div className="cmdk-list">
           {filtered.length === 0 ? (
             <div className="cmdk-empty">
-              No matches. Try <em>"connect"</em>, <em>"reports"</em>, <em>"sync"</em>.
+              No matches. Try <em>"connect"</em>, <em>"reports"</em>, <em>"people"</em>.
             </div>
           ) : (
             Object.entries(groups).map(([group, items]) => (

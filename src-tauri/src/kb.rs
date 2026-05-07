@@ -158,7 +158,7 @@ pub struct KbRemoteFile {
     pub updated_at: String,
 }
 
-/// List files in a Pinkfish KB collection via the skills REST endpoint.
+/// List files in a KB collection via the skills REST endpoint.
 /// `format=full` returns signedUrl per file — required for our pull path.
 #[tauri::command]
 pub async fn kb_list_remote(
@@ -249,7 +249,7 @@ pub struct KbUploadResult {
 
 /// Multipart upload of a file from `<repo>/<subdir>/<filename>` (or the
 /// legacy `knowledge-bases/default/` when `subdir` is None) to the
-/// Pinkfish skills file storage endpoint. Returns the parsed response
+/// skills file storage endpoint. Returns the parsed response
 /// (id, filename, etc.) on success. Works for any file type, including
 /// binary — we stream the file bytes directly rather than going through
 /// the MCP `upload_file` tool's string `fileContent` param.
@@ -416,7 +416,7 @@ pub async fn kb_download_to_local(
     Ok(())
 }
 
-/// Returns true if the file extension is supported by the Pinkfish knowledge base.
+/// Returns true if the file extension is supported by the knowledge base.
 /// Based on firebase-helpers/functions/src/utils/llm-supported-types.ts
 fn is_kb_supported(filename: &str) -> bool {
     let ext = Path::new(filename)

@@ -28,13 +28,22 @@ export function seedRoute(
     return { subdir: "databases/people", filename: manifestPath.replace("seed/people/", "") };
   }
   if (manifestPath.startsWith("seed/knowledge/")) {
-    return { subdir: "knowledge-bases/default", filename: manifestPath.replace("seed/knowledge/", "") };
+    return { subdir: "knowledge-bases", filename: manifestPath.replace("seed/knowledge/", "") };
   }
   if (manifestPath.startsWith("seed/skills/")) {
     return { subdir: "filestores/skills", filename: manifestPath.replace("seed/skills/", "") };
   }
   if (manifestPath.startsWith("seed/scripts/")) {
     return { subdir: "filestores/scripts", filename: manifestPath.replace("seed/scripts/", "") };
+  }
+  if (manifestPath.startsWith("seed/access/")) {
+    return { subdir: "databases/access", filename: manifestPath.replace("seed/access/", "") };
+  }
+  if (manifestPath.startsWith("seed/assets/")) {
+    return { subdir: "databases/assets", filename: manifestPath.replace("seed/assets/", "") };
+  }
+  if (manifestPath.startsWith("seed/reports/")) {
+    return { subdir: "reports", filename: manifestPath.replace("seed/reports/", "") };
   }
   if (manifestPath.startsWith("seed/conversations/")) {
     // Preserve the per-ticket subfolder: seed/conversations/<ticketId>/<file>

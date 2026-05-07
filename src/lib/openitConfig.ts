@@ -11,7 +11,7 @@
 // defaults (a file specifying just `escalateOnAdminReply: false` keeps
 // every other knob at its default).
 //
-// Local-only: not synced to Pinkfish (`.openit/` is local by design).
+// Local-only: not synced externally (`.openit/` is local by design).
 
 import { fsRead } from "./api";
 

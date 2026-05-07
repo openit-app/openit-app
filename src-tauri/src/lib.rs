@@ -2,14 +2,11 @@ mod agent_trace;
 mod claude;
 mod filestore;
 mod fs_tree;
-mod git_history;
-mod git_ops;
 mod intake;
 mod kb;
 mod keychain;
-mod oauth_callback;
+mod mcp;
 mod openit_config;
-mod pinkfish;
 mod project;
 mod pty;
 mod reports;
@@ -20,7 +17,9 @@ mod slack;
 mod state;
 mod tools;
 mod tunnel;
+mod user_identity;
 mod watcher;
+mod workspaces;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
@@ -45,7 +44,6 @@ pub fn run() {
         .manage(watcher::WatcherState::default())
         .manage(intake::IntakeState::default())
         .manage(tunnel::TunnelState::default())
-        .manage(oauth_callback::OauthCallbackState::default())
         .manage(slack::SlackSupervisorState::default())
         .invoke_handler(tauri::generate_handler![
             pty::pty_spawn,
@@ -60,20 +58,7 @@ pub fn run() {
             fs_tree::fs_reveal,
             fs_tree::fs_open,
             fs_tree::fs_delete,
-            git_history::git_log,
-            git_history::git_diff,
-            git_ops::git_ensure_repo,
-            git_ops::git_add_and_commit,
-            git_ops::git_commit_paths,
-            git_ops::git_status_short,
-            git_ops::git_stage,
-            git_ops::git_unstage,
-            git_ops::git_commit_staged,
-            git_ops::git_discard,
-            git_ops::git_file_diff,
-            git_ops::git_has_conflict_markers,
-            git_ops::git_diff_name_only,
-            git_ops::git_global_user_email,
+            user_identity::global_user_email,
             claude::claude_generate_commit_message,
             tools::tools_is_installed,
             tools::tools_target_os,
@@ -86,14 +71,12 @@ pub fn run() {
             keychain::keychain_get,
             keychain::keychain_delete,
             keychain::keychain_probe,
-            pinkfish::pinkfish_oauth_exchange,
-            pinkfish::pinkfish_list_orgs,
-            pinkfish::pinkfish_list_connections,
-            pinkfish::pinkfish_mcp_call,
+            mcp::list_installed_mcps,
             project::project_bootstrap,
-            project::project_bind_to_cloud,
-            project::project_get_cloud_binding,
-            project::project_update_last_sync_at,
+            workspaces::list_workspaces,
+            workspaces::create_workspace,
+            workspaces::set_active_workspace,
+            workspaces::remove_workspace,
             reports::report_overview_run,
             scripts::script_run,
             kb::kb_init,
@@ -134,9 +117,6 @@ pub fn run() {
             tunnel::tunnel_start,
             tunnel::tunnel_stop,
             tunnel::tunnel_url,
-            oauth_callback::oauth_callback_start,
-            oauth_callback::oauth_callback_await,
-            oauth_callback::oauth_callback_cancel,
             agent_trace::agent_trace_latest,
             skill_canvas::skill_state_read,
             skill_canvas::skill_state_write,

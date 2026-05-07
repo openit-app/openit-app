@@ -1,5 +1,4 @@
 import { invoke } from "@tauri-apps/api/core";
-import { type PinkfishCreds } from "./pinkfishAuth";
 
 export type Skill = {
   name: string;
@@ -55,7 +54,7 @@ async function writeSyncedPluginVersion(repo: string, version: string): Promise<
 /// re-enable by restoring the `creds` branch that calls
 /// `skills_fetch_manifest` (Rust command stays registered).
 export async function fetchSkillsManifest(
-  _creds: PinkfishCreds | null,
+  _creds?: unknown,
 ): Promise<PluginManifest> {
   const manifestJson = await invoke<string>("skills_fetch_bundled_manifest");
   return JSON.parse(manifestJson);
@@ -63,7 +62,7 @@ export async function fetchSkillsManifest(
 
 export async function fetchSkillFile(
   skillPath: string,
-  _creds: PinkfishCreds | null,
+  _creds?: unknown,
 ): Promise<string> {
   return await invoke<string>("skills_fetch_bundled_file", { skillPath });
 }
@@ -118,11 +117,14 @@ export function routeFile(
       substituteSlug: false,
     };
   }
+  // Agent markdown files: agents/triage.md → agents/triage.md
+  // Only matches top-level .md files (not nested like agents/triage/common.md)
+  if (filePath.startsWith("agents/") && filePath.endsWith(".md") && !filePath.slice("agents/".length).includes("/")) {
+    const filename = filePath.replace("agents/", "");
+    return { subdir: "agents", filename, substituteSlug: false };
+  }
+  // Legacy: agents/triage/triage.template.json (V2 era, no longer in manifest)
   if (filePath.startsWith("agents/") && filePath.endsWith(".template.json")) {
-    // Preserve any folder structure so `agents/triage/triage.template.json`
-    // lands at `agents/triage/triage.json`, not `agents/triage/triage.json`
-    // with a slash inside the filename (which entity_write_file mishandles
-    // for path-aware tools downstream).
     const lastSlash = filePath.lastIndexOf("/");
     const subdir = filePath.slice(0, lastSlash);
     const filename = filePath
@@ -181,7 +183,7 @@ function ensureSkillFrontmatter(skillName: string, content: string): string {
 
 export async function syncSkillsToDisk(
   repo: string,
-  creds: PinkfishCreds | null,
+  creds?: unknown,
   onLog?: (msg: string) => void,
 ): Promise<{ bubbles: Bubble[] }> {
   // Slug = repo basename. Same value used by kbSync / datastoreSync to

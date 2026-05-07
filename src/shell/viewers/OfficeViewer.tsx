@@ -8,8 +8,7 @@ export function OfficeViewer({ url, filename: _filename }: Props) {
     return (
       <div className="office-viewer">
         <p>
-          Preview not available for local files. Upload to Pinkfish to enable
-          preview.
+          Preview not available for this file type.
         </p>
       </div>
     );

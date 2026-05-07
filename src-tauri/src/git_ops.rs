@@ -250,7 +250,7 @@ pub struct GitFileStatus {
 /// Parse `git status --porcelain -z -uall` records into (XY, path) tuples.
 ///
 /// `-z` is required so that filenames containing spaces, quotes, or newlines
-/// (which Pinkfish KB files genuinely can have) round-trip correctly. Records
+/// (which KB files can have) round-trip correctly. Records
 /// are NUL-terminated; rename records `R<old>\0<new>` consume two records.
 fn parse_porcelain_z(stdout: &[u8]) -> Vec<(char, char, String)> {
     let mut out = Vec::new();

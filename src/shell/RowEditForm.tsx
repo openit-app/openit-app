@@ -15,7 +15,7 @@
 // timestamp). Saving an invalid value writes it as-is; the agent
 // and downstream consumers already tolerate sparse rows.
 
-import type { DataCollection } from "../lib/skillsApi";
+import type { DataCollection } from "../lib/localTypes";
 import { Button } from "../ui";
 
 type SchemaFieldShape = {
@@ -48,7 +48,7 @@ export function RowEditForm({
   // The schema as loaded from disk has a richer type vocabulary than
   // the (older) SchemaField TS model — string/text/enum/datetime/
   // string[]/boolean/number/etc. Treat fields as the disk shape.
-  const fields = (collection.schema?.fields ?? []) as unknown as SchemaFieldShape[];
+  const fields = ((collection.schema as { fields?: unknown[] })?.fields ?? []) as unknown as SchemaFieldShape[];
 
   const setField = (id: string, value: unknown) => {
     onChange({ ...draft, [id]: value });

@@ -22,7 +22,7 @@ export interface TokenResponse {
  *     -d "client_secret=$CLIENT_SECRET" \
  *     -d "scope=org:$ORG_ID"
  */
-export async function getAccessToken(): Promise<string> {
+async function getAccessToken(): Promise<string> {
   const config = loadConfig();
   if (!config) {
     throw new Error("test-config.json not found");

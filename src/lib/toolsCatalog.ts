@@ -124,6 +124,48 @@ export const CATALOG: CatalogEntry[] = [
       "Stripe CLI (`stripe`) is installed. Auth via `stripe login`. Use it for billing lookups (`stripe customers retrieve`, `stripe events list`, `stripe logs tail`). Run `stripe --help` for the full surface.",
     docsUrl: "https://stripe.com/docs/stripe-cli",
   },
+  // --- IT admin SaaS tools (verified brew formulas) ---
+  {
+    id: "sf",
+    name: "Salesforce CLI",
+    description: "Salesforce admin: orgs, metadata, SOQL queries, data, deploy.",
+    binary: "sf",
+    brewPkg: "salesforce-cli",
+    claudeMdHint:
+      "Salesforce CLI (`sf`) is installed. Use it for Salesforce operations — auth via `sf org login web`. Query with `sf data query --query 'SELECT ...'`. Run `sf --help` for the full surface.",
+    docsUrl: "https://developer.salesforce.com/tools/salesforcecli",
+  },
+  {
+    id: "gws",
+    name: "Google Workspace CLI",
+    description: "Gmail, Drive, Calendar, Sheets, Docs, Chat, Admin — unified.",
+    binary: "gws",
+    brewPkg: "googleworkspace-cli",
+    claudeMdHint:
+      "Google Workspace CLI (`gws`) is installed. Covers Gmail, Drive, Calendar, Sheets, Docs, Chat, Admin. Auth via `gws auth setup`. Run `gws --help` for the full surface.",
+    docsUrl: "https://github.com/googleworkspace/cli",
+  },
+  // --- Infrastructure & DevOps (verified brew formulas) ---
+  {
+    id: "kubectl",
+    name: "Kubernetes CLI",
+    description: "Kubernetes cluster admin: pods, services, deployments, logs.",
+    binary: "kubectl",
+    brewPkg: "kubernetes-cli",
+    claudeMdHint:
+      "Kubernetes CLI (`kubectl`) is installed. Use it for cluster operations — context via `kubectl config use-context`. Run `kubectl --help` for the full surface.",
+    docsUrl: "https://kubernetes.io/docs/reference/kubectl/",
+  },
+  {
+    id: "snyk",
+    name: "Snyk CLI",
+    description: "Security scanning: vulnerabilities, license issues, IaC misconfigs.",
+    binary: "snyk",
+    brewPkg: "snyk-cli",
+    claudeMdHint:
+      "Snyk CLI (`snyk`) is installed. Use it for security scanning — auth via `snyk auth`. Run `snyk test` to scan. Run `snyk --help` for the full surface.",
+    docsUrl: "https://docs.snyk.io/snyk-cli",
+  },
 ];
 
 export function findEntry(id: string): CatalogEntry | undefined {
