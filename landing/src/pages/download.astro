@@ -8,7 +8,7 @@ const githubUrl = "https://github.com/pinkfish-ai/openit-app";
 <BaseLayout title="Download OpenIT">
   <h1>Download OpenIT</h1>
   <p class="lede">
-    macOS beta &middot; v{release.version}
+    v{release.version}
     {release.releaseUrl && (
       <>
         &middot; <a href={release.releaseUrl}>release notes</a>
@@ -16,6 +16,7 @@ const githubUrl = "https://github.com/pinkfish-ai/openit-app";
     )}
   </p>
 
+  <h2>macOS</h2>
   <div class="cta-row">
     <a
       class="btn"
@@ -39,7 +40,6 @@ const githubUrl = "https://github.com/pinkfish-ai/openit-app";
     <a href="https://support.apple.com/en-us/HT211814">Not sure which Mac you have?</a>
   </p>
 
-  <h2>Install</h2>
   <p>
     Open the DMG, drag <strong>OpenIT.app</strong> into <strong>/Applications</strong>,
     and launch. On first launch, macOS may show a Gatekeeper prompt — open
@@ -47,10 +47,10 @@ const githubUrl = "https://github.com/pinkfish-ai/openit-app";
     "Open Anyway" next to OpenIT.
   </p>
 
-  <h2>Build from source</h2>
+  <h2>Linux &amp; Windows</h2>
   <p>
-    OpenIT is open source. If you prefer to build it yourself or want to
-    contribute:
+    Pre-built binaries coming soon. OpenIT is built on Tauri, which supports
+    all three platforms — you can build from source today:
   </p>
   <pre><code>git clone {githubUrl}.git
 cd openit-app
@@ -58,14 +58,7 @@ npm install
 npm run tauri:build</code></pre>
   <p>
     Requires Node.js &ge; 20 and Rust (stable). See the
-    <a href={`${githubUrl}#build-from-source`}>README</a> for details.
-  </p>
-
-  <h2>Linux &amp; Windows</h2>
-  <p>
-    <strong>Windows and Linux: build from source. Pre-built binaries coming soon.</strong>
-    Tauri supports all three platforms, so building from source on Linux or
-    Windows should work today.
+    <a href={`${githubUrl}#build-from-source`}>README</a> for full instructions.
     <a href={`${githubUrl}/issues`}>Open an issue</a> if you hit problems.
   </p>
 
