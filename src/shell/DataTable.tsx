@@ -13,6 +13,8 @@ type Props = {
    *  confirmation; the table just stops propagation so the row's
    *  onRowClick doesn't fire alongside the delete. */
   onRowDelete?: (key: string) => void | Promise<void>;
+  /** When set, a "+ New" button appears above the table. */
+  onNewRow?: () => void | Promise<void>;
 };
 
 type SortState = { fieldId: string; direction: "asc" | "desc" } | null;
@@ -23,7 +25,7 @@ function formatCell(value: unknown, fieldType: string): string {
   return String(value);
 }
 
-export function DataTable({ collection, items, hasMore, onLoadMore, onRowClick, onRowDelete }: Props) {
+export function DataTable({ collection, items, hasMore, onLoadMore, onRowClick, onRowDelete, onNewRow }: Props) {
   const [sort, setSort] = useState<SortState>(null);
 
   const fields = (collection.schema as { fields?: Array<Record<string, unknown>> })?.fields ?? [];
@@ -82,6 +84,17 @@ export function DataTable({ collection, items, hasMore, onLoadMore, onRowClick, 
 
   return (
     <div className="data-table">
+      {onNewRow && (
+        <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: 8 }}>
+          <button
+            type="button"
+            className="data-table-new"
+            onClick={() => void onNewRow()}
+          >
+            + New
+          </button>
+        </div>
+      )}
       <table>
         <thead>
           <tr className="data-table-header">

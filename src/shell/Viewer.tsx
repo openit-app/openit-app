@@ -1500,8 +1500,14 @@ export function Viewer({
       case "script-output":
         return `Run: ${source.script.split("/").pop() ?? source.script}`;
       case "draft-file": return source.filename;
-      case "datastore-table": return source.collection?.name ?? "Datastore";
-      case "datastore-schema": return `${source.collection?.name ?? "Datastore"} — Schema`;
+      case "datastore-table": {
+        const n = source.collection?.name ?? "Datastore";
+        return n.charAt(0).toUpperCase() + n.slice(1);
+      }
+      case "datastore-schema": {
+        const n = source.collection?.name ?? "Datastore";
+        return `${n.charAt(0).toUpperCase() + n.slice(1)} — Schema`;
+      }
       case "datastore-row": return `${source.collection?.name ?? "Datastore"} / ${source.item?.key || source.item?.id || "Row"}`;
       case "agent": return source.agent?.name ?? "Agent";
       case "workflow": return source.workflow?.name ?? "Workflow";
@@ -2110,8 +2116,9 @@ export function Viewer({
           hasMore={tableHasMore}
           onLoadMore={undefined}
           onRowClick={(key) => {
+            // Open the row file for editing
             const filePath = `${repo}/databases/${source.collection.name}/${key}.json`;
-            writeToActiveSession(filePath + " ");
+            if (onOpenPath) void onOpenPath(filePath);
           }}
           onRowDelete={
             repo
@@ -2123,6 +2130,40 @@ export function Viewer({
                     setFolderUploadError,
                     showToast,
                   )
+              : undefined
+          }
+          onNewRow={
+            repo && onShowSource
+              ? () => {
+                  // Create a draft file for a new row
+                  const subdir = `databases/${source.collection.name}`;
+                  const existing = tableItems.map((i) => `${i.key}.json`);
+                  const taken = new Set(existing);
+                  let filename = "new-record.json";
+                  let i = 2;
+                  while (taken.has(filename)) {
+                    filename = `new-record-${i}.json`;
+                    i += 1;
+                  }
+                  // Build an empty template from the schema fields
+                  const fields = (source.collection.schema as { fields?: Array<Record<string, unknown>> })?.fields ?? [];
+                  const template: Record<string, unknown> = {};
+                  for (const f of fields) {
+                    const id = f.id as string;
+                    if (id === "createdAt" || id === "updatedAt") {
+                      template[id] = new Date().toISOString();
+                    } else {
+                      template[id] = "";
+                    }
+                  }
+                  onShowSource({
+                    kind: "draft-file",
+                    path: `${repo}/${subdir}/${filename}`,
+                    subdir,
+                    filename,
+                    initialContent: JSON.stringify(template, null, 2),
+                  });
+                }
               : undefined
           }
         />
