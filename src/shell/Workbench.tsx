@@ -30,6 +30,8 @@ const STATIONS: Station[] = [
   // mirror into .claude/ for native discovery; here we surface the
   // filestore copy (source of truth) so admin edits land in the right
   // place.
+  { id: "access",    kind: "access",    rel: "databases/access",   countMode: "json-rows" },
+  { id: "assets",    kind: "assets",    rel: "databases/assets",   countMode: "json-rows" },
   { id: "skills",    kind: "skills",    rel: "filestores/skills",  countMode: "files" },
   { id: "scripts",   kind: "scripts",   rel: "filestores/scripts", countMode: "files" },
   // Tools is synthetic — no on-disk directory at all (so it doesn't

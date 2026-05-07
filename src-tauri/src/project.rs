@@ -75,6 +75,8 @@ pub fn project_bootstrap(vault_path: Option<String>) -> Result<BootstrapResult, 
             "databases/tickets",
             "databases/people",
             "databases/conversations",
+            "databases/access",
+            "databases/assets",
             // Filestore split into two purpose-specific collections.
             // `attachments` is operational (per-ticket file uploads from
             // the chat intake); `library` is curated (admin's go-to

@@ -48,6 +48,8 @@
       "../scripts/openit-plugin/seed/conversations/sample-ticket-3/*.json": "openit-plugin/seed/conversations/sample-ticket-3/",
       "../scripts/openit-plugin/seed/conversations/sample-ticket-4/*.json": "openit-plugin/seed/conversations/sample-ticket-4/",
       "../scripts/openit-plugin/seed/conversations/sample-ticket-5/*.json": "openit-plugin/seed/conversations/sample-ticket-5/",
+      "../scripts/openit-plugin/seed/access/*.json": "openit-plugin/seed/access/",
+      "../scripts/openit-plugin/seed/assets/*.json": "openit-plugin/seed/assets/",
       "../scripts/openit-plugin/seed/skills/*.md": "openit-plugin/seed/skills/",
       "../scripts/openit-plugin/seed/scripts/*.mjs": "openit-plugin/seed/scripts/"
     },

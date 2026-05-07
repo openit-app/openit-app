@@ -36,6 +36,12 @@ export function seedRoute(
   if (manifestPath.startsWith("seed/scripts/")) {
     return { subdir: "filestores/scripts", filename: manifestPath.replace("seed/scripts/", "") };
   }
+  if (manifestPath.startsWith("seed/access/")) {
+    return { subdir: "databases/access", filename: manifestPath.replace("seed/access/", "") };
+  }
+  if (manifestPath.startsWith("seed/assets/")) {
+    return { subdir: "databases/assets", filename: manifestPath.replace("seed/assets/", "") };
+  }
   if (manifestPath.startsWith("seed/conversations/")) {
     // Preserve the per-ticket subfolder: seed/conversations/<ticketId>/<file>
     // → databases/conversations/<ticketId>/<file>.
