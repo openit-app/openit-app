@@ -105,11 +105,27 @@ export function SkillsStation({
             let description = "";
             try {
               const raw = await fsRead(f.path);
-              for (const line of raw.split("\n")) {
-                const trimmed = line.trim();
-                if (!trimmed || trimmed.startsWith("#")) continue;
-                description = trimmed.slice(0, 140);
-                break;
+              // Try frontmatter description first
+              const fmMatch = raw.match(/^---\r?\n([\s\S]*?)\r?\n---/);
+              if (fmMatch) {
+                const descLine = fmMatch[1]
+                  .split("\n")
+                  .find((l) => l.trim().startsWith("description:"));
+                if (descLine) {
+                  description = descLine
+                    .replace(/^description:\s*/, "")
+                    .replace(/^["']|["']$/g, "")
+                    .trim();
+                }
+              }
+              if (!description) {
+                const body = fmMatch ? raw.slice(fmMatch[0].length) : raw;
+                for (const line of body.split("\n")) {
+                  const trimmed = line.trim();
+                  if (!trimmed || trimmed.startsWith("#")) continue;
+                  description = trimmed.slice(0, 140);
+                  break;
+                }
               }
             } catch { /* unreadable */ }
             entries.push({ name, description, path: f.path });
