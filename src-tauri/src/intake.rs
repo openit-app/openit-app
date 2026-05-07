@@ -1535,8 +1535,8 @@ async fn spawn_claude_chat(
     prompt: &str,
     persister: Option<&LiveTracePersister>,
 ) -> Result<ChatTurnOutput, String> {
-    let claude_path = which::which("claude")
-        .map_err(|_| "Claude CLI not found on PATH. Install claude (see https://docs.anthropic.com/claude/docs/claude-code) and ensure it's reachable from this app.".to_string())?;
+    let claude_path = resolve_claude_binary()
+        .ok_or_else(|| "Claude CLI not found on PATH. Install claude (see https://docs.anthropic.com/claude/docs/claude-code) and ensure it's reachable from this app.".to_string())?;
     // `--permission-mode bypassPermissions` so the headless run can
     // Write/Edit ticket+conversation files and Bash the kb-search
     // script without prompting. Safe in this context — scope is the
