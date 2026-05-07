@@ -40,6 +40,7 @@
     { "path": "seed/conversations/sample-ticket-5/msg-1745667000000-ee01.json" },
     { "path": "seed/conversations/sample-ticket-5/msg-1745669100000-ee02.json" },
     { "path": "seed/skills/hello-world.md" },
+    { "path": "seed/skills/patient-inquiry.md" },
     { "path": "seed/scripts/hello-world.mjs" }
   ]
 }
