@@ -178,10 +178,9 @@ function App() {
           .catch((e) => console.error("plugin sync failed:", e));
       }
 
-      // Auto-seed sample data on every launch (idempotent — skips
-      // files that already exist, so user data is never overwritten).
-      seedIfEmpty({ repo: result.path, onLog: (msg) => console.log(`[seed] ${msg}`) })
-        .catch((e) => console.error("seed failed:", e));
+      // Sample data is NOT auto-seeded on install. Users can opt in
+      // via the "Load sample data" CTA in getting-started.md, which
+      // dispatches the `openit:create-samples` event handled below.
     } catch (e) {
       console.error("[app] openVault failed:", e);
       setLoaded(true);
@@ -545,28 +544,15 @@ function App() {
       });
   }, [repo]);
 
-  // Watch .openit/tunnel.json for the active Cloudflare tunnel URL.
-  // Written by the intake server's /share/start route; removed on stop.
+  // Poll the intake server for active tunnel URL. Runs every 3s so
+  // the pill updates promptly after /share-intake creates a tunnel.
   useEffect(() => {
-    if (!repo) {
+    if (!repo || !intakeServerUrl) {
       setTunnelUrl(null);
       return;
     }
     let mounted = true;
-    const refresh = () => {
-      onFsChanged((paths) => {
-        if (paths.some((p) => p.endsWith("/.openit/tunnel.json"))) {
-          fetchTunnelStatus();
-        }
-      })
-        .then((un) => {
-          if (mounted) unlistenFn = un;
-          else un();
-        })
-        .catch((e) => console.warn("[app] tunnel.json watcher init failed:", e));
-    };
-    const fetchTunnelStatus = async () => {
-      if (!intakeServerUrl) return;
+    const poll = async () => {
       try {
         const r = await fetch(`${intakeServerUrl}/share/status`);
         if (!r.ok) return;
@@ -576,12 +562,11 @@ function App() {
         if (mounted) setTunnelUrl(null);
       }
     };
-    fetchTunnelStatus();
-    let unlistenFn: (() => void) | null = null;
-    refresh();
+    poll();
+    const id = setInterval(poll, 3_000);
     return () => {
       mounted = false;
-      unlistenFn?.();
+      clearInterval(id);
     };
   }, [repo, intakeServerUrl]);
 
@@ -595,9 +580,15 @@ function App() {
     return (
       <Onboarding
         onOpenVault={async (path: string) => {
-          const name = path.split("/").filter(Boolean).pop() ?? "Vault";
-          await createWorkspace(path, name);
-          await openVault(path);
+          // Resolve the path first via projectBootstrap (handles "" → ~/OpenIT/Personal).
+          // This fixes the "Use Default" bug where "" was passed to createWorkspace
+          // which rejects empty strings. We then pass the resolved absolute path
+          // to both createWorkspace and openVault.
+          const result = await projectBootstrap(path || undefined);
+          const resolved = result.path;
+          const name = resolved.split("/").filter(Boolean).pop() ?? "Personal";
+          await createWorkspace(resolved, name);
+          await openVault(resolved);
         }}
       />
     );

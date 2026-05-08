@@ -531,6 +531,13 @@ body::before {
   background: var(--bg-canvas);
 }
 
+/* Scrollable body area above the pinned UpdateBar. */
+.left-pane-body {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+}
+
 /* v5: every pane top rail is exactly --h-rail (44px) with one shared
    bottom-border baseline so the three panes' headers align. The
    .left-tabs / .viewer-header / .chat-shell-header rules below all
@@ -2716,6 +2723,8 @@ input.viewer-title.viewer-title-rename {
    the <Button> primitive directly. */
 
 /* Onboarding */
+/* ── Onboarding ─────────────────────────────────────────────────── */
+
 .onboard {
   height: 100vh;
   display: flex;
@@ -2727,7 +2736,8 @@ input.viewer-title.viewer-title-rename {
 }
 
 .onboard-card {
-  width: 540px;
+  position: relative;
+  width: 480px;
   max-width: 100%;
   background: var(--surface);
   border: 1px solid var(--border);
@@ -2736,6 +2746,7 @@ input.viewer-title.viewer-title-rename {
   box-shadow: 0 12px 40px rgba(45, 42, 37, 0.06);
 }
 
+/* Header */
 .onboard-wordmark {
   display: flex;
   align-items: baseline;
@@ -2761,91 +2772,243 @@ input.viewer-title.viewer-title-rename {
   letter-spacing: 0.01em;
 }
 
-.onboard-subtitle {
-  margin: 12px 0 24px;
-  color: var(--text-muted);
-  font-family: var(--font-serif);
-  font-size: 14px;
-  line-height: 1.5;
+/* ── Vault section ── */
+.onboard-section {
+  margin-top: 28px;
 }
 
-.onboard-step {
-  display: grid;
-  grid-template-columns: auto 1fr auto;
-  gap: 14px;
-  align-items: center;
-  padding: 14px 0;
-  border-top: 1px solid var(--border);
+.onboard-question {
+  margin: 0 0 12px;
+  font-size: 15px;
+  font-weight: 500;
+  color: var(--text);
+  line-height: 1.4;
 }
 
-.onboard-step:first-of-type {
-  border-top: 0;
-}
-
-.onboard-step-num {
-  width: 28px;
-  height: 28px;
-  border-radius: 999px;
-  background: var(--surface-soft);
-  border: 1px solid var(--border-strong);
-  color: var(--text-muted);
+.onboard-vault-row {
   display: flex;
-  align-items: center;
-  justify-content: center;
+  align-items: stretch;
+  width: 100%;
+  background: var(--surface-soft);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  cursor: pointer;
+  padding: 0;
+  text-align: left;
+  font: inherit;
+  transition: border-color 0.15s;
+}
+.onboard-vault-row:hover {
+  border-color: var(--border-strong);
+}
+
+.onboard-vault-path {
+  flex: 1;
+  font-family: var(--font-mono);
   font-size: 13px;
-  font-weight: 600;
-}
-
-.onboard-step.done .onboard-step-num {
-  background: #e3f5ea;
-  border-color: #2c8a4f;
-  color: #2c8a4f;
-}
-
-.onboard-step.skipped {
-  opacity: 0.55;
-}
-
-.onboard-step-body {
+  background: transparent;
+  border: none;
+  padding: 10px 12px;
+  color: var(--text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
   min-width: 0;
 }
 
-.onboard-step-title {
-  font-size: 14px;
+.onboard-browse-label {
+  display: flex;
+  align-items: center;
+  padding: 0 14px;
+  font-size: 13px;
   font-weight: 500;
+  color: var(--text-muted);
+  border-left: 1px solid var(--border);
+  flex-shrink: 0;
+  user-select: none;
+}
+.onboard-vault-row:hover .onboard-browse-label {
   color: var(--text);
 }
 
-.onboard-step-detail {
+.onboard-hint {
+  margin: 10px 0 0;
+  font-size: 12px;
+  color: var(--text-faint);
+  line-height: 1.5;
+}
+
+/* ── CTA ── */
+.onboard-actions {
+  margin-top: 24px;
+  display: flex;
+  justify-content: flex-end;
+}
+
+/* ── Claude Code status bar ── */
+.onboard-status-bar {
+  margin-top: 20px;
+  padding-top: 16px;
+  border-top: 1px solid var(--border);
+}
+
+.onboard-status {
+  display: flex;
+  align-items: center;
+  gap: 8px;
   font-size: 12px;
   color: var(--text-muted);
-  margin-top: 4px;
 }
 
-.onboard-path {
+.onboard-status-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 999px;
+  flex-shrink: 0;
+}
+
+.onboard-status-dot--busy {
+  background: var(--text-faint);
+  animation: onboard-pulse 1.2s ease-in-out infinite;
+}
+
+.onboard-status-dot--ready {
+  background: #2c8a4f;
+}
+
+.onboard-status-dot--error {
+  background: #b91c1c;
+}
+
+@keyframes onboard-pulse {
+  0%, 100% { opacity: 0.4; }
+  50% { opacity: 1; }
+}
+
+.onboard-status-path {
   font-family: var(--font-mono);
   font-size: 11px;
-  background: var(--surface-soft);
-  padding: 1px 6px;
-  border-radius: 4px;
-  border: 1px solid var(--border);
+  color: var(--text-faint);
+  margin-left: auto;
 }
 
-/* Installer stderr block: keep multi-line / ANSI-noisy errors from blowing
-   out the onboarding card. Scrolls instead. */
+/* ── Failed state: expanded help ── */
+.onboard-status-failed {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.onboard-install-help {
+  background: var(--surface-soft);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 14px;
+}
+
+.onboard-install-lead {
+  margin: 0 0 12px;
+  font-size: 13px;
+  color: var(--text);
+  line-height: 1.4;
+}
+
+.onboard-install-options {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.onboard-install-option {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.onboard-install-label {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.onboard-code-block {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 6px 10px;
+}
+
+.onboard-code-block code {
+  flex: 1;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--text);
+  user-select: all;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.onboard-copy-btn {
+  background: none;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 2px 8px;
+  font-size: 11px;
+  color: var(--text-muted);
+  cursor: pointer;
+  flex-shrink: 0;
+}
+.onboard-copy-btn:hover {
+  background: var(--surface);
+  color: var(--text);
+}
+
+.onboard-error-details {
+  margin-top: 8px;
+}
+
+.onboard-error-details summary {
+  font-size: 12px;
+  color: var(--text-muted);
+  cursor: pointer;
+}
+
 .onboard-error-pre {
   font-family: var(--font-mono);
   font-size: 11px;
-  background: var(--surface-soft);
+  background: var(--bg);
   color: var(--text-muted);
   padding: 6px 8px;
   border-radius: 4px;
   border: 1px solid var(--border);
-  margin: 0;
+  margin: 6px 0 0;
   max-height: 8rem;
   overflow: auto;
   white-space: pre-wrap;
   word-break: break-word;
+}
+
+.onboard-install-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-top: 12px;
+}
+
+.onboard-install-docs-link {
+  font-size: 12px;
+  color: var(--text-muted);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+.onboard-install-docs-link:hover {
+  color: var(--text);
 }
 
 .chat-row {
@@ -4179,7 +4342,7 @@ input.viewer-title.viewer-title-rename {
   padding: 0;
   overflow-y: auto;
   overflow-x: hidden;
-  flex: 1 1 0;
+  flex: 0 1 auto;
   min-height: 0;
   align-content: start;
 }

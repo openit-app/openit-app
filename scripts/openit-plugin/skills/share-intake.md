@@ -1,6 +1,6 @@
 ---
 name: share-intake
-description: Share the intake form with employees via a Cloudflare tunnel. Checks for cloudflared, starts the tunnel, and gives the admin the public URL.
+description: Share the intake form with employees via a Cloudflare tunnel. Auto-installs cloudflared if missing, starts the tunnel, and gives the admin the public URL.
 ---
 
 ## When to use
@@ -16,15 +16,19 @@ it. The tunnel runs as long as OpenIT is open.
 
 Tone: terse, conversational. Like a coworker. No emojis.
 
+**Do not ask the user to install anything manually.** If cloudflared
+is missing, install it yourself. You have Bash — use it.
+
 ### Step 0 — check current state
 
-First check if a tunnel is already running:
+Check if a tunnel is actively running by asking the intake server
+(not the file — the file can be stale after a restart):
 
 ```bash
-cat .openit/tunnel.json 2>/dev/null
+curl -s "$(cat .openit/intake.json | node -e "process.stdin.on('data',d=>{try{console.log(JSON.parse(d).url)}catch{console.log('http://127.0.0.1:54321')}})")/share/status"
 ```
 
-If the file exists and has a `url` field → already sharing. Reply:
+If the response has `"active":true` and a `url` → already sharing. Reply:
 
 > Already sharing at **<url>**. Send that link to your team —
 > anyone who opens it gets the intake form. The link stays live
@@ -33,28 +37,55 @@ If the file exists and has a `url` field → already sharing. Reply:
 Then stop. If the admin asks to stop, run:
 
 ```bash
-curl -s -X POST http://127.0.0.1:$(cat .openit/intake.json 2>/dev/null | node -e "process.stdin.on('data',d=>{try{const u=new URL(JSON.parse(d).url);console.log(u.port)}catch{console.log('54321')}})")/share/stop
+curl -s -X POST "$(cat .openit/intake.json | node -e "process.stdin.on('data',d=>{try{console.log(JSON.parse(d).url)}catch{console.log('http://127.0.0.1:54321')}})")/share/stop"
 ```
 
 And confirm: "Stopped. The link is dead now."
 
-### Step 1 — check cloudflared
+### Step 1 — ensure cloudflared is installed
 
 ```bash
 which cloudflared
 ```
 
-If not found, tell the admin to install it:
+If found, skip to Step 2.
 
-> You need `cloudflared` (Cloudflare's free tunnel tool). Install it:
->
-> ```
-> brew install cloudflared
-> ```
->
-> Run that and ping me when it's done.
+If **not found**, install it automatically based on the OS. Detect
+the platform and run the appropriate command — do NOT ask the user
+to do it:
 
-Wait for confirmation, then re-check with `which cloudflared`.
+**macOS:**
+```bash
+brew install cloudflare/cloudflare/cloudflared
+```
+
+**Linux (Debian/Ubuntu):**
+```bash
+curl -L https://pkg.cloudflare.com/cloudflared-linux-amd64.deb -o /tmp/cloudflared.deb && sudo dpkg -i /tmp/cloudflared.deb
+```
+If `dpkg` isn't available (non-Debian), fall back to the binary:
+```bash
+curl -L https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64 -o /usr/local/bin/cloudflared && chmod +x /usr/local/bin/cloudflared
+```
+
+**Windows (PowerShell):**
+```powershell
+winget install Cloudflare.cloudflared
+```
+If `winget` isn't available:
+```powershell
+choco install cloudflared
+```
+
+After installing, verify with `which cloudflared` (or `where cloudflared`
+on Windows). If the install fails, show the error and suggest the user
+check their network or package manager.
+
+Tell the user briefly what you're doing:
+
+> cloudflared isn't installed — installing it now…
+
+Then just do it. No "run this and ping me."
 
 ### Step 2 — start the tunnel
 
@@ -84,5 +115,4 @@ If it succeeds, reply:
 > The link stays up as long as OpenIT is running. Closing the app
 > or running `/share-intake` again lets you stop it.
 
-If it fails (e.g. cloudflared not found, network error), show the
-error and suggest fixes.
+If it fails, show the error and suggest fixes.
