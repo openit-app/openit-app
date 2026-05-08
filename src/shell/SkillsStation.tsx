@@ -175,17 +175,16 @@ Describe the goal here.
 
   return (
     <div className={styles.panel}>
-      <div style={{ display: "flex", alignItems: "center", marginBottom: 4 }}>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 4 }}>
         <p className={styles.tagline} style={{ margin: 0 }}>
           Click a command to view or edit. Hit Run to execute.
         </p>
-        <span style={{ flex: 1 }} />
         <Button
-          variant="ghost"
+          variant="secondary"
           size="sm"
           onClick={() => setShowNewInput((v) => !v)}
         >
-          + New
+          New <span className="arrow" aria-hidden="true">+</span>
         </Button>
       </div>
 
