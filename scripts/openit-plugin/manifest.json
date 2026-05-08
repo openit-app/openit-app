@@ -1,5 +1,5 @@
 {
-  "version": "2026-05-07-005",
+  "version": "2026-05-08-001",
   "files": [
     { "path": "CLAUDE.md" },
     { "path": "skills/ai-intake.md" },
@@ -8,6 +8,7 @@
     { "path": "skills/conversation-to-automation.md" },
     { "path": "skills/report.md" },
     { "path": "skills/cleanup.md" },
+    { "path": "skills/share-intake.md" },
     { "path": "schemas/tickets._schema.json" },
     { "path": "schemas/people._schema.json" },
     { "path": "schemas/access._schema.json" },

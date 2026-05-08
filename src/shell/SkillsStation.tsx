@@ -134,13 +134,18 @@ export function CommandsStation({
     return () => { cancelled = true; };
   }, [repo, fsTick]);
 
-  // Show featured commands by default; hide the rest behind "Show more".
-  const featuredCount = commands.filter((c) => c.featured).length;
-  const foldAt = Math.max(featuredCount, 1); // always show at least 1
-  const visible = showAll ? commands : commands.slice(0, foldAt);
-  const hiddenCount = commands.length - foldAt;
-
+  const [search, setSearch] = useState("");
   const [newName, setNewName] = useState("");
+
+  // When searching, show all matches (ignore fold). Otherwise fold at featured.
+  const q = search.toLowerCase();
+  const filtered = q
+    ? commands.filter((c) => c.name.includes(q) || c.description.toLowerCase().includes(q))
+    : commands;
+  const featuredCount = filtered.filter((c) => c.featured).length;
+  const foldAt = Math.max(featuredCount, 1);
+  const visible = q || showAll ? filtered : filtered.slice(0, foldAt);
+  const hiddenCount = filtered.length - foldAt;
   const [showNewInput, setShowNewInput] = useState(false);
 
   const createNewCommand = async () => {
@@ -190,6 +195,14 @@ Describe the goal here.
         </Button>
       </div>
 
+      <input
+        className={styles.search}
+        type="text"
+        placeholder="Search commands…"
+        value={search}
+        onChange={(e) => setSearch(e.target.value)}
+      />
+
       {showNewInput && (
         <div style={{ display: "flex", gap: 8, alignItems: "center", marginBottom: 4 }}>
           <input
@@ -210,8 +223,8 @@ Describe the goal here.
         </div>
       )}
 
-      {commands.length === 0 ? (
-        <div className={styles.empty}>No commands found.</div>
+      {visible.length === 0 ? (
+        <div className={styles.empty}>{q ? "No matching commands." : "No commands found."}</div>
       ) : (
         <div className={styles.grid}>
           {visible.map((cmd) => (
@@ -257,7 +270,7 @@ Describe the goal here.
             </div>
           ))}
 
-          {hiddenCount > 0 && (
+          {hiddenCount > 0 && !q && (
             <button
               type="button"
               onClick={() => setShowAll((v) => !v)}
