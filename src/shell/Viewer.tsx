@@ -3236,9 +3236,6 @@ export function Viewer({
                 >
                   <div className="thread-card-row">
                     <span className="thread-card-subject">{f.name}</span>
-                    <span className="thread-card-count">{f.traceCount} trace{f.traceCount === 1 ? "" : "s"}</span>
-                  </div>
-                  <div className="thread-card-meta">
                     <Button
                       variant="link"
                       size="sm"
@@ -3250,6 +3247,9 @@ export function Viewer({
                     >
                       ticket →
                     </Button>
+                  </div>
+                  <div className="thread-card-meta">
+                    <span className="thread-card-count">{f.traceCount} trace{f.traceCount === 1 ? "" : "s"}</span>
                   </div>
                 </button>
               </div>
