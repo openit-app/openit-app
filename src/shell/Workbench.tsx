@@ -262,7 +262,6 @@ export function Workbench({
           <div className="workbench-more-body">
             {unpinnedExtras.length > 0 && (
               <>
-                <span className="workbench-more-label">Add to workstation</span>
                 <div className="workbench-picker-grid">
                   {unpinnedExtras.map((s) => {
                     const meta = ENTITY_META[s.kind];
