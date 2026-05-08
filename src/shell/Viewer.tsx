@@ -1627,7 +1627,7 @@ export function Viewer({
       if (source.entity === "reports" || source.entity === "agents") return null;
       return `${repo}/${source.path}`;
     }
-    if (source.kind === "people-list") return `${repo}/databases/people`;
+    if (source.kind === "people-list") return null;
     // Access and assets list views: cards are clickable to edit
     // individual records — "add to chat" on the list is confusing.
     if (source.kind === "access-list") return null;
@@ -4434,20 +4434,50 @@ export function Viewer({
           </TabStrip>
         )}
         {showPeopleTabs && (
-          <TabStrip variant="segmented">
-            <Tab
-              active={peopleView === "cards"}
-              onClick={() => setPeopleView("cards")}
+          <>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => {
+                if (!onShowSource || !repo) return;
+                let filename = "untitled.md";
+                let i = 2;
+                const taken = new Set(
+                  source.kind === "people-list"
+                    ? source.people.map((p) => p.key)
+                    : [],
+                );
+                while (taken.has(filename.replace(".md", ""))) {
+                  filename = `untitled-${i}.md`;
+                  i += 1;
+                }
+                onShowSource({
+                  kind: "draft-file",
+                  path: `${repo}/databases/people/${filename}`,
+                  subdir: "databases/people",
+                  filename,
+                  initialContent: `# Contact\n\n- **Name:** \n- **Email:** \n- **Title:** \n- **Department:** \n- **Phone:** \n\n## Notes\n\nAdd any context about this person here.\n`,
+                });
+              }}
+              title="Draft a new contact"
             >
-              Cards
-            </Tab>
-            <Tab
-              active={peopleView === "table"}
-              onClick={() => setPeopleView("table")}
-            >
-              Table
-            </Tab>
-          </TabStrip>
+              + New
+            </Button>
+            <TabStrip variant="segmented">
+              <Tab
+                active={peopleView === "cards"}
+                onClick={() => setPeopleView("cards")}
+              >
+                Cards
+              </Tab>
+              <Tab
+                active={peopleView === "table"}
+                onClick={() => setPeopleView("table")}
+              >
+                Table
+              </Tab>
+            </TabStrip>
+          </>
         )}
         {showAccessTabs && (
           <>
