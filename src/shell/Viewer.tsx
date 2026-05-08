@@ -3275,10 +3275,15 @@ export function Viewer({
                   type="button"
                   className="thread-card"
                   onClick={() => onOpenPath && void onOpenPath(f.path)}
-                  title={`View ${f.traceCount} trace${f.traceCount === 1 ? "" : "s"}`}
+                  title={`View ${f.traceCount} turn${f.traceCount === 1 ? "" : "s"}`}
                 >
-                  <div className="thread-card-row">
-                    <span className="thread-card-subject">{f.name}</span>
+                  <div className="thread-card-row" style={{ display: "flex", alignItems: "center", justifyContent: "space-between", paddingRight: 0 }}>
+                    <div style={{ minWidth: 0 }}>
+                      <span className="thread-card-subject">{f.name}</span>
+                      <div className="thread-card-meta">
+                        <span className="thread-card-count">{f.traceCount} turn{f.traceCount === 1 ? "" : "s"}</span>
+                      </div>
+                    </div>
                     <Button
                       variant="link"
                       size="sm"
@@ -3287,12 +3292,10 @@ export function Viewer({
                         if (onOpenPath) void onOpenPath(`${repo}/databases/tickets/${f.name}.json`);
                       }}
                       title="Open ticket"
+                      style={{ flexShrink: 0 }}
                     >
                       ticket →
                     </Button>
-                  </div>
-                  <div className="thread-card-meta">
-                    <span className="thread-card-count">{f.traceCount} trace{f.traceCount === 1 ? "" : "s"}</span>
                   </div>
                 </button>
               </div>
