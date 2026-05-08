@@ -386,8 +386,29 @@ export function Shell({
         .catch((e) => console.error("[shell] welcome resolution failed:", e));
     };
     window.addEventListener("openit:open-welcome", openWelcome);
+
+    // Command palette navigation: resolve a path and show it.
+    const onNavigate = (e: Event) => {
+      const path = (e as CustomEvent).detail?.path;
+      if (!path) return;
+      resolvePathToSource(path, repo)
+        .then(setSource)
+        .catch((err) => console.error("[shell] navigate failed:", err));
+    };
+    window.addEventListener("openit:navigate", onNavigate);
+
+    // Command palette "New" actions: show a draft file.
+    const onShowDraft = (e: Event) => {
+      const detail = (e as CustomEvent).detail;
+      if (!detail) return;
+      setSource(detail);
+    };
+    window.addEventListener("openit:show-draft", onShowDraft);
+
     return () => {
       window.removeEventListener("openit:open-welcome", openWelcome);
+      window.removeEventListener("openit:navigate", onNavigate);
+      window.removeEventListener("openit:show-draft", onShowDraft);
     };
   }, [repo, source]);
 

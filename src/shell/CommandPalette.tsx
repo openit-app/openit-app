@@ -5,75 +5,146 @@ type Action = {
   id: string;
   label: string;
   hint?: string;
-  group: "Navigate" | "Run" | "Connect";
-  shortcut?: string;
-  run: () => void | Promise<void>;
+  group: "Go to" | "Run" | "New" | "Connect" | "System";
+  run: () => void | Promise<void> | Promise<boolean>;
 };
+
+function navigate(relPath: string) {
+  window.dispatchEvent(
+    new CustomEvent("openit:navigate", { detail: { path: relPath } }),
+  );
+}
 
 export function CommandPalette({
   open,
   onClose,
+  repo,
   onConnectSlack,
   onManualPull,
   onOpenWelcome,
+  onShowDraft,
 }: {
   open: boolean;
   onClose: () => void;
+  repo: string | null;
   onConnectSlack: () => void;
   onManualPull: () => void;
   onOpenWelcome: () => void;
+  onShowDraft?: (source: {
+    kind: "draft-file";
+    path: string;
+    subdir: string;
+    filename: string;
+    initialContent: string;
+  }) => void;
 }) {
   const [query, setQuery] = useState("");
   const [active, setActive] = useState(0);
   const inputRef = useRef<HTMLInputElement>(null);
 
-  const actions: Action[] = useMemo(
-    () => [
+  const actions: Action[] = useMemo(() => {
+    const r = repo ?? "";
+    const items: Action[] = [
+      // ── Go to ──
+      { id: "goto-inbox", label: "Inbox", hint: "Tickets & escalations", group: "Go to", run: () => navigate(`${r}/databases/tickets`) },
+      { id: "goto-knowledge", label: "Knowledge", hint: "KB articles", group: "Go to", run: () => navigate(`${r}/knowledge-bases`) },
+      { id: "goto-commands", label: "Commands", hint: "Slash commands", group: "Go to", run: () => navigate(`${r}/filestores/skills`) },
+      { id: "goto-people", label: "People", hint: "Contacts directory", group: "Go to", run: () => navigate(`${r}/databases/people`) },
+      { id: "goto-access", label: "Access", hint: "Who has access to what", group: "Go to", run: () => navigate(`${r}/databases/access`) },
+      { id: "goto-assets", label: "Assets", hint: "Device & equipment inventory", group: "Go to", run: () => navigate(`${r}/databases/assets`) },
+      { id: "goto-reports", label: "Reports", hint: "Generated reports", group: "Go to", run: () => navigate(`${r}/reports`) },
+      { id: "goto-scripts", label: "Scripts", hint: "Runnable scripts", group: "Go to", run: () => navigate(`${r}/filestores/scripts`) },
+      { id: "goto-tools", label: "Tools", hint: "Installed CLI & MCP tools", group: "Go to", run: () => navigate(`${r}/tools`) },
+
+      // ── Run (featured commands) ──
+      { id: "run-salesforce-gmail", label: "/salesforce-gmail", hint: "Bridge Salesforce and Gmail", group: "Run", run: () => injectIntoChat("/salesforce-gmail") },
+      { id: "run-backup", label: "/backup", hint: "Export data to Google Drive", group: "Run", run: () => injectIntoChat("/backup") },
+      { id: "run-onboard-offboard", label: "/onboard-offboard", hint: "Grant or revoke access", group: "Run", run: () => injectIntoChat("/onboard-offboard") },
+      { id: "run-salesforce-data-quality", label: "/salesforce-data-quality", hint: "Find and fix dirty data", group: "Run", run: () => injectIntoChat("/salesforce-data-quality") },
+      { id: "run-slack-to-kb", label: "/slack-to-kb", hint: "Mine Slack into KB articles", group: "Run", run: () => injectIntoChat("/slack-to-kb") },
+      { id: "run-patient-inquiry", label: "/patient-inquiry", hint: "Patient inquiry agent", group: "Run", run: () => injectIntoChat("/patient-inquiry") },
+      { id: "run-drive-search", label: "/drive-search", hint: "Search Google Drive", group: "Run", run: () => injectIntoChat("/drive-search") },
+      { id: "run-asset-tracking", label: "/asset-tracking", hint: "Query device inventory", group: "Run", run: () => injectIntoChat("/asset-tracking") },
+      { id: "run-pipeline-outreach", label: "/pipeline-outreach", hint: "Pipeline reports & emails", group: "Run", run: () => injectIntoChat("/pipeline-outreach") },
+      { id: "run-report", label: "/report", hint: "Generate a custom report", group: "Run", run: () => injectIntoChat("/report") },
+      { id: "run-answer-ticket", label: "/answer-ticket", hint: "Reply to an escalated ticket", group: "Run", run: () => injectIntoChat("/answer-ticket") },
+      { id: "run-cleanup", label: "/cleanup", hint: "Remove sample data", group: "Run", run: () => injectIntoChat("/cleanup") },
+
+      // ── New ──
       {
-        id: "welcome",
-        label: "Open Welcome",
-        hint: "Show the getting-started doc",
-        group: "Navigate",
-        run: () => onOpenWelcome(),
+        id: "new-article",
+        label: "New article",
+        hint: "Knowledge base article",
+        group: "New",
+        run: () => {
+          if (!onShowDraft || !r) return;
+          onShowDraft({
+            kind: "draft-file",
+            path: `${r}/knowledge-bases/untitled.md`,
+            subdir: "knowledge-bases",
+            filename: "untitled.md",
+            initialContent: "# Untitled article\n\nWrite your article here.\n",
+          });
+        },
       },
       {
-        id: "report",
-        label: "/report",
-        hint: "Generate a helpdesk report",
-        group: "Run",
-        run: async () => { await injectIntoChat("/report"); },
+        id: "new-command",
+        label: "New command",
+        hint: "Slash command",
+        group: "New",
+        run: () => {
+          if (!onShowDraft || !r) return;
+          onShowDraft({
+            kind: "draft-file",
+            path: `${r}/filestores/skills/untitled.md`,
+            subdir: "filestores/skills",
+            filename: "untitled.md",
+            initialContent: `---\ndescription: "Describe what this command does."\n---\n\n# /untitled\n\n## What this command does\n\nDescribe the goal here.\n\n## Steps\n\n1. First, ask the user what they need.\n2. Then, do the work.\n3. Finally, confirm the result.\n`,
+          });
+        },
       },
       {
-        id: "answer-ticket",
-        label: "/answer-ticket",
-        hint: "Reply to an escalated ticket",
-        group: "Run",
-        run: async () => { await injectIntoChat("/answer-ticket"); },
+        id: "new-person",
+        label: "New person",
+        hint: "Contacts directory",
+        group: "New",
+        run: () => {
+          if (!onShowDraft || !r) return;
+          onShowDraft({
+            kind: "draft-file",
+            path: `${r}/databases/people/untitled.md`,
+            subdir: "databases/people",
+            filename: "untitled.md",
+            initialContent: `# Contact\n\n- **Name:** \n- **Email:** \n- **Title:** \n- **Department:** \n- **Phone:** \n\n## Notes\n\n`,
+          });
+        },
       },
       {
-        id: "cleanup",
-        label: "/cleanup",
-        hint: "Remove sample data",
-        group: "Run",
-        run: async () => { await injectIntoChat("/cleanup"); },
+        id: "new-script",
+        label: "New script",
+        hint: "Runnable script",
+        group: "New",
+        run: () => {
+          if (!onShowDraft || !r) return;
+          onShowDraft({
+            kind: "draft-file",
+            path: `${r}/filestores/scripts/untitled.mjs`,
+            subdir: "filestores/scripts",
+            filename: "untitled.mjs",
+            initialContent: `#!/usr/bin/env node\n// Describe what this script does\n\nasync function main() {\n  console.log(JSON.stringify({ ok: true }));\n}\n\nmain().catch((e) => {\n  console.error(JSON.stringify({ ok: false, error: e.message }));\n  process.exit(1);\n});\n`,
+          });
+        },
       },
-      {
-        id: "connect-slack",
-        label: "Connect Slack",
-        hint: "Set up the OpenIT bot",
-        group: "Connect",
-        run: () => onConnectSlack(),
-      },
-      {
-        id: "pull",
-        label: "Refresh from disk",
-        hint: "Re-read files from vault",
-        group: "Navigate",
-        run: () => onManualPull(),
-      },
-    ],
-    [onConnectSlack, onManualPull, onOpenWelcome],
-  );
+
+      // ── Connect ──
+      { id: "connect-slack", label: "Connect Slack", hint: "Set up the OpenIT bot", group: "Connect", run: () => onConnectSlack() },
+
+      // ── System ──
+      { id: "sys-welcome", label: "Open Welcome", hint: "Getting-started guide", group: "System", run: () => onOpenWelcome() },
+      { id: "sys-refresh", label: "Refresh from disk", hint: "Re-read files from vault", group: "System", run: () => onManualPull() },
+    ];
+    return items;
+  }, [repo, onConnectSlack, onManualPull, onOpenWelcome, onShowDraft]);
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -128,7 +199,8 @@ export function CommandPalette({
     }
   };
 
-  // Group filtered results
+  // Group filtered results — preserve display order
+  const groupOrder = ["Go to", "Run", "New", "Connect", "System"];
   const groups: Record<string, { action: Action; index: number }[]> = {};
   filtered.forEach((a, i) => {
     if (!groups[a.group]) groups[a.group] = [];
@@ -153,28 +225,30 @@ export function CommandPalette({
         <div className="cmdk-list">
           {filtered.length === 0 ? (
             <div className="cmdk-empty">
-              No matches. Try <em>"connect"</em>, <em>"reports"</em>, <em>"people"</em>.
+              No matches.
             </div>
           ) : (
-            Object.entries(groups).map(([group, items]) => (
-              <div key={group} className="cmdk-group">
-                <div className="cmdk-group-label">{group}</div>
-                {items.map(({ action: a, index }) => (
-                  <button
-                    key={a.id}
-                    className={`cmdk-item ${index === active ? "active" : ""}`}
-                    onMouseEnter={() => setActive(index)}
-                    onClick={() => {
-                      setActive(index);
-                      void runActive();
-                    }}
-                  >
-                    <span className="cmdk-item-label">{a.label}</span>
-                    {a.hint && <span className="cmdk-item-hint">{a.hint}</span>}
-                  </button>
-                ))}
-              </div>
-            ))
+            groupOrder
+              .filter((g) => groups[g])
+              .map((group) => (
+                <div key={group} className="cmdk-group">
+                  <div className="cmdk-group-label">{group.toUpperCase()}</div>
+                  {groups[group].map(({ action: a, index }) => (
+                    <button
+                      key={a.id}
+                      className={`cmdk-item ${index === active ? "active" : ""}`}
+                      onMouseEnter={() => setActive(index)}
+                      onClick={() => {
+                        setActive(index);
+                        void runActive();
+                      }}
+                    >
+                      <span className="cmdk-item-label">{a.label}</span>
+                      {a.hint && <span className="cmdk-item-hint">{a.hint}</span>}
+                    </button>
+                  ))}
+                </div>
+              ))
           )}
         </div>
         <div className="cmdk-footer">

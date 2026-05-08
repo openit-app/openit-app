@@ -603,9 +603,11 @@ function App() {
     <CommandPalette
       open={paletteOpen}
       onClose={() => setPaletteOpen(false)}
+      repo={repo}
       onConnectSlack={triggerSlackFlow}
       onManualPull={() => manualPullRef.current?.()}
       onOpenWelcome={() => window.dispatchEvent(new CustomEvent("openit:open-welcome"))}
+      onShowDraft={(source) => window.dispatchEvent(new CustomEvent("openit:show-draft", { detail: source }))}
     />
     </>
   );
