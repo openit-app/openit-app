@@ -3167,7 +3167,7 @@ export function Viewer({
                       uploadFilesToSubdir(repo, c.path, files, setFolderUploadError, showToast)
                   : undefined,
               onReveal: () => void fsReveal(c.path).catch(console.error),
-              onDelete: repo && !c.isBuiltin ? async () => {
+              onDelete: repo ? async () => {
                 let ok = false;
                 try {
                   ok = await ask(
