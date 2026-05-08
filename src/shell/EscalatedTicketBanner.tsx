@@ -1,17 +1,15 @@
-// Floating top-right notification toast for tickets the agent
-// escalated — admin must handle. Renders like a macOS notification:
-// pinned top-right of the app shell, persistent until the admin
-// either takes action ("Answer ticket") or explicitly dismisses.
+// Floating top-right notification card for escalated tickets.
+// Auto-dismisses after 5 s. Clicking opens the first ticket and
+// sends `/answer-ticket` to the active Claude session.
 //
 // Driven by fs-tick: the parent Shell's fs watcher bumps `fsTick`
 // on every change under the project root, which re-scans
-// `databases/tickets/` for `status: "escalated"`. No separate
-// event source.
+// `databases/tickets/` for `status: "escalated"`.
 
 import { useEffect, useState } from "react";
 import { scanEscalatedTickets, type TicketSummary } from "../lib/escalatedTickets";
 import { writeToActiveSession } from "./activeSession";
-import { Banner, Button } from "../ui";
+import styles from "./EscalatedTicketBanner.module.css";
 
 export function EscalatedTicketBanner({
   repo,
@@ -51,6 +49,14 @@ export function EscalatedTicketBanner({
   // toast after a prior batch was dismissed or actioned.
   const ticketKey = tickets.map((t) => t.relPath).sort().join("|");
 
+  // Auto-dismiss after 5 seconds. Resets if ticketKey changes
+  // (new ticket comes in). The admin can still click before timeout.
+  useEffect(() => {
+    if (!ticketKey || dismissedKey === ticketKey) return;
+    const timer = setTimeout(() => setDismissedKey(ticketKey), 5000);
+    return () => clearTimeout(timer);
+  }, [ticketKey, dismissedKey]);
+
   if (tickets.length === 0) return null;
   if (dismissedKey === ticketKey) return null;
 
@@ -62,16 +68,9 @@ export function EscalatedTicketBanner({
     if (sending) return;
     setSending(true);
     try {
-      const lines: string[] = [];
-      lines.push(
-        tickets.length === 1
-          ? `/answer-ticket ${first.relPath}`
-          : `/answer-ticket ${tickets.length} escalated tickets:`,
-      );
-      if (tickets.length > 1) {
-        for (const t of tickets) lines.push(`  - ${t.relPath}`);
-      }
-      const wrapped = `\x1b[200~${lines.join("\n")}\x1b[201~`;
+      // Only send the first (displayed) ticket — the admin should
+      // handle one ticket at a time, not all escalated tickets at once.
+      const wrapped = `\x1b[200~/answer-ticket ${first.relPath}\x1b[201~`;
       await writeToActiveSession(wrapped);
 
       if (onOpenPath && repo) {
@@ -94,27 +93,34 @@ export function EscalatedTicketBanner({
 
   return (
     <div className="escalated-toast-anchor">
-      <Banner
-        variant="warn"
-        eyebrow="Needs your reply"
-        icon="✎"
-        onClose={() => setDismissedKey(ticketKey)}
-        actions={
-          <Button
-            variant="primary"
-            size="sm"
-            onClick={onAnswer}
-            loading={sending}
-            disabled={sending}
-            title="Open the queued tickets with Claude to draft a response"
-          >
-            {sending ? "Sending…" : "Answer ticket"}
-          </Button>
-        }
+      {/* biome-ignore lint/a11y/useKeyWithClickEvents: notification card */}
+      <div
+        className={styles.notification}
+        role="status"
+        onClick={onAnswer}
       >
-        <strong>{subjectLabel}</strong>
-        {others > 0 ? ` and ${others} other${others === 1 ? "" : "s"}` : ""}
-      </Banner>
+        <span className={styles.dot} aria-hidden />
+        <div className={styles.content}>
+          <div className={styles.eyebrow}>Needs your reply</div>
+          <div className={styles.subject}>
+            {subjectLabel}
+            {others > 0 && (
+              <span className={styles.badge}>+{others} more</span>
+            )}
+          </div>
+        </div>
+        <button
+          type="button"
+          className={styles.close}
+          aria-label="Dismiss"
+          onClick={(e) => {
+            e.stopPropagation();
+            setDismissedKey(ticketKey);
+          }}
+        >
+          {"\u00d7"}
+        </button>
+      </div>
     </div>
   );
 }
