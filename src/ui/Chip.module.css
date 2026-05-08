@@ -88,6 +88,19 @@ button.chip:focus-visible {
   --_fg: var(--color-critical-deep);
 }
 
+.accent {
+  --_bg: var(--color-accent);
+  --_border: var(--color-accent-hover);
+  --_fg: var(--color-on-accent);
+  font-weight: var(--fw-semibold);
+}
+button.accent:hover:not(:disabled) {
+  --_bg: var(--color-accent-hover);
+  background: var(--_bg);
+  border-color: var(--color-accent-active);
+  color: var(--color-on-accent);
+}
+
 /* Modifier — dashed/unset. Used for "click to set this up" affordances
    (e.g. Slack chip in the not-yet-configured state). Layers on top of
    any variant. */

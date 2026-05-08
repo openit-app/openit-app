@@ -531,13 +531,6 @@ body::before {
   background: var(--bg-canvas);
 }
 
-/* Scrollable body area above the pinned UpdateBar. */
-.left-pane-body {
-  flex: 1 1 auto;
-  min-height: 0;
-  overflow-y: auto;
-}
-
 /* v5: every pane top rail is exactly --h-rail (44px) with one shared
    bottom-border baseline so the three panes' headers align. The
    .left-tabs / .viewer-header / .chat-shell-header rules below all

@@ -73,7 +73,7 @@
   },
   "plugins": {
     "updater": {
-      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IEU3Rjg3RkNGMjkyOEFBNTgKUldSWXFpZ3B6My80NTdIS1dCQ1FYdkNjVEhWU3BWTmRxV3puUjN0QVc0ZEtvR2dzTTE5NEpIWUsK",
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IEM2OTgyMTMyMkRENzYyNzEKUldSeFloY3RNaUdZeHJJRElaYUFmUHhLdkY5QURYM1ZWajlhdDdKYnRnNzRJRmZHMXVVa2RXZ3UK",
       "endpoints": [
         "https://github.com/pinkfish-ai/openit-app/releases/latest/download/latest.json"
       ]
