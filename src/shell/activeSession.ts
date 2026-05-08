@@ -1,4 +1,4 @@
-import { ptyWrite } from "../lib/pty";
+import { ptyWrite } from "../lib/terminal";
 
 let activeSessionId: string | null = null;
 
