@@ -7,168 +7,147 @@ import { Button } from "../ui";
 import { writeToActiveSession } from "./activeSession";
 import styles from "./ToolsPanel.module.css";
 
-/// Tools catalog rendered into the center pane via the `tools` entity
-/// route.
-///
-/// All install/remove actions are delegated to Claude via
-/// `writeToActiveSession`. This keeps the UI cross-platform and
-/// transparent — the user sees exactly what Claude runs.
+type UnifiedTool = {
+  id: string;
+  name: string;
+  description: string;
+  type: "cli" | "mcp";
+  installed: boolean;
+  /** CLI-specific */
+  cliEntry?: CatalogEntry;
+  /** MCP-specific */
+  mcpEntry?: McpEntry;
+  installedMcp?: InstalledMcp;
+  needsAuth?: boolean;
+};
 
 export function ToolsPanel({ projectRoot }: { projectRoot: string | null }) {
-  const [activeTab, setActiveTab] = useState<"cli" | "mcp">("cli");
   const [installed, setInstalled] = useState<Set<string>>(new Set());
-  const [search, setSearch] = useState("");
-
-  // MCP-specific state
-  const [mcpSearch, setMcpSearch] = useState("");
   const [installedMcps, setInstalledMcps] = useState<InstalledMcp[]>([]);
+  const [search, setSearch] = useState("");
   const [mcpEnvInputs, setMcpEnvInputs] = useState<Record<string, Record<string, string>>>({});
 
   const refreshInstalled = async () => {
     if (!projectRoot) return;
-    try {
-      setInstalled(await listInstalled());
-    } catch (e) {
-      console.error("[ToolsPanel] listInstalled failed:", e);
-    }
+    try { setInstalled(await listInstalled()); } catch { /* */ }
   };
-
   const refreshInstalledMcps = async () => {
     if (!projectRoot) return;
-    try {
-      setInstalledMcps(await listInstalledMcps(projectRoot));
-    } catch (e) {
-      console.error("[ToolsPanel] listInstalledMcps failed:", e);
-    }
+    try { setInstalledMcps(await listInstalledMcps(projectRoot)); } catch { /* */ }
   };
 
   useEffect(() => {
     refreshInstalled();
     refreshInstalledMcps();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [projectRoot]);
 
-  const sortedFiltered = useMemo(() => {
-    const q = search.trim().toLowerCase();
-    const matched = q
-      ? CATALOG.filter(
-          (e) =>
-            e.name.toLowerCase().includes(q) ||
-            e.description.toLowerCase().includes(q) ||
-            e.binary.toLowerCase().includes(q),
-        )
-      : CATALOG;
-    return [...matched].sort((a, b) => {
-      const aIns = installed.has(a.id) ? 0 : 1;
-      const bIns = installed.has(b.id) ? 0 : 1;
-      return aIns - bIns;
-    });
-  }, [search, installed]);
+  const oauthCatalogIds = useMemo(
+    () => new Set(MCP_CATALOG.filter((e) => e.transport === "http" && e.envVars.length === 0).map((e) => e.id)),
+    [],
+  );
 
   const installedMcpNames = useMemo(
     () => new Set(installedMcps.map((m) => m.name)),
     [installedMcps],
   );
 
-  // Catalog entries whose id is NOT already installed — the "Add More" pool.
-  const catalogNotInstalled = useMemo(() => {
-    const q = mcpSearch.trim().toLowerCase();
-    const pool = MCP_CATALOG.filter((e) => !installedMcpNames.has(e.id));
-    return q
-      ? pool.filter(
-          (e) =>
-            e.name.toLowerCase().includes(q) ||
-            e.description.toLowerCase().includes(q),
-        )
-      : pool;
-  }, [mcpSearch, installedMcpNames]);
+  // Build unified list
+  const tools = useMemo(() => {
+    const list: UnifiedTool[] = [];
 
-  // Installed MCPs filtered by search — the "Your Connections" list.
-  const filteredInstalledMcps = useMemo(() => {
-    const q = mcpSearch.trim().toLowerCase();
-    return q
-      ? installedMcps.filter((m) => m.name.toLowerCase().includes(q))
-      : installedMcps;
-  }, [mcpSearch, installedMcps]);
+    // CLI tools
+    for (const entry of CATALOG) {
+      list.push({
+        id: `cli-${entry.id}`,
+        name: entry.name,
+        description: entry.description,
+        type: "cli",
+        installed: installed.has(entry.id),
+        cliEntry: entry,
+      });
+    }
 
-  // Set of catalog ids that use HTTP + no env vars (OAuth flow — need /mcp auth).
-  const oauthCatalogIds = useMemo(
-    () =>
-      new Set(
-        MCP_CATALOG.filter(
-          (e) => e.transport === "http" && e.envVars.length === 0,
-        ).map((e) => e.id),
-      ),
-    [],
-  );
+    // Installed MCPs (not in catalog)
+    for (const mcp of installedMcps) {
+      const catalogEntry = MCP_CATALOG.find((e) => e.id === mcp.name);
+      list.push({
+        id: `mcp-installed-${mcp.name}`,
+        name: mcp.name,
+        description: catalogEntry?.description ?? "Connected MCP server",
+        type: "mcp",
+        installed: true,
+        mcpEntry: catalogEntry,
+        installedMcp: mcp,
+        needsAuth: oauthCatalogIds.has(mcp.name),
+      });
+    }
 
-  // ── CLI card actions — all delegate to the active Claude session ──
+    // MCP catalog entries not installed
+    for (const entry of MCP_CATALOG) {
+      if (installedMcpNames.has(entry.id)) continue;
+      list.push({
+        id: `mcp-catalog-${entry.id}`,
+        name: entry.name,
+        description: entry.description,
+        type: "mcp",
+        installed: false,
+        mcpEntry: entry,
+      });
+    }
 
+    // Filter by search
+    const q = search.trim().toLowerCase();
+    const filtered = q
+      ? list.filter((t) => t.name.toLowerCase().includes(q) || t.description.toLowerCase().includes(q))
+      : list;
+
+    // Sort: installed first, then alphabetical
+    return filtered.sort((a, b) => {
+      if (a.installed !== b.installed) return a.installed ? -1 : 1;
+      return a.name.localeCompare(b.name);
+    });
+  }, [search, installed, installedMcps, installedMcpNames, oauthCatalogIds]);
+
+  // Actions
   const onCliInstall = async (entry: CatalogEntry) => {
     await writeToActiveSession(
       `Install ${entry.name} (${entry.binary}) on this machine. Use brew on macOS, apt/snap on Linux, or winget/choco on Windows. After installing, verify with \`which ${entry.binary}\`.\r`,
     );
-    // Refresh after delays so the installed status catches up.
     setTimeout(() => void refreshInstalled(), 5000);
     setTimeout(() => void refreshInstalled(), 10000);
   };
-
   const onCliRemove = async (entry: CatalogEntry) => {
-    await writeToActiveSession(
-      `Uninstall ${entry.name} (${entry.binary}) from this machine. Use brew uninstall on macOS, apt remove on Linux, etc.\r`,
-    );
+    await writeToActiveSession(`Uninstall ${entry.name} (${entry.binary}) from this machine.\r`);
     setTimeout(() => void refreshInstalled(), 5000);
-    setTimeout(() => void refreshInstalled(), 10000);
   };
-
-  const onCliExplore = async (entry: CatalogEntry) => {
-    await writeToActiveSession(`What can I do with ${entry.name}?\r`);
+  const onExplore = async (name: string) => {
+    await writeToActiveSession(`What can I do with ${name}?\r`);
   };
-
-  // ── MCP card actions ──
-
-  const onMcpExplore = async (name: string) => {
-    await writeToActiveSession(
-      `What can I do with the ${name} MCP server?\r`,
-    );
-  };
-
   const onConnectMcp = async (entry: McpEntry) => {
-    // For entries with env vars, check all are filled in.
     if (entry.envVars.length > 0) {
       const vals = mcpEnvInputs[entry.id] ?? {};
       const missing = entry.envVars.filter((v) => !vals[v]?.trim());
-      if (missing.length > 0) return; // inputs not filled yet
-      // Build: claude mcp add <slug> --transport stdio -e KEY=VAL ... -- npx -y <pkg>
+      if (missing.length > 0) return;
       const envFlags = entry.envVars.map((v) => `-e ${v}=${vals[v].trim()}`).join(" ");
-      const parts = entry.endpoint.split(" "); // e.g. ["npx", "-y", "@pkg/name"]
+      const parts = entry.endpoint.split(" ");
       const cmd = `claude mcp add ${entry.id} --transport ${entry.transport} ${envFlags} -- ${parts.join(" ")}`;
       await writeToActiveSession(cmd + "\r");
     } else if (entry.transport === "http") {
-      const cmd = `claude mcp add ${entry.id} --transport http ${entry.endpoint}`;
-      await writeToActiveSession(cmd + "\r");
+      await writeToActiveSession(`claude mcp add ${entry.id} --transport http ${entry.endpoint}\r`);
     } else {
-      // stdio with no env vars
       const parts = entry.endpoint.split(" ");
-      const cmd = `claude mcp add ${entry.id} --transport stdio -- ${parts.join(" ")}`;
-      await writeToActiveSession(cmd + "\r");
+      await writeToActiveSession(`claude mcp add ${entry.id} --transport stdio -- ${parts.join(" ")}\r`);
     }
-    // Refresh after delays to let Claude write the config file.
     setTimeout(() => void refreshInstalledMcps(), 2000);
     setTimeout(() => void refreshInstalledMcps(), 5000);
-    setTimeout(() => void refreshInstalledMcps(), 10000);
   };
-
-  const onAuthenticateMcp = async () => {
-    await writeToActiveSession("/mcp\r");
-  };
-
   const onRemoveMcp = async (name: string) => {
     await writeToActiveSession(`claude mcp remove ${name}\r`);
     setTimeout(() => void refreshInstalledMcps(), 2000);
-    setTimeout(() => void refreshInstalledMcps(), 5000);
   };
-
+  const onAuthenticateMcp = async () => {
+    await writeToActiveSession("/mcp\r");
+  };
   const setMcpEnvVar = (entryId: string, varName: string, value: string) => {
     setMcpEnvInputs((prev) => ({
       ...prev,
@@ -186,267 +165,103 @@ export function ToolsPanel({ projectRoot }: { projectRoot: string | null }) {
 
   return (
     <div className={styles.panel}>
-      <h2 className={styles.heading}>Give your agent hands</h2>
-
-      {/* Tab strip */}
-      <div className={styles.tabStrip}>
-        <button
-          type="button"
-          className={`${styles.tab} ${activeTab === "cli" ? styles.tabActive : ""}`}
-          onClick={() => setActiveTab("cli")}
-        >
-          CLI
-        </button>
-        <button
-          type="button"
-          className={`${styles.tab} ${activeTab === "mcp" ? styles.tabActive : ""}`}
-          onClick={() => setActiveTab("mcp")}
-        >
-          MCP
-        </button>
-      </div>
-
-      {activeTab === "cli" && (
-        <>
-          <p className={styles.tagline}>
-            Install tools so Claude can act on your IT systems via Bash.
-          </p>
-          <input
-            type="text"
-            className={styles.search}
-            placeholder="Search…"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-          />
-          <div className={styles.grid}>
-            {sortedFiltered.map((entry) => (
-              <ToolCard
-                key={entry.id}
-                entry={entry}
-                installed={installed.has(entry.id)}
-                onInstall={() => onCliInstall(entry)}
-                onRemove={() => onCliRemove(entry)}
-                onExplore={() => onCliExplore(entry)}
-              />
-            ))}
-          </div>
-        </>
-      )}
-
-      {activeTab === "mcp" && (
-        <>
-          <p className={styles.tagline}>
-            Add MCP servers so Claude can interact with your SaaS tools
-            directly.
-          </p>
-          <input
-            type="text"
-            className={styles.search}
-            placeholder="Search MCP servers…"
-            value={mcpSearch}
-            onChange={(e) => setMcpSearch(e.target.value)}
-          />
-
-          {/* Section 1: Your Connections */}
-          <h3 className={styles.sectionHeading}>Your Connections</h3>
-          {filteredInstalledMcps.length === 0 ? (
-            <p className={styles.mcpEmptyHint}>No connections yet.</p>
-          ) : (
-            <div className={styles.grid}>
-              {filteredInstalledMcps.map((mcp) => (
-                <InstalledMcpCard
-                  key={`${mcp.source}-${mcp.name}`}
-                  mcp={mcp}
-                  needsAuth={oauthCatalogIds.has(mcp.name)}
-                  onAuthenticate={onAuthenticateMcp}
-                  onExplore={() => onMcpExplore(mcp.name)}
-                  onRemove={() => onRemoveMcp(mcp.name)}
-                />
-              ))}
+      <p className={styles.tagline}>
+        Install tools so Claude can act on your IT systems.
+      </p>
+      <input
+        type="text"
+        className={styles.search}
+        placeholder="Search tools…"
+        value={search}
+        onChange={(e) => setSearch(e.target.value)}
+      />
+      <div className={styles.grid}>
+        {tools.map((tool) => (
+          <div key={tool.id} className={styles.card}>
+            <div className={styles.cardHeader}>
+              <span className={styles.cardTitle}>
+                {tool.installed && <span className={styles.installedDot} aria-hidden />}
+                {tool.name}
+                {tool.type === "cli" && tool.cliEntry && (
+                  <span className={styles.cardBinary}>{tool.cliEntry.binary}</span>
+                )}
+              </span>
+              <span className={styles.mcpTransportBadge}>{tool.type.toUpperCase()}</span>
             </div>
-          )}
+            <p className={styles.cardDesc}>{tool.description}</p>
 
-          {/* Section 2: Add More */}
-          {catalogNotInstalled.length > 0 && (
-            <>
-              <h3 className={styles.sectionHeading}>Add More</h3>
-              <div className={styles.grid}>
-                {catalogNotInstalled.map((entry) => (
-                  <McpCard
-                    key={entry.id}
-                    entry={entry}
-                    envInputs={mcpEnvInputs[entry.id] ?? {}}
-                    onEnvChange={(varName, value) =>
-                      setMcpEnvVar(entry.id, varName, value)
-                    }
-                    onConnect={() => onConnectMcp(entry)}
+            {/* MCP env var inputs */}
+            {!tool.installed && tool.mcpEntry && tool.mcpEntry.envVars.length > 0 && (
+              <div className={styles.mcpEnvBlock}>
+                {tool.mcpEntry.envVars.map((varName) => (
+                  <input
+                    key={varName}
+                    type="text"
+                    className={styles.mcpEnvInput}
+                    placeholder={varName}
+                    value={mcpEnvInputs[tool.mcpEntry!.id]?.[varName] ?? ""}
+                    onChange={(e) => setMcpEnvVar(tool.mcpEntry!.id, varName, e.target.value)}
                   />
                 ))}
+                {tool.mcpEntry.authHint && (
+                  <span className={styles.mcpAuthHint}>{tool.mcpEntry.authHint}</span>
+                )}
               </div>
-            </>
-          )}
-        </>
-      )}
-    </div>
-  );
-}
+            )}
 
-function ToolCard({
-  entry,
-  installed,
-  onInstall,
-  onRemove,
-  onExplore,
-}: {
-  entry: CatalogEntry;
-  installed: boolean;
-  onInstall: () => void;
-  onRemove: () => void;
-  onExplore: () => void;
-}) {
-  return (
-    <div className={styles.card}>
-      <div className={styles.cardHeader}>
-        <span className={styles.cardTitle}>
-          {installed && <span className={styles.installedDot} aria-hidden />}
-          {entry.name}
-          <span className={styles.cardBinary}>{entry.binary}</span>
-        </span>
-        {installed && <span className={styles.installedPill}>Installed</span>}
-      </div>
-      <p className={styles.cardDesc}>{entry.description}</p>
-      <div className={styles.cardActions}>
-        {installed ? (
-          <>
-            <Button variant="link" size="sm" onClick={onExplore}>
-              What can I do with this? →
-            </Button>
-            <Button variant="ghost" size="sm" onClick={onRemove}>
-              Remove
-            </Button>
-          </>
-        ) : (
-          <Button variant="primary" onClick={onInstall}>
-            Install
-          </Button>
-        )}
-        <a
-          className={styles.docsLink}
-          href={entry.docsUrl}
-          target="_blank"
-          rel="noreferrer"
-        >
-          docs ↗
-        </a>
-      </div>
-    </div>
-  );
-}
-
-// ---------------------------------------------------------------------------
-// Installed MCP card — shown in "Your Connections"
-// ---------------------------------------------------------------------------
-
-
-function InstalledMcpCard({
-  mcp,
-  needsAuth,
-  onAuthenticate,
-  onExplore,
-  onRemove,
-}: {
-  mcp: InstalledMcp;
-  needsAuth: boolean;
-  onAuthenticate: () => void;
-  onExplore: () => void;
-  onRemove: () => void;
-}) {
-  return (
-    <div className={styles.card}>
-      <div className={styles.cardHeader}>
-        <span className={styles.cardTitle}>
-          <span className={styles.installedDot} aria-hidden />
-          {mcp.name}
-        </span>
-        <span className={styles.installedPill}>Installed</span>
-      </div>
-      <div className={styles.cardActions}>
-        {needsAuth && (
-          <Button variant="primary" size="sm" onClick={onAuthenticate}>
-            Authenticate
-          </Button>
-        )}
-        <Button variant="link" size="sm" onClick={onExplore}>
-          What can I do with this? →
-        </Button>
-        <Button variant="ghost" size="sm" onClick={onRemove}>
-          Remove
-        </Button>
-      </div>
-    </div>
-  );
-}
-
-// ---------------------------------------------------------------------------
-// MCP catalog card — shown in "Add More"
-// ---------------------------------------------------------------------------
-
-function McpCard({
-  entry,
-  envInputs,
-  onEnvChange,
-  onConnect,
-}: {
-  entry: McpEntry;
-  envInputs: Record<string, string>;
-  onEnvChange: (varName: string, value: string) => void;
-  onConnect: () => void;
-}) {
-  const needsEnv = entry.envVars.length > 0;
-  const allEnvFilled =
-    !needsEnv || entry.envVars.every((v) => envInputs[v]?.trim());
-
-  return (
-    <div className={styles.card}>
-      <div className={styles.cardHeader}>
-        <span className={styles.cardTitle}>
-          {entry.name}
-        </span>
-      </div>
-      <p className={styles.cardDesc}>{entry.description}</p>
-
-      {needsEnv && (
-        <div className={styles.mcpEnvBlock}>
-          {entry.envVars.map((varName) => (
-            <input
-              key={varName}
-              type="text"
-              className={styles.mcpEnvInput}
-              placeholder={varName}
-              value={envInputs[varName] ?? ""}
-              onChange={(e) => onEnvChange(varName, e.target.value)}
-            />
-          ))}
-          <span className={styles.mcpAuthHint}>{entry.authHint}</span>
-        </div>
-      )}
-
-      <div className={styles.cardActions}>
-        <Button
-          variant="primary"
-          onClick={onConnect}
-          disabled={!allEnvFilled}
-        >
-          Connect
-        </Button>
-        <a
-          className={styles.docsLink}
-          href={entry.docsUrl}
-          target="_blank"
-          rel="noreferrer"
-        >
-          docs ↗
-        </a>
+            <div className={styles.cardActions}>
+              {tool.installed ? (
+                <>
+                  <Button variant="link" size="sm" onClick={() => onExplore(tool.name)}>
+                    What can I do with this? →
+                  </Button>
+                  {tool.needsAuth && (
+                    <Button variant="primary" size="sm" onClick={onAuthenticateMcp}>
+                      Authenticate
+                    </Button>
+                  )}
+                  {tool.type === "cli" && tool.cliEntry && (
+                    <Button variant="ghost" size="sm" onClick={() => onCliRemove(tool.cliEntry!)}>
+                      Remove
+                    </Button>
+                  )}
+                  {tool.type === "mcp" && (
+                    <Button variant="ghost" size="sm" onClick={() => onRemoveMcp(tool.name)}>
+                      Remove
+                    </Button>
+                  )}
+                </>
+              ) : (
+                <>
+                  {tool.type === "cli" && tool.cliEntry && (
+                    <Button variant="primary" onClick={() => onCliInstall(tool.cliEntry!)}>
+                      Install
+                    </Button>
+                  )}
+                  {tool.type === "mcp" && tool.mcpEntry && (
+                    <Button
+                      variant="primary"
+                      onClick={() => onConnectMcp(tool.mcpEntry!)}
+                      disabled={tool.mcpEntry.envVars.length > 0 && !tool.mcpEntry.envVars.every((v) => mcpEnvInputs[tool.mcpEntry!.id]?.[v]?.trim())}
+                    >
+                      Connect
+                    </Button>
+                  )}
+                </>
+              )}
+              {(tool.cliEntry?.docsUrl || tool.mcpEntry?.docsUrl) && (
+                <a
+                  className={styles.docsLink}
+                  href={tool.cliEntry?.docsUrl ?? tool.mcpEntry?.docsUrl}
+                  target="_blank"
+                  rel="noreferrer"
+                >
+                  docs ↗
+                </a>
+              )}
+            </div>
+          </div>
+        ))}
       </div>
     </div>
   );
