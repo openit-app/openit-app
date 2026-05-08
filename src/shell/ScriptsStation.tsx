@@ -1,7 +1,5 @@
-import { useCallback, useEffect, useState } from "react";
-import { fsList, fsRead, fsDelete, scriptRun } from "../lib/api";
-import { writeToActiveSession } from "./activeSession";
-import { EntityCardGrid, type EntityCard } from "./EntityCardGrid";
+import { useEffect, useState } from "react";
+import { fsList, fsRead, scriptRun, entityWriteFile } from "../lib/api";
 import { Button } from "../ui";
 import styles from "./ToolsPanel.module.css";
 
@@ -11,9 +9,11 @@ type ScriptEntry = {
   path: string;
 };
 
-// Persist active tab across remounts.
-let lastScriptsTab: "system" | "custom" = "system";
-
+/**
+ * ScriptsStation — flat list of scripts with a visible Run button
+ * on each row. Merges system (.claude/scripts/) and custom
+ * (filestores/scripts/) into one deduplicated list.
+ */
 export function ScriptsStation({
   repo,
   onOpen,
@@ -23,22 +23,16 @@ export function ScriptsStation({
   onOpen: (path: string) => void;
   onShowSource?: (source: { kind: "script-output"; script: string; stdout: string; stderr: string; exitCode: number; durationMs: number }) => void;
 }) {
-  const [activeTab, setActiveTabRaw] = useState<"system" | "custom">(lastScriptsTab);
-  const setActiveTab = (tab: "system" | "custom") => {
-    lastScriptsTab = tab;
-    setActiveTabRaw(tab);
-  };
-  const [systemScripts, setSystemScripts] = useState<ScriptEntry[]>([]);
-  const [customScripts, setCustomScripts] = useState<ScriptEntry[]>([]);
-  const [tick, setTick] = useState(0);
+  const [scripts, setScripts] = useState<ScriptEntry[]>([]);
+  const [showNewInput, setShowNewInput] = useState(false);
+  const [newName, setNewName] = useState("");
 
-  const refresh = useCallback(() => setTick((t) => t + 1), []);
-
-  // Load system scripts from .claude/scripts/
   useEffect(() => {
     let cancelled = false;
     (async () => {
       const entries: ScriptEntry[] = [];
+
+      // System scripts from .claude/scripts/
       try {
         const root = `${repo}/.claude/scripts`;
         const nodes = await fsList(root);
@@ -50,40 +44,11 @@ export function ScriptsStation({
           return n.name.endsWith(".mjs") || n.name.endsWith(".js") || n.name.endsWith(".cjs");
         });
         for (const f of files) {
-          let description = "";
-          try {
-            const raw = await fsRead(f.path);
-            // Extract description from first comment line
-            for (const line of raw.split("\n")) {
-              const trimmed = line.trim();
-              if (trimmed.startsWith("#!/")) continue;
-              if (trimmed.startsWith("//")) {
-                description = trimmed.replace(/^\/\/\s*/, "").slice(0, 120);
-                break;
-              }
-              if (trimmed.startsWith("/*")) {
-                description = trimmed.replace(/^\/\*\s*/, "").replace(/\*\/\s*$/, "").slice(0, 120);
-                break;
-              }
-              if (trimmed && !trimmed.startsWith("import") && !trimmed.startsWith("const") && !trimmed.startsWith("let")) {
-                break; // Non-comment, non-import line — stop looking
-              }
-            }
-          } catch { /* unreadable */ }
-          entries.push({ name: f.name, description, path: f.path });
+          entries.push({ name: f.name, description: extractComment(await fsRead(f.path).catch(() => "")), path: f.path });
         }
       } catch { /* .claude/scripts/ doesn't exist */ }
-      entries.sort((a, b) => a.name.localeCompare(b.name));
-      if (!cancelled) setSystemScripts(entries);
-    })();
-    return () => { cancelled = true; };
-  }, [repo, tick]);
 
-  // Load custom scripts from filestores/scripts/
-  useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      const entries: ScriptEntry[] = [];
+      // Custom scripts from filestores/scripts/
       try {
         const root = `${repo}/filestores/scripts`;
         const nodes = await fsList(root);
@@ -95,29 +60,26 @@ export function ScriptsStation({
           return n.name.endsWith(".mjs") || n.name.endsWith(".js") || n.name.endsWith(".cjs") || n.name.endsWith(".py");
         });
         for (const f of files) {
-          let description = "";
-          try {
-            const raw = await fsRead(f.path);
-            for (const line of raw.split("\n")) {
-              const trimmed = line.trim();
-              if (trimmed.startsWith("#!/")) continue;
-              if (trimmed.startsWith("//") || trimmed.startsWith("#")) {
-                description = trimmed.replace(/^(\/\/|#)\s*/, "").slice(0, 120);
-                break;
-              }
-              if (trimmed && !trimmed.startsWith("import")) break;
-            }
-          } catch { /* unreadable */ }
-          entries.push({ name: f.name, description, path: f.path });
+          entries.push({ name: f.name, description: extractComment(await fsRead(f.path).catch(() => "")), path: f.path });
         }
       } catch { /* filestores/scripts/ doesn't exist */ }
-      entries.sort((a, b) => a.name.localeCompare(b.name));
-      if (!cancelled) setCustomScripts(entries);
+
+      // Deduplicate by name, keep first (system wins)
+      const seen = new Set<string>();
+      const deduped: ScriptEntry[] = [];
+      for (const e of entries) {
+        if (!seen.has(e.name)) {
+          seen.add(e.name);
+          deduped.push(e);
+        }
+      }
+      deduped.sort((a, b) => a.name.localeCompare(b.name));
+      if (!cancelled) setScripts(deduped);
     })();
     return () => { cancelled = true; };
-  }, [repo, tick]);
+  }, [repo]);
 
-  const onRunScript = async (script: ScriptEntry) => {
+  const runScript = async (script: ScriptEntry) => {
     try {
       const result = await scriptRun(repo, script.path);
       if (onShowSource) {
@@ -135,76 +97,146 @@ export function ScriptsStation({
     }
   };
 
-  const buildCards = (scripts: ScriptEntry[], isSystem: boolean): EntityCard[] =>
-    scripts.map((s) => ({
-      key: `${isSystem ? "sys" : "custom"}-${s.name}`,
-      title: s.name,
-      description: s.description || undefined,
-      onClick: () => onOpen(s.path),
-      onRun: () => onRunScript(s),
-      onDelete: isSystem ? undefined : async () => {
-        if (!window.confirm(`Delete script "${s.name}"?`)) return;
-        await fsDelete(s.path);
-        refresh();
-      },
-    }));
+  const createNewScript = async () => {
+    const slug = newName.trim().toLowerCase().replace(/\s+/g, "-").replace(/[^a-z0-9-_.]/g, "");
+    if (!slug) return;
+    const filename = slug.endsWith(".mjs") || slug.endsWith(".js") || slug.endsWith(".py")
+      ? slug
+      : `${slug}.mjs`;
+    const boilerplate = `#!/usr/bin/env node
+// ${slug} — describe what this script does
+
+async function main() {
+  // Your code here
+  console.log(JSON.stringify({ ok: true }));
+}
+
+main().catch((e) => {
+  console.error(JSON.stringify({ ok: false, error: e.message }));
+  process.exit(1);
+});
+`;
+    await entityWriteFile(repo, "filestores/scripts", filename, boilerplate);
+    setShowNewInput(false);
+    setNewName("");
+    onOpen(`${repo}/filestores/scripts/${filename}`);
+  };
 
   return (
     <div className={styles.panel}>
-      <div className={styles.tabStrip} style={{ display: "flex", alignItems: "center" }}>
-        <button
-          type="button"
-          className={`${styles.tab} ${activeTab === "system" ? styles.tabActive : ""}`}
-          onClick={() => setActiveTab("system")}
-        >
-          System
-        </button>
-        <button
-          type="button"
-          className={`${styles.tab} ${activeTab === "custom" ? styles.tabActive : ""}`}
-          onClick={() => setActiveTab("custom")}
-        >
-          Custom
-        </button>
-        <span style={{ flex: 1 }} />
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 4 }}>
+        <p className={styles.tagline} style={{ margin: 0 }}>
+          Click the eye to view source. Hit Run to execute.
+        </p>
         <Button
           variant="ghost"
           size="sm"
-          onClick={() =>
-            writeToActiveSession(
-              "Help me create a new script for this project and save it to filestores/scripts/. Ask me what I want it to do.\r",
-            )
-          }
+          onClick={() => setShowNewInput((v) => !v)}
         >
           + New
         </Button>
       </div>
 
-      {activeTab === "system" && (
-        <>
-          <p className={styles.tagline}>
-            Scripts that ship with OpenIT. Power slash commands and internal operations.
-          </p>
-          <EntityCardGrid
-            kind="scripts"
-            cards={buildCards(systemScripts, true)}
-            empty="No system scripts found."
+      {showNewInput && (
+        <div style={{ display: "flex", gap: 8, alignItems: "center", marginBottom: 4 }}>
+          <input
+            className={styles.search}
+            type="text"
+            placeholder="script-name.mjs"
+            value={newName}
+            onChange={(e) => setNewName(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") void createNewScript();
+              if (e.key === "Escape") { setShowNewInput(false); setNewName(""); }
+            }}
+            autoFocus
           />
-        </>
+          <Button variant="secondary" size="sm" onClick={() => void createNewScript()}>
+            Create
+          </Button>
+        </div>
       )}
 
-      {activeTab === "custom" && (
-        <>
-          <p className={styles.tagline}>
-            Scripts you or Claude have created. Runnable from the terminal or via slash commands.
-          </p>
-          <EntityCardGrid
-            kind="scripts"
-            cards={buildCards(customScripts, false)}
-            empty="No custom scripts yet. Click + New to create one."
-          />
-        </>
+      {scripts.length === 0 ? (
+        <div className={styles.empty}>No scripts found.</div>
+      ) : (
+        <div className={styles.grid}>
+          {scripts.map((s) => (
+            <div
+              key={s.name}
+              className={styles.card}
+              style={{ cursor: "pointer" }}
+              onClick={() => runScript(s)}
+              role="button"
+              tabIndex={0}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" || e.key === " ") void runScript(s);
+              }}
+            >
+              <div className={styles.cardHeader}>
+                <span
+                  style={{
+                    fontSize: 14,
+                    fontWeight: 600,
+                    color: "var(--text)",
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 6,
+                  }}
+                >
+                  {s.name}
+                </span>
+                <div style={{ display: "flex", gap: 4, alignItems: "center" }}>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    iconOnly
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onOpen(s.path);
+                    }}
+                    title={`View source of ${s.name}`}
+                    aria-label={`View source of ${s.name}`}
+                  >
+                    <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+                      <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
+                      <circle cx="12" cy="12" r="3" />
+                    </svg>
+                  </Button>
+                  <Button
+                    variant="secondary"
+                    size="sm"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      void runScript(s);
+                    }}
+                  >
+                    Run
+                  </Button>
+                </div>
+              </div>
+              {s.description && (
+                <p className={styles.cardDesc}>{s.description}</p>
+              )}
+            </div>
+          ))}
+        </div>
       )}
     </div>
   );
+}
+
+function extractComment(raw: string): string {
+  for (const line of raw.split("\n")) {
+    const trimmed = line.trim();
+    if (trimmed.startsWith("#!/")) continue;
+    if (trimmed.startsWith("//") || trimmed.startsWith("#")) {
+      return trimmed.replace(/^(\/\/|#)\s*/, "").slice(0, 120);
+    }
+    if (trimmed.startsWith("/*")) {
+      return trimmed.replace(/^\/\*\s*/, "").replace(/\*\/\s*$/, "").slice(0, 120);
+    }
+    if (trimmed && !trimmed.startsWith("import") && !trimmed.startsWith("const")) break;
+  }
+  return "";
 }
