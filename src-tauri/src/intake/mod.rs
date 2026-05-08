@@ -296,6 +296,10 @@ async fn stop_inner(state: &tauri::State<'_, IntakeState>) {
 // ---------------------------------------------------------------------------
 
 fn build_router(repo: PathBuf, local_port: u16) -> Router {
+    // Any previous tunnel died with the old server process — clean up
+    // the stale file so the app and commands don't think we're sharing.
+    write_tunnel_json(&repo, None);
+
     let state = ServerState {
         repo: Arc::new(repo),
         sessions: Arc::new(TokioMutex::new(HashMap::new())),
@@ -2152,19 +2156,28 @@ struct ShareStatusResponse {
     url: Option<String>,
 }
 
+/// Wrap a response with permissive CORS headers so the Tauri webview
+/// (localhost:1420 in dev, tauri://localhost in prod) can fetch these.
+fn with_cors(mut resp: Response) -> Response {
+    let h = resp.headers_mut();
+    h.insert(header::ACCESS_CONTROL_ALLOW_ORIGIN, "*".parse().unwrap());
+    h.insert(header::ACCESS_CONTROL_ALLOW_METHODS, "GET,POST".parse().unwrap());
+    resp
+}
+
 async fn share_start(State(state): State<ServerState>) -> Response {
     let mut guard = state.tunnel.lock().await;
     if let Some(ref t) = *guard {
-        return Json(serde_json::json!({ "url": t.url })).into_response();
+        return with_cors(Json(serde_json::json!({ "url": t.url })).into_response());
     }
     match crate::tunnel::start_tunnel_process(state.local_port).await {
         Ok(tunnel) => {
             let url = tunnel.url.clone();
             write_tunnel_json(&state.repo, Some(&url));
             *guard = Some(tunnel);
-            Json(serde_json::json!({ "url": url })).into_response()
+            with_cors(Json(serde_json::json!({ "url": url })).into_response())
         }
-        Err(e) => (StatusCode::INTERNAL_SERVER_ERROR, e).into_response(),
+        Err(e) => with_cors((StatusCode::INTERNAL_SERVER_ERROR, e).into_response()),
     }
 }
 
@@ -2174,7 +2187,7 @@ async fn share_stop(State(state): State<ServerState>) -> Response {
         crate::tunnel::stop_running_tunnel(tunnel);
     }
     write_tunnel_json(&state.repo, None);
-    Json(serde_json::json!({ "stopped": true })).into_response()
+    with_cors(Json(serde_json::json!({ "stopped": true })).into_response())
 }
 
 /// Write/clear `.openit/tunnel.json` so the desktop app can watch it
@@ -2205,18 +2218,19 @@ fn write_tunnel_json(repo: &Path, url: Option<&str>) {
     }
 }
 
-async fn share_status(State(state): State<ServerState>) -> Json<ShareStatusResponse> {
+async fn share_status(State(state): State<ServerState>) -> Response {
     let guard = state.tunnel.lock().await;
-    match guard.as_ref() {
-        Some(t) => Json(ShareStatusResponse {
+    let body = match guard.as_ref() {
+        Some(t) => ShareStatusResponse {
             active: true,
             url: Some(t.url.clone()),
-        }),
-        None => Json(ShareStatusResponse {
+        },
+        None => ShareStatusResponse {
             active: false,
             url: None,
-        }),
-    }
+        },
+    };
+    with_cors(Json(body).into_response())
 }
 
 // ---------------------------------------------------------------------------
