@@ -56,28 +56,7 @@ import { writeToActiveSession } from "./activeSession";
 import { PaneBody } from "../ui";
 import type { ViewerSource } from "./viewerTypes";
 
-// Agent types, helpers, and sub-components are now in ./viewers/AgentViewer.tsx
-// and re-exported through ./viewers/index.ts
-
-// AgentResourceSection moved to ./viewers/AgentViewer.tsx
-
-// AgentToolsSection moved to ./viewers/AgentViewer.tsx
-
-// AgentRenderedView moved to ./viewers/AgentViewer.tsx
-
 export type { ViewerSource };
-
-// Utility functions (toRepoRelative, uploadFilesToSubdir, deleteFileInSubdir,
-// sanitizeUploadFilename, ExternalAnchor, type guards, and constants) moved
-// to ./viewers/viewerHelpers.ts and re-exported through ./viewers/index.ts
-
-// uploadFilesToSubdir moved to ./viewers/viewerHelpers.ts
-
-// deleteFileInSubdir, sanitizeUploadFilename, NEW_FILE_TEMPLATES,
-// ENTITY_FOLDER_LABELS, ENTITY_FOLDER_EMPTY_COPY, ExternalAnchor,
-// isMarkdown, isJsonFile, isMjsScript, isRunnableScript, hasEditableTextMode,
-// isImage, isPdf, isSpreadsheet, isOfficeDoc, mimeForPath
-// all moved to ./viewers/viewerHelpers.ts
 
 export function Viewer({
   source,
@@ -1904,6 +1883,64 @@ export function Viewer({
     }
   }
 
+  // Shared header fragment for the three record-list views (people,
+  // access, assets). Each gets a "+ New" button that drafts a new
+  // record seeded from the collection schema, plus a Cards / Table
+  // tab toggle.
+  const renderRecordListHeader = (args: {
+    dbName: string;
+    collection: import("../lib/localTypes").DataCollection | undefined;
+    existingKeys: string[];
+    newTitle: string;
+    view: "cards" | "table";
+    setView: (v: "cards" | "table") => void;
+  }): ReactNode => {
+    const { dbName, collection, existingKeys, newTitle, view, setView } = args;
+    return (
+      <>
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={() => {
+            if (!onShowSource || !repo || !collection) return;
+            const fields = (collection.schema as { fields?: Array<Record<string, unknown>> })?.fields ?? [];
+            const template: Record<string, unknown> = {};
+            for (const f of fields) {
+              const id = f.id as string;
+              if (id === "createdAt" || id === "updatedAt") {
+                template[id] = new Date().toISOString();
+              } else {
+                template[id] = "";
+              }
+            }
+            const taken = new Set(existingKeys);
+            let filename = "new-record.json";
+            let i = 2;
+            while (taken.has(filename.replace(".json", ""))) {
+              filename = `new-record-${i}.json`;
+              i += 1;
+            }
+            onShowSource({
+              kind: "draft-file",
+              path: `${repo}/databases/${dbName}/${filename}`,
+              subdir: `databases/${dbName}`,
+              filename,
+              initialContent: JSON.stringify(template, null, 2),
+              collection,
+            });
+          }}
+          title={newTitle}
+        >
+          + New
+        </Button>
+        <TabStrip variant="segmented">
+          <Tab active={view === "cards"} onClick={() => setView("cards")}>Cards</Tab>
+          <Tab active={view === "table"} onClick={() => setView("table")}>Table</Tab>
+        </TabStrip>
+      </>
+    );
+  };
+
   return (
     <div className="viewer">
       <div className="viewer-header">
@@ -2286,168 +2323,30 @@ export function Viewer({
             </Tab>
           </TabStrip>
         )}
-        {showPeopleTabs && (
-          <>
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => {
-                if (!onShowSource || !repo || source.kind !== "people-list") return;
-                const col = source.collection;
-                const fields = (col.schema as { fields?: Array<Record<string, unknown>> })?.fields ?? [];
-                const template: Record<string, unknown> = {};
-                for (const f of fields) {
-                  const id = f.id as string;
-                  if (id === "createdAt" || id === "updatedAt") {
-                    template[id] = new Date().toISOString();
-                  } else {
-                    template[id] = "";
-                  }
-                }
-                const taken = new Set(source.people.map((p) => p.key));
-                let filename = "new-record.json";
-                let i = 2;
-                while (taken.has(filename.replace(".json", ""))) {
-                  filename = `new-record-${i}.json`;
-                  i += 1;
-                }
-                onShowSource({
-                  kind: "draft-file",
-                  path: `${repo}/databases/people/${filename}`,
-                  subdir: "databases/people",
-                  filename,
-                  initialContent: JSON.stringify(template, null, 2),
-                  collection: col,
-                });
-              }}
-              title="Draft a new contact"
-            >
-              + New
-            </Button>
-            <TabStrip variant="segmented">
-              <Tab
-                active={peopleView === "cards"}
-                onClick={() => setPeopleView("cards")}
-              >
-                Cards
-              </Tab>
-              <Tab
-                active={peopleView === "table"}
-                onClick={() => setPeopleView("table")}
-              >
-                Table
-              </Tab>
-            </TabStrip>
-          </>
-        )}
-        {showAccessTabs && (
-          <>
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => {
-                if (!onShowSource || !repo || source.kind !== "access-list") return;
-                const col = source.collection;
-                const fields = (col.schema as { fields?: Array<Record<string, unknown>> })?.fields ?? [];
-                const template: Record<string, unknown> = {};
-                for (const f of fields) {
-                  const id = f.id as string;
-                  if (id === "createdAt" || id === "updatedAt") {
-                    template[id] = new Date().toISOString();
-                  } else {
-                    template[id] = "";
-                  }
-                }
-                const taken = new Set(source.records.map((r) => r.key));
-                let filename = "new-record.json";
-                let i = 2;
-                while (taken.has(filename.replace(".json", ""))) {
-                  filename = `new-record-${i}.json`;
-                  i += 1;
-                }
-                onShowSource({
-                  kind: "draft-file",
-                  path: `${repo}/databases/access/${filename}`,
-                  subdir: "databases/access",
-                  filename,
-                  initialContent: JSON.stringify(template, null, 2),
-                  collection: col,
-                });
-              }}
-              title="Draft a new access record"
-            >
-              + New
-            </Button>
-            <TabStrip variant="segmented">
-              <Tab
-                active={accessView === "cards"}
-                onClick={() => setAccessView("cards")}
-              >
-                Cards
-              </Tab>
-              <Tab
-                active={accessView === "table"}
-                onClick={() => setAccessView("table")}
-              >
-                Table
-              </Tab>
-            </TabStrip>
-          </>
-        )}
-        {showAssetsTabs && (
-          <>
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => {
-                if (!onShowSource || !repo || source.kind !== "assets-list") return;
-                const col = source.collection;
-                const fields = (col.schema as { fields?: Array<Record<string, unknown>> })?.fields ?? [];
-                const template: Record<string, unknown> = {};
-                for (const f of fields) {
-                  const id = f.id as string;
-                  if (id === "createdAt" || id === "updatedAt") {
-                    template[id] = new Date().toISOString();
-                  } else {
-                    template[id] = "";
-                  }
-                }
-                const taken = new Set(source.records.map((r) => r.key));
-                let filename = "new-record.json";
-                let i = 2;
-                while (taken.has(filename.replace(".json", ""))) {
-                  filename = `new-record-${i}.json`;
-                  i += 1;
-                }
-                onShowSource({
-                  kind: "draft-file",
-                  path: `${repo}/databases/assets/${filename}`,
-                  subdir: "databases/assets",
-                  filename,
-                  initialContent: JSON.stringify(template, null, 2),
-                  collection: col,
-                });
-              }}
-              title="Draft a new asset record"
-            >
-              + New
-            </Button>
-            <TabStrip variant="segmented">
-              <Tab
-                active={assetsView === "cards"}
-                onClick={() => setAssetsView("cards")}
-              >
-                Cards
-              </Tab>
-              <Tab
-                active={assetsView === "table"}
-                onClick={() => setAssetsView("table")}
-              >
-                Table
-              </Tab>
-            </TabStrip>
-          </>
-        )}
+        {showPeopleTabs && renderRecordListHeader({
+          dbName: "people",
+          collection: source.kind === "people-list" ? source.collection : undefined,
+          existingKeys: source.kind === "people-list" ? source.people.map((p) => p.key) : [],
+          newTitle: "Draft a new contact",
+          view: peopleView,
+          setView: setPeopleView,
+        })}
+        {showAccessTabs && renderRecordListHeader({
+          dbName: "access",
+          collection: source.kind === "access-list" ? source.collection : undefined,
+          existingKeys: source.kind === "access-list" ? source.records.map((r) => r.key) : [],
+          newTitle: "Draft a new access record",
+          view: accessView,
+          setView: setAccessView,
+        })}
+        {showAssetsTabs && renderRecordListHeader({
+          dbName: "assets",
+          collection: source.kind === "assets-list" ? source.collection : undefined,
+          existingKeys: source.kind === "assets-list" ? source.records.map((r) => r.key) : [],
+          newTitle: "Draft a new asset record",
+          view: assetsView,
+          setView: setAssetsView,
+        })}
         {showConversationsFilter && (
           <TabStrip>
             {(["all", "open", "resolved", "escalated"] as const).map((key) => (
