@@ -293,6 +293,10 @@ async fn stop_inner(state: &tauri::State<'_, IntakeState>) {
 // ---------------------------------------------------------------------------
 
 fn build_router(repo: PathBuf, local_port: u16) -> Router {
+    // Any previous tunnel died with the old server process — clean up
+    // the stale file so the app and commands don't think we're sharing.
+    write_tunnel_json(&repo, None);
+
     let state = ServerState {
         repo: Arc::new(repo),
         sessions: Arc::new(TokioMutex::new(HashMap::new())),

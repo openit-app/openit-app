@@ -21,13 +21,14 @@ is missing, install it yourself. You have Bash — use it.
 
 ### Step 0 — check current state
 
-First check if a tunnel is already running:
+Check if a tunnel is actively running by asking the intake server
+(not the file — the file can be stale after a restart):
 
 ```bash
-cat .openit/tunnel.json 2>/dev/null
+curl -s "$(cat .openit/intake.json | node -e "process.stdin.on('data',d=>{try{console.log(JSON.parse(d).url)}catch{console.log('http://127.0.0.1:54321')}})")/share/status"
 ```
 
-If the file exists and has a `url` field → already sharing. Reply:
+If the response has `"active":true` and a `url` → already sharing. Reply:
 
 > Already sharing at **<url>**. Send that link to your team —
 > anyone who opens it gets the intake form. The link stays live
