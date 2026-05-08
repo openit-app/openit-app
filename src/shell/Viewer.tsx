@@ -2913,9 +2913,6 @@ export function Viewer({
                     <span className="thread-card-subject">
                       {r.employee || r.email || r.key}
                     </span>
-                    {r.action && (
-                      <span className="thread-card-status">{r.action}</span>
-                    )}
                   </div>
                   <div className="thread-card-meta">
                     {r.email && r.email !== r.employee && (
@@ -4412,20 +4409,50 @@ export function Viewer({
           </TabStrip>
         )}
         {showAccessTabs && (
-          <TabStrip variant="segmented">
-            <Tab
-              active={accessView === "cards"}
-              onClick={() => setAccessView("cards")}
+          <>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => {
+                if (!onShowSource || !repo) return;
+                const taken = new Set(
+                  source.kind === "access-list"
+                    ? source.records.map((r) => r.key)
+                    : [],
+                );
+                let filename = "untitled.md";
+                let i = 2;
+                while (taken.has(filename.replace(".md", ""))) {
+                  filename = `untitled-${i}.md`;
+                  i += 1;
+                }
+                onShowSource({
+                  kind: "draft-file",
+                  path: `${repo}/databases/access/${filename}`,
+                  subdir: "databases/access",
+                  filename,
+                  initialContent: `# Access record\n\n- **Name:** \n- **Email:** \n- **Role:** \n- **Systems:** Slack, Salesforce, Office 365, Zoom\n- **Status:** active\n- **Date:** ${new Date().toISOString().slice(0, 10)}\n\n## Notes\n\nAdd any context about this person's access here.\n`,
+                });
+              }}
+              title="Draft a new access record"
             >
-              Cards
-            </Tab>
-            <Tab
-              active={accessView === "table"}
-              onClick={() => setAccessView("table")}
-            >
-              Table
-            </Tab>
-          </TabStrip>
+              + New
+            </Button>
+            <TabStrip variant="segmented">
+              <Tab
+                active={accessView === "cards"}
+                onClick={() => setAccessView("cards")}
+              >
+                Cards
+              </Tab>
+              <Tab
+                active={accessView === "table"}
+                onClick={() => setAccessView("table")}
+              >
+                Table
+              </Tab>
+            </TabStrip>
+          </>
         )}
         {showAssetsTabs && (
           <TabStrip variant="segmented">
