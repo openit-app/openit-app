@@ -1,21 +1,20 @@
 // Tunnel module — exposes the localhost intake server to the public
-// internet via a no-signup SSH reverse tunnel (localhost.run).
+// internet via Cloudflare's free quick-tunnel feature (`cloudflared`).
 //
-// V0 strategy: shell out to the system `ssh` binary. The host
-// `nokey@localhost.run` accepts unauthenticated reverse forwards and
-// prints back a `https://<random>.lhr.life` URL on the channel. The
-// tunnel lives exactly as long as the SSH session — laptop sleep /
-// app close → URL dies. That ephemerality is intentional (it's the
-// upgrade-to-cloud story), so we make no attempt to keep it alive
-// across reconnects.
+// Strategy: shell out to the `cloudflared` binary. The command
+// `cloudflared tunnel --url http://127.0.0.1:<port>` requires no
+// account or config — it spins up an ephemeral tunnel and prints a
+// `https://<random>.trycloudflare.com` URL on stderr. The tunnel
+// lives exactly as long as the process — laptop sleep / app close →
+// URL dies. That ephemerality is intentional (cloud-hosted is the
+// upgrade story), so we make no attempt to keep it alive across
+// reconnects.
 //
-// Lifecycle mirrors `intake.rs`: a TunnelState held in Tauri state,
-// `tunnel_start` swaps any existing tunnel under a single cmd_lock,
-// `tunnel_stop` tears it down. Dropping the child kills ssh
-// (kill_on_drop) so process exit cleans up automatically.
-//
-// We do NOT add a regex crate — the URL pattern is trivial enough to
-// scan with manual substring matching (`https://` … `.lhr.life`).
+// Two APIs:
+// - Standalone functions (`start_tunnel_process`, `stop_tunnel_state`)
+//   for use from the intake Axum server's HTTP routes.
+// - Tauri commands (`tunnel_start`, `tunnel_stop`, `tunnel_url`) kept
+//   for backward compat with the desktop frontend.
 
 use std::process::Stdio;
 use std::sync::{Arc, OnceLock};
@@ -29,9 +28,8 @@ use tokio::task::JoinHandle;
 use tokio::time::timeout;
 
 // Shared with `intake.rs` so its CSRF / origin guard can accept the
-// currently-active tunnel host (e.g. `c750a98aa3d133.lhr.life`) in
-// addition to localhost. Set by `tunnel_start` on success, cleared by
-// `tunnel_stop`. Reads are cheap (uncontended Mutex<Option<String>>).
+// currently-active tunnel host (e.g. `abc123.trycloudflare.com`) in
+// addition to localhost.
 static ACTIVE_TUNNEL_HOST: OnceLock<Mutex<Option<String>>> = OnceLock::new();
 
 fn host_slot() -> &'static Mutex<Option<String>> {
@@ -46,61 +44,44 @@ fn set_current_tunnel_host(host: Option<String>) {
     *host_slot().lock() = host;
 }
 
-#[derive(Default)]
-pub struct TunnelState {
-    inner: Mutex<Option<RunningTunnel>>,
-    // Async-aware lock so we can serialize across awaits without
-    // holding parking_lot's sync mutex.
-    cmd_lock: TokioMutex<()>,
-}
-
-struct RunningTunnel {
-    url: String,
-    // Held only so dropping the struct triggers kill_on_drop and reaps
-    // the ssh process. Never accessed.
+/// A running cloudflared tunnel. Drop kills the child process.
+pub(crate) struct RunningTunnel {
+    pub url: String,
     _child: Child,
-    // Reader tasks finish on their own when the child's pipes close,
-    // but we hold the handles to abort them deterministically on stop.
     stdout_task: Option<JoinHandle<()>>,
     stderr_task: Option<JoinHandle<()>>,
 }
 
-/// How long to wait for localhost.run to print a URL after spawn.
-/// Empirically the welcome banner + URL line lands within 1–3s on a
-/// good connection; 20s leaves headroom for slow links and DNS hiccups.
-const URL_WAIT_SECS: u64 = 20;
+/// How long to wait for cloudflared to print a URL after spawn.
+/// Quick tunnels typically print within 2–5s; 30s covers slow links.
+const URL_WAIT_SECS: u64 = 30;
 
-#[tauri::command]
-pub async fn tunnel_start(
-    state: tauri::State<'_, TunnelState>,
-    local_url: String,
-) -> Result<String, String> {
-    let port = parse_port(&local_url)?;
+// ---------------------------------------------------------------------------
+// Standalone API — used by the intake server's /share/* routes.
+// ---------------------------------------------------------------------------
 
-    let _cmd_guard = state.cmd_lock.lock().await;
-    stop_inner(&state).await;
-
-    let mut child = TokioCommand::new("ssh")
+/// Spawn `cloudflared tunnel --url http://127.0.0.1:<port>` and wait
+/// for the public URL. Returns the running tunnel on success.
+pub(crate) async fn start_tunnel_process(port: u16) -> Result<RunningTunnel, String> {
+    let mut child = TokioCommand::new("cloudflared")
         .args([
-            "-o",
-            "StrictHostKeyChecking=accept-new",
-            "-o",
-            "ServerAliveInterval=30",
-            "-o",
-            "ServerAliveCountMax=3",
-            "-o",
-            "ExitOnForwardFailure=yes",
-            "-T",
-            "-R",
-            &format!("80:127.0.0.1:{}", port),
-            "nokey@localhost.run",
+            "tunnel",
+            "--url",
+            &format!("http://127.0.0.1:{}", port),
+            "--no-autoupdate",
         ])
         .stdin(Stdio::null())
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
         .kill_on_drop(true)
         .spawn()
-        .map_err(|e| format!("spawn ssh failed: {}", e))?;
+        .map_err(|e| {
+            if e.kind() == std::io::ErrorKind::NotFound {
+                "cloudflared not found. Install it with: brew install cloudflared".to_string()
+            } else {
+                format!("spawn cloudflared failed: {}", e)
+            }
+        })?;
 
     let stdout = child
         .stdout
@@ -112,8 +93,6 @@ pub async fn tunnel_start(
         .ok_or_else(|| "child stderr missing".to_string())?;
 
     let (url_tx, url_rx) = oneshot::channel::<String>();
-    // Wrap in a Mutex<Option<...>> so whichever stream sees the URL
-    // first wins; the loser harmlessly finds None.
     let url_tx = Arc::new(Mutex::new(Some(url_tx)));
 
     let stdout_task = spawn_url_scanner("out", stdout, url_tx.clone());
@@ -122,12 +101,12 @@ pub async fn tunnel_start(
     let url = match timeout(Duration::from_secs(URL_WAIT_SECS), url_rx).await {
         Ok(Ok(u)) => u,
         Ok(Err(_)) => {
-            // Sender dropped without sending — both streams closed,
-            // i.e. ssh exited before printing a URL. Most common cause:
-            // network unreachable or localhost.run rejected the forward.
             stdout_task.abort();
             stderr_task.abort();
-            return Err("ssh exited before printing tunnel URL".into());
+            return Err(
+                "cloudflared exited before printing tunnel URL — check your internet connection"
+                    .into(),
+            );
         }
         Err(_) => {
             stdout_task.abort();
@@ -139,24 +118,59 @@ pub async fn tunnel_start(
         }
     };
 
-    // Publish the host to the shared allowlist before we make the URL
-    // visible to the frontend — otherwise a fast asker could load the
-    // page and POST before the intake server's origin check sees the
-    // new host. (In practice the SSH handshake makes this lossless,
-    // but ordering it this way keeps the invariant clear.)
+    // Publish the host to the shared CORS allowlist.
     if let Ok(parsed) = url::Url::parse(&url) {
         if let Some(host) = parsed.host_str() {
             set_current_tunnel_host(Some(host.to_string()));
         }
     }
 
-    let mut guard = state.inner.lock();
-    *guard = Some(RunningTunnel {
-        url: url.clone(),
+    Ok(RunningTunnel {
+        url,
         _child: child,
         stdout_task: Some(stdout_task),
         stderr_task: Some(stderr_task),
-    });
+    })
+}
+
+/// Cleanly tear down a running tunnel — aborts reader tasks and lets
+/// kill_on_drop handle the cloudflared process.
+pub(crate) fn stop_running_tunnel(mut tunnel: RunningTunnel) {
+    if let Some(h) = tunnel.stdout_task.take() {
+        h.abort();
+    }
+    if let Some(h) = tunnel.stderr_task.take() {
+        h.abort();
+    }
+    // Dropping `_child` triggers kill_on_drop.
+    set_current_tunnel_host(None);
+}
+
+// ---------------------------------------------------------------------------
+// Tauri commands — thin wrappers for backward compat.
+// ---------------------------------------------------------------------------
+
+#[derive(Default)]
+pub struct TunnelState {
+    inner: Mutex<Option<RunningTunnel>>,
+    cmd_lock: TokioMutex<()>,
+}
+
+#[tauri::command]
+pub async fn tunnel_start(
+    state: tauri::State<'_, TunnelState>,
+    local_url: String,
+) -> Result<String, String> {
+    let port = parse_port(&local_url)?;
+
+    let _cmd_guard = state.cmd_lock.lock().await;
+    stop_inner(&state);
+
+    let tunnel = start_tunnel_process(port).await?;
+    let url = tunnel.url.clone();
+
+    let mut guard = state.inner.lock();
+    *guard = Some(tunnel);
 
     Ok(url)
 }
@@ -164,7 +178,7 @@ pub async fn tunnel_start(
 #[tauri::command]
 pub async fn tunnel_stop(state: tauri::State<'_, TunnelState>) -> Result<(), String> {
     let _cmd_guard = state.cmd_lock.lock().await;
-    stop_inner(&state).await;
+    stop_inner(&state);
     Ok(())
 }
 
@@ -174,25 +188,19 @@ pub fn tunnel_url(state: tauri::State<'_, TunnelState>) -> Option<String> {
     guard.as_ref().map(|t| t.url.clone())
 }
 
-async fn stop_inner(state: &tauri::State<'_, TunnelState>) {
+fn stop_inner(state: &TunnelState) {
     let running = {
         let mut guard = state.inner.lock();
         guard.take()
     };
-    if let Some(mut running) = running {
-        if let Some(h) = running.stdout_task.take() {
-            h.abort();
-        }
-        if let Some(h) = running.stderr_task.take() {
-            h.abort();
-        }
-        // Dropping `_child` triggers kill_on_drop. ssh receives SIGKILL
-        // and the localhost.run side closes the forward.
+    if let Some(tunnel) = running {
+        stop_running_tunnel(tunnel);
     }
-    // Drop the allowlist entry too — once the tunnel is gone, only
-    // genuine localhost requests should pass the origin check.
-    set_current_tunnel_host(None);
 }
+
+// ---------------------------------------------------------------------------
+// URL scanner — shared by both APIs.
+// ---------------------------------------------------------------------------
 
 fn spawn_url_scanner<R>(
     label: &'static str,
@@ -205,11 +213,8 @@ where
     tokio::spawn(async move {
         let mut lines = BufReader::new(reader).lines();
         while let Ok(Some(line)) = lines.next_line().await {
-            // Surface ssh's chatter in the dev console so first-run
-            // failures (host key prompts, permission denied, etc.) are
-            // visible without attaching a debugger.
             eprintln!("[tunnel/{}] {}", label, line);
-            if let Some(found) = extract_lhr_url(&line) {
+            if let Some(found) = extract_cf_url(&line) {
                 if let Some(tx) = url_tx.lock().take() {
                     let _ = tx.send(found);
                 }
@@ -218,20 +223,11 @@ where
     })
 }
 
-/// Find the first `https://<sub>.lhr.life` token in a line. Iterates
-/// over every `https://` so a docs / status URL elsewhere on the line
-/// (which localhost.run could plausibly add to their banner some day)
-/// doesn't make us miss the real tunnel URL after it. Manual parse to
-/// avoid pulling in `regex`.
-fn extract_lhr_url(line: &str) -> Option<String> {
+/// Find the first `https://<sub>.trycloudflare.com` token in a line.
+fn extract_cf_url(line: &str) -> Option<String> {
     let mut search_from = 0;
     while let Some(rel) = line[search_from..].find("https://") {
         let abs = search_from + rel;
-        // Scan forward until we hit a character that can't appear in a
-        // tunnel hostname. lhr.life subdomains are hex-ish today but
-        // the service has shipped both alphanumeric and dash forms
-        // over the years, so accept the same character class as DNS
-        // labels.
         let tail = &line[abs..];
         let end = tail
             .char_indices()
@@ -239,7 +235,7 @@ fn extract_lhr_url(line: &str) -> Option<String> {
             .map(|(i, _)| i)
             .unwrap_or(tail.len());
         let candidate = &tail[..end];
-        if candidate.ends_with(".lhr.life") {
+        if candidate.contains(".trycloudflare.com") {
             return Some(candidate.to_string());
         }
         search_from = abs + "https://".len();
@@ -263,26 +259,41 @@ mod tests {
     use super::*;
 
     #[test]
-    fn extracts_lhr_url_from_banner_line() {
-        let line =
-            "48086740ce0c47.lhr.life tunneled with tls termination, https://48086740ce0c47.lhr.life";
+    fn extracts_cf_url_from_log_line() {
+        let line = "2024-01-15T10:00:01Z INF +----------------------------------------------------------+";
+        assert_eq!(extract_cf_url(line), None);
+        let line2 =
+            "2024-01-15T10:00:01Z INF |  https://random-words-here.trycloudflare.com              |";
         assert_eq!(
-            extract_lhr_url(line).as_deref(),
-            Some("https://48086740ce0c47.lhr.life"),
+            extract_cf_url(line2).as_deref(),
+            Some("https://random-words-here.trycloudflare.com"),
         );
     }
 
     #[test]
-    fn ignores_non_lhr_https() {
-        assert_eq!(extract_lhr_url("see https://example.com for docs"), None);
+    fn extracts_url_with_trailing_whitespace() {
+        let line = "INF https://abc-def-ghi.trycloudflare.com  ";
+        assert_eq!(
+            extract_cf_url(line).as_deref(),
+            Some("https://abc-def-ghi.trycloudflare.com"),
+        );
     }
 
     #[test]
-    fn finds_lhr_url_after_unrelated_https() {
-        let line = "docs at https://localhost.run/docs/ — your URL: https://abc123.lhr.life";
+    fn ignores_non_cf_https() {
         assert_eq!(
-            extract_lhr_url(line).as_deref(),
-            Some("https://abc123.lhr.life"),
+            extract_cf_url("see https://example.com for docs"),
+            None
+        );
+    }
+
+    #[test]
+    fn finds_cf_url_after_unrelated_https() {
+        let line =
+            "docs at https://developers.cloudflare.com — your URL: https://abc123.trycloudflare.com";
+        assert_eq!(
+            extract_cf_url(line).as_deref(),
+            Some("https://abc123.trycloudflare.com"),
         );
     }
 

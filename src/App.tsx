@@ -50,11 +50,11 @@ import "./App.css";
 /// destroy admin edits. The plugin-version sentinel inside .openit/ is
 /// owned exclusively by the sync.
 async function bundledPluginIsCurrent(repo: string): Promise<boolean> {
-  // V2 puts the triage agent in a folder; sentinel path moved with it.
-  // If V2 path is missing, plugin sync must re-run (covers fresh
-  // installs, post-cleanup states, and pre-V2 → V2 schema migrations).
+  // V3 agents are single .md files. If the triage agent is missing,
+  // plugin sync must re-run (covers fresh installs, post-cleanup
+  // states, and V2 → V3 migrations where the .md wasn't written).
   try {
-    await fsRead(`${repo}/agents/triage/triage.json`);
+    await fsRead(`${repo}/agents/triage.md`);
   } catch {
     return false;
   }
@@ -144,6 +144,7 @@ function App() {
   const [loaded, setLoaded] = useState(false);
   const [bypassOnboarding, setBypassOnboarding] = useState(false);
   const [intakeServerUrl, setIntakeServerUrl] = useState<string | null>(null);
+  const [tunnelUrl, setTunnelUrl] = useState<string | null>(null);
   const [slackConfig, setSlackConfig] = useState<SlackConfig | null>(null);
   const [slackStatus, setSlackStatus] = useState<SlackStatus | null>(null);
   // Which secret-paste affordance the chat-anchored SkillActionDock
@@ -206,6 +207,16 @@ function App() {
       console.warn("[app] inject /connect-slack failed:", e),
     );
   }, [repo, slackConfig]);
+
+  // Kick off the share-intake flow — injects /share-intake into Claude,
+  // which walks the user through cloudflared setup + tunnel creation.
+  const triggerShareFlow = useCallback(async () => {
+    if (!repo) return;
+    if (tunnelUrl) return; // already sharing
+    injectIntoChat("/share-intake").catch((e) =>
+      console.warn("[app] inject /share-intake failed:", e),
+    );
+  }, [repo, tunnelUrl]);
 
   // Global cmd-K / ctrl-K listener — opens the command palette from
   // anywhere in the app. We use a window listener (not document
@@ -534,6 +545,46 @@ function App() {
       });
   }, [repo]);
 
+  // Watch .openit/tunnel.json for the active Cloudflare tunnel URL.
+  // Written by the intake server's /share/start route; removed on stop.
+  useEffect(() => {
+    if (!repo) {
+      setTunnelUrl(null);
+      return;
+    }
+    let mounted = true;
+    const refresh = () => {
+      onFsChanged((paths) => {
+        if (paths.some((p) => p.endsWith("/.openit/tunnel.json"))) {
+          fetchTunnelStatus();
+        }
+      })
+        .then((un) => {
+          if (mounted) unlistenFn = un;
+          else un();
+        })
+        .catch((e) => console.warn("[app] tunnel.json watcher init failed:", e));
+    };
+    const fetchTunnelStatus = async () => {
+      if (!intakeServerUrl) return;
+      try {
+        const r = await fetch(`${intakeServerUrl}/share/status`);
+        if (!r.ok) return;
+        const j = await r.json();
+        if (mounted) setTunnelUrl(j.active ? j.url : null);
+      } catch {
+        if (mounted) setTunnelUrl(null);
+      }
+    };
+    fetchTunnelStatus();
+    let unlistenFn: (() => void) | null = null;
+    refresh();
+    return () => {
+      mounted = false;
+      unlistenFn?.();
+    };
+  }, [repo, intakeServerUrl]);
+
   const showOnboarding = loaded && !bypassOnboarding;
 
   if (!loaded) {
@@ -559,6 +610,8 @@ function App() {
         left={
           <StatusChips
             intakeUrl={intakeServerUrl}
+            tunnelUrl={tunnelUrl}
+            onShare={triggerShareFlow}
             slackConfig={slackConfig}
             slackStatus={slackStatus}
             onConnectSlack={triggerSlackFlow}

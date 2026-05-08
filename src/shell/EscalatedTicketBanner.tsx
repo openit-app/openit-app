@@ -68,8 +68,6 @@ export function EscalatedTicketBanner({
     if (sending) return;
     setSending(true);
     try {
-      // Only send the first (displayed) ticket — the admin should
-      // handle one ticket at a time, not all escalated tickets at once.
       const wrapped = `\x1b[200~/answer-ticket ${first.relPath}\x1b[201~`;
       await writeToActiveSession(wrapped);
 
@@ -80,9 +78,6 @@ export function EscalatedTicketBanner({
           onOpenPath(`${repo}/databases/conversations/${ticketId}`);
         }
       }
-      // Dismiss this batch once the admin actioned it. A new ticket
-      // escalating later changes ticketKey, which clears the dismissal
-      // and re-shows the toast.
       setDismissedKey(ticketKey);
     } catch (e) {
       console.error("[escalated-banner] paste-to-Claude failed:", e);

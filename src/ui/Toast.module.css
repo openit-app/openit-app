@@ -1,72 +1,78 @@
-/* Toast — single floating notification. Replaces both
-   src/Toast.tsx + src/shell/Toast.tsx. Always bottom-right,
-   dark warm surface, slide-in animation, auto-dismiss. */
+/* Toast — bottom-center pill notification. Compact, warm,
+   slides up, auto-dismisses. */
 
 .region {
   position: fixed;
   bottom: var(--space-5);
-  right: var(--space-5);
+  left: 50%;
+  transform: translateX(-50%);
   z-index: var(--z-toast);
   display: flex;
   flex-direction: column;
-  gap: var(--space-3);
+  align-items: center;
   pointer-events: none;
 }
 
 .toast {
   pointer-events: auto;
   display: flex;
-  align-items: flex-start;
-  gap: var(--space-3);
-  min-width: 280px;
-  max-width: 380px;
-  padding: var(--space-4) var(--space-5) var(--space-4) var(--space-4);
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-4);
   background: var(--color-surface-dark);
   color: var(--color-text-on-dark);
-  border: 1px solid var(--color-border-dark);
-  border-radius: var(--r-md);
-  box-shadow: var(--shadow-lg);
+  border-radius: 100px;
+  box-shadow:
+    0 4px 12px rgba(0, 0, 0, 0.15),
+    0 1px 3px rgba(0, 0, 0, 0.1);
   font-family: var(--font-body);
-  font-size: var(--fs-body);
+  font-size: var(--fs-meta);
   line-height: var(--lh-normal);
-  animation: in var(--t-base) var(--ease);
+  white-space: nowrap;
+  animation: toast-in 0.25s cubic-bezier(0.22, 1, 0.36, 1);
 }
-@keyframes in {
-  from { transform: translateY(8px); opacity: 0; }
+@keyframes toast-in {
+  from { transform: translateY(12px); opacity: 0; }
   to   { transform: translateY(0); opacity: 1; }
 }
 
 .icon {
-  width: 18px;
-  height: 18px;
+  display: none;
+}
+.success .icon,
+.warn .icon,
+.critical .icon {
   display: inline-flex;
   align-items: center;
   justify-content: center;
   flex: 0 0 auto;
   font-size: 12px;
-  margin-top: 1px;
-  color: var(--color-accent);
 }
-.success .icon  { color: var(--color-success); }
-.warn .icon     { color: var(--color-warn); }
+.success .icon { color: var(--color-success); }
+.warn .icon    { color: var(--color-warn); }
 .critical .icon { color: var(--color-critical); }
 
-.body { flex: 1; min-width: 0; }
+.body {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-2);
+}
 .title {
   font-family: var(--font-display);
   font-weight: var(--fw-semibold);
-  font-size: var(--fs-body);
+  font-size: var(--fs-meta);
   color: var(--color-text-on-dark);
-  margin: 0 0 2px;
-  line-height: 1.25;
+  margin: 0;
+  line-height: 1;
 }
 .message {
-  font-family: var(--font-serif);
-  font-style: italic;
+  font-family: var(--font-body);
   font-size: var(--fs-meta);
-  color: var(--color-text-on-dark-mute);
+  color: var(--color-text-on-dark);
   margin: 0;
-  line-height: var(--lh-snug);
+  line-height: 1;
   word-break: break-word;
 }
 
@@ -74,16 +80,21 @@
   appearance: none;
   background: transparent;
   border: 0;
-  width: 20px;
-  height: 20px;
+  width: 18px;
+  height: 18px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   color: var(--color-text-on-dark-mute);
   cursor: pointer;
   flex: 0 0 auto;
-  font-size: 13px;
+  font-size: 12px;
   line-height: 1;
-  border-radius: var(--r-sm);
+  border-radius: 50%;
+  opacity: 0.5;
+  transition: opacity 0.15s ease;
 }
 .close:hover {
+  opacity: 1;
   color: var(--color-text-on-dark);
-  background: rgba(255, 255, 255, 0.06);
 }

@@ -2,8 +2,7 @@
 //
 // A coworker on the same machine (or LAN, when the Phase 3b toggle
 // ships) opens the URL surfaced in the OpenIT header and chats with
-// an AI agent. The agent — driven by `agents/triage/` (folder with
-// triage.json + common.md/cloud.md/local.md) and the `ai-intake`
+// an AI agent. The agent — driven by `agents/triage.md` and the `ai-intake`
 // skill — gathers the question, searches the local knowledge base,
 // and either answers inline (KB hit) or escalates to the admin (KB
 // miss → status flips to `escalated`, admin sees the banner).
@@ -18,9 +17,8 @@
 // command lock to prevent races.
 //
 // Per-turn agent: each user message spawns a fresh `claude -p`
-// subprocess with cwd = repo, persona assembled from
-// `agents/triage/common.md` + `agents/triage/local.md`, model from
-// `agents/triage/triage.json`, and the conversation history + ticket
+// subprocess with cwd = repo, persona from `agents/triage.md`,
+// model defaulting to sonnet, and the conversation history + ticket
 // id passed in the prompt. The skill writes ticket / conversation /
 // people files directly via Claude's Read/Write/Edit tools.
 
@@ -153,6 +151,10 @@ struct ChatMessage {
 struct ServerState {
     repo: Arc<PathBuf>,
     sessions: Arc<TokioMutex<HashMap<String, SessionData>>>,
+    /// The running Cloudflare tunnel (if sharing is active).
+    tunnel: Arc<TokioMutex<Option<crate::tunnel::RunningTunnel>>>,
+    /// The local port this server is listening on, needed for tunnel spawn.
+    local_port: u16,
 }
 
 // ---------------------------------------------------------------------------
@@ -195,7 +197,7 @@ pub async fn intake_start(
         .local_addr()
         .map_err(|e| format!("local_addr failed: {}", e))?;
 
-    let app = build_router(repo_path.clone());
+    let app = build_router(repo_path.clone(), addr.port());
 
     let (shutdown_tx, shutdown_rx) = oneshot::channel::<()>();
     let handle = tokio::spawn(async move {
@@ -290,10 +292,12 @@ async fn stop_inner(state: &tauri::State<'_, IntakeState>) {
 // Router — chat routes only. Form path was dropped: chat IS the intake.
 // ---------------------------------------------------------------------------
 
-fn build_router(repo: PathBuf) -> Router {
+fn build_router(repo: PathBuf, local_port: u16) -> Router {
     let state = ServerState {
         repo: Arc::new(repo),
         sessions: Arc::new(TokioMutex::new(HashMap::new())),
+        tunnel: Arc::new(TokioMutex::new(None)),
+        local_port,
     };
     Router::new()
         .route("/", get(serve_chat))
@@ -301,17 +305,12 @@ fn build_router(repo: PathBuf) -> Router {
         .route("/chat/start", post(chat_start))
         .route("/chat/turn", post(chat_turn))
         .route("/chat/poll", get(chat_poll))
-        // Attachments: upload (multipart, asker side) lands in
-        // `filestores/attachments/<ticketId>/<filename>`; file fetch
-        // serves bytes back to the chat browser, sandboxed to the
-        // session's ticket folder.
         .route("/chat/upload", post(chat_upload))
         .route("/chat/file", get(chat_file))
-        // Skill-driven endpoints. Plugin scripts (run by Claude in the
-        // user's project via Bash) POST here to ask the running app
-        // to perform work that needs in-process state — e.g. the
-        // Slack listener's bot token. The script discovers the URL
-        // by reading `.openit/intake.json`.
+        // Share: one-click Cloudflare tunnel for employees.
+        .route("/share/start", post(share_start))
+        .route("/share/stop", post(share_stop))
+        .route("/share/status", get(share_status))
         .route("/skill/slack-send-intro", post(skill_slack_send_intro))
         .layer(axum::extract::DefaultBodyLimit::max(MAX_UPLOAD_BYTES))
         .with_state(state)
@@ -2339,10 +2338,9 @@ fn origin_is_localhost(headers: &HeaderMap) -> bool {
         return false;
     };
     match url.host() {
-        // `localhost` plus the active public-tunnel host (if any). The
-        // tunnel module narrows the allowlist to *exactly* the current
-        // session's subdomain — we don't blanket-trust `*.lhr.life`,
-        // since other localhost.run users could otherwise CSRF us.
+        // `localhost` plus the active Cloudflare tunnel host (if any).
+        // We trust *exactly* the current session's subdomain — not all
+        // of `*.trycloudflare.com`.
         Some(url::Host::Domain(d)) => {
             d == "localhost" || crate::tunnel::current_tunnel_host().as_deref() == Some(d)
         }
@@ -2404,6 +2402,80 @@ fn unix_to_ymdhms(secs: i64) -> (i32, u32, u32, u32, u32, u32) {
     let mo = if mp < 10 { mp + 3 } else { mp - 9 };
     let y = if mo <= 2 { y + 1 } else { y };
     (y as i32, mo, d, h, mi, s)
+}
+
+// ---------------------------------------------------------------------------
+// Share routes — one-click Cloudflare tunnel.
+// ---------------------------------------------------------------------------
+
+#[derive(Serialize)]
+struct ShareStatusResponse {
+    active: bool,
+    url: Option<String>,
+}
+
+async fn share_start(State(state): State<ServerState>) -> Response {
+    let mut guard = state.tunnel.lock().await;
+    if let Some(ref t) = *guard {
+        return Json(serde_json::json!({ "url": t.url })).into_response();
+    }
+    match crate::tunnel::start_tunnel_process(state.local_port).await {
+        Ok(tunnel) => {
+            let url = tunnel.url.clone();
+            write_tunnel_json(&state.repo, Some(&url));
+            *guard = Some(tunnel);
+            Json(serde_json::json!({ "url": url })).into_response()
+        }
+        Err(e) => (StatusCode::INTERNAL_SERVER_ERROR, e).into_response(),
+    }
+}
+
+async fn share_stop(State(state): State<ServerState>) -> Response {
+    let mut guard = state.tunnel.lock().await;
+    if let Some(tunnel) = guard.take() {
+        crate::tunnel::stop_running_tunnel(tunnel);
+    }
+    write_tunnel_json(&state.repo, None);
+    Json(serde_json::json!({ "stopped": true })).into_response()
+}
+
+/// Write/clear `.openit/tunnel.json` so the desktop app can watch it
+/// and update the IntakeChip. Best-effort — a failure here is logged
+/// but doesn't block the share flow.
+fn write_tunnel_json(repo: &Path, url: Option<&str>) {
+    let path = repo.join(".openit/tunnel.json");
+    match url {
+        Some(u) => {
+            if let Some(parent) = path.parent() {
+                let _ = std::fs::create_dir_all(parent);
+            }
+            let body = serde_json::json!({ "url": u });
+            if let Err(e) = std::fs::write(&path, serde_json::to_string_pretty(&body).unwrap_or_default()) {
+                eprintln!("[intake] write tunnel.json failed: {}", e);
+            }
+        }
+        None => {
+            if path.exists() {
+                if let Err(e) = std::fs::remove_file(&path) {
+                    eprintln!("[intake] remove tunnel.json failed: {}", e);
+                }
+            }
+        }
+    }
+}
+
+async fn share_status(State(state): State<ServerState>) -> Json<ShareStatusResponse> {
+    let guard = state.tunnel.lock().await;
+    match guard.as_ref() {
+        Some(t) => Json(ShareStatusResponse {
+            active: true,
+            url: Some(t.url.clone()),
+        }),
+        None => Json(ShareStatusResponse {
+            active: false,
+            url: None,
+        }),
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -2924,7 +2996,7 @@ button:disabled { opacity: 0.5; cursor: not-allowed; }
 <div class="preview-bar" id="previewBar">
   <div class="preview-bar-left">
     <div class="preview-dot"></div>
-    Employee preview <span>— this is what your team sees at this link</span>
+    Employee preview <span>— this is what your team sees</span>
   </div>
   <button class="new-chat-btn" id="newChatBtn" title="Start a new conversation">
     <svg viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
