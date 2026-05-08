@@ -4239,13 +4239,12 @@ export function Viewer({
         )}
         {newFileAffordance && (
           <Button
-            variant="secondary"
+            variant="ghost"
             size="sm"
             onClick={() => newFileAffordance.onCreate()}
             title={newFileAffordance.title}
           >
-            New
-            <span className="arrow" aria-hidden="true">+</span>
+            + New
           </Button>
         )}
         {showFileTabs && (

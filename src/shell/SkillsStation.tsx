@@ -180,11 +180,11 @@ Describe the goal here.
           Click a command to view or edit. Hit Run to execute.
         </p>
         <Button
-          variant="secondary"
+          variant="ghost"
           size="sm"
           onClick={() => setShowNewInput((v) => !v)}
         >
-          New <span className="arrow" aria-hidden="true">+</span>
+          + New
         </Button>
       </div>
 
