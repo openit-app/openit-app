@@ -249,7 +249,7 @@ export type ViewerSource =
   // copy + counting semantics); the resolver also enumerates any
   // user-created collection (`mkdir filestores/foo`) so the UI
   // gracefully surfaces them with a generic description.
-  | { kind: "filestores-list"; collections: { name: string; path: string; itemCount: number; itemNoun: string; description: string; isBuiltin: boolean }[] }
+  | { kind: "filestores-list"; collections: { name: string; displayName: string; path: string; itemCount: number; itemNoun: string; description: string; isBuiltin: boolean }[] }
   // `filestores/attachments/` view: introductory copy explaining the
   // collection's purpose plus a list of per-ticket subfolders (each
   // is a clickable card that jumps to the matching conversation

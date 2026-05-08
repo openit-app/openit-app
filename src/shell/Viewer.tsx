@@ -3114,7 +3114,7 @@ export function Viewer({
             kind="filestores"
             cards={source.collections.map((c) => ({
               key: c.path,
-              title: c.name,
+              title: c.displayName,
               description: c.description,
               meta: `${c.itemCount} ${c.itemNoun}${c.itemCount === 1 ? "" : "s"}`,
               badge: c.isBuiltin

@@ -292,7 +292,7 @@ export function Workbench({
               className="workbench-files-link"
               onClick={onShowFiles}
             >
-              File explorer
+              File explorer <span className="arrow" aria-hidden="true">&rarr;</span>
             </button>
           </div>
         )}

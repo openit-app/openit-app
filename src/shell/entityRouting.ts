@@ -951,13 +951,14 @@ export async function resolvePathToSource(
   if (rel === "filestores") {
     type Card = {
       name: string;
+      displayName: string;
       path: string;
       itemCount: number;
       itemNoun: string;
       description: string;
       isBuiltin: boolean;
     };
-    const builtinDescriptions: Record<string, { description: string; itemNoun: string }> = {
+    const builtinDescriptions: Record<string, { description: string; itemNoun: string; displayName?: string }> = {
       attachments: {
         description:
           "Per-ticket files uploaded from the chat intake or attached to admin replies. One subfolder per ticketId — files surface inline in the conversation thread.",
@@ -974,8 +975,9 @@ export async function resolvePathToSource(
       // filestore collections.
       skills: {
         description:
-          "Admin workflow skills captured from resolved tickets — markdown prompts Claude (or you) read and follow. Mirrored to .claude/skills/ for slash-command discovery.",
-        itemNoun: "skill",
+          "Commands you run via /name in the chat. Click a command to view or edit its definition.",
+        itemNoun: "command",
+        displayName: "commands",
       },
       scripts: {
         description:
@@ -991,6 +993,7 @@ export async function resolvePathToSource(
     for (const [name, meta] of Object.entries(builtinDescriptions)) {
       cardsByName.set(name, {
         name,
+        displayName: meta.displayName ?? name,
         path: `${path}/${name}`,
         itemCount: 0,
         itemNoun: meta.itemNoun,
@@ -1034,6 +1037,7 @@ export async function resolvePathToSource(
         }
         cardsByName.set(collName, {
           name: collName,
+          displayName: builtin?.displayName ?? collName,
           path: sd.path,
           itemCount,
           itemNoun: builtin?.itemNoun ?? "file",
