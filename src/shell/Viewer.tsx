@@ -1695,7 +1695,7 @@ export function Viewer({
   // nothing behind).
   const newFileAffordance: { onCreate: () => void; title: string } | null =
     source && source.kind === "entity-folder" && repo &&
-    (source.entity === "scripts" || source.entity === "skills" || source.entity === "agents" || source.entity === "knowledge-base")
+    (source.entity === "scripts" || source.entity === "skills" || source.entity === "agents" || source.entity === "knowledge" || source.entity === "knowledge-base")
       ? (() => {
           const ext: "mjs" | "md" = source.entity === "scripts" ? "mjs" : "md";
           const subdirAbs = source.path;
@@ -1706,8 +1706,8 @@ export function Viewer({
                 ? "Draft a new script"
                 : source.entity === "agents"
                   ? "Draft a new agent"
-                  : source.entity === "knowledge-base"
-                    ? "Draft a new KB article"
+                  : source.entity === "knowledge" || source.entity === "knowledge-base"
+                    ? "Draft a new article"
                     : "Draft a new skill",
             onCreate: () => {
               if (!onShowSource) return;
@@ -3285,7 +3285,9 @@ export function Viewer({
           description: isReport ? undefined : f.description,
           meta: isReport
             ? dateLabel
-            : sizeLabel || undefined,
+            : (source.entity === "knowledge" || source.entity === "knowledge-base")
+              ? undefined
+              : sizeLabel || undefined,
           icon: isImageFile(f.path) ? (
             <FileThumbnail absPath={f.path} />
           ) : useTypeBadge ? (

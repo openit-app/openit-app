@@ -248,62 +248,55 @@ export function Workbench({
         })}
       </div>
 
-      {/* Tile picker — add extra stations to the workstation */}
-      {unpinnedExtras.length > 0 && (
-        <div className="workbench-picker">
-          <button
-            type="button"
-            className="workbench-picker-toggle"
-            onClick={() => setPickerOpen((v) => !v)}
-          >
-            <span className="workbench-files-caret">{pickerOpen ? "▾" : "▸"}</span>
-            <span>Add to workstation</span>
-          </button>
-          {pickerOpen && (
-            <div className="workbench-picker-grid">
-              {unpinnedExtras.map((s) => {
-                const meta = ENTITY_META[s.kind];
-                return (
-                  <button
-                    key={s.id}
-                    type="button"
-                    className={`station station-picker entity-tone-${meta.tone}`}
-                    onClick={() => toggleExtra(s.id)}
-                    title={`Add ${meta.label} to workstation`}
-                  >
-                    <span className="station-glyph" aria-hidden>
-                      {meta.icon}
-                    </span>
-                    <span className="station-body">
-                      <span className="station-label">{meta.label}</span>
-                    </span>
-                    <span className="station-add-hint">+</span>
-                  </button>
-                );
-              })}
-            </div>
-          )}
-        </div>
-      )}
-
-      {/*
-       * File-tree entry point — DO NOT REMOVE.
-       *
-       * This link is the ONLY user-facing path to the raw file
-       * explorer. The Explorer left-tab was removed deliberately;
-       * the Overview pane (Workbench + station cards) is the
-       * canonical surface, and admins who need the file tree drop
-       * into it via this "advanced" affordance.
-       */}
-      <button
-        type="button"
-        className="workbench-files-toggle"
-        onClick={onShowFiles}
-      >
-        <span className="workbench-files-caret">▸</span>
-        <span>File explorer</span>
-        <span className="workbench-files-hint">advanced</span>
-      </button>
+      {/* Unified "More" section — tile picker + file explorer */}
+      <div className="workbench-more">
+        <button
+          type="button"
+          className="workbench-more-toggle"
+          onClick={() => setPickerOpen((v) => !v)}
+        >
+          <span className="workbench-files-caret">{pickerOpen ? "▾" : "▸"}</span>
+          <span>More</span>
+        </button>
+        {pickerOpen && (
+          <div className="workbench-more-body">
+            {unpinnedExtras.length > 0 && (
+              <>
+                <span className="workbench-more-label">Add to workstation</span>
+                <div className="workbench-picker-grid">
+                  {unpinnedExtras.map((s) => {
+                    const meta = ENTITY_META[s.kind];
+                    return (
+                      <button
+                        key={s.id}
+                        type="button"
+                        className={`station station-picker entity-tone-${meta.tone}`}
+                        onClick={() => toggleExtra(s.id)}
+                        title={`Add ${meta.label} to workstation`}
+                      >
+                        <span className="station-glyph" aria-hidden>
+                          {meta.icon}
+                        </span>
+                        <span className="station-body">
+                          <span className="station-label">{meta.label}</span>
+                        </span>
+                        <span className="station-add-hint">+</span>
+                      </button>
+                    );
+                  })}
+                </div>
+              </>
+            )}
+            <button
+              type="button"
+              className="workbench-files-link"
+              onClick={onShowFiles}
+            >
+              File explorer
+            </button>
+          </div>
+        )}
+      </div>
     </div>
   );
 }

@@ -4241,15 +4241,15 @@ input.viewer-title.viewer-title-rename {
   font-variant-numeric: tabular-nums;
 }
 
-/* ── Tile picker (add extra stations) ─────────────────────────── */
+/* ── More section (tile picker + file explorer) ──────────────── */
 
-.workbench-picker {
+.workbench-more {
   display: flex;
   flex-direction: column;
   gap: 6px;
 }
 
-.workbench-picker-toggle {
+.workbench-more-toggle {
   all: unset;
   cursor: pointer;
   display: flex;
@@ -4265,8 +4265,41 @@ input.viewer-title.viewer-title-rename {
   transition: color var(--t-fast) var(--ease);
 }
 
-.workbench-picker-toggle:hover {
+.workbench-more-toggle:hover {
   color: var(--text);
+}
+
+.workbench-more-body {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.workbench-more-label {
+  font-family: var(--font-display);
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text-faint);
+  padding: 0 6px;
+}
+
+.workbench-files-link {
+  all: unset;
+  cursor: pointer;
+  font-family: var(--font-display);
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--text-muted);
+  padding: 6px 6px;
+  border-radius: 6px;
+  transition: color var(--t-fast) var(--ease), background var(--t-fast) var(--ease);
+}
+
+.workbench-files-link:hover {
+  color: var(--text);
+  background: var(--accent-faint);
 }
 
 .workbench-picker-grid {
