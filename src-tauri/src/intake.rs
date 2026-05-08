@@ -1574,9 +1574,7 @@ async fn spawn_claude_chat(
     if let Some(path) = crate::pty::augmented_path() {
         cmd.env("PATH", path);
     }
-    let mut child = cmd
-        .spawn()
-        .map_err(|e| format!("spawn claude: {}", e))?;
+    let mut child = cmd.spawn().map_err(|e| format!("spawn claude: {}", e))?;
 
     {
         let mut stdin = child.stdin.take().ok_or("no stdin handle")?;
