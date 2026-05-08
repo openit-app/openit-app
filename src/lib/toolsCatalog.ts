@@ -10,11 +10,10 @@
 /// per-session tool cap, and IT admins already know the brew install
 /// pattern.
 
-export type CatalogEntry = {
-  /// Short stable id used as the entry key in the marker block.
-  id: string;
-  name: string;
-  description: string;
+import type { CatalogEntryBase } from "./catalogBase";
+import { createCatalogFinder } from "./catalogBase";
+
+export type CatalogEntry = CatalogEntryBase & {
   /// PATH-resolvable binary name — what `which` looks for.
   binary: string;
   /// Brew install command (preferred). Run as `brew install <pkg>` so
@@ -24,8 +23,6 @@ export type CatalogEntry = {
   /// is installed. Should explain WHAT the tool is plus a HOW-TO nudge
   /// (e.g. "run `<tool> --help`") for less-known tools.
   claudeMdHint: string;
-  /// External link shown next to the install button — vendor docs.
-  docsUrl: string;
 };
 
 export const CATALOG: CatalogEntry[] = [
@@ -168,6 +165,4 @@ export const CATALOG: CatalogEntry[] = [
   },
 ];
 
-export function findEntry(id: string): CatalogEntry | undefined {
-  return CATALOG.find((e) => e.id === id);
-}
+export const findEntry = createCatalogFinder(CATALOG);

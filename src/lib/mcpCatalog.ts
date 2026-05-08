@@ -3,11 +3,9 @@
 /// command. Services with good CLIs live in toolsCatalog.ts instead;
 /// this catalog covers services where MCP is the best (or only) path.
 
-export type McpEntry = {
-  /// Stable key.
-  id: string;
-  name: string;
-  description: string;
+import type { CatalogEntryBase } from "./catalogBase";
+
+export type McpEntry = CatalogEntryBase & {
   /// The transport: "http" for remote servers, "stdio" for npm packages.
   transport: "http" | "stdio";
   /// For http: the remote MCP URL. For stdio: the npx command.
@@ -16,8 +14,6 @@ export type McpEntry = {
   envVars: string[];
   /// Where to get the API key / token.
   authHint: string;
-  /// Vendor docs.
-  docsUrl: string;
   /// Icon hint for rendering (maps to entity tones/icons).
   iconHint: string;
 };
