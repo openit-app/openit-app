@@ -4,13 +4,8 @@ use std::time::SystemTime;
 
 use serde::{Deserialize, Serialize};
 
-// 2026-04-27 plural rename: `knowledge-base/` (singular, single
-// flat dir) → `knowledge-bases/<collection>/` (plural parent, one
-// subdir per KB). Default is `knowledge-bases/default/` and is what
-// the skills write to + cloud sync targets in V1; admins can `mkdir
-// knowledge-bases/<custom>/` to create additional collections, which
-// kb-search walks alongside the default.
-const KB_DIR: &str = "knowledge-bases/default";
+// Flat KB directory: all articles live directly in `knowledge-bases/`.
+const KB_DIR: &str = "knowledge-bases";
 
 // Pre-Phase-2 the manifest schema lived here as `KbState` /
 // `KbFileState` and the `entity_state_*` commands deserialized into it.
@@ -36,36 +31,18 @@ fn ensure_dir(p: &Path) -> Result<(), String> {
     fs::create_dir_all(p).map_err(|e| e.to_string())
 }
 
-/// Resolve `<repo>/<subdir>/<filename>` for KB IO when a per-collection
-/// subdir is supplied (`subdir = Some("knowledge-bases/<name>")`),
-/// falling back to the legacy `knowledge-bases/default/` location when
-/// None. Mirrors the `fs_path_with_optional_subdir` helper from Phase 1
-/// so KB and filestore share the same shape on the Rust side. Filename
-/// validation matches `safe_kb_path` — no separators, no empty strings —
-/// but the subdir itself is trusted (the TS sync engine derives it from
-/// a validated collection name).
+/// Resolve `<repo>/knowledge-bases/<filename>`. The `subdir` parameter
+/// is accepted for API backwards compatibility but ignored — all KB
+/// files live in the flat `knowledge-bases/` directory.
 fn kb_path_with_optional_subdir(
     repo: &str,
     filename: &str,
-    subdir: Option<&str>,
+    _subdir: Option<&str>,
 ) -> Result<PathBuf, String> {
-    if filename.is_empty() {
-        return Err("filename is empty".into());
-    }
-    if filename.contains('/') || filename.contains('\\') {
-        return Err(format!(
-            "filename must not contain path separators: {}",
-            filename
-        ));
-    }
-    let base_dir = match subdir {
-        Some(s) => Path::new(repo).join(s),
-        None => kb_dir(repo),
-    };
-    Ok(base_dir.join(filename))
+    safe_kb_path(repo, filename)
 }
 
-/// Resolve a `<repo>/knowledge-bases/default/<filename>` path and assert it stays
+/// Resolve a `<repo>/knowledge-bases/<filename>` path and assert it stays
 /// inside the KB directory. Guards against `..` segments, absolute paths, or
 /// nested separators sneaking in via server responses or future drag sources.
 /// `filename` must be a single path component (no directory parts).
@@ -119,7 +96,7 @@ pub fn kb_write_file(repo: String, filename: String, content: String) -> Result<
     fs::write(&path, content).map_err(|e| e.to_string())
 }
 
-/// Write raw bytes to `<repo>/knowledge-bases/default/<filename>`. Used by the
+/// Write raw bytes to `<repo>/knowledge-bases/<filename>`. Used by the
 /// drag-from-desktop handler so binary files (PDFs, images) round-trip
 /// correctly.
 #[tauri::command]
@@ -247,17 +224,12 @@ pub struct KbUploadResult {
     pub mime_type: Option<String>,
 }
 
-/// Multipart upload of a file from `<repo>/<subdir>/<filename>` (or the
-/// legacy `knowledge-bases/default/` when `subdir` is None) to the
-/// skills file storage endpoint. Returns the parsed response
+/// Multipart upload of a file from `<repo>/knowledge-bases/<filename>`
+/// to the skills file storage endpoint. Returns the parsed response
 /// (id, filename, etc.) on success. Works for any file type, including
 /// binary — we stream the file bytes directly rather than going through
 /// the MCP `upload_file` tool's string `fileContent` param.
-///
-/// Phase 2 of V2 sync (PIN-5775) added the optional `subdir` parameter
-/// so a caller can target `knowledge-bases/<collection-name>/` directly.
-/// Without it (legacy callers), behaviour is unchanged — fall back to
-/// the default KB dir.
+/// The `subdir` parameter is accepted for API compat but ignored.
 #[tauri::command]
 pub async fn kb_upload_file(
     repo: String,
@@ -374,13 +346,9 @@ fn mime_for(filename: &str) -> String {
     .to_string()
 }
 
-/// Fetch a download URL and save the body into `<repo>/<subdir>/<filename>`
-/// (or the legacy `knowledge-bases/default/` when `subdir` is None). Used
-/// by the puller to materialise remote KB files locally.
-///
-/// Phase 2 of V2 sync (PIN-5775) added the optional `subdir` so the puller
-/// can route per-collection (`knowledge-bases/<name>/`). Pre-Phase-2
-/// callers see no change.
+/// Fetch a download URL and save the body into `<repo>/knowledge-bases/<filename>`.
+/// Used by the puller to materialise remote KB files locally.
+/// The `subdir` parameter is accepted for API compat but ignored.
 #[tauri::command]
 pub async fn kb_download_to_local(
     repo: String,
@@ -1158,10 +1126,8 @@ mod tests {
     #[test]
     fn safe_kb_path_accepts_plain_filename() {
         let p = safe_kb_path("/tmp/repo", "notes.md").unwrap();
-        // 2026-04-27 plural rename: paths now sit under
-        // `knowledge-bases/default/` (not the legacy flat
-        // `knowledge-base/`).
-        assert!(p.ends_with("knowledge-bases/default/notes.md"));
+        assert!(p.ends_with("knowledge-bases/notes.md"));
+        assert!(!p.ends_with("knowledge-bases/default/notes.md"));
     }
 
     #[test]
@@ -1186,24 +1152,18 @@ mod tests {
     }
 
     #[test]
-    fn kb_path_with_optional_subdir_falls_back_to_default_when_none() {
+    fn kb_path_with_optional_subdir_always_uses_flat_dir() {
+        // subdir is ignored — all KB files go to knowledge-bases/
         let p = kb_path_with_optional_subdir("/tmp/repo", "notes.md", None).unwrap();
-        assert!(p.ends_with("knowledge-bases/default/notes.md"));
-    }
-
-    #[test]
-    fn kb_path_with_optional_subdir_routes_to_supplied_subdir() {
-        let p =
+        assert!(p.ends_with("knowledge-bases/notes.md"));
+        let p2 =
             kb_path_with_optional_subdir("/tmp/repo", "notes.md", Some("knowledge-bases/runbooks"))
                 .unwrap();
-        assert!(p.ends_with("knowledge-bases/runbooks/notes.md"));
+        assert!(p2.ends_with("knowledge-bases/notes.md"));
     }
 
     #[test]
     fn kb_path_with_optional_subdir_rejects_filename_separators() {
-        // Filename validation still applies even with subdir routing —
-        // only subdirs supply directory structure; filenames are leaf
-        // names.
         assert!(kb_path_with_optional_subdir(
             "/tmp/repo",
             "sub/dir/file.md",

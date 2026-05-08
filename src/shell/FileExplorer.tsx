@@ -126,8 +126,7 @@ function prettyName(
   }
   // Knowledge-base markdown articles — same logic as agents/workflows:
   // the .md is implementation noise; users think of them by title.
-  // Matches files under any KB collection: `knowledge-bases/<col>/<name>.md`.
-  if (rel.match(/^knowledge-bases\/[^/]+\/[^/]+\.(md|markdown)$/)) {
+  if (rel.match(/^knowledge-bases\/[^/]+\.(md|markdown)$/)) {
     return name.replace(/\.(md|markdown)$/, "");
   }
   return name;
@@ -517,11 +516,9 @@ export function FileExplorer({
       return;
     }
 
-    // Default: drop into the default knowledge base
-    // (`knowledge-bases/default/`) with file type filtering. Resolve
-    // a friendly name first so the kb-supported check sees the real
-    // extension (a Slack-id-shaped name has no extension and would
-    // be rejected as unsupported).
+    // Default: drop into the knowledge base (`knowledge-bases/`)
+    // with file type filtering. Resolve a friendly name first so
+    // the kb-supported check sees the real extension.
     const acceptedRecords: { file: File; filename: string }[] = [];
     const rejected: string[] = [];
     for (let i = 0; i < files.length; i += 1) {
@@ -561,12 +558,8 @@ export function FileExplorer({
       return next;
     });
 
-  // 2026-04-27 plural rename: KB articles live in
-  // `knowledge-bases/default/`. The delete affordance still scopes to
-  // the default collection (cloud-sync target); custom KBs are
-  // off-limits via this path until V1 wires their per-collection
-  // delete pipeline.
-  const KB_PREFIX = "knowledge-bases/default/";
+  // KB articles live directly in `knowledge-bases/`.
+  const KB_PREFIX = "knowledge-bases/";
   const isDeletable = (node: FileNode) => {
     if (node.is_dir || !repo) return false;
     return relPath(repo, node.path).startsWith(KB_PREFIX);
@@ -725,12 +718,8 @@ export function FileExplorer({
                     rel.match(/^databases\/conversations\/[^/]+$/) ||
                     rel === "agents" ||
                     rel === "workflows" ||
-                    // 2026-04-27 plural rename: knowledge-bases/<col>/
-                    // replaces the legacy flat knowledge-base/.
-                    //   - `knowledge-bases/`         → cards (default + custom)
-                    //   - `knowledge-bases/<name>/`  → entity-folder file list
+                    // Flat KB directory: all articles in knowledge-bases/
                     rel === "knowledge-bases" ||
-                    rel.match(/^knowledge-bases\/[^/]+$/) ||
                     // 2026-04-27 filestore split:
                     //   - `filestores/`             → two-card overview
                     //   - `filestores/attachments/` → welcome stub +

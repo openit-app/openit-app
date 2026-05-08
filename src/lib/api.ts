@@ -329,7 +329,7 @@ export async function kbStateSave(
 // ---------------------------------------------------------------------------
 
 /// Generic entity_list_local wrapper. Pass the subdir relative to repo
-/// (e.g. "filestores/library", "filestores/docs-123", "knowledge-bases/default").
+/// (e.g. "filestores/library", "filestores/docs-123", "knowledge-bases").
 /// Returns local files in that directory only.
 export async function entityListLocal(
   repo: string,

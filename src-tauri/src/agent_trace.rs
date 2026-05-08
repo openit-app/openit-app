@@ -313,7 +313,7 @@ mod tests {
     fn verb_for_read_kb_article() {
         let v = verb_for_tool(
             "Read",
-            &json!({ "file_path": "knowledge-bases/default/how-to-reset-password.md" }),
+            &json!({ "file_path": "knowledge-bases/how-to-reset-password.md" }),
         );
         assert_eq!(
             v.as_deref(),
@@ -364,7 +364,7 @@ mod tests {
     #[test]
     fn short_basename_strips_dir_and_ext() {
         assert_eq!(
-            short_basename("knowledge-bases/default/foo-bar.md"),
+            short_basename("knowledge-bases/foo-bar.md"),
             "foo-bar"
         );
         assert_eq!(short_basename("plain-file"), "plain-file");

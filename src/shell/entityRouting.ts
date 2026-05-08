@@ -681,17 +681,11 @@ export async function resolvePathToSource(
   // own dedicated list view above; the rest share a single generic
   // entity-folder kind so the viewer can show a friendly empty-state
   // notice when nothing is inside yet.
-  // Map the click target to the entity-folder `entity` key. The
-  // 2026-04-27 splits:
-  //   filestores/   → `library/` (entity-folder surface)
-  //                  + `attachments/` (separate ticket-grouped view)
-  //   knowledge-bases/ → `default/` (built-in) + any `<custom>/`
-  //                     (user-created); both render via entity-folder
-  //                     with entity:"knowledge-base" + an explicit
-  //                     path so the title bar / re-resolver know
-  //                     which collection.
-  //   reports/      → on-demand generated markdown reports;
-  //                  newest sorts to top by filename.
+  // Map the click target to the entity-folder `entity` key.
+  //   filestores/       → `library/` (entity-folder surface)
+  //                      + `attachments/` (separate ticket-grouped view)
+  //   knowledge-bases/  → flat article list (entity:"knowledge")
+  //   reports/          → on-demand generated markdown reports
   // Match any direct child of filestores/ that isn't `attachments` (which
   // has its own per-ticket routing further down). `library`, `docs-<orgId>`,
   // and any user-created openit-* collection all render as a generic
