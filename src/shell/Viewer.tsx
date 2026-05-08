@@ -2796,8 +2796,9 @@ export function Viewer({
               collection={source.collection}
               items={source.items}
               onRowClick={(key) => {
-                const filePath = `${repo}/databases/${source.collection.name}/${key}.json`;
-                writeToActiveSession(filePath + " ");
+                if (onOpenPath) {
+                  void onOpenPath(`${repo}/databases/${source.collection.name}/${key}.json`);
+                }
               }}
               onRowDelete={
                 repo
@@ -2906,8 +2907,9 @@ export function Viewer({
               collection={source.collection}
               items={source.items}
               onRowClick={(key) => {
-                const filePath = `${repo}/databases/${source.collection.name}/${key}.json`;
-                writeToActiveSession(filePath + " ");
+                if (onOpenPath) {
+                  void onOpenPath(`${repo}/databases/${source.collection.name}/${key}.json`);
+                }
               }}
               onRowDelete={
                 repo
@@ -3015,8 +3017,9 @@ export function Viewer({
               collection={source.collection}
               items={source.items}
               onRowClick={(key) => {
-                const filePath = `${repo}/databases/${source.collection.name}/${key}.json`;
-                writeToActiveSession(filePath + " ");
+                if (onOpenPath) {
+                  void onOpenPath(`${repo}/databases/${source.collection.name}/${key}.json`);
+                }
               }}
               onRowDelete={
                 repo
@@ -3213,18 +3216,44 @@ export function Viewer({
     }
 
     if (source.kind === "traces-list") {
+      if (source.folders.length === 0) {
+        return (
+          <div className="viewer-summary">
+            <p className="summary-desc">No agent traces yet. Traces appear here when the AI agent handles tickets.</p>
+          </div>
+        );
+      }
       return (
         <div className="viewer-summary">
-          <EntityCardGrid
-            kind="traces"
-            empty={<p className="summary-desc">No agent traces yet. Traces appear here when the AI agent handles tickets.</p>}
-            cards={source.folders.map((f) => ({
-              key: f.path,
-              title: f.name,
-              meta: `${f.traceCount} trace${f.traceCount === 1 ? "" : "s"}`,
-              onClick: () => onOpenPath && void onOpenPath(f.path),
-            }))}
-          />
+          <div className="viewer-thread-list">
+            {source.folders.map((f) => (
+              <div key={f.path} className="thread-card-wrapper">
+                <button
+                  type="button"
+                  className="thread-card"
+                  onClick={() => onOpenPath && void onOpenPath(f.path)}
+                  title={`View ${f.traceCount} trace${f.traceCount === 1 ? "" : "s"}`}
+                >
+                  <div className="thread-card-row">
+                    <span className="thread-card-subject">{f.name}</span>
+                    <span className="thread-card-count">{f.traceCount} trace{f.traceCount === 1 ? "" : "s"}</span>
+                  </div>
+                </button>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="thread-card-ticket-link"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    if (onOpenPath) void onOpenPath(`${repo}/databases/tickets/${f.name}.json`);
+                  }}
+                  title="Open ticket"
+                >
+                  ticket →
+                </Button>
+              </div>
+            ))}
+          </div>
         </div>
       );
     }
