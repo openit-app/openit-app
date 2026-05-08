@@ -487,22 +487,15 @@ body::before {
    activity banner, fires when any ticket row has
    status: "escalated". Green palette to read as "ready for you to
    handle" rather than "something's wrong". */
-/* Escalated tickets — floating notification, not a full-width stripe.
-   Pinned top-right of the app shell so it reads as a macOS-style
-   notification the admin opts into, not a wall they have to walk
-   past. The notification surface itself is the v5 <Banner variant=
-   "warn">; this anchor only handles fixed positioning + width. */
+/* Escalated tickets — floating notification card.
+   Pinned top-right of the app shell, macOS-style.
+   The notification card inside handles its own styling. */
 .escalated-toast-anchor {
   position: fixed;
-  /* TitleRail (44px) + 12px gutter so the toast clears the rail
-     without sticking to it. Matches the layout-pane-gap rhythm. */
   top: 56px;
   right: 14px;
   z-index: 100;
-  width: min(380px, calc(100vw - 28px));
-  /* The Banner inside ships with its own slide-in animation; this
-     wrapper just hosts the position. Pointer-events left on so the
-     embedded buttons remain clickable. */
+  width: min(340px, calc(100vw - 28px));
 }
 
 /* Cards float with gaps; handle is a transparent gutter. A subtle
