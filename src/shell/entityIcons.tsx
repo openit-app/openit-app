@@ -109,11 +109,10 @@ const ToolsIcon: ReactNode = (
   </svg>
 );
 
-// Slash-prompt — commands the admin runs via Claude (PIN-5829).
+// Slash — commands the admin runs via /name in Claude.
 const CommandsIcon: ReactNode = (
-  <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-    <polyline points="7 8 11 12 7 16" />
-    <line x1="13" y1="16" x2="17" y2="16" />
+  <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden>
+    <line x1="15" y1="4" x2="9" y2="20" />
   </svg>
 );
 
