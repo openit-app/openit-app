@@ -72,6 +72,7 @@ export function sourceToTreePath(
     case "agent-trace-list":
     case "tools":
     case "skills-station":
+    case "commands-station":
     case "scripts-station":
     case "script-output":
     case "draft-file":

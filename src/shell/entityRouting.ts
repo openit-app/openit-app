@@ -41,7 +41,7 @@ export async function resolvePathToSource(
   // Skills station — intercept before the generic entity-folder routing
   // so `filestores/skills` renders the combined slash-commands + custom
   // skills view instead of the plain file list.
-  if (rel === "filestores/skills") return { kind: "skills-station" };
+  if (rel === "filestores/skills") return { kind: "commands-station" };
   if (rel === "filestores/scripts") return { kind: "scripts-station" };
 
   // .openit/agent-traces/<ticketId>/ (folder) → agent-trace-list:

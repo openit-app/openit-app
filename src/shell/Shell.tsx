@@ -106,6 +106,8 @@ function sourceKey(s: ViewerSource): string {
       return "tools";
     case "skills-station":
       return "skills-station";
+    case "commands-station":
+      return "commands-station";
     case "scripts-station":
       return "scripts-station";
     case "access-list":

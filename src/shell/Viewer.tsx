@@ -11,7 +11,7 @@ import { EntityCardGrid } from "./EntityCardGrid";
 import { FileThumbnail, isImageFile } from "./FileThumbnail";
 import { EntityBadge, type EntityKind } from "./entityIcons";
 import { ToolsPanel } from "./ToolsPanel";
-import { SkillsStation } from "./SkillsStation";
+import { CommandsStation, SkillsStation } from "./SkillsStation";
 import { ScriptsStation } from "./ScriptsStation";
 import { TrashIcon } from "./TrashIcon";
 import { useToast } from "../Toast";
@@ -1431,6 +1431,11 @@ export function Viewer({
       setContent("");
       return;
     }
+    if (source.kind === "commands-station") {
+      setMode("rendered");
+      setContent("");
+      return;
+    }
     if (source.kind === "scripts-station") {
       setMode("rendered");
       setContent("");
@@ -1570,6 +1575,7 @@ export function Viewer({
       case "assets-list":        return "Assets";
       case "tools": return "Tools";
       case "skills-station": return "Skills";
+      case "commands-station": return "Commands";
       case "scripts-station": return "Scripts";
       default: return "";
     }
@@ -3140,6 +3146,10 @@ export function Viewer({
       return <SkillsStation repo={repo} onOpen={(p) => onOpenPath && void onOpenPath(p)} />;
     }
 
+    if (source.kind === "commands-station") {
+      return <CommandsStation repo={repo} onOpen={(p) => onOpenPath && void onOpenPath(p)} />;
+    }
+
     if (source.kind === "scripts-station") {
       return <ScriptsStation repo={repo} onOpen={(p) => onOpenPath && void onOpenPath(p)} onShowSource={onShowSource} />;
     }
@@ -4053,6 +4063,9 @@ export function Viewer({
         break;
       case "skills-station":
         headerKind = "skills";
+        break;
+      case "commands-station":
+        headerKind = "commands";
         break;
       case "scripts-station":
         headerKind = "scripts";

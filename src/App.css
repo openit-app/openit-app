@@ -4162,14 +4162,16 @@ input.viewer-title.viewer-title-rename {
 .workbench-stations {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: 8px;
+  gap: 10px;
+  padding: 0 6px;
+  overflow: hidden;
 }
 
 .station {
   display: flex;
   align-items: center;
-  gap: 10px;
-  padding: 10px 12px;
+  gap: 8px;
+  padding: 10px 10px;
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: 10px;
@@ -4177,6 +4179,9 @@ input.viewer-title.viewer-title-rename {
   text-align: left;
   font-family: inherit;
   box-shadow: var(--shadow-sm);
+  min-width: 0;
+  box-sizing: border-box;
+  overflow: hidden;
   transition:
     background var(--t-fast) var(--ease),
     border-color var(--t-fast) var(--ease),
@@ -4216,6 +4221,7 @@ input.viewer-title.viewer-title-rename {
   flex-direction: column;
   flex: 1;
   min-width: 0;
+  overflow: hidden;
 }
 
 .station-label {
@@ -4223,6 +4229,9 @@ input.viewer-title.viewer-title-rename {
   font-weight: 500;
   color: var(--text);
   letter-spacing: -0.005em;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .station-count {
@@ -4230,6 +4239,89 @@ input.viewer-title.viewer-title-rename {
   font-size: 10px;
   color: var(--text-faint);
   font-variant-numeric: tabular-nums;
+}
+
+/* ── Tile picker (add extra stations) ─────────────────────────── */
+
+.workbench-picker {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.workbench-picker-toggle {
+  all: unset;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-family: var(--font-display);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  padding: 4px 4px;
+  transition: color var(--t-fast) var(--ease);
+}
+
+.workbench-picker-toggle:hover {
+  color: var(--text);
+}
+
+.workbench-picker-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px;
+  padding: 0 6px;
+}
+
+.station.station-picker {
+  padding: 6px 8px;
+  gap: 6px;
+  opacity: 0.65;
+  border-style: dashed;
+}
+
+.station.station-picker:hover {
+  opacity: 1;
+}
+
+.station.station-picker .station-glyph {
+  width: 20px;
+  height: 20px;
+  font-size: 11px;
+}
+
+.station.station-picker .station-label {
+  font-size: 10px;
+}
+
+.station-add-hint {
+  margin-left: auto;
+  font-size: 14px;
+  font-weight: 400;
+  color: var(--text-faint);
+  flex: 0 0 auto;
+}
+
+.station-unpin {
+  margin-left: auto;
+  font-size: 14px;
+  font-weight: 400;
+  color: var(--text-faint);
+  cursor: pointer;
+  flex: 0 0 auto;
+  opacity: 0;
+  transition: opacity var(--t-fast) var(--ease);
+}
+
+.station:hover .station-unpin {
+  opacity: 1;
+}
+
+.station-unpin:hover {
+  color: var(--text);
 }
 
 .workbench-files-toggle {

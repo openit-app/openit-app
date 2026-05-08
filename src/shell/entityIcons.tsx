@@ -26,6 +26,7 @@ export type EntityKind =
   | "workflows"
   | "tools"
   | "skills"
+  | "commands"
   | "scripts"
   | "access"
   | "assets";
@@ -110,6 +111,14 @@ const ToolsIcon: ReactNode = (
   </svg>
 );
 
+// Slash-prompt — commands the admin runs via Claude (PIN-5829).
+const CommandsIcon: ReactNode = (
+  <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+    <polyline points="7 8 11 12 7 16" />
+    <line x1="13" y1="16" x2="17" y2="16" />
+  </svg>
+);
+
 // Sparkle on a page — admin-side skill prompts (PIN-5829).
 const SkillsIcon: ReactNode = (
   <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
@@ -168,6 +177,7 @@ export const ENTITY_META: Record<EntityKind, EntityMetaEntry> = {
   workflows:         { icon: WorkflowsIcon,   tone: "sage",    label: "Workflows" },
   tools:             { icon: ToolsIcon,       tone: "accent",  label: "Tools" },
   skills:            { icon: SkillsIcon,      tone: "ochre",   label: "Skills" },
+  commands:          { icon: CommandsIcon,    tone: "accent",  label: "Commands" },
   scripts:           { icon: ScriptsIcon,     tone: "link",    label: "Scripts" },
   access:            { icon: AccessIcon,      tone: "sage",    label: "Access" },
   assets:            { icon: AssetsIcon,      tone: "clay",    label: "Assets" },

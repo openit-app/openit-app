@@ -269,5 +269,6 @@ export type ViewerSource =
   // the file explorer.
   | { kind: "tools" }
   | { kind: "skills-station" }
+  | { kind: "commands-station" }
   | { kind: "scripts-station" }
   | null;

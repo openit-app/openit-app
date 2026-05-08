@@ -16,23 +16,23 @@ type Station = {
   countMode: "dirs" | "json-rows" | "files";
 };
 
-// Each station's icon, tone, and label come from ENTITY_META — same
-// source the EntityCardGrid cards and Viewer headers consume, so
-// "Tickets" is "Tickets" everywhere with one icon and one color.
-const STATIONS: Station[] = [
-  { id: "inbox",     kind: "inbox",     rel: "databases/tickets", countMode: "json-rows" },
-  { id: "reports",   kind: "reports",   rel: "reports",           countMode: "files" },
-  { id: "people",    kind: "people",    rel: "databases/people",  countMode: "json-rows" },
+// Default stations always visible on the workstation.
+const DEFAULT_STATIONS: Station[] = [
   { id: "knowledge", kind: "knowledge", rel: "knowledge-bases",   countMode: "files" },
-  { id: "access",    kind: "access",    rel: "databases/access",   countMode: "json-rows" },
-  { id: "assets",    kind: "assets",    rel: "databases/assets",   countMode: "json-rows" },
-  { id: "agents",    kind: "agents",    rel: "agents",            countMode: "files" },
-  { id: "skills",    kind: "skills",    rel: "filestores/skills",  countMode: "files" },
-  { id: "scripts",   kind: "scripts",   rel: "filestores/scripts", countMode: "files" },
-  // Tools is synthetic — no on-disk directory at all (so it doesn't
-  // appear in the file explorer; only reachable via this station).
-  // Count comes from `which`-detected tools.
-  { id: "tools",     kind: "tools",     rel: "tools",             countMode: "files" },
+  { id: "commands",  kind: "commands",  rel: "filestores/skills",  countMode: "files" },
+];
+
+// Extra stations available via the tile picker.
+const EXTRA_STATIONS: Station[] = [
+  { id: "reports",    kind: "reports",    rel: "reports",            countMode: "files" },
+  { id: "people",     kind: "people",     rel: "databases/people",   countMode: "json-rows" },
+  { id: "access",     kind: "access",     rel: "databases/access",   countMode: "json-rows" },
+  { id: "assets",     kind: "assets",     rel: "databases/assets",   countMode: "json-rows" },
+  { id: "agents",     kind: "agents",     rel: "agents",             countMode: "files" },
+  { id: "scripts",    kind: "scripts",    rel: "filestores/scripts", countMode: "files" },
+  { id: "tools",      kind: "tools",      rel: "tools",              countMode: "files" },
+  { id: "databases",  kind: "databases",  rel: "databases",          countMode: "dirs" },
+  { id: "filestores", kind: "filestores", rel: "filestores",         countMode: "dirs" },
 ];
 
 /** fs_list walks recursively (depth 6), so a naive `.length` over its
@@ -55,17 +55,14 @@ function countWithMode(items: FileNode[], mode: Station["countMode"]): number {
     if (n.name.includes(".server.")) return false;
     if (mode === "dirs") return n.is_dir;
     if (mode === "json-rows") return !n.is_dir && n.name.endsWith(".json");
-    // "files": any non-dir direct child (reports = `.md`, library =
-    // mixed). Excludes the system files filtered above.
     return !n.is_dir;
   }).length;
 }
 
 /**
- * Workbench — the curated front door to the project. Sits above the
- * raw file tree in the left pane. Big "Today" card on top, grid of
- * stations below. Each station resolves to a real folder on disk so
- * clicks reuse the existing entity-folder routing.
+ * Workbench — the curated front door to the project. Big "Today"
+ * inbox card on top, Knowledge + Commands below, tile picker for
+ * extras at the bottom.
  */
 export function Workbench({
   repo,
@@ -76,14 +73,18 @@ export function Workbench({
   repo: string | null;
   fsTick: number;
   onOpen: (path: string) => void;
-  /** Switch the parent's left pane into the file-tree view. The
-   *  Explorer is no longer a top-tab, so this is the only path to
-   *  the raw file tree from Overview. Keep this. */
   onShowFiles: () => void;
 }) {
   const [counts, setCounts] = useState<Record<string, number>>({});
   const [escalatedTickets, setEscalatedTickets] = useState<TicketSummary[]>([]);
   const escalatedCount = escalatedTickets.length;
+  const [pinnedExtras, setPinnedExtras] = useState<string[]>([]);
+  const [pickerOpen, setPickerOpen] = useState(false);
+
+  const allStations = [
+    ...DEFAULT_STATIONS,
+    ...EXTRA_STATIONS.filter((s) => pinnedExtras.includes(s.id)),
+  ];
 
   useEffect(() => {
     if (!repo) {
@@ -93,13 +94,13 @@ export function Workbench({
     }
     let cancelled = false;
     (async () => {
+      // Count all stations (default + extras) so counts are ready if
+      // the user pins an extra.
+      const toCount = [...DEFAULT_STATIONS, ...EXTRA_STATIONS];
       const next: Record<string, number> = {};
       await Promise.all(
-        STATIONS.map(async (s) => {
-          // Tools is a synthetic station — counted from `which`
-          // detection per catalog entry, not from a real directory.
+        toCount.map(async (s) => {
           if (s.id === "tools") {
-            // CLI installed + MCP installed
             try {
               const cliCount = (await listInstalledTools()).size;
               let mcpCount = 0;
@@ -113,8 +114,7 @@ export function Workbench({
             }
             return;
           }
-          if (s.id === "skills") {
-            // Slash commands (.claude/skills/ dirs) + custom (filestores/skills/ files)
+          if (s.id === "commands") {
             let slashCount = 0;
             let customCount = 0;
             try {
@@ -130,22 +130,6 @@ export function Workbench({
             next[s.id] = slashCount + customCount;
             return;
           }
-          if (s.id === "scripts") {
-            let systemCount = 0;
-            let customCount = 0;
-            try {
-              const sysRoot = `${repo}/.claude/scripts`;
-              const sysItems = await fsList(sysRoot);
-              systemCount = directChildren(sysItems, sysRoot).filter((n) => !n.is_dir && (n.name.endsWith(".mjs") || n.name.endsWith(".js") || n.name.endsWith(".cjs"))).length;
-            } catch { /* .claude/scripts/ may not exist */ }
-            try {
-              const customRoot = `${repo}/filestores/scripts`;
-              const customItems = await fsList(customRoot);
-              customCount = directChildren(customItems, customRoot).filter((n) => !n.is_dir).length;
-            } catch { /* filestores/scripts/ may not exist */ }
-            next[s.id] = systemCount + customCount;
-            return;
-          }
           try {
             const rootAbs = `${repo}/${s.rel}`;
             const items = await fsList(rootAbs);
@@ -157,9 +141,6 @@ export function Workbench({
         }),
       );
       if (!cancelled) setCounts(next);
-      // The today-hero counts escalated tickets only — open tickets
-      // are still being worked by the agent, resolved/closed are
-      // done; only escalated demands the admin's attention.
       try {
         const esc = await scanEscalatedTickets(repo);
         if (!cancelled) setEscalatedTickets(esc);
@@ -172,12 +153,19 @@ export function Workbench({
     };
   }, [repo, fsTick]);
 
-  // Today card click → open the Tickets Inbox station so the admin
-  // can act on the escalated set immediately.
-  const inboxStation = STATIONS.find((s) => s.id === "inbox")!;
   const openInbox = () => {
-    if (repo) onOpen(`${repo}/${inboxStation.rel}`);
+    if (repo) onOpen(`${repo}/databases/tickets`);
   };
+
+  const toggleExtra = (id: string) => {
+    setPinnedExtras((prev) =>
+      prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id],
+    );
+  };
+
+  const unpinnedExtras = EXTRA_STATIONS.filter(
+    (s) => !pinnedExtras.includes(s.id),
+  );
 
   return (
     <div className="workbench">
@@ -217,8 +205,9 @@ export function Workbench({
       </div>
 
       <div className="workbench-stations">
-        {STATIONS.map((s) => {
+        {allStations.map((s) => {
           const meta = ENTITY_META[s.kind];
+          const isPinned = pinnedExtras.includes(s.id);
           return (
             <button
               key={s.id}
@@ -234,10 +223,68 @@ export function Workbench({
                 <span className="station-label">{meta.label}</span>
                 <span className="station-count">{counts[s.id] ?? "·"}</span>
               </span>
+              {isPinned && (
+                <span
+                  className="station-unpin"
+                  title="Remove from workstation"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    toggleExtra(s.id);
+                  }}
+                  role="button"
+                  tabIndex={0}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" || e.key === " ") {
+                      e.stopPropagation();
+                      toggleExtra(s.id);
+                    }
+                  }}
+                >
+                  ×
+                </span>
+              )}
             </button>
           );
         })}
       </div>
+
+      {/* Tile picker — add extra stations to the workstation */}
+      {unpinnedExtras.length > 0 && (
+        <div className="workbench-picker">
+          <button
+            type="button"
+            className="workbench-picker-toggle"
+            onClick={() => setPickerOpen((v) => !v)}
+          >
+            <span className="workbench-files-caret">{pickerOpen ? "▾" : "▸"}</span>
+            <span>Add to workstation</span>
+          </button>
+          {pickerOpen && (
+            <div className="workbench-picker-grid">
+              {unpinnedExtras.map((s) => {
+                const meta = ENTITY_META[s.kind];
+                return (
+                  <button
+                    key={s.id}
+                    type="button"
+                    className={`station station-picker entity-tone-${meta.tone}`}
+                    onClick={() => toggleExtra(s.id)}
+                    title={`Add ${meta.label} to workstation`}
+                  >
+                    <span className="station-glyph" aria-hidden>
+                      {meta.icon}
+                    </span>
+                    <span className="station-body">
+                      <span className="station-label">{meta.label}</span>
+                    </span>
+                    <span className="station-add-hint">+</span>
+                  </button>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      )}
 
       {/*
        * File-tree entry point — DO NOT REMOVE.
@@ -247,13 +294,6 @@ export function Workbench({
        * the Overview pane (Workbench + station cards) is the
        * canonical surface, and admins who need the file tree drop
        * into it via this "advanced" affordance.
-       *
-       * Past cleanup passes have removed this link assuming the
-       * Explorer top-tab is the canonical entry — it is not. If
-       * you're tempted to delete this, restore the Explorer
-       * top-tab in Shell.tsx FIRST. Without one of the two,
-       * `.openit/agent-traces/`, `.claude/`, and arbitrary
-       * project files become unreachable.
        */}
       <button
         type="button"
