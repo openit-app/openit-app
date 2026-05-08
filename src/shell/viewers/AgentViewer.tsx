@@ -439,6 +439,196 @@ export function AgentToolsSection(props: {
   );
 }
 
+// ── Agent Edit Form ─────────────────────────────────────────────────
+// Presentational component for the agent edit form. All state management
+// stays in the parent Viewer; this component just renders the form fields.
+
+export type AgentEditDraft = {
+  description: string;
+  common: string;
+  cloud: string;
+  local: string;
+  selectedModel: string;
+  isShared: boolean;
+  promptExamples: string;
+  introMessage: string;
+  knowledgeBases: { name: string; canRead: boolean; canWrite: boolean; canDelete: boolean }[];
+  datastores: { name: string; canRead: boolean; canWrite: boolean; canDelete: boolean }[];
+  filestores: { name: string; canRead: boolean; canWrite: boolean; canDelete: boolean }[];
+  servers: { name: string; allTools: boolean }[];
+};
+
+import { AGENT_MODEL_OPTIONS } from "./viewerHelpers";
+
+export function AgentEditForm({
+  draft,
+  onChange,
+  onSave,
+  onCancel,
+  editSaving,
+  editError,
+  agentEditKbs,
+  agentEditDss,
+  agentEditFss,
+}: {
+  draft: AgentEditDraft;
+  onChange: (d: AgentEditDraft) => void;
+  onSave: () => void;
+  onCancel: () => void;
+  editSaving: boolean;
+  editError: string | null;
+  agentEditKbs: string[] | null;
+  agentEditDss: string[] | null;
+  agentEditFss: string[] | null;
+}): ReactNode {
+  return (
+    <div className="row-edit agent-edit-form">
+      <div className="row-edit-form">
+        <label className="row-edit-field">
+          <span className="row-edit-label">Description</span>
+          <input
+            type="text"
+            className="row-edit-input"
+            value={draft.description}
+            onChange={(e) => onChange({ ...draft, description: e.target.value })}
+          />
+        </label>
+        <label className="row-edit-field">
+          <span className="row-edit-label">Common instructions (universal)</span>
+          <textarea
+            className="row-edit-textarea"
+            rows={10}
+            value={draft.common}
+            onChange={(e) => onChange({ ...draft, common: e.target.value })}
+          />
+        </label>
+        <label className="row-edit-field">
+          <span className="row-edit-label">Cloud instructions</span>
+          <textarea
+            className="row-edit-textarea"
+            rows={6}
+            value={draft.cloud}
+            onChange={(e) => onChange({ ...draft, cloud: e.target.value })}
+          />
+        </label>
+        <label className="row-edit-field">
+          <span className="row-edit-label">Local instructions (OpenIT runtime)</span>
+          <textarea
+            className="row-edit-textarea"
+            rows={6}
+            value={draft.local}
+            onChange={(e) => onChange({ ...draft, local: e.target.value })}
+          />
+        </label>
+        <label className="row-edit-field">
+          <span className="row-edit-label">Model</span>
+          <select
+            className="row-edit-input"
+            value={draft.selectedModel}
+            onChange={(e) => onChange({ ...draft, selectedModel: e.target.value })}
+          >
+            {AGENT_MODEL_OPTIONS.map((opt) => (
+              <option key={opt.value} value={opt.value}>
+                {opt.label}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label className="row-edit-field row-edit-field-inline">
+          <input
+            type="checkbox"
+            checked={draft.isShared}
+            onChange={(e) => onChange({ ...draft, isShared: e.target.checked })}
+          />
+          <span className="row-edit-label">Shared with org</span>
+        </label>
+        <label className="row-edit-field">
+          <span className="row-edit-label">Prompt bubbles (one per line)</span>
+          <textarea
+            className="row-edit-textarea"
+            rows={4}
+            value={draft.promptExamples}
+            onChange={(e) => onChange({ ...draft, promptExamples: e.target.value })}
+          />
+        </label>
+        <label className="row-edit-field">
+          <span className="row-edit-label">Intro message</span>
+          <textarea
+            className="row-edit-textarea"
+            rows={3}
+            value={draft.introMessage}
+            onChange={(e) => onChange({ ...draft, introMessage: e.target.value })}
+          />
+        </label>
+        <AgentResourceSection
+          title="Knowledge"
+          emptyHint="No knowledge bases connected — connect cloud first."
+          available={agentEditKbs}
+          rows={draft.knowledgeBases}
+          onChange={(rows) => onChange({ ...draft, knowledgeBases: rows })}
+        />
+        <AgentResourceSection
+          title="Datastores"
+          emptyHint="No datastores connected — connect cloud first."
+          available={agentEditDss}
+          rows={draft.datastores}
+          onChange={(rows) => onChange({ ...draft, datastores: rows })}
+        />
+        <AgentResourceSection
+          title="Filestores"
+          emptyHint="No filestores connected — connect cloud first."
+          available={agentEditFss}
+          rows={draft.filestores}
+          onChange={(rows) => onChange({ ...draft, filestores: rows })}
+        />
+        <AgentToolsSection
+          rows={draft.servers}
+          onChange={(rows) => onChange({ ...draft, servers: rows })}
+        />
+      </div>
+      <div className="row-edit-footer">
+        {editError && <span className="row-edit-error">{editError}</span>}
+        <Button
+          variant="secondary"
+          size="sm"
+          onClick={onCancel}
+          disabled={editSaving}
+        >
+          Cancel
+        </Button>
+        <Button
+          variant="primary"
+          size="sm"
+          onClick={onSave}
+          disabled={editSaving}
+          loading={editSaving}
+        >
+          {editSaving ? "Saving…" : "Save"}
+        </Button>
+      </div>
+    </div>
+  );
+}
+
+// ── Agent Raw View ──────────────────────────────────────────────────
+// Read-only JSON dump of the structured agent fields (sans instructions
+// which live in the .md siblings).
+
+export function AgentRawView({ agent }: { agent: Agent }): ReactNode {
+  const out: Record<string, unknown> = {
+    id: agent.id ?? "",
+    name: agent.name ?? "",
+    description: agent.description ?? "",
+  };
+  if (agent.selectedModel !== undefined) out.selectedModel = agent.selectedModel;
+  if (agent.isShared !== undefined) out.isShared = agent.isShared;
+  if (agent.promptExamples !== undefined) out.promptExamples = agent.promptExamples;
+  if (agent.introMessage !== undefined) out.introMessage = agent.introMessage;
+  if (agent.resources !== undefined) out.resources = agent.resources;
+  if (agent.tools !== undefined) out.tools = agent.tools;
+  return <pre className="viewer-content">{JSON.stringify(out, null, 2)}</pre>;
+}
+
 export function AgentRenderedView(props: { agent: Agent; repo: string | null }): ReactNode {
   const { agent: a, repo } = props;
   const [common, setCommon] = useState<string>("");

@@ -12,13 +12,15 @@ export {
   AgentResourceSection,
   AgentToolsSection,
   AgentRenderedView,
+  AgentEditForm,
+  AgentRawView,
   loadAgentEditState,
   saveAgentEditDraft,
   normalizeResourceRow,
   mergeResourceRows,
   mergeServerRows,
 } from "./AgentViewer";
-export type { AgentResourceFormRow } from "./AgentViewer";
+export type { AgentResourceFormRow, AgentEditDraft } from "./AgentViewer";
 
 // Shared helpers, constants, and utility functions
 export {

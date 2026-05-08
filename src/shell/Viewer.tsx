@@ -17,14 +17,13 @@ import {
   PdfViewer,
   SpreadsheetViewer,
   OfficeViewer,
-  AgentResourceSection,
-  AgentToolsSection,
   AgentRenderedView,
+  AgentEditForm,
+  AgentRawView,
   loadAgentEditState,
   saveAgentEditDraft,
   BRACKETED_PASTE_OPEN,
   BRACKETED_PASTE_CLOSE,
-  AGENT_MODEL_OPTIONS,
   ENTITY_FOLDER_LABELS,
   NEW_FILE_TEMPLATES,
   ExternalAnchor,
@@ -1339,27 +1338,12 @@ export function Viewer({
     }
 
 
-    // Legacy JSON agent summary (V1/V2) — structured fields + edit form.
+    // Agent viewer — raw JSON / edit form / rendered read-only view.
     if (source.kind === "agent") {
       const a: Agent = agentOverride ?? source.agent;
 
       if (mode === "raw") {
-        // V2: the on-disk JSON no longer carries `instructions` (the
-        // three .md siblings own those). Show the structured fields
-        // verbatim — same shape canonicalizeForDisk produces, so Raw
-        // matches what `cat agents/triage/triage.json` would show.
-        const out: Record<string, unknown> = {
-          id: a.id ?? "",
-          name: a.name ?? "",
-          description: a.description ?? "",
-        };
-        if (a.selectedModel !== undefined) out.selectedModel = a.selectedModel;
-        if (a.isShared !== undefined) out.isShared = a.isShared;
-        if (a.promptExamples !== undefined) out.promptExamples = a.promptExamples;
-        if (a.introMessage !== undefined) out.introMessage = a.introMessage;
-        if (a.resources !== undefined) out.resources = a.resources;
-        if (a.tools !== undefined) out.tools = a.tools;
-        return <pre className="viewer-content">{JSON.stringify(out, null, 2)}</pre>;
+        return <AgentRawView agent={a} />;
       }
 
       if (mode === "edit") {
@@ -1402,170 +1386,17 @@ export function Viewer({
           setMode("rendered");
         };
         return (
-          <div className="row-edit agent-edit-form">
-            <div className="row-edit-form">
-              <label className="row-edit-field">
-                <span className="row-edit-label">Description</span>
-                <input
-                  type="text"
-                  className="row-edit-input"
-                  value={agentEditDraft.description}
-                  onChange={(e) =>
-                    setAgentEditDraft({
-                      ...agentEditDraft,
-                      description: e.target.value,
-                    })
-                  }
-                />
-              </label>
-              <label className="row-edit-field">
-                <span className="row-edit-label">Common instructions (universal)</span>
-                <textarea
-                  className="row-edit-textarea"
-                  rows={10}
-                  value={agentEditDraft.common}
-                  onChange={(e) =>
-                    setAgentEditDraft({ ...agentEditDraft, common: e.target.value })
-                  }
-                />
-              </label>
-              <label className="row-edit-field">
-                <span className="row-edit-label">Cloud instructions</span>
-                <textarea
-                  className="row-edit-textarea"
-                  rows={6}
-                  value={agentEditDraft.cloud}
-                  onChange={(e) =>
-                    setAgentEditDraft({ ...agentEditDraft, cloud: e.target.value })
-                  }
-                />
-              </label>
-              <label className="row-edit-field">
-                <span className="row-edit-label">Local instructions (OpenIT runtime)</span>
-                <textarea
-                  className="row-edit-textarea"
-                  rows={6}
-                  value={agentEditDraft.local}
-                  onChange={(e) =>
-                    setAgentEditDraft({ ...agentEditDraft, local: e.target.value })
-                  }
-                />
-              </label>
-              <label className="row-edit-field">
-                <span className="row-edit-label">Model</span>
-                <select
-                  className="row-edit-input"
-                  value={agentEditDraft.selectedModel}
-                  onChange={(e) =>
-                    setAgentEditDraft({
-                      ...agentEditDraft,
-                      selectedModel: e.target.value,
-                    })
-                  }
-                >
-                  {AGENT_MODEL_OPTIONS.map((opt) => (
-                    <option key={opt.value} value={opt.value}>
-                      {opt.label}
-                    </option>
-                  ))}
-                </select>
-              </label>
-              <label className="row-edit-field row-edit-field-inline">
-                <input
-                  type="checkbox"
-                  checked={agentEditDraft.isShared}
-                  onChange={(e) =>
-                    setAgentEditDraft({
-                      ...agentEditDraft,
-                      isShared: e.target.checked,
-                    })
-                  }
-                />
-                <span className="row-edit-label">Shared with org</span>
-              </label>
-              <label className="row-edit-field">
-                <span className="row-edit-label">Prompt bubbles (one per line)</span>
-                <textarea
-                  className="row-edit-textarea"
-                  rows={4}
-                  value={agentEditDraft.promptExamples}
-                  onChange={(e) =>
-                    setAgentEditDraft({
-                      ...agentEditDraft,
-                      promptExamples: e.target.value,
-                    })
-                  }
-                />
-              </label>
-              <label className="row-edit-field">
-                <span className="row-edit-label">Intro message</span>
-                <textarea
-                  className="row-edit-textarea"
-                  rows={3}
-                  value={agentEditDraft.introMessage}
-                  onChange={(e) =>
-                    setAgentEditDraft({
-                      ...agentEditDraft,
-                      introMessage: e.target.value,
-                    })
-                  }
-                />
-              </label>
-              <AgentResourceSection
-                title="Knowledge"
-                emptyHint="No knowledge bases connected — connect cloud first."
-                available={agentEditKbs}
-                rows={agentEditDraft.knowledgeBases}
-                onChange={(rows) =>
-                  setAgentEditDraft({ ...agentEditDraft, knowledgeBases: rows })
-                }
-              />
-              <AgentResourceSection
-                title="Datastores"
-                emptyHint="No datastores connected — connect cloud first."
-                available={agentEditDss}
-                rows={agentEditDraft.datastores}
-                onChange={(rows) =>
-                  setAgentEditDraft({ ...agentEditDraft, datastores: rows })
-                }
-              />
-              <AgentResourceSection
-                title="Filestores"
-                emptyHint="No filestores connected — connect cloud first."
-                available={agentEditFss}
-                rows={agentEditDraft.filestores}
-                onChange={(rows) =>
-                  setAgentEditDraft({ ...agentEditDraft, filestores: rows })
-                }
-              />
-              <AgentToolsSection
-                rows={agentEditDraft.servers}
-                onChange={(rows) =>
-                  setAgentEditDraft({ ...agentEditDraft, servers: rows })
-                }
-              />
-            </div>
-            <div className="row-edit-footer">
-              {editError && <span className="row-edit-error">{editError}</span>}
-              <Button
-                variant="secondary"
-                size="sm"
-                onClick={onCancel}
-                disabled={editSaving}
-              >
-                Cancel
-              </Button>
-              <Button
-                variant="primary"
-                size="sm"
-                onClick={onSave}
-                disabled={editSaving}
-                loading={editSaving}
-              >
-                {editSaving ? "Saving…" : "Save"}
-              </Button>
-            </div>
-          </div>
+          <AgentEditForm
+            draft={agentEditDraft}
+            onChange={setAgentEditDraft}
+            onSave={onSave}
+            onCancel={onCancel}
+            editSaving={editSaving}
+            editError={editError}
+            agentEditKbs={agentEditKbs}
+            agentEditDss={agentEditDss}
+            agentEditFss={agentEditFss}
+          />
         );
       }
 
