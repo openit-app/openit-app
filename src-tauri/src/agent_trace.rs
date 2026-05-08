@@ -363,10 +363,7 @@ mod tests {
 
     #[test]
     fn short_basename_strips_dir_and_ext() {
-        assert_eq!(
-            short_basename("knowledge-bases/foo-bar.md"),
-            "foo-bar"
-        );
+        assert_eq!(short_basename("knowledge-bases/foo-bar.md"), "foo-bar");
         assert_eq!(short_basename("plain-file"), "plain-file");
         assert_eq!(
             short_basename("/abs/path/with.many.dots.json"),
