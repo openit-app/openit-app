@@ -1621,11 +1621,9 @@ export function Viewer({
     if (source.kind === "datastore-schema")
       return `${repo}/databases/${source.collection.name}/_schema.json`;
     if (source.kind === "entity-folder") {
-      // Reports and agents don't need "add to chat" on the list view.
-      // Reports has its own header actions; agents' "add to chat"
-      // belongs on the individual agent file view, not the list.
-      if (source.entity === "reports" || source.entity === "agents") return null;
-      return `${repo}/${source.path}`;
+      // List views don't need "add to chat" — it's clutter. The
+      // individual file view has it when you open a specific item.
+      return null;
     }
     if (source.kind === "people-list") return `${repo}/databases/people`;
     // Access and assets list views: cards are clickable to edit
