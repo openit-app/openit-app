@@ -113,17 +113,7 @@ export const MCP_CATALOG: McpEntry[] = [
     docsUrl: "https://supabase.com/docs",
     iconHint: "supabase",
   },
-  {
-    id: "cloudflare",
-    name: "Cloudflare",
-    description: "Workers, KV, R2, D1, and DNS management.",
-    transport: "http",
-    endpoint: "https://bindings.mcp.cloudflare.com/mcp",
-    envVars: [],
-    authHint: "Authenticates via Cloudflare OAuth in the browser.",
-    docsUrl: "https://developers.cloudflare.com/",
-    iconHint: "cloudflare",
-  },
+  // Cloudflare: CLI preferred (in toolsCatalog.ts)
   {
     id: "huggingface",
     name: "Hugging Face",
