@@ -716,10 +716,16 @@ async function deleteFileInSubdir(
   setError: (msg: string | null) => void,
   onToast?: (msg: string) => void,
 ): Promise<void> {
-  const ok = await ask(
-    `Delete "${filename}"?\n\nThis cannot be undone.`,
-    { title: "Delete file?", kind: "warning" },
-  );
+  let ok = false;
+  try {
+    ok = await ask(
+      `Delete "${filename}"?\n\nThis cannot be undone.`,
+      { title: "Delete file?", kind: "warning" },
+    );
+  } catch (err) {
+    console.warn("[delete] dialog failed, falling back to confirm:", err);
+    ok = window.confirm(`Delete "${filename}"?\n\nThis cannot be undone.`);
+  }
   if (!ok) return;
   setError(null);
   try {
