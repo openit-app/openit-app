@@ -44,6 +44,34 @@ export async function resolvePathToSource(
   if (rel === "filestores/skills") return { kind: "commands-station" };
   if (rel === "filestores/scripts") return { kind: "scripts-station" };
 
+  // .openit/agent-traces/ parent → list all ticket trace folders
+  if (rel === ".openit/agent-traces") {
+    const folders: { name: string; path: string; traceCount: number }[] = [];
+    try {
+      const nodes = await fsList(path);
+      const prefix = `${path}/`;
+      for (const n of nodes) {
+        if (!n.is_dir) continue;
+        const tail = n.path.startsWith(prefix) ? n.path.slice(prefix.length) : "";
+        if (!tail || tail.includes("/")) continue;
+        let traceCount = 0;
+        try {
+          const inner = await fsList(n.path);
+          const innerPrefix = `${n.path}/`;
+          for (const f of inner) {
+            if (f.is_dir) continue;
+            const innerTail = f.path.startsWith(innerPrefix) ? f.path.slice(innerPrefix.length) : "";
+            if (!innerTail || innerTail.includes("/")) continue;
+            if (f.name.endsWith(".json")) traceCount += 1;
+          }
+        } catch { /* */ }
+        folders.push({ name: n.name, path: n.path, traceCount });
+      }
+    } catch { /* dir doesn't exist yet */ }
+    folders.sort((a, b) => b.name.localeCompare(a.name)); // newest first
+    return { kind: "traces-list" as const, folders };
+  }
+
   // .openit/agent-traces/<ticketId>/ (folder) → agent-trace-list:
   // every per-turn trace for this ticket, oldest-first, stacked
   // with separators in the viewer.

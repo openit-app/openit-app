@@ -74,6 +74,7 @@ export function sourceToTreePath(
     case "skills-station":
     case "commands-station":
     case "scripts-station":
+    case "traces-list":
     case "script-output":
     case "draft-file":
       return null;

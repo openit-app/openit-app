@@ -1452,6 +1452,11 @@ export function Viewer({
       setContent("");
       return;
     }
+    if (source.kind === "traces-list") {
+      setMode("rendered");
+      setContent("");
+      return;
+    }
   }, [source]);
 
   // Re-read the single-row file from disk when fsTick fires. Lets edits
@@ -1580,6 +1585,7 @@ export function Viewer({
       case "skills-station": return "Skills";
       case "commands-station": return "Commands";
       case "scripts-station": return "Scripts";
+      case "traces-list": return "Traces";
       default: return "";
     }
   };
@@ -3206,6 +3212,23 @@ export function Viewer({
       return <CommandsStation repo={repo} fsTick={fsTick} onOpen={(p) => onOpenPath && void onOpenPath(p)} />;
     }
 
+    if (source.kind === "traces-list") {
+      return (
+        <div className="viewer-summary">
+          <EntityCardGrid
+            kind="traces"
+            empty={<p className="summary-desc">No agent traces yet. Traces appear here when the AI agent handles tickets.</p>}
+            cards={source.folders.map((f) => ({
+              key: f.path,
+              title: f.name,
+              meta: `${f.traceCount} trace${f.traceCount === 1 ? "" : "s"}`,
+              onClick: () => onOpenPath && void onOpenPath(f.path),
+            }))}
+          />
+        </div>
+      );
+    }
+
     if (source.kind === "scripts-station") {
       return <ScriptsStation repo={repo} fsTick={fsTick} onOpen={(p) => onOpenPath && void onOpenPath(p)} onShowSource={onShowSource} />;
     }
@@ -4142,6 +4165,9 @@ export function Viewer({
         break;
       case "commands-station":
         headerKind = "commands";
+        break;
+      case "traces-list":
+        headerKind = "traces";
         break;
       case "scripts-station":
         headerKind = "scripts";
