@@ -41,6 +41,7 @@ export function CommandPalette({
   const [query, setQuery] = useState("");
   const [active, setActive] = useState(0);
   const inputRef = useRef<HTMLInputElement>(null);
+  const listRef = useRef<HTMLDivElement>(null);
 
   const actions: Action[] = useMemo(() => {
     const r = repo ?? "";
@@ -170,6 +171,13 @@ export function CommandPalette({
     setActive(0);
   }, [query]);
 
+  useEffect(() => {
+    const list = listRef.current;
+    if (!list) return;
+    const item = list.querySelector(".cmdk-item.active") as HTMLElement | null;
+    if (item) item.scrollIntoView({ block: "nearest" });
+  }, [active]);
+
   if (!open) return null;
 
   const runActive = async () => {
@@ -222,7 +230,7 @@ export function CommandPalette({
           />
           <span className="cmdk-esc" onClick={onClose}>esc</span>
         </div>
-        <div className="cmdk-list">
+        <div className="cmdk-list" ref={listRef}>
           {filtered.length === 0 ? (
             <div className="cmdk-empty">
               No matches.
