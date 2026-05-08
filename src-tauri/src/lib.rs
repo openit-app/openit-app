@@ -1,25 +1,36 @@
-mod agent_trace;
-mod claude;
-mod filestore;
-mod fs_tree;
-mod intake;
-mod kb;
-mod keychain;
-mod mcp;
-mod openit_config;
-mod project;
-mod pty;
-mod reports;
-mod scripts;
-mod skill_canvas;
-mod skills;
-mod slack;
+// ── Core infrastructure ──
 mod state;
+mod pty;
+mod keychain;
+mod fs_tree;
+mod filestore;
+
+// ── Chat & intake ──
+mod intake;
+
+// ── Data & project ──
+mod kb;
+mod workspaces;
+mod project;
+
+// ── Integrations ──
+mod slack;
+mod mcp;
 mod tools;
 mod tunnel;
+
+// ── Claude & agents ──
+mod claude;
+mod agent_trace;
+mod skill_canvas;
+mod skills;
+
+// ── Utilities ──
+mod openit_config;
 mod user_identity;
 mod watcher;
-mod workspaces;
+mod reports;
+mod scripts;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
