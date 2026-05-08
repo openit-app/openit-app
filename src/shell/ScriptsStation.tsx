@@ -16,10 +16,12 @@ type ScriptEntry = {
  */
 export function ScriptsStation({
   repo,
+  fsTick,
   onOpen,
   onShowSource,
 }: {
   repo: string;
+  fsTick?: number;
   onOpen: (path: string) => void;
   onShowSource?: (source: { kind: "script-output"; script: string; stdout: string; stderr: string; exitCode: number; durationMs: number }) => void;
 }) {
@@ -77,7 +79,7 @@ export function ScriptsStation({
       if (!cancelled) setScripts(deduped);
     })();
     return () => { cancelled = true; };
-  }, [repo]);
+  }, [repo, fsTick]);
 
   const runScript = async (script: ScriptEntry) => {
     try {

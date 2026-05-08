@@ -3203,11 +3203,11 @@ export function Viewer({
     }
 
     if (source.kind === "commands-station") {
-      return <CommandsStation repo={repo} onOpen={(p) => onOpenPath && void onOpenPath(p)} />;
+      return <CommandsStation repo={repo} fsTick={fsTick} onOpen={(p) => onOpenPath && void onOpenPath(p)} />;
     }
 
     if (source.kind === "scripts-station") {
-      return <ScriptsStation repo={repo} onOpen={(p) => onOpenPath && void onOpenPath(p)} onShowSource={onShowSource} />;
+      return <ScriptsStation repo={repo} fsTick={fsTick} onOpen={(p) => onOpenPath && void onOpenPath(p)} onShowSource={onShowSource} />;
     }
 
     // `filestores/attachments/` welcome stub + per-ticket roll-up.

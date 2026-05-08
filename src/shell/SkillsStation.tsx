@@ -35,9 +35,11 @@ const FEATURED_COMMANDS: string[] = [
  */
 export function CommandsStation({
   repo,
+  fsTick,
   onOpen,
 }: {
   repo: string;
+  fsTick?: number;
   onOpen: (path: string) => void;
 }) {
   const [commands, setCommands] = useState<CommandEntry[]>([]);
@@ -130,7 +132,7 @@ export function CommandsStation({
       if (!cancelled) setCommands(deduped);
     })();
     return () => { cancelled = true; };
-  }, [repo]);
+  }, [repo, fsTick]);
 
   // Show featured commands by default; hide the rest behind "Show more".
   const featuredCount = commands.filter((c) => c.featured).length;
