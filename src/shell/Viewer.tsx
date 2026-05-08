@@ -1,24 +1,17 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import ReactMarkdown, { defaultUrlTransform } from "react-markdown";
 import remarkGfm from "remark-gfm";
-import { openUrl } from "@tauri-apps/plugin-opener";
 import { ask } from "@tauri-apps/plugin-dialog";
 import { fsRead, fsReadBytes, fsList, fsReveal, reportOverviewRun, entityDeleteFile, entityClearDir } from "../lib/api";
-import { loadOpenitConfig } from "../lib/openitConfig";
 import type { MemoryItem, Agent } from "../lib/localTypes";
-import { DataTable } from "./DataTable";
 import { EntityCardGrid } from "./EntityCardGrid";
-import { FileThumbnail, isImageFile } from "./FileThumbnail";
 import { EntityBadge, type EntityKind } from "./entityIcons";
 import { ToolsPanel } from "./ToolsPanel";
 import { CommandsStation, SkillsStation } from "./SkillsStation";
 import { ScriptsStation } from "./ScriptsStation";
-import { TrashIcon } from "./TrashIcon";
 import { useToast } from "../Toast";
 import { Button, TabStrip, Tab } from "../ui";
-import { FileTypeBadge, formatBytes } from "./FileTypeBadge";
 import { RowEditForm } from "./RowEditForm";
-import { AttachmentList } from "./AttachmentList";
 import {
   ImageViewer,
   PdfViewer,
@@ -33,7 +26,6 @@ import {
   BRACKETED_PASTE_CLOSE,
   AGENT_MODEL_OPTIONS,
   ENTITY_FOLDER_LABELS,
-  ENTITY_FOLDER_EMPTY_COPY,
   NEW_FILE_TEMPLATES,
   ExternalAnchor,
   isMarkdown,
@@ -47,7 +39,17 @@ import {
   mimeForPath,
   toRepoRelative,
   uploadFilesToSubdir,
-  deleteFileInSubdir,
+  ConversationsListBody,
+  ConversationThreadBody,
+  DatastoreTableBody,
+  DatastoreRowBody,
+  DatastoreSchemaBody,
+  PeopleListBody,
+  AccessListBody,
+  AssetsListBody,
+  AgentTraceBody,
+  AgentTraceListBody,
+  EntityFolderBody,
 } from "./viewers";
 import type { ViewMode } from "./viewers";
 import { DiffViewer } from "./DiffViewer";
@@ -231,39 +233,13 @@ export function Viewer({
   const [agentEditFss, setAgentEditFss] = useState<string[] | null>(null);
   const [agentOverride, setAgentOverride] = useState<Agent | null>(null);
 
-  // Reply composer state for the conversation-thread view. The admin
-  // can answer the asker directly from the thread bubble pane —
-  // bypasses Claude entirely for the "I can answer this myself"
-  // case. The write lands as `role: "admin"` and the auto-commit
-  // driver bookkeeps it.
-  const [replyText, setReplyText] = useState("");
-  const [replySending, setReplySending] = useState(false);
-  const [replyError, setReplyError] = useState<string | null>(null);
+  // Admin email for the conversation thread sub-viewer.
   const [adminEmail, setAdminEmail] = useState<string | null>(null);
-  // Pending attachments staged in the admin composer. `path` is the
-  // repo-relative location after the file lands on disk; we write
-  // straight to `filestores/attachments/<ticketId>/<filename>` and
-  // include the path on the next reply turn.
-  const [replyAttachments, setReplyAttachments] = useState<
-    { path: string; filename: string }[]
-  >([]);
-  const [replyDragOver, setReplyDragOver] = useState(false);
-  // Drag-from-desktop into an open entity-folder (library /
-  // knowledge-base). Mirrors the reply-composer affordance — drop
-  // files anywhere in the card grid and they land in the folder's
-  // subdir on disk; the fs watcher re-resolves the folder so they
-  // show up as new cards without a manual refresh.
-  const [folderDragOver, setFolderDragOver] = useState(false);
   const [folderUploadError, setFolderUploadError] = useState<string | null>(null);
   // v5: the in-viewer ToastView was removed. The global ToastProvider
   // (mounted in main.tsx via src/Toast.tsx) renders all toasts at the
   // window's bottom-right via the unified <Toast> primitive.
   const { show: showToast } = useToast();
-  // Reverse the entity-folder card order. Default is the routing
-  // layer's natural order (alphabetical for files, newest-first for
-  // reports). Per-folder via source.path so flipping one folder's
-  // sort doesn't bleed into another.
-  const [sortReversed, setSortReversed] = useState<Record<string, boolean>>({});
   // "Generate overview" button state on the reports/ entity-folder
   // view. Run kicks off the local script via the Tauri command and,
   // on success, jumps the viewer to the freshly-written file. fsTick
@@ -304,12 +280,6 @@ export function Viewer({
     }
   }, [source, content]);
   useEffect(() => {
-    setReplyText("");
-    setReplySending(false);
-    setReplyError(null);
-    setReplyAttachments([]);
-    setReplyDragOver(false);
-    setFolderDragOver(false);
     setFolderUploadError(null);
     // Reset the Generate-overview button alongside the other view-
     // specific state so a stale failure message doesn't follow the
@@ -1317,195 +1287,55 @@ export function Viewer({
       );
     }
 
-    // Datastore schema (the `_schema.json` for a collection). Rendered
-    // as raw JSON for read; the textarea editor lets admins tweak field
-    // labels / types / comments inline. Save writes back to
-    // `databases/<col>/_schema.json` and JSON-validates first so a typo
-    // can't drop the whole schema. After save, the on-disk file watcher
-    // (fsTick) pulls the new schema into the row + table viewers.
+    // Datastore schema viewer.
     if (source.kind === "datastore-schema") {
-      if (mode === "edit") {
-        return renderEditTextarea({
-          filePath: `${repo}/databases/${source.collection.name}/_schema.json`,
-          afterMode: "raw",
-          validateAsJson: true,
-        });
-      }
-      return <pre className="viewer-content">{content}</pre>;
-    }
-
-    // Datastore table view
-    if (source.kind === "datastore-table") {
-      if (tableLoading && tableItems.length === 0) {
-        return <div className="viewer-content" style={{ opacity: 0.5 }}>Loading table data...</div>;
-      }
-      // Friendly empty-state — mirrors the conversations-list notice so
-      // an empty `databases/<col>/` folder reads as "ready to receive
-      // rows" rather than a broken table. Tickets and people are the
-      // built-in collections; user-created collections share the same
-      // generic copy.
-      if (tableItems.length === 0) {
-        const colName = source.collection.name;
-        const message =
-          colName === "tickets"
-            ? "No tickets yet. Tickets land here when someone files one via the Intake form (top-right header) — share that URL on your machine and the new rows show up immediately."
-            : colName === "people"
-              ? "No people records yet. People rows are referenced by tickets (asker, assignee) and access audits. Ask Claude — \"add Alice from Engineering\" — or sync a directory once you connect to cloud."
-              : `No rows in "${colName}" yet. Add one by editing the JSON files on disk under databases/${colName}/, or ask Claude to populate this collection.`;
-        return (
-          <div className="viewer-summary">
-            <p className="summary-desc">{message}</p>
-          </div>
-        );
-      }
       return (
-        <DataTable
+        <DatastoreSchemaBody
           collection={source.collection}
-          items={tableItems}
-          hasMore={tableHasMore}
-          onLoadMore={undefined}
-          onRowClick={(key) => {
-            // Open the row file for editing
-            const filePath = `${repo}/databases/${source.collection.name}/${key}.json`;
-            if (onOpenPath) void onOpenPath(filePath);
-          }}
-          onRowDelete={
-            repo
-              ? (key) =>
-                  deleteFileInSubdir(
-                    repo,
-                    `databases/${source.collection.name}`,
-                    `${key}.json`,
-                    setFolderUploadError,
-                    showToast,
-                  )
-              : undefined
-          }
+          mode={mode}
+          content={content}
+          renderEditTextarea={renderEditTextarea}
+          repo={repo}
         />
       );
     }
 
-    // Datastore row view
+    // Datastore table view.
+    if (source.kind === "datastore-table") {
+      return (
+        <DatastoreTableBody
+          collection={source.collection}
+          tableItems={tableItems}
+          tableLoading={tableLoading}
+          tableHasMore={tableHasMore}
+          repo={repo}
+          onOpenPath={onOpenPath}
+          setFolderUploadError={setFolderUploadError}
+          showToast={showToast}
+        />
+      );
+    }
+
+    // Datastore row view.
     if (source.kind === "datastore-row") {
-      const liveItem = rowOverride ?? source.item;
-      if (mode === "table") {
-        // Vertical label/value summary instead of a single-row table.
-        // A single row in a wide-column table forces horizontal scroll
-        // and hides everything past the first 3-4 fields; a vertical
-        // form is far easier to scan when reading one row at a time.
-        // (Multi-row tables still use DataTable — that's where the
-        // horizontal layout pays off.)
-        const fields = ((source.collection.schema as Record<string, unknown> | undefined)?.fields ?? []) as Array<{
-          id: string;
-          label?: string;
-          type?: string;
-          values?: string[];
-          nullable?: boolean;
-        }>;
-        const content =
-          liveItem.content && typeof liveItem.content === "object"
-            ? (liveItem.content as Record<string, unknown>)
-            : {};
-        const renderValue = (
-          field: { id: string; type?: string },
-          value: unknown,
-        ): ReactNode => {
-          const empty =
-            value === null ||
-            value === undefined ||
-            (typeof value === "string" && value === "") ||
-            (Array.isArray(value) && value.length === 0);
-          if (empty) {
-            return <span className="row-view-empty">—</span>;
-          }
-          if (field.type === "string[]" && Array.isArray(value)) {
-            return (
-              <div className="row-view-tags">
-                {value.map((v, i) => (
-                  <span key={i} className="thread-card-tag">
-                    {String(v)}
-                  </span>
-                ))}
-              </div>
-            );
-          }
-          if (field.type === "text" && typeof value === "string") {
-            return <div className="row-view-text">{value}</div>;
-          }
-          if (typeof value === "boolean") {
-            return <span>{value ? "Yes" : "No"}</span>;
-          }
-          if (typeof value === "object") {
-            return <code className="row-view-code">{JSON.stringify(value)}</code>;
-          }
-          return <span>{String(value)}</span>;
-        };
-        return (
-          <div className="row-view">
-            <div className="row-view-key">
-              <span className="row-view-key-label">Key</span>
-              <code className="row-view-code">{liveItem.key || liveItem.id}</code>
-            </div>
-            <dl className="row-view-fields">
-              {fields.map((field) => (
-                <div key={field.id} className="row-view-field">
-                  <dt>{field.label ?? field.id}</dt>
-                  <dd>{renderValue(field, content[field.id])}</dd>
-                </div>
-              ))}
-            </dl>
-          </div>
-        );
-      }
-      if (mode === "edit") {
-        const collection = source.collection;
-        const rowKey = liveItem.key || liveItem.id;
-        const onSave = async () => {
-          if (!repo) {
-            setEditError("Cannot save: no repo open.");
-            return;
-          }
-          setEditSaving(true);
-          setEditError(null);
-          try {
-            const { entityWriteFile } = await import("../lib/api");
-            const json = JSON.stringify(rowEditDraft, null, 2);
-            await entityWriteFile(
-              repo,
-              `databases/${collection.name}`,
-              `${rowKey}.json`,
-              json,
-            );
-            setContent(json);
-            // Mirror the saved state back into the live row override
-            // so the View tab updates without a re-click. The original
-            // `source.item` is captured at click time and won't move.
-            setRowOverride({ ...liveItem, content: rowEditDraft });
-            setMode("table");
-          } catch (err) {
-            setEditError(`Save failed: ${err instanceof Error ? err.message : String(err)}`);
-          } finally {
-            setEditSaving(false);
-          }
-        };
-        const onCancel = () => {
-          setRowEditDraft({});
-          setEditError(null);
-          setMode("table");
-        };
-        return (
-          <RowEditForm
-            collection={collection}
-            draft={rowEditDraft}
-            onChange={setRowEditDraft}
-            onSave={onSave}
-            onCancel={onCancel}
-            saving={editSaving}
-            error={editError}
-          />
-        );
-      }
-      return <pre className="viewer-content">{content}</pre>;
+      return (
+        <DatastoreRowBody
+          collection={source.collection}
+          liveItem={rowOverride ?? source.item}
+          mode={mode}
+          content={content}
+          rowEditDraft={rowEditDraft}
+          setRowEditDraft={setRowEditDraft}
+          editSaving={editSaving}
+          editError={editError}
+          setEditSaving={setEditSaving}
+          setEditError={setEditError}
+          setContent={setContent}
+          setRowOverride={setRowOverride}
+          setMode={setMode}
+          repo={repo}
+        />
+      );
     }
 
 
@@ -1801,437 +1631,67 @@ export function Viewer({
     }
 
     // Conversations list — one clickable card per thread, sorted by
-    // most-recent activity. Click a card → open that thread's chat
-    // view via the parent's onOpenPath callback.
+    // most-recent activity.
     if (source.kind === "conversations-list") {
-      if (source.threads.length === 0) {
-        const sampleUrl = intakeUrl || null;
-        return (
-          <div className="viewer-summary">
-            <p className="summary-desc">
-              No conversation threads yet. They appear here once a ticket gets
-              its first message — file a ticket via the Intake form to start one.
-            </p>
-            {sampleUrl && (
-              <Button
-                variant="primary"
-                onClick={() => {
-                  openUrl(sampleUrl).catch((err) =>
-                    console.warn("[viewer] openUrl failed:", err),
-                  );
-                }}
-              >
-                Submit sample ticket
-              </Button>
-            )}
-          </div>
-        );
-      }
-      // Status filter pills live in the viewer-header now (see
-      // `showConversationsFilter` below). The body just renders the
-      // filtered list.
-      const matchesFilter = (status: string) => {
-        if (conversationsFilter === "all") return true;
-        if (conversationsFilter === "open") {
-          return status === "open" || status === "agent-responding";
-        }
-        if (conversationsFilter === "resolved") {
-          return status === "resolved" || status === "closed";
-        }
-        if (conversationsFilter === "escalated") {
-          return status === "escalated";
-        }
-        return true;
-      };
-      const visibleThreads = source.threads.filter((t) => matchesFilter(t.status || ""));
-      const filterCaption: Record<typeof conversationsFilter, string> = {
-        all: "All tickets across every status.",
-        open: "Agent is working with the person, awaiting their reply.",
-        resolved: "Tickets marked as resolved.",
-        escalated: "Agent needs help solving.",
-      };
       return (
-        <div className="viewer-summary viewer-conversations">
-          <p className="viewer-list-caption">{filterCaption[conversationsFilter]}</p>
-          {visibleThreads.length === 0 ? (
-            <p className="summary-desc">No threads match this filter.</p>
-          ) : (
-            <div className="viewer-thread-list">
-              {visibleThreads.map((t) => (
-                <button
-                  key={t.ticketId}
-                  type="button"
-                  className={`thread-card thread-card-status-${t.status || "unknown"}`}
-                  onClick={() => {
-                    if (onOpenPath) {
-                      void onOpenPath(`${repo}/databases/conversations/${t.ticketId}`);
-                    }
-                  }}
-                  title={`Open conversation for ${t.ticketId}`}
-                >
-                  <div className="thread-card-row">
-                    <span className="thread-card-subject">{t.subject || "(no subject)"}</span>
-                    {t.status && <span className="thread-card-status">{t.status}</span>}
-                  </div>
-                  <div className="thread-card-meta">
-                    {t.asker && <span className="thread-card-asker">{t.asker}</span>}
-                    <span className="thread-card-count">
-                      {t.turnCount} message{t.turnCount === 1 ? "" : "s"}
-                    </span>
-                    {t.lastTurnAt && (
-                      <span className="thread-card-time">{t.lastTurnAt}</span>
-                    )}
-                  </div>
-                  {t.tags.length > 0 && (
-                    <div className="thread-card-tags">
-                      {t.tags.map((tag) => (
-                        <span key={tag} className="thread-card-tag">
-                          {tag}
-                        </span>
-                      ))}
-                    </div>
-                  )}
-                </button>
-              ))}
-            </div>
-          )}
-        </div>
+        <ConversationsListBody
+          threads={source.threads}
+          intakeUrl={intakeUrl}
+          conversationsFilter={conversationsFilter}
+          repo={repo}
+          onOpenPath={onOpenPath}
+        />
       );
     }
 
-    // People directory — card or table view, toggled in the
-    // top-right of the viewer header (see `showPeopleTabs` below).
+    // People directory — card or table view.
     if (source.kind === "people-list") {
-      const view = peopleView;
-      if (view === "table") {
-        return (
-          <div className="viewer-summary viewer-people">
-            {folderUploadError && (
-              <p className="viewer-edit-error">{folderUploadError}</p>
-            )}
-            <DataTable
-              collection={source.collection}
-              items={source.items}
-              onRowClick={(key) => {
-                if (onOpenPath) {
-                  void onOpenPath(`${repo}/databases/${source.collection.name}/${key}.json`);
-                }
-              }}
-              onRowDelete={
-                repo
-                  ? (key) =>
-                      deleteFileInSubdir(
-                        repo,
-                        `databases/${source.collection.name}`,
-                        `${key}.json`,
-                        setFolderUploadError,
-                        showToast,
-                      )
-                  : undefined
-              }
-            />
-          </div>
-        );
-      }
-
-      if (source.people.length === 0) {
-        return (
-          <div className="viewer-summary viewer-people">
-            <p className="summary-desc">
-              No people yet. Anyone who files a ticket lands here so we can
-              identify askers consistently across tickets and channels.
-            </p>
-          </div>
-        );
-      }
-
       return (
-        <div className="viewer-summary viewer-people">
-          {folderUploadError && (
-            <p className="viewer-edit-error">{folderUploadError}</p>
-          )}
-          <div className="viewer-thread-list">
-            {source.people.map((p) => (
-              <div key={p.key} className="thread-card-wrapper">
-                <button
-                  type="button"
-                  className="thread-card thread-card-person"
-                  onClick={() => {
-                    if (onOpenPath) {
-                      void onOpenPath(`${repo}/databases/people/${p.key}.json`);
-                    }
-                  }}
-                  title={`Open ${p.name || p.email || p.key}`}
-                >
-                  <div className="thread-card-row">
-                    <span className="thread-card-subject">
-                      {p.name || p.email || p.key}
-                    </span>
-                    {p.role && (
-                      <span className="thread-card-status">{p.role}</span>
-                    )}
-                  </div>
-                  <div className="thread-card-meta">
-                    {p.email && p.email !== p.name && (
-                      <span className="thread-card-asker">{p.email}</span>
-                    )}
-                    {p.department && (
-                      <span className="thread-card-count">{p.department}</span>
-                    )}
-                  </div>
-                </button>
-                {repo && (
-                  <Button
-                    variant="ghost"
-                    tone="destructive"
-                    size="sm"
-                    iconOnly
-                    className="entity-card-delete thread-card-delete"
-                    title={`Delete ${p.name || p.email || p.key}`}
-                    aria-label={`Delete ${p.name || p.email || p.key}`}
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      void deleteFileInSubdir(
-                        repo,
-                        "databases/people",
-                        `${p.key}.json`,
-                        setFolderUploadError,
-                        showToast,
-                      );
-                    }}
-                  >
-                    <TrashIcon />
-                  </Button>
-                )}
-              </div>
-            ))}
-          </div>
-        </div>
+        <PeopleListBody
+          view={peopleView}
+          people={source.people}
+          collection={source.collection}
+          items={source.items}
+          repo={repo}
+          onOpenPath={onOpenPath}
+          folderUploadError={folderUploadError}
+          setFolderUploadError={setFolderUploadError}
+          showToast={showToast}
+        />
       );
     }
 
-    // Access log — card or table view, toggled in the
-    // top-right of the viewer header (see `showAccessTabs` below).
+    // Access log — card or table view.
     if (source.kind === "access-list") {
-      const view = accessView;
-      if (view === "table") {
-        return (
-          <div className="viewer-summary viewer-access">
-            {folderUploadError && (
-              <p className="viewer-edit-error">{folderUploadError}</p>
-            )}
-            <DataTable
-              collection={source.collection}
-              items={source.items}
-              onRowClick={(key) => {
-                if (onOpenPath) {
-                  void onOpenPath(`${repo}/databases/${source.collection.name}/${key}.json`);
-                }
-              }}
-              onRowDelete={
-                repo
-                  ? (key) =>
-                      deleteFileInSubdir(
-                        repo,
-                        `databases/${source.collection.name}`,
-                        `${key}.json`,
-                        setFolderUploadError,
-                        showToast,
-                      )
-                  : undefined
-              }
-            />
-          </div>
-        );
-      }
-
-      if (source.records.length === 0) {
-        return (
-          <div className="viewer-summary viewer-access">
-            <p className="summary-desc">
-              No access records yet. Onboard and offboard actions will appear here.
-            </p>
-          </div>
-        );
-      }
-
       return (
-        <div className="viewer-summary viewer-access">
-          {folderUploadError && (
-            <p className="viewer-edit-error">{folderUploadError}</p>
-          )}
-          <div className="viewer-thread-list">
-            {source.records.map((r) => (
-              <div key={r.key} className="thread-card-wrapper">
-                <button
-                  type="button"
-                  className="thread-card thread-card-person"
-                  onClick={() => {
-                    if (onOpenPath) {
-                      void onOpenPath(`${repo}/databases/access/${r.key}.json`);
-                    }
-                  }}
-                  title={`Open ${r.employee || r.email || r.key}`}
-                >
-                  <div className="thread-card-row">
-                    <span className="thread-card-subject">
-                      {r.employee || r.email || r.key}
-                    </span>
-                  </div>
-                  <div className="thread-card-meta">
-                    {r.email && r.email !== r.employee && (
-                      <span className="thread-card-asker">{r.email}</span>
-                    )}
-                    {r.role && (
-                      <span className="thread-card-count">{r.role}</span>
-                    )}
-                    {r.date && (
-                      <span className="thread-card-count">{r.date}</span>
-                    )}
-                  </div>
-                </button>
-                {repo && (
-                  <Button
-                    variant="ghost"
-                    tone="destructive"
-                    size="sm"
-                    iconOnly
-                    className="entity-card-delete thread-card-delete"
-                    title={`Delete ${r.employee || r.email || r.key}`}
-                    aria-label={`Delete ${r.employee || r.email || r.key}`}
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      void deleteFileInSubdir(
-                        repo,
-                        "databases/access",
-                        `${r.key}.json`,
-                        setFolderUploadError,
-                        showToast,
-                      );
-                    }}
-                  >
-                    <TrashIcon />
-                  </Button>
-                )}
-              </div>
-            ))}
-          </div>
-        </div>
+        <AccessListBody
+          view={accessView}
+          records={source.records}
+          collection={source.collection}
+          items={source.items}
+          repo={repo}
+          onOpenPath={onOpenPath}
+          folderUploadError={folderUploadError}
+          setFolderUploadError={setFolderUploadError}
+          showToast={showToast}
+        />
       );
     }
 
-    // Asset inventory — card or table view, toggled in the
-    // top-right of the viewer header (see `showAssetsTabs` below).
+    // Asset inventory — card or table view.
     if (source.kind === "assets-list") {
-      const view = assetsView;
-      if (view === "table") {
-        return (
-          <div className="viewer-summary viewer-assets">
-            {folderUploadError && (
-              <p className="viewer-edit-error">{folderUploadError}</p>
-            )}
-            <DataTable
-              collection={source.collection}
-              items={source.items}
-              onRowClick={(key) => {
-                if (onOpenPath) {
-                  void onOpenPath(`${repo}/databases/${source.collection.name}/${key}.json`);
-                }
-              }}
-              onRowDelete={
-                repo
-                  ? (key) =>
-                      deleteFileInSubdir(
-                        repo,
-                        `databases/${source.collection.name}`,
-                        `${key}.json`,
-                        setFolderUploadError,
-                        showToast,
-                      )
-                  : undefined
-              }
-            />
-          </div>
-        );
-      }
-
-      if (source.records.length === 0) {
-        return (
-          <div className="viewer-summary viewer-assets">
-            <p className="summary-desc">
-              No assets yet. Devices and equipment will appear here once tracked.
-            </p>
-          </div>
-        );
-      }
-
       return (
-        <div className="viewer-summary viewer-assets">
-          {folderUploadError && (
-            <p className="viewer-edit-error">{folderUploadError}</p>
-          )}
-          <div className="viewer-thread-list">
-            {source.records.map((r) => (
-              <div key={r.key} className="thread-card-wrapper">
-                <button
-                  type="button"
-                  className="thread-card thread-card-person"
-                  onClick={() => {
-                    if (onOpenPath) {
-                      void onOpenPath(`${repo}/databases/assets/${r.key}.json`);
-                    }
-                  }}
-                  title={`Open ${r.name || r.key}`}
-                >
-                  <div className="thread-card-row">
-                    <span className="thread-card-subject">
-                      {r.name || r.key}
-                    </span>
-                    {r.status && (
-                      <span className={`thread-card-status ${r.status === "available" ? "thread-card-status-ok" : r.status === "assigned" ? "thread-card-status-info" : r.status === "decommissioned" || r.status === "repair" ? "thread-card-status-warn" : ""}`}>
-                        {r.status}
-                      </span>
-                    )}
-                  </div>
-                  <div className="thread-card-meta" style={{ paddingRight: 32 }}>
-                    {r.type && (
-                      <span className="thread-card-asker">{r.type}</span>
-                    )}
-                    {r.assignedTo && (
-                      <span className="thread-card-count">{r.assignedTo}</span>
-                    )}
-                    {r.serialNumber && (
-                      <span className="thread-card-count">{r.serialNumber}</span>
-                    )}
-                  </div>
-                </button>
-                {repo && (
-                  <Button
-                    variant="ghost"
-                    tone="destructive"
-                    size="sm"
-                    iconOnly
-                    className="entity-card-delete thread-card-delete"
-                    title={`Delete ${r.name || r.key}`}
-                    aria-label={`Delete ${r.name || r.key}`}
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      void deleteFileInSubdir(
-                        repo,
-                        "databases/assets",
-                        `${r.key}.json`,
-                        setFolderUploadError,
-                        showToast,
-                      );
-                    }}
-                  >
-                    <TrashIcon />
-                  </Button>
-                )}
-              </div>
-            ))}
-          </div>
-        </div>
+        <AssetsListBody
+          view={assetsView}
+          records={source.records}
+          collection={source.collection}
+          items={source.items}
+          repo={repo}
+          onOpenPath={onOpenPath}
+          folderUploadError={folderUploadError}
+          setFolderUploadError={setFolderUploadError}
+          showToast={showToast}
+        />
       );
     }
 
@@ -2475,755 +1935,43 @@ export function Viewer({
     }
 
     // Generic top-level entity folder (agents/, workflows/, knowledge-
-    // base/, filestore/). Empty → friendly notice, same affordance the
-    // conversations-list provides. Non-empty → simple file list whose
-    // entries route through onOpenPath so per-file viewers (agent /
-    // workflow / file) take over on click.
+    // base/, filestore/). Rendering delegated to EntityFolderBody.
     if (source.kind === "entity-folder") {
-      const isReport = source.entity === "reports";
-      const reversed = !!sortReversed[source.path];
-      const orderedFiles = reversed ? [...source.files].reverse() : source.files;
-      const cards = orderedFiles.map((f) => {
-        let slug = f.displayName;
-        let dateLabel = "";
-        if (isReport) {
-          const m = f.displayName.match(
-            /^(\d{4})-(\d{2})-(\d{2})(?:-(\d{2})(\d{2}))?-(.+)$/,
-          );
-          if (m) {
-            const [, yyyy, mm, dd, hh, mi, parsedSlug] = m;
-            slug = parsedSlug;
-            const monthShort = [
-              "Jan", "Feb", "Mar", "Apr", "May", "Jun",
-              "Jul", "Aug", "Sep", "Oct", "Nov", "Dec",
-            ][Math.max(0, Math.min(11, Number(mm) - 1))];
-            const yearTail =
-              new Date().getFullYear() === Number(yyyy) ? "" : `, ${yyyy}`;
-            dateLabel =
-              hh && mi
-                ? `${monthShort} ${Number(dd)}${yearTail} · ${hh}:${mi}`
-                : `${monthShort} ${Number(dd)}${yearTail}`;
-          }
-        }
-        // Reports flip the standard layout: description (the human-
-        // readable label) becomes the title; filename + parsed date
-        // become muted metadata. Other entities keep the standard
-        // layout (filename as title, description as subtitle).
-        // File-type glyph is shown for non-image files in library /
-        // reports / attachments-ticket — surfaces (PDF, MD, CSV, …)
-        // where the generic folder glyph wasted scanning real estate.
-        // Agents and workflows keep their entity glyph (the kind icon)
-        // because the kind itself is the meaningful tag there. Images
-        // already get a thumbnail via FileThumbnail.
-        const useTypeBadge =
-          (source.entity === "library" ||
-            source.entity === "reports" ||
-            source.entity === "attachments-ticket" ||
-            source.entity === "knowledge-base" ||
-            source.entity === "skills" ||
-            source.entity === "scripts") &&
-          !isImageFile(f.path);
-        const sizeLabel = formatBytes(f.size);
-        return {
-          key: f.path,
-          title: isReport ? f.description || slug : f.displayName,
-          description: isReport ? undefined : f.description,
-          meta: isReport
-            ? dateLabel
-            : (source.entity === "knowledge" || source.entity === "knowledge-base")
-              ? undefined
-              : sizeLabel || undefined,
-          icon: isImageFile(f.path) ? (
-            <FileThumbnail absPath={f.path} />
-          ) : useTypeBadge ? (
-            <FileTypeBadge filename={f.name} />
-          ) : undefined,
-          onClick: () => onOpenPath && void onOpenPath(f.path),
-          onDelete: repo
-            ? () =>
-                deleteFileInSubdir(repo, source.path, f.name, setFolderUploadError, showToast)
-            : undefined,
-          onReveal: () => void fsReveal(f.path).catch(console.error),
-          // "Run" only for the scripts folder. Spawns `node <script>`
-          // server-side and routes the viewer to a script-output
-          // source so the captured stdout / stderr lands in the main
-          // content window instead of an external terminal.
-          onRun:
-            source.entity === "scripts" &&
-            /\.(mjs|js|cjs|py)$/i.test(f.path) &&
-            onShowSource
-              ? async () => {
-                  try {
-                    const { scriptRun } = await import("../lib/api");
-                    const out = await scriptRun(repo, f.path);
-                    onShowSource({
-                      kind: "script-output",
-                      script: f.path,
-                      stdout: out.stdout,
-                      stderr: out.stderr,
-                      exitCode: out.exitCode,
-                      durationMs: out.durationMs,
-                    });
-                  } catch (err) {
-                    const reason = err instanceof Error ? err.message : String(err);
-                    console.error(`[script-run] ${f.name} failed:`, err);
-                    showToast(`Run failed: ${reason}`);
-                  }
-                }
-              : undefined,
-          // "Add to Claude" — inject a contextual prompt into the
-          // active Claude session. The prompt varies per entity kind
-          // so Claude knows how to act on the reference.
-          onAddToClaude: (() => {
-            const rel = repo ? toRepoRelative(repo, f.path) : f.name;
-            switch (source.entity) {
-              case "agents":
-                return () => { void writeToActiveSession(`Read and follow the agent instructions in ${rel}\r`); };
-              case "skills":
-                return () => { void writeToActiveSession(`/${f.displayName}\r`); };
-              case "knowledge-base":
-                return () => { void writeToActiveSession(`Read the knowledge base article at ${rel}\r`); };
-              case "scripts":
-                return () => { void writeToActiveSession(`Run the script at ${rel}\r`); };
-              case "reports":
-                return () => { void writeToActiveSession(`Read the report at ${rel}\r`); };
-              default:
-                return undefined;
-            }
-          })(),
-        };
-      });
-      // Drag-and-drop upload from the desktop is enabled for the two
-      // user-content folders (`library/` and any KB collection).
-      // Agents/workflows/reports/attachments-ticket are excluded —
-      // those are either system-generated, scoped to ticket context,
-      // or schema-shaped and not safe to land arbitrary files into.
-      const acceptsDrop =
-        source.entity === "library" ||
-        source.entity === "knowledge-base" ||
-        source.entity === "skills" ||
-        source.entity === "scripts";
-      const subdir = source.path;
-      // When the folder accepts drops AND has nothing in it yet, the
-      // wrapper itself becomes the visible drop zone (dashed border,
-      // soft fill, "drag here" hint). Once at least one file lands,
-      // the drop region collapses back to a no-chrome wrapper that
-      // simply hosts the card list.
-      const showDropZone = acceptsDrop && cards.length === 0;
       return (
-        <div
-          className={`viewer-summary${
-            acceptsDrop ? " viewer-summary-droppable" : ""
-          }${acceptsDrop && folderDragOver ? " viewer-summary-drag" : ""}${
-            showDropZone ? " viewer-summary-dropzone" : ""
-          }`}
-          onDragOver={(e) => {
-            // preventDefault is required EVERY time on a file dragover
-            // — even when this folder doesn't accept drops. The HTML5
-            // spec only fires `drop` on elements whose `dragover` was
-            // prevented; without this, the Tauri webview falls back to
-            // the OS default and navigates away from the SPA when the
-            // user releases the file. The acceptsDrop branch only
-            // controls whether we paint the highlight.
-            if (!Array.from(e.dataTransfer.types).includes("Files")) return;
-            e.preventDefault();
-            e.stopPropagation();
-            if (!acceptsDrop || !repo) {
-              e.dataTransfer.dropEffect = "none";
-              return;
-            }
-            e.dataTransfer.dropEffect = "copy";
-            setFolderDragOver(true);
-          }}
-          onDragLeave={() => {
-            if (acceptsDrop) setFolderDragOver(false);
-          }}
-          onDrop={async (e) => {
-            // preventDefault MUST run before any early return —
-            // without it the Tauri webview falls back to its default
-            // drop behavior (navigate to the file URL) and unloads
-            // the SPA. Stop / reset state up-front for the same
-            // reason: the dashed outline must clear regardless of
-            // payload or accepts-drop check.
-            e.preventDefault();
-            e.stopPropagation();
-            setFolderDragOver(false);
-            if (!acceptsDrop || !repo) return;
-            const files = Array.from(e.dataTransfer.files ?? []);
-            if (files.length === 0) return;
-            await uploadFilesToSubdir(repo, subdir, files, setFolderUploadError, showToast);
-          }}
-        >
-          {source.entity === "reports" && reportError && (
-            <p className="viewer-edit-error">{reportError}</p>
-          )}
-          {folderUploadError && (
-            <p className="viewer-edit-error">{folderUploadError}</p>
-          )}
-          {cards.length > 3 && (
-            <div className="viewer-folder-toolbar">
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() =>
-                  setSortReversed((prev) => ({
-                    ...prev,
-                    [source.path]: !prev[source.path],
-                  }))
-                }
-                title="Reverse sort order"
-              >
-                {isReport
-                  ? reversed
-                    ? "oldest first"
-                    : "newest first"
-                  : reversed
-                    ? "Z → A"
-                    : "A → Z"}
-              </Button>
-            </div>
-          )}
-          <EntityCardGrid
-            kind={source.entity === "attachments-ticket" ? "attachments" : source.entity}
-            cards={cards}
-            empty={
-              <p className="summary-desc">
-                {ENTITY_FOLDER_EMPTY_COPY[source.entity]}
-                {showDropZone && (
-                  <span className="viewer-summary-dropzone-hint">
-                    Drop files here from Finder to add them.
-                  </span>
-                )}
-              </p>
-            }
-          />
-        </div>
+        <EntityFolderBody
+          source={source}
+          repo={repo}
+          onOpenPath={onOpenPath}
+          onShowSource={onShowSource}
+          showToast={showToast}
+          reportError={reportError}
+        />
       );
     }
 
-    // Conversation thread — chat-style bubbles, ordered by timestamp.
-    // The Add-to-Claude affordance is rendered inline with the title
-    // up in the viewer-header (see below) — keeping this body clean.
+    // Conversation thread — chat-style bubbles + admin reply composer.
+    // State (replyText, replySending, etc.) now lives inside
+    // ConversationThreadBody.
     if (source.kind === "conversation-thread") {
-      const turns = source.turns;
-      const ticketId = source.ticketId;
-
-      /// Write a single admin turn to disk + bump the ticket back to
-      /// `open`. Shared between the textarea Send path and the
-      /// drag-drop path so a dropped file always shows up as a real
-      /// thread message (not just a chip on the composer that the
-      /// admin still has to click Send on). Caller has already
-      /// validated body / attachments are non-empty.
-      const writeAdminTurn = async (
-        body: string,
-        attachments: string[],
-      ): Promise<void> => {
-        if (!repo) return;
-        const { entityWriteFile, fsRead } = await import("../lib/api");
-        const nowMs = Date.now();
-        const rand = Math.random().toString(36).slice(2, 6);
-        const msgId = `msg-${nowMs}-${rand}`;
-        const isoNow = new Date().toISOString().replace(/\.\d+Z$/, "Z");
-        const sender = adminEmail ?? "admin";
-        const payload: Record<string, unknown> = {
-          id: msgId,
-          ticketId,
-          role: "admin",
-          sender,
-          timestamp: isoNow,
-          body,
-        };
-        if (attachments.length > 0) payload.attachments = attachments;
-        await entityWriteFile(
-          repo,
-          `databases/conversations/${ticketId}`,
-          `${msgId}.json`,
-          JSON.stringify(payload, null, 2),
-        );
-        // Any manual admin turn flips the ticket to `escalated` —
-        // `open` means "agent is working on it" and once an admin
-        // chimes in, the agent is no longer the sole driver. Gated on
-        // `ticketLifecycle.escalateOnAdminReply`: admins can disable
-        // to leave commentary on resolved threads without re-opening
-        // them.
-        //
-        // `updatedAt` is bumped regardless of the gate. The auto-close
-        // walker uses it as the resolve-time anchor — without this,
-        // an admin commenting on a resolved ticket while
-        // `escalateOnAdminReply: false` could see the ticket
-        // auto-close moments later because the close timer still
-        // tracked from the original resolve. Admin activity is real
-        // engagement; the lifecycle clock should reset.
-        //
-        // `assignee` stamps regardless too — admin authorship of the
-        // turn is a fact independent of the lifecycle decision.
-        try {
-          const cfg = await loadOpenitConfig(repo);
-          const ticketPath = `${repo}/databases/tickets/${ticketId}.json`;
-          const raw = await fsRead(ticketPath);
-          const parsed = JSON.parse(raw) as Record<string, unknown>;
-          parsed.updatedAt = isoNow;
-          if (cfg.ticketLifecycle.escalateOnAdminReply) {
-            parsed.status = "escalated";
-          }
-          if (typeof parsed.assignee !== "string" || !parsed.assignee) {
-            parsed.assignee = sender;
-          }
-          await entityWriteFile(
-            repo,
-            "databases/tickets",
-            `${ticketId}.json`,
-            JSON.stringify(parsed, null, 2),
-          );
-        } catch (e) {
-          console.warn("[viewer] reply: ticket update skipped:", e);
-        }
-      };
-
-      const sendReply = async () => {
-        const trimmed = replyText.trim();
-        // Allow attachment-only replies (admin drops a screenshot
-        // showing the fix and sends without typing). Otherwise text
-        // is required.
-        if (!repo) return;
-        if (!trimmed && replyAttachments.length === 0) return;
-        setReplySending(true);
-        setReplyError(null);
-        try {
-          await writeAdminTurn(
-            trimmed || "(attachment)",
-            replyAttachments.map((a) => a.path),
-          );
-          setReplyText("");
-          setReplyAttachments([]);
-        } catch (err) {
-          setReplyError(`Send failed: ${err instanceof Error ? err.message : String(err)}`);
-        } finally {
-          setReplySending(false);
-        }
-      };
-
-      // Manual "Mark as resolved": flip the ticket to `resolved`
-      // without writing a turn, then navigate back to the
-      // conversations list (filter pill state is preserved by the
-      // parent Viewer instance).
-      const markResolved = async () => {
-        if (!repo) return;
-        // Reuse `replySending` as the in-flight guard for both the
-        // resolve and send paths. Without this, a user could click
-        // Mark-as-resolved and then Send (or ⌘↩) before the resolve
-        // write lands, racing two concurrent writes to the same
-        // ticket file with the final status determined by whichever
-        // finishes last.
-        if (replySending) return;
-        setReplySending(true);
-        setReplyError(null);
-        try {
-          const { entityWriteFile, fsRead } = await import("../lib/api");
-          const ticketPath = `${repo}/databases/tickets/${ticketId}.json`;
-          const raw = await fsRead(ticketPath);
-          const parsed = JSON.parse(raw) as Record<string, unknown>;
-          parsed.status = "resolved";
-          parsed.updatedAt = new Date().toISOString().replace(/\.\d+Z$/, "Z");
-          await entityWriteFile(
-            repo,
-            "databases/tickets",
-            `${ticketId}.json`,
-            JSON.stringify(parsed, null, 2),
-          );
-          // PIN-5829: kick off /conversation-to-automation so Claude
-          // harvests the resolution into a KB article, skill, or
-          // script. The ticket is already flipped to resolved on
-          // disk, so even if the paste fails the resolve sticks; we
-          // surface a one-shot alert in the no-session case so the
-          // admin knows the capture didn't fire (matching the
-          // skill-anchor pattern around line 321).
-          const cmd = `/conversation-to-automation ${ticketId}`;
-          const wrapped = `${BRACKETED_PASTE_OPEN}${cmd}${BRACKETED_PASTE_CLOSE}\r`;
-          try {
-            const pasted = await writeToActiveSession(wrapped);
-            if (!pasted) {
-              alert(
-                "Ticket marked resolved, but couldn't reach Claude to capture the resolution. " +
-                  `Open Claude in the right pane and run \`${cmd}\` to capture as a KB article, skill, or script.`,
-              );
-            }
-          } catch (e) {
-            console.warn(`[viewer] /conversation-to-automation paste failed:`, e);
-          }
-          if (onOpenPath) {
-            void onOpenPath(`${repo}/databases/conversations`);
-          }
-        } catch (err) {
-          setReplyError(`Resolve failed: ${err instanceof Error ? err.message : String(err)}`);
-        } finally {
-          setReplySending(false);
-        }
-      };
       return (
-        <div className="viewer-thread-wrapper">
-          {turns.length === 0 ? (
-            <div className="viewer-summary">
-              <p className="summary-desc">No turns logged yet for this thread.</p>
-            </div>
-          ) : (
-            <div className="viewer-thread">
-              {turns.map((t) => {
-                const isAsker = t.role === "asker";
-                return (
-                  <div
-                    key={t.id}
-                    className={`thread-turn ${isAsker ? "thread-turn-asker" : "thread-turn-agent"}`}
-                  >
-                    <div className="thread-turn-meta">
-                      <span className="thread-turn-sender">{t.sender || t.role}</span>
-                      <span className="thread-turn-role">{t.role}</span>
-                      {t.timestamp && (
-                        <span className="thread-turn-time">{t.timestamp}</span>
-                      )}
-                    </div>
-                    <div className="thread-turn-body">{t.body}</div>
-                    {t.attachments && t.attachments.length > 0 && (
-                      <AttachmentList attachments={t.attachments} repo={repo} />
-                    )}
-                  </div>
-                );
-              })}
-            </div>
-          )}
-          <div
-            className={`thread-reply-composer${replyDragOver ? " thread-reply-composer-drag" : ""}`}
-            onDragOver={(e) => {
-              if (Array.from(e.dataTransfer.types).includes("Files")) {
-                e.preventDefault();
-                e.stopPropagation();
-                e.dataTransfer.dropEffect = "copy";
-                setReplyDragOver(true);
-              }
-            }}
-            onDragLeave={() => setReplyDragOver(false)}
-            onDrop={async (e) => {
-              setReplyDragOver(false);
-              const files = Array.from(e.dataTransfer.files ?? []);
-              if (files.length === 0 || !repo) return;
-              e.preventDefault();
-              e.stopPropagation();
-              const { entityWriteFileBytes } = await import("../lib/api");
-              const subdir = `filestores/attachments/${ticketId}`;
-              const newAttachments: { path: string; filename: string }[] = [];
-              for (const f of files) {
-                const filename = f.name || "upload";
-                try {
-                  const buf = await f.arrayBuffer();
-                  await entityWriteFileBytes(repo, subdir, filename, buf);
-                  newAttachments.push({
-                    path: `${subdir}/${filename}`,
-                    filename,
-                  });
-                } catch (err) {
-                  console.error(`[admin-reply] failed to attach ${filename}:`, err);
-                }
-              }
-              if (newAttachments.length === 0) return;
-              // Post the dropped files as a standalone admin turn so
-              // they show up in the thread immediately. The admin can
-              // still type follow-up text and click Send for a separate
-              // turn afterwards. If the textarea has unsent text, we
-              // bundle it with this drop instead of leaving it stuck
-              // in the composer waiting for a manual Send.
-              const trimmed = replyText.trim();
-              const filenames = newAttachments.map((a) => a.filename);
-              const fallbackBody =
-                filenames.length === 1
-                  ? `attached file: ${filenames[0]}`
-                  : `attached files: ${filenames.join(", ")}`;
-              setReplySending(true);
-              setReplyError(null);
-              try {
-                await writeAdminTurn(
-                  trimmed || fallbackBody,
-                  newAttachments.map((a) => a.path),
-                );
-                setReplyText("");
-              } catch (err) {
-                setReplyError(
-                  `Drop failed: ${err instanceof Error ? err.message : String(err)}`,
-                );
-              } finally {
-                setReplySending(false);
-              }
-            }}
-          >
-            {replyAttachments.length > 0 && (
-              <div className="thread-reply-chips">
-                {replyAttachments.map((att) => (
-                  <span key={att.path} className="thread-reply-chip">
-                    <span className="thread-reply-chip-name">{att.filename}</span>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      iconOnly
-                      className="thread-reply-chip-remove"
-                      onClick={() =>
-                        setReplyAttachments((prev) =>
-                          prev.filter((a) => a.path !== att.path),
-                        )
-                      }
-                      title="Remove"
-                    >
-                      ×
-                    </Button>
-                  </span>
-                ))}
-              </div>
-            )}
-            <textarea
-              className="thread-reply-input"
-              placeholder={`Reply as ${adminEmail ?? "admin"} (drop files to attach)…`}
-              value={replyText}
-              onChange={(e) => setReplyText(e.target.value)}
-              onKeyDown={(e) => {
-                // Cmd/Ctrl + Enter sends — matches Slack / iMessage.
-                // Plain Enter inserts a newline so multi-line replies
-                // are easy.
-                if ((e.metaKey || e.ctrlKey) && e.key === "Enter") {
-                  e.preventDefault();
-                  void sendReply();
-                }
-              }}
-              rows={2}
-              disabled={replySending}
-            />
-            <div className="thread-reply-footer">
-              {/* End-action lives on the left; the right side is the
-                  continue-action (Send). Asymmetry helps the role:
-                  resolve closes the conversation + harvests learnings,
-                  Send keeps it going. (PIN-5829.) */}
-              <Button
-                variant="secondary"
-                size="sm"
-                onClick={() => void markResolved()}
-                disabled={replySending}
-                title="Mark this ticket as resolved and capture the resolution as a KB article, skill, or script"
-              >
-                Mark as resolved
-              </Button>
-              {replyError && (
-                <span className="thread-reply-error">{replyError}</span>
-              )}
-              <span className="thread-reply-hint">⌘↩ to send · drop files to attach</span>
-              <Button
-                variant="primary"
-                size="sm"
-                onClick={() => void sendReply()}
-                disabled={
-                  replySending ||
-                  (!replyText.trim() && replyAttachments.length === 0)
-                }
-                loading={replySending}
-              >
-                {replySending ? "Sending…" : "Send"}
-              </Button>
-            </div>
-          </div>
-        </div>
+        <ConversationThreadBody
+          turns={source.turns}
+          ticketId={source.ticketId}
+          repo={repo}
+          adminEmail={adminEmail}
+          onOpenPath={onOpenPath}
+        />
       );
     }
 
-    // Agent-trace timeline — the verbs the agent emitted while
-    // running this turn, in order. The banner click-through opens
-    // the most recent turn's trace; admins use this to audit "what
-    // did the agent actually do" without paging through the JSON.
+    // Agent-trace timeline — single turn.
     if (source.kind === "agent-trace") {
-      const { doc, subject } = source;
-      if (!doc) {
-        // First-turn race: the banner clicked before
-        // `agent_trace::persist_trace` wrote the file. Show a
-        // placeholder; the fsTick effect below re-fetches and
-        // swaps in the real doc as soon as it lands.
-        return (
-          <div className="agent-trace-view">
-            <div className="agent-trace-header">
-              <div className="agent-trace-subject">{subject}</div>
-              <div className="agent-trace-meta">
-                <span className="agent-trace-time">composing reply…</span>
-              </div>
-            </div>
-            <div className="viewer-summary">
-              <p className="summary-desc">
-                The agent hasn't finished its first reply on this
-                ticket yet. The timeline will appear here as soon as
-                the turn completes.
-              </p>
-            </div>
-          </div>
-        );
-      }
-      // Filter to events that have something to show. Tool_result
-      // entries carry only the tool_use_id (for UI pairing); we
-      // skip them in this list to keep the timeline focused on
-      // *actions taken* rather than their internal correlation.
-      const items = doc.events.filter(
-        (e) => e.kind === "tool_use" || e.kind === "text" || e.kind === "result",
-      );
-      const formatTs = (iso: string) => {
-        // The trace timestamps are ISO-8601 UTC with second precision.
-        // Render as local time HH:MM:SS so the relative ordering reads
-        // naturally without making the admin parse a Z-suffixed UTC.
-        const d = new Date(iso);
-        if (Number.isNaN(d.getTime())) return iso;
-        return d.toLocaleTimeString([], {
-          hour: "2-digit",
-          minute: "2-digit",
-          second: "2-digit",
-        });
-      };
-      return (
-        <div className="agent-trace-view">
-          <div className="agent-trace-header">
-            <div className="agent-trace-subject">{subject}</div>
-            <div className="agent-trace-meta">
-              <span className={`agent-trace-outcome agent-trace-outcome-${doc.outcome}`}>
-                {doc.outcome}
-              </span>
-              <span className="agent-trace-model">{doc.model}</span>
-              <span className="agent-trace-time">
-                {formatTs(doc.started_at)} → {formatTs(doc.completed_at)}
-              </span>
-            </div>
-          </div>
-          {items.length === 0 ? (
-            <div className="viewer-summary">
-              <p className="summary-desc">
-                No actions recorded for this turn yet.
-              </p>
-            </div>
-          ) : (
-            <ol className="agent-trace-timeline">
-              {items.map((e, idx) => {
-                const verb =
-                  e.verb ?? (e.tool ? `Running ${e.tool}` : null);
-                const isFinalResult = e.kind === "result";
-                const isText = e.kind === "text";
-                const label = isFinalResult
-                  ? "Replied"
-                  : isText
-                    ? "Thinking"
-                    : verb || e.kind;
-                // For text/result events, show the model's full wording.
-                // Earlier versions truncated to first line + 140 chars
-                // for "scannable" timelines, but admins explicitly want
-                // to see what the agent said and what tools it called.
-                // CSS handles wrapping; the row grows to fit.
-                const snippet = e.text ? e.text.trim() : null;
-                return (
-                  <li
-                    key={`${e.ts}-${idx}`}
-                    className={`agent-trace-step agent-trace-step-${e.kind}`}
-                  >
-                    <span className="agent-trace-step-time">{formatTs(e.ts)}</span>
-                    <span className="agent-trace-step-label">{label}</span>
-                    {snippet && (
-                      <span className="agent-trace-step-snippet">{snippet}</span>
-                    )}
-                  </li>
-                );
-              })}
-            </ol>
-          )}
-        </div>
-      );
+      return <AgentTraceBody doc={source.doc} subject={source.subject} />;
     }
 
-    // Agent-trace-list — every per-turn trace for one ticket,
-    // stacked oldest-first with a separator between turns. Click
-    // path: file explorer → `.openit/agent-traces/<ticketId>/`
-    // (the folder, not the individual trace files). Reuses the
-    // same step formatting as the single-trace view.
+    // Agent-trace-list — all turns for one ticket.
     if (source.kind === "agent-trace-list") {
-      const formatTs = (iso: string) => {
-        const d = new Date(iso);
-        if (Number.isNaN(d.getTime())) return iso;
-        return d.toLocaleTimeString([], {
-          hour: "2-digit", minute: "2-digit", second: "2-digit",
-        });
-      };
-      return (
-        <div className="agent-trace-view">
-          <div className="agent-trace-header">
-            <div className="agent-trace-subject">{source.subject}</div>
-            <div className="agent-trace-meta">
-              <span className="agent-trace-time">
-                {source.docs.length} turn{source.docs.length === 1 ? "" : "s"}
-              </span>
-            </div>
-          </div>
-          {source.docs.length === 0 ? (
-            <div className="viewer-summary">
-              <p className="summary-desc">No traces recorded for this ticket yet.</p>
-            </div>
-          ) : (
-            source.docs.map((entry, idx) => {
-              const { doc, name } = entry;
-              if (!doc) {
-                return (
-                  <section key={name} className="agent-trace-list-turn">
-                    <header className="agent-trace-list-divider">
-                      Turn {idx + 1} · {name} · (unparseable)
-                    </header>
-                  </section>
-                );
-              }
-              const items = doc.events.filter(
-                (e) => e.kind === "tool_use" || e.kind === "text" || e.kind === "result",
-              );
-              return (
-                <section key={name} className="agent-trace-list-turn">
-                  <header className="agent-trace-list-divider">
-                    <span className="agent-trace-list-turn-num">Turn {idx + 1}</span>
-                    <span className={`agent-trace-outcome agent-trace-outcome-${doc.outcome}`}>
-                      {doc.outcome}
-                    </span>
-                    <span className="agent-trace-model">{doc.model}</span>
-                    <span className="agent-trace-time">
-                      {formatTs(doc.started_at)} → {formatTs(doc.completed_at)}
-                    </span>
-                  </header>
-                  {items.length === 0 ? (
-                    <p className="summary-desc">No actions recorded for this turn.</p>
-                  ) : (
-                    <ol className="agent-trace-timeline">
-                      {items.map((e, i) => {
-                        const verb = e.verb ?? (e.tool ? `Running ${e.tool}` : null);
-                        const isFinal = e.kind === "result";
-                        const isText = e.kind === "text";
-                        const label = isFinal ? "Replied" : isText ? "Thinking" : verb || e.kind;
-                        const snippet = (() => {
-                          if (!e.text) return null;
-                          const first = e.text.split("\n")[0]?.trim() ?? "";
-                          return first.length > 140 ? `${first.slice(0, 137)}…` : first;
-                        })();
-                        return (
-                          <li
-                            key={`${e.ts}-${i}`}
-                            className={`agent-trace-step agent-trace-step-${e.kind}`}
-                          >
-                            <span className="agent-trace-step-time">{formatTs(e.ts)}</span>
-                            <span className="agent-trace-step-label">{label}</span>
-                            {snippet && (
-                              <span className="agent-trace-step-snippet">{snippet}</span>
-                            )}
-                          </li>
-                        );
-                      })}
-                    </ol>
-                  )}
-                </section>
-              );
-            })
-          )}
-        </div>
-      );
+      return <AgentTraceListBody subject={source.subject} docs={source.docs} />;
     }
 
     // Sync output gets a ref so the auto-scroll useEffect above can
