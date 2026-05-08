@@ -544,28 +544,15 @@ function App() {
       });
   }, [repo]);
 
-  // Watch .openit/tunnel.json for the active Cloudflare tunnel URL.
-  // Written by the intake server's /share/start route; removed on stop.
+  // Poll the intake server for active tunnel URL. Runs every 3s so
+  // the pill updates promptly after /share-intake creates a tunnel.
   useEffect(() => {
-    if (!repo) {
+    if (!repo || !intakeServerUrl) {
       setTunnelUrl(null);
       return;
     }
     let mounted = true;
-    const refresh = () => {
-      onFsChanged((paths) => {
-        if (paths.some((p) => p.endsWith("/.openit/tunnel.json"))) {
-          fetchTunnelStatus();
-        }
-      })
-        .then((un) => {
-          if (mounted) unlistenFn = un;
-          else un();
-        })
-        .catch((e) => console.warn("[app] tunnel.json watcher init failed:", e));
-    };
-    const fetchTunnelStatus = async () => {
-      if (!intakeServerUrl) return;
+    const poll = async () => {
       try {
         const r = await fetch(`${intakeServerUrl}/share/status`);
         if (!r.ok) return;
@@ -575,12 +562,11 @@ function App() {
         if (mounted) setTunnelUrl(null);
       }
     };
-    fetchTunnelStatus();
-    let unlistenFn: (() => void) | null = null;
-    refresh();
+    poll();
+    const id = setInterval(poll, 3_000);
     return () => {
       mounted = false;
-      unlistenFn?.();
+      clearInterval(id);
     };
   }, [repo, intakeServerUrl]);
 
