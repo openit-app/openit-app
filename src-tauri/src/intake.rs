@@ -2415,78 +2415,12 @@ const CHAT_HTML: &str = r#"<!doctype html>
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>OpenIT — Help Desk</title>
+<title>IT Help Desk</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 <style>
-.gate {
-  flex: 1;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 40px 20px;
-}
-.gate form {
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: 12px;
-  padding: 32px;
-  max-width: 420px;
-  width: 100%;
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-}
-.gate h2 { margin: 0; font-size: 18px; font-weight: 600; }
-.gate p { margin: 0; color: var(--text-muted); font-size: 13px; }
-.gate label {
-  display: block;
-  margin-top: 8px;
-  font-size: 12px;
-  font-weight: 500;
-  color: var(--text-muted);
-}
-.gate input[type=email] {
-  width: 100%;
-  padding: 10px 12px;
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  font-size: 14px;
-  font-family: inherit;
-  box-sizing: border-box;
-}
-.gate button {
-  margin-top: 8px;
-}
-.gate-error {
-  color: #c0392b;
-  font-size: 12px;
-  margin: 0;
-}
-.gate-not-you {
-  background: transparent;
-  border: 0;
-  padding: 4px 0 0;
-  margin: 0;
-  font: inherit;
-  font-size: 12px;
-  color: var(--text-muted);
-  text-decoration: underline;
-  cursor: pointer;
-  align-self: center;
-}
-.gate-not-you:hover { color: var(--text); }
-/* Make the HTML `hidden` attribute win against display:flex on
-   chat/form/banner — those have explicit display rules in the main
-   stylesheet that would otherwise override the user agent's hidden
-   { display: none } default. */
-[hidden] { display: none !important; }
-</style>
-<style>
 :root {
-  /* Mirrors the desktop app's design tokens (src/App.css):
-     cream background + clay/orange accent + warm beige borders. */
   --bg: #fbf7ec;
   --bg-canvas: #f7f1e1;
   --surface: #ffffff;
@@ -2504,6 +2438,8 @@ const CHAT_HTML: &str = r#"<!doctype html>
   --r-md: 6px;
   --r-lg: 10px;
   --r-xl: 16px;
+  --preview-bg: #2d2420;
+  --preview-text: #f5edd8;
 }
 * { box-sizing: border-box; }
 body {
@@ -2519,13 +2455,222 @@ body {
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }
+[hidden] { display: none !important; }
+
+/* --- Preview banner (IT admin context) --- */
+.preview-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 16px;
+  background: var(--preview-bg);
+  color: var(--preview-text);
+  font-size: 12px;
+  font-weight: 500;
+  gap: 12px;
+  flex-shrink: 0;
+}
+.preview-bar-left {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.preview-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--accent);
+  flex-shrink: 0;
+}
+.preview-bar span { opacity: 0.7; font-weight: 400; }
+.preview-bar .new-chat-btn {
+  padding: 5px 12px;
+  background: rgba(255,255,255,0.12);
+  color: var(--preview-text);
+  border: 1px solid rgba(255,255,255,0.15);
+  border-radius: var(--r-md);
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  font-family: inherit;
+  transition: background 0.1s ease;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+.preview-bar .new-chat-btn:hover { background: rgba(255,255,255,0.2); }
+.preview-bar .new-chat-btn svg {
+  width: 12px;
+  height: 12px;
+  stroke: currentColor;
+  fill: none;
+  stroke-width: 2;
+  stroke-linecap: round;
+}
+
+/* --- Header --- */
 header {
-  padding: 12px 20px;
+  padding: 16px 20px;
   border-bottom: 1px solid var(--border);
   background: var(--surface);
+  display: flex;
+  align-items: center;
+  gap: 12px;
 }
-header h1 { margin: 0; font-size: 16px; font-weight: 600; }
-header p { margin: 4px 0 0; color: var(--text-muted); font-size: 12px; }
+.header-icon {
+  width: 36px;
+  height: 36px;
+  background: var(--accent);
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+.header-icon svg {
+  width: 20px;
+  height: 20px;
+  stroke: white;
+  fill: none;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.header-text h1 { margin: 0; font-size: 15px; font-weight: 600; }
+.header-text p { margin: 2px 0 0; color: var(--text-muted); font-size: 12px; }
+
+/* --- Gate (email form) --- */
+.gate {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 40px 20px;
+  gap: 32px;
+}
+.gate-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  padding: 32px;
+  max-width: 400px;
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.04);
+}
+.gate-card h2 {
+  margin: 0;
+  font-size: 20px;
+  font-weight: 700;
+  line-height: 1.3;
+}
+.gate-card .gate-subtitle {
+  margin: 0;
+  color: var(--text-muted);
+  font-size: 13px;
+  line-height: 1.5;
+}
+.gate-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.gate-field label {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.gate-field input[type=email] {
+  width: 100%;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  font-size: 14px;
+  font-family: inherit;
+  transition: border-color 0.15s ease;
+}
+.gate-field input[type=email]:focus {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-faint);
+}
+.gate-error {
+  color: #c0392b;
+  font-size: 12px;
+  margin: 0;
+}
+.gate-card button[type=submit] {
+  width: 100%;
+  padding: 11px 18px;
+  margin-top: 4px;
+}
+.gate-not-you {
+  background: transparent;
+  border: 0;
+  padding: 4px 0 0;
+  margin: 0;
+  font: inherit;
+  font-size: 12px;
+  color: var(--text-muted);
+  text-decoration: underline;
+  cursor: pointer;
+  align-self: center;
+}
+.gate-not-you:hover { color: var(--text); }
+.gate-how-it-works {
+  max-width: 400px;
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.gate-how-it-works h3 {
+  margin: 0;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-faint);
+}
+.gate-steps {
+  display: flex;
+  gap: 12px;
+}
+.gate-step {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 12px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+}
+.gate-step-num {
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: var(--accent-faint);
+  color: var(--accent);
+  font-size: 11px;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.gate-step-label {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--text);
+  line-height: 1.3;
+}
+
+/* --- Chat --- */
 #chat {
   flex: 1;
   overflow-y: auto;
@@ -2534,6 +2679,70 @@ header p { margin: 4px 0 0; color: var(--text-muted); font-size: 12px; }
   flex-direction: column;
   gap: 12px;
 }
+.welcome-state {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+  padding: 40px 20px;
+  text-align: center;
+}
+.welcome-state .welcome-icon {
+  width: 48px;
+  height: 48px;
+  background: var(--accent-faint);
+  border-radius: 14px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.welcome-state .welcome-icon svg {
+  width: 24px;
+  height: 24px;
+  stroke: var(--accent);
+  fill: none;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.welcome-state h3 {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 600;
+}
+.welcome-state p {
+  margin: 0;
+  color: var(--text-muted);
+  font-size: 13px;
+  max-width: 320px;
+}
+.welcome-starters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  justify-content: center;
+  margin-top: 4px;
+}
+.welcome-starter {
+  padding: 8px 14px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 20px;
+  font-size: 13px;
+  color: var(--text-muted);
+  cursor: pointer;
+  font-family: inherit;
+  transition: border-color 0.1s ease, color 0.1s ease;
+}
+.welcome-starter:hover {
+  border-color: var(--accent-soft);
+  color: var(--text);
+  background: var(--accent-faint);
+}
+
+/* --- Bubbles --- */
 .bubble {
   max-width: 75%;
   padding: 10px 14px;
@@ -2568,12 +2777,35 @@ header p { margin: 4px 0 0; color: var(--text-muted); font-size: 12px; }
   font-size: 12px;
   padding: 4px 14px;
 }
-form {
+
+/* --- Status banner --- */
+.status-banner {
+  padding: 8px 20px;
+  font-size: 12px;
+  background: var(--accent-soft);
+  border-bottom: 1px solid var(--accent-soft);
+  color: var(--accent);
+}
+.status-banner.escalated {
+  background: var(--accent-faint);
+  border-color: var(--accent-soft);
+  color: var(--accent-hover);
+}
+.status-banner:empty { display: none; }
+
+/* --- Composer --- */
+#form {
   display: flex;
   gap: 8px;
   padding: 12px 20px;
   border-top: 1px solid var(--border);
   background: var(--surface);
+  position: relative;
+}
+#form.drag-over {
+  background: var(--accent-soft);
+  outline: 2px dashed var(--accent-soft);
+  outline-offset: -4px;
 }
 input[type=text] {
   flex: 1;
@@ -2582,6 +2814,11 @@ input[type=text] {
   border-radius: 8px;
   font-size: 14px;
   font-family: inherit;
+}
+input[type=text]:focus {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-faint);
 }
 button {
   padding: 10px 18px;
@@ -2597,19 +2834,7 @@ button {
 }
 button:hover:not(:disabled) { background: var(--accent-hover); transform: translateY(-1px); }
 button:disabled { opacity: 0.5; cursor: not-allowed; }
-.status-banner {
-  padding: 8px 20px;
-  font-size: 12px;
-  background: var(--accent-soft);
-  border-bottom: 1px solid var(--accent-soft);
-  color: var(--accent);
-}
-.status-banner.escalated {
-  background: var(--accent-faint);
-  border-color: var(--accent-soft);
-  color: var(--accent-hover);
-}
-.status-banner:empty { display: none; }
+
 /* --- Attachments --- */
 .bubble .attachments {
   display: flex;
@@ -2642,14 +2867,6 @@ button:disabled { opacity: 0.5; cursor: not-allowed; }
   border-color: var(--accent-soft);
 }
 .bubble .attachments .attach-icon { font-size: 14px; }
-form {
-  position: relative;
-}
-form.drag-over {
-  background: var(--accent-soft);
-  outline: 2px dashed var(--accent-soft);
-  outline-offset: -4px;
-}
 .compose-chips {
   display: flex;
   flex-wrap: wrap;
@@ -2702,32 +2919,82 @@ form.drag-over {
 </style>
 </head>
 <body>
-<header>
-  <h1>OpenIT — Help Desk</h1>
-  <p>Describe your issue. The agent will try to help, or escalate to a human.</p>
-</header>
 
-<!-- Gate: collect email before starting the chat. Hidden once the
-     session is created. -->
-<div class="gate" id="gate">
-  <form id="gateForm">
-    <h2>Before we start</h2>
-    <p>What's your email? The IT admin uses this to follow up if your question needs a human.</p>
-    <label for="email">Email</label>
-    <input id="email" name="email" type="email" autocomplete="email" placeholder="you@company.com" required>
-    <p class="gate-error" id="gateError"></p>
-    <button type="submit">Start chat</button>
-  </form>
+<!-- Preview bar — tells the IT admin this is the employee-facing form -->
+<div class="preview-bar" id="previewBar">
+  <div class="preview-bar-left">
+    <div class="preview-dot"></div>
+    Employee preview <span>— this is what your team sees at this link</span>
+  </div>
+  <button class="new-chat-btn" id="newChatBtn" title="Start a new conversation">
+    <svg viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+    New chat
+  </button>
 </div>
 
-<!-- Chat surface — hidden until the gate is satisfied. -->
+<!-- Header — clean employee-facing branding -->
+<header>
+  <div class="header-icon">
+    <svg viewBox="0 0 24 24"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+  </div>
+  <div class="header-text">
+    <h1>IT Help Desk</h1>
+    <p>Ask a question — we'll try to solve it instantly, or loop in your IT team.</p>
+  </div>
+</header>
+
+<!-- Gate: collect email before starting the chat -->
+<div class="gate" id="gate">
+  <form class="gate-card" id="gateForm">
+    <h2>What can we help with?</h2>
+    <p class="gate-subtitle">Enter your email to start a conversation. Your IT team will be able to follow up if needed.</p>
+    <div class="gate-field">
+      <label for="email">Work email</label>
+      <input id="email" name="email" type="email" autocomplete="email" placeholder="you@company.com" required>
+    </div>
+    <p class="gate-error" id="gateError"></p>
+    <button type="submit">Start conversation</button>
+  </form>
+  <div class="gate-how-it-works">
+    <h3>How it works</h3>
+    <div class="gate-steps">
+      <div class="gate-step">
+        <div class="gate-step-num">1</div>
+        <div class="gate-step-label">Describe your issue</div>
+      </div>
+      <div class="gate-step">
+        <div class="gate-step-num">2</div>
+        <div class="gate-step-label">AI tries to solve it from your IT knowledge base</div>
+      </div>
+      <div class="gate-step">
+        <div class="gate-step-num">3</div>
+        <div class="gate-step-label">If it can't, your IT admin picks it up</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Chat surface — hidden until the gate is satisfied -->
 <div class="status-banner" id="banner" hidden></div>
-<div id="chat" hidden></div>
+<div id="chat" hidden>
+  <div class="welcome-state" id="welcomeState">
+    <div class="welcome-icon">
+      <svg viewBox="0 0 24 24"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+    </div>
+    <h3>How can we help?</h3>
+    <p>Type your question below. Our AI will check the knowledge base first — if it can't help, a human from IT will follow up.</p>
+    <div class="welcome-starters" id="starters">
+      <button type="button" class="welcome-starter" data-msg="I can't connect to the VPN">VPN issues</button>
+      <button type="button" class="welcome-starter" data-msg="I need to reset my password">Password reset</button>
+      <button type="button" class="welcome-starter" data-msg="I need access to a tool or system">Access request</button>
+    </div>
+  </div>
+</div>
 <div class="compose-chips" id="chips" hidden></div>
 <form id="form" hidden>
   <button type="button" class="attach-btn" id="attachBtn" title="Attach a file">📎</button>
   <input id="fileInput" type="file" multiple hidden>
-  <input id="msg" type="text" placeholder="Type your message…" autocomplete="off">
+  <input id="msg" type="text" placeholder="Describe your issue…" autocomplete="off">
   <button type="submit" id="send">Send</button>
 </form>
 <script>
@@ -2749,6 +3016,8 @@ const gateError = document.getElementById('gateError');
 const chipsBar = document.getElementById('chips');
 const fileInput = document.getElementById('fileInput');
 const attachBtn = document.getElementById('attachBtn');
+const newChatBtn = document.getElementById('newChatBtn');
+const welcomeState = document.getElementById('welcomeState');
 
 // Pending attachments awaiting Send. Each entry tracks its upload
 // state so the chip renders accurately and the submit handler only
@@ -2875,6 +3144,8 @@ function renderAttachmentsInto(el, attachments) {
 }
 
 function bubble(role, body, sender, attachments) {
+  // Hide the welcome state on first message
+  if (welcomeState && !welcomeState.hidden) welcomeState.hidden = true;
   const el = document.createElement('div');
   el.className = 'bubble ' + role;
   if (sender) {
@@ -2943,11 +3214,8 @@ function applyRememberedEmail() {
   const remembered = getCookie(EMAIL_COOKIE);
   if (!remembered) return;
   emailInput.value = remembered;
-  // Swap the gate copy for a returning-visitor flow without
-  // restructuring the form (so the existing submit handler still
-  // works — it just reads the prefilled value).
   const heading = gateForm.querySelector('h2');
-  const lead = gateForm.querySelector('p:not(.gate-error)');
+  const lead = gateForm.querySelector('.gate-subtitle');
   const submit = gateForm.querySelector('button[type=submit]');
   if (heading) heading.textContent = 'Welcome back';
   if (lead) {
@@ -2955,12 +3223,11 @@ function applyRememberedEmail() {
     lead.querySelector('strong').textContent = remembered;
   }
   if (submit) submit.textContent = 'Continue';
-  // Hide the label + input — the email is already known, and the
-  // "not you?" link below covers the change-of-mind case.
+  // Hide the field — email is already known.
+  const field = gateForm.querySelector('.gate-field');
+  if (field) field.hidden = true;
   emailInput.type = 'hidden';
-  const label = gateForm.querySelector('label[for=email]');
-  if (label) label.hidden = true;
-  // Add a small secondary affordance to forget the cookie.
+  // "Not you?" affordance.
   if (!gateForm.querySelector('.gate-not-you')) {
     const notYou = document.createElement('button');
     notYou.type = 'button';
@@ -3000,6 +3267,43 @@ async function start(email) {
 }
 
 applyRememberedEmail();
+
+// --- New Chat button ---
+newChatBtn.addEventListener('click', () => {
+  // Reset session state
+  sessionId = null;
+  ticketId = null;
+  lastSeen = '';
+  seenTurnKeys.clear();
+  pendingAttachments.length = 0;
+  if (pollTimer) { clearInterval(pollTimer); pollTimer = null; }
+  // Clear chat bubbles and restore welcome state
+  chat.querySelectorAll('.bubble, .typing').forEach((el) => el.remove());
+  if (welcomeState) welcomeState.hidden = false;
+  // Reset UI to gate
+  chat.hidden = true;
+  form.hidden = true;
+  banner.hidden = true;
+  banner.textContent = '';
+  banner.classList.remove('escalated');
+  chipsBar.hidden = true;
+  chipsBar.innerHTML = '';
+  gate.hidden = false;
+  // If we have a remembered email, the gate will auto-fill — just show it
+  applyRememberedEmail();
+  gateError.textContent = '';
+});
+
+// --- Starter prompt chips (in welcome state) ---
+document.querySelectorAll('.welcome-starter').forEach((btn) => {
+  btn.addEventListener('click', () => {
+    const msg = btn.getAttribute('data-msg');
+    if (msg && sessionId) {
+      input.value = msg;
+      form.dispatchEvent(new Event('submit', { cancelable: true }));
+    }
+  });
+});
 
 async function poll() {
   if (!sessionId) return;
