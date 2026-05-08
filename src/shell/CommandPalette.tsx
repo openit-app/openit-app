@@ -56,6 +56,7 @@ export function CommandPalette({
       { id: "goto-reports", label: "Reports", hint: "Generated reports", group: "Go to", run: () => navigate(`${r}/reports`) },
       { id: "goto-scripts", label: "Scripts", hint: "Runnable scripts", group: "Go to", run: () => navigate(`${r}/filestores/scripts`) },
       { id: "goto-tools", label: "Tools", hint: "Installed CLI & MCP tools", group: "Go to", run: () => navigate(`${r}/tools`) },
+      { id: "goto-traces", label: "Traces", hint: "Agent activity logs", group: "Go to", run: () => navigate(`${r}/.openit/agent-traces`) },
 
       // ── Run (featured commands) ──
       { id: "run-salesforce-gmail", label: "/salesforce-gmail", hint: "Bridge Salesforce and Gmail", group: "Run", run: () => injectIntoChat("/salesforce-gmail") },
