@@ -539,9 +539,8 @@ fn validate_filename(filename: &str) -> Result<(), String> {
 /// `openit-../../evil` would otherwise produce
 /// `filestores/../../evil` and let downloads escape the repo entirely.
 fn validate_subdir(subdir: &str) -> Result<(), String> {
-    // Empty subdir = repo root (e.g. CLAUDE.md, getting-started.md).
     if subdir.is_empty() {
-        return Ok(());
+        return Err("subdir must not be empty".to_string());
     }
     let p = Path::new(subdir);
     if p.is_absolute() {
@@ -1128,7 +1127,7 @@ mod tests {
     fn validate_subdir_basics() {
         assert!(validate_subdir("filestores/library").is_ok());
         assert!(validate_subdir("filestores/docs-123").is_ok());
-        assert!(validate_subdir("").is_ok()); // empty = repo root
+        assert!(validate_subdir("").is_err()); // empty string rejected; use None for repo root
         assert!(validate_subdir("..").is_err());
         assert!(validate_subdir("a/../b").is_err());
         assert!(validate_subdir("/abs").is_err());
