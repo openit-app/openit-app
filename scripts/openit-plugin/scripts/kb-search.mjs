@@ -10,14 +10,6 @@
 //     `knowledge-base_ask` instead. Output shape stays the same, so
 //     the agent's logic doesn't change.
 //
-// 2026-04-27 plural rename: walks every collection under
-// `knowledge-bases/<name>/`. The default collection ships at
-// `knowledge-bases/`; admins can `mkdir
-// knowledge-bases/<custom>/` to add more (each becomes its own
-// cloud-synced KB when connected). Search runs across all of them
-// without needing a flag — the matches array carries the full
-// repo-relative path so the agent can read the right file.
-//
 // Usage:
 //   node .claude/scripts/kb-search.mjs "vpn password reset"
 //
@@ -35,7 +27,7 @@ import { readdir, readFile } from "node:fs/promises";
 import path from "node:path";
 import process from "node:process";
 
-const KB_PARENT = "knowledge-bases";
+const KB_DIR = "knowledge-bases";
 const TOP_N = 5;
 const SNIPPET_LEN = 200;
 const STOPWORDS = new Set([
@@ -118,51 +110,37 @@ async function main() {
   const query = args.join(" ");
   const queryTokens = Array.from(new Set(tokenize(query)));
 
-  // Enumerate every KB collection under `knowledge-bases/`. The
-  // `default` collection is what ships out of the box; user-created
-  // folders alongside it (`knowledge-bases/<custom>/`) are searched
-  // too without any flag. If the parent dir doesn't exist yet we
-  // bail with an empty result so the caller cleanly branches to
-  // "escalate".
-  let parentEntries;
+  // Flat search: all articles live directly in `knowledge-bases/`.
+  // If the dir doesn't exist yet we bail with an empty result so
+  // the caller cleanly branches to "escalate".
+  let entries;
   try {
-    parentEntries = await readdir(KB_PARENT, { withFileTypes: true });
+    entries = await readdir(KB_DIR, { withFileTypes: true });
   } catch (e) {
     if (e.code === "ENOENT") {
       emit({ matches: [] });
       return;
     }
-    fail(`could not read ${KB_PARENT}: ${e.message}`);
+    fail(`could not read ${KB_DIR}: ${e.message}`);
   }
 
   const candidates = [];
-  for (const colEnt of parentEntries) {
-    if (!colEnt.isDirectory()) continue;
-    const colName = colEnt.name;
-    const colDir = path.join(KB_PARENT, colName);
-    let entries;
+  for (const ent of entries) {
+    if (!ent.isFile()) continue;
+    if (!/\.(md|markdown|txt)$/i.test(ent.name)) continue;
+    // Skip cloud-sync conflict shadows so the agent never cites a
+    // shadow as a "match".
+    if (ent.name.includes(".server.")) continue;
+    const fullPath = path.join(KB_DIR, ent.name);
+    let body;
     try {
-      entries = await readdir(colDir, { withFileTypes: true });
+      body = await readFile(fullPath, "utf8");
     } catch {
       continue;
     }
-    for (const ent of entries) {
-      if (!ent.isFile()) continue;
-      if (!/\.(md|markdown|txt)$/i.test(ent.name)) continue;
-      // Skip cloud-sync conflict shadows so the agent never cites a
-      // shadow as a "match".
-      if (ent.name.includes(".server.")) continue;
-      const fullPath = path.join(colDir, ent.name);
-      let body;
-      try {
-        body = await readFile(fullPath, "utf8");
-      } catch {
-        continue;
-      }
-      const s = score(queryTokens, ent.name, body);
-      if (s > 0) {
-        candidates.push({ path: fullPath, score: s, snippet: snippet(body) });
-      }
+    const s = score(queryTokens, ent.name, body);
+    if (s > 0) {
+      candidates.push({ path: fullPath, score: s, snippet: snippet(body) });
     }
   }
 

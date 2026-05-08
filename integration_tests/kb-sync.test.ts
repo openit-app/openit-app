@@ -19,11 +19,10 @@ const skip = !config;
 let client: PinkfishClient | null = null;
 let openitKbs: DataCollection[] = [];
 
-function expectedLocalDir(collectionName: string): string {
-  const folder = collectionName.startsWith("openit-")
-    ? collectionName.slice("openit-".length)
-    : collectionName;
-  return `knowledge-bases/${folder}`;
+// Flat KB: all articles live directly in knowledge-bases/ regardless
+// of the cloud collection name.
+function expectedLocalDir(_collectionName: string): string {
+  return "knowledge-bases";
 }
 
 describe.skipIf(skip)("KB sync — real integration", () => {
@@ -80,19 +79,11 @@ describe.skipIf(skip)("KB sync — real integration", () => {
     });
   });
 
-  describe("name → local-dir routing (Phase 2 multi-collection)", () => {
-    it("maps openit-default → knowledge-bases/default", () => {
-      expect(expectedLocalDir("openit-default")).toBe("knowledge-bases/default");
-    });
-
-    it("maps openit-runbooks → knowledge-bases/runbooks", () => {
-      expect(expectedLocalDir("openit-runbooks")).toBe("knowledge-bases/runbooks");
-    });
-
-    it("returns the input verbatim for non-openit names (defensive)", () => {
-      expect(expectedLocalDir("customer-knowledge")).toBe(
-        "knowledge-bases/customer-knowledge",
-      );
+  describe("name → local-dir routing (flat KB)", () => {
+    it("all collections map to knowledge-bases/", () => {
+      expect(expectedLocalDir("openit-default")).toBe("knowledge-bases");
+      expect(expectedLocalDir("openit-runbooks")).toBe("knowledge-bases");
+      expect(expectedLocalDir("customer-knowledge")).toBe("knowledge-bases");
     });
   });
 

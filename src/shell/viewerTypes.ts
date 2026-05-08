@@ -203,12 +203,12 @@ export type ViewerSource =
       kind: "entity-folder";
       // Top-level entity folders that render a card list. `library`
       // is the curated filestore collection (`filestores/library/`);
-      // `knowledge-base` covers any KB collection under
-      // `knowledge-bases/<name>/` (default + user-created); the
-      // operational `filestores/attachments/` collection has its own
-      // ticketid-grouped renderer and isn't part of this set.
-      // `reports` carries on-demand generated markdown reports —
-      // sorted newest-first by filename instead of alphabetically.
+      // `knowledge` / `knowledge-base` covers the flat
+      // `knowledge-bases/` directory; the operational
+      // `filestores/attachments/` collection has its own ticketid-
+      // grouped renderer and isn't part of this set. `reports`
+      // carries on-demand generated markdown reports — sorted
+      // newest-first by filename instead of alphabetically.
       entity:
         | "agents"
         | "workflows"
@@ -219,12 +219,7 @@ export type ViewerSource =
         | "skills"
         | "scripts"
         | "attachments-ticket";
-      // Repo-relative path the resolver matched. For non-KB entities
-      // it equals the entity name; for KB it carries the specific
-      // collection (e.g. `knowledge-bases/default` or
-      // `knowledge-bases/<custom>`) so the fsTick re-resolver knows
-      // which folder to walk, and the title-bar can show the
-      // collection name.
+      // Repo-relative path the resolver matched.
       path: string;
       // displayName drops the file extension and falls back to the
       // entity's own `name` field when readable (agents/workflows JSON);
@@ -259,11 +254,7 @@ export type ViewerSource =
   // thread). This is what surfaces when the admin clicks the
   // attachments folder in the explorer.
   | { kind: "attachments-folder"; tickets: { ticketId: string; path: string; fileCount: number }[] }
-  // Top-level `knowledge-bases/` directory — same plural-with-default
-  // shape as filestores/. `default` ships out of the box (cloud-sync
-  // target in V1); admins can `mkdir knowledge-bases/<custom>/` to
-  // add their own collections, which surface here too. Each card
-  // shows article count + one-line purpose blurb.
+  // Legacy type kept for compat — no longer produced by the resolver.
   | { kind: "knowledge-bases-list"; collections: { name: string; path: string; itemCount: number; description: string; isBuiltin: boolean }[] }
   // Tools — the tools catalog. Backed by `which` detection rather
   // than a real on-disk directory; the resolver matches the synthetic

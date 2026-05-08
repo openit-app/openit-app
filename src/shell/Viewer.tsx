@@ -2839,7 +2839,7 @@ export function Viewer({
           // admin knows the capture didn't fire (matching the
           // skill-anchor pattern around line 321).
           const cmd = `/conversation-to-automation ${ticketId}`;
-          const wrapped = `${BRACKETED_PASTE_OPEN}${cmd}${BRACKETED_PASTE_CLOSE}`;
+          const wrapped = `${BRACKETED_PASTE_OPEN}${cmd}${BRACKETED_PASTE_CLOSE}\r`;
           try {
             const pasted = await writeToActiveSession(wrapped);
             if (!pasted) {
