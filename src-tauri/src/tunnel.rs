@@ -260,7 +260,8 @@ mod tests {
 
     #[test]
     fn extracts_cf_url_from_log_line() {
-        let line = "2024-01-15T10:00:01Z INF +----------------------------------------------------------+";
+        let line =
+            "2024-01-15T10:00:01Z INF +----------------------------------------------------------+";
         assert_eq!(extract_cf_url(line), None);
         let line2 =
             "2024-01-15T10:00:01Z INF |  https://random-words-here.trycloudflare.com              |";
@@ -281,10 +282,7 @@ mod tests {
 
     #[test]
     fn ignores_non_cf_https() {
-        assert_eq!(
-            extract_cf_url("see https://example.com for docs"),
-            None
-        );
+        assert_eq!(extract_cf_url("see https://example.com for docs"), None);
     }
 
     #[test]

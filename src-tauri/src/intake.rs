@@ -2450,7 +2450,10 @@ fn write_tunnel_json(repo: &Path, url: Option<&str>) {
                 let _ = std::fs::create_dir_all(parent);
             }
             let body = serde_json::json!({ "url": u });
-            if let Err(e) = std::fs::write(&path, serde_json::to_string_pretty(&body).unwrap_or_default()) {
+            if let Err(e) = std::fs::write(
+                &path,
+                serde_json::to_string_pretty(&body).unwrap_or_default(),
+            ) {
                 eprintln!("[intake] write tunnel.json failed: {}", e);
             }
         }
