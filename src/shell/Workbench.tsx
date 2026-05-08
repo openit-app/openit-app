@@ -33,6 +33,7 @@ const EXTRA_STATIONS: Station[] = [
   { id: "tools",      kind: "tools",      rel: "tools",              countMode: "files" },
   { id: "databases",  kind: "databases",  rel: "databases",          countMode: "dirs" },
   { id: "filestores", kind: "filestores", rel: "filestores",         countMode: "dirs" },
+  { id: "traces",     kind: "traces",     rel: ".openit/agent-traces", countMode: "dirs" },
 ];
 
 /** fs_list walks recursively (depth 6), so a naive `.length` over its

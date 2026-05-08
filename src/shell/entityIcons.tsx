@@ -29,7 +29,8 @@ export type EntityKind =
   | "commands"
   | "scripts"
   | "access"
-  | "assets";
+  | "assets"
+  | "traces";
 
 export type ToneKey = "accent" | "sage" | "ochre" | "link" | "clay" | "neutral";
 
@@ -150,6 +151,13 @@ const AssetsIcon: ReactNode = (
   </svg>
 );
 
+// Activity log — agent trace history.
+const TracesIcon: ReactNode = (
+  <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+    <polyline points="22 12 18 12 15 21 9 3 6 12 2 12" />
+  </svg>
+);
+
 // ── Per-kind metadata (icon + tone + label) ───────────────────────
 
 type EntityMetaEntry = {
@@ -178,6 +186,7 @@ export const ENTITY_META: Record<EntityKind, EntityMetaEntry> = {
   scripts:           { icon: ScriptsIcon,     tone: "link",    label: "Scripts" },
   access:            { icon: AccessIcon,      tone: "sage",    label: "Access" },
   assets:            { icon: AssetsIcon,      tone: "clay",    label: "Assets" },
+  traces:            { icon: TracesIcon,     tone: "neutral", label: "Traces" },
 };
 
 // ── Convenience accessors used by call sites ──────────────────────
