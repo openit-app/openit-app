@@ -1,8 +1,8 @@
 // Agent loading, smart routing, and prompt construction for the chat
 // intake server. Extracted from the original monolithic intake.rs.
 
-use std::path::Path;
 use super::ChatMessage;
+use std::path::Path;
 
 /// Load any agent by name. V3 agents are single `.md` files at
 /// `agents/<name>.md`. Falls back to V2 folder layout and V1 flat

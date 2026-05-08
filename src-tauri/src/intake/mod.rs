@@ -1,5 +1,5 @@
 mod prompts;
-use prompts::{load_agent, classify_agent, build_chat_prompt};
+use prompts::{build_chat_prompt, classify_agent, load_agent};
 
 // Localhost chat-intake HTTP server.
 //
@@ -1251,7 +1251,6 @@ fn mime_for_attachment(path: &Path) -> String {
 
 // Agent loading, routing, and prompt construction moved to prompts.rs
 
-
 /// Spawn `claude -p` with the prompt on stdin. Returns the trimmed
 /// stdout as the agent's reply. Stderr is captured but not surfaced
 /// to the user (logged for forensics).
@@ -2161,7 +2160,10 @@ struct ShareStatusResponse {
 fn with_cors(mut resp: Response) -> Response {
     let h = resp.headers_mut();
     h.insert(header::ACCESS_CONTROL_ALLOW_ORIGIN, "*".parse().unwrap());
-    h.insert(header::ACCESS_CONTROL_ALLOW_METHODS, "GET,POST".parse().unwrap());
+    h.insert(
+        header::ACCESS_CONTROL_ALLOW_METHODS,
+        "GET,POST".parse().unwrap(),
+    );
     resp
 }
 
@@ -2242,8 +2244,6 @@ const CHAT_HTML: &str = include_str!("chat_ui.html");
 // The original inline HTML template was ~1,036 lines. It now lives in
 // `src-tauri/src/intake/chat_ui.html` and is embedded at compile time
 // via `include_str!`. No runtime behavior change.
-
-
 
 #[cfg(test)]
 mod tests {
