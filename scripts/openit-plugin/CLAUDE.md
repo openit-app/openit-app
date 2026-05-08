@@ -47,6 +47,53 @@ Everything is on disk. Default to the built-in tools:
 
 You don't need to call any gateway / network tool to read or write tickets, KB articles, agent configs, or contact records. Those are just files. Reach for the gateway only when the user is asking you to do something involving a connected third-party system (Slack, Okta, GitHub, GCP) — and even then, only when cloud is connected.
 
+## Every session is a ticket
+
+OpenIT is a **learning system**. Every Claude Code session — whether the admin types a slash command, debugs an issue, or just asks a question — is a unit of work that should be tracked and should enrich the OpenIT universe for next time.
+
+### The rules
+
+1. **Create a ticket at first meaningful action.** Don't create one for "what time is it" — but the moment the admin asks you to do real work (debug something, pull a report, update a record, look into an issue), create a ticket in `databases/tickets/`. Use `askerChannel: "desktop"` and set the admin as `asker`.
+
+2. **One ticket per topic, not per session.** If the admin shifts to a completely different topic mid-session ("OK, now let's deal with the printer issue"), create a second ticket. Use your judgment — a follow-up question on the same topic is NOT a new ticket. A genuinely unrelated task IS.
+
+3. **Log the conversation.** Write turns to `databases/conversations/<ticketId>/msg-<unix-ms>-<rand>.json` as the session progresses. The admin's messages are `role: "admin"`, your responses are `role: "agent"`. You don't need to log every single exchange — capture the meaningful ones: the ask, key decisions, the outcome.
+
+4. **Attach artifacts as you go.** When you produce something during the session, link it back to the ticket:
+   - **KB article written** → add its path to the ticket's `kbArticleRefs` array
+   - **Script created** → note it in the ticket's `notes` field
+   - **Records updated** (people, assets, access) → note what changed in `notes`
+   - **Command proposed** → note the new skill path in `notes`
+
+5. **Wrap up when the work is done.** Before the session ends or when a task is complete:
+   - Set the ticket status to `resolved` (or `closed` if nothing further is needed)
+   - Update `updatedAt`
+   - Write a brief summary in `notes` covering: what was done, what artifacts were created, what records were changed
+   - **Proactively update the KB** — if you learned something that would help next time (a fix, a process, a gotcha), write or update a KB article in `knowledge-bases/default/` and link it
+   - **Propose a command** if the workflow is repeatable (3+ steps, likely to recur) — see "Capturing reusable workflows" below
+
+### Ticket fields for admin-initiated tasks
+
+Use the same schema as inbound tickets. The differences:
+
+| Field | Inbound ticket | Admin-initiated task |
+|---|---|---|
+| `asker` | Employee name/email | Admin's name or "admin" |
+| `askerChannel` | `chat`, `slack`, `email` | `desktop` |
+| `status` flow | `incoming` → `agent-responding` → `resolved`/`escalated` | `open` → `resolved` → `closed` |
+| `tags` | Auto-assigned by triage | Admin can tag, or you tag based on context |
+
+### Why this matters
+
+Every session makes the next one better:
+- **KB grows** — the same issue never has to be solved from scratch twice
+- **Scripts accumulate** — deterministic fixes become one-click
+- **Commands emerge** — repeated workflows become slash commands
+- **Ticket history** — pattern recognition ("this is the third VPN issue this month") becomes possible
+- **Records stay current** — people, assets, access are updated as side effects of real work
+
+The admin doesn't have to think about any of this. You handle the bookkeeping. The admin just does their work; the system learns.
+
 ## The triage agent
 
 The triage agent's persona lives at `agents/triage/`. The structured fields (model, sharing, resources, tools, prompt examples, intro message) live in `triage.json`; the prose persona is split across three markdown blocks — `common.md` (universal voice + escalation rules), `cloud.md` (Pinkfish-runtime instructions, e.g. MCP tool names), and `local.md` (OpenIT-runtime instructions, e.g. file paths and the `ai-intake` skill). The chat-intake server assembles `common.md + local.md` and passes it as the agent's prompt; the cloud agent on Pinkfish gets `common.md + cloud.md` instead. Edit the markdown files to tweak how the agent talks to end users — those are the sources of truth for the agent's voice.

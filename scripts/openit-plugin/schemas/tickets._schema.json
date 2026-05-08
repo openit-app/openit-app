@@ -30,9 +30,9 @@
       "id": "askerChannel",
       "label": "Channel",
       "type": "enum",
-      "values": ["chat", "slack", "email", "web", "teams", "api"],
+      "values": ["chat", "slack", "email", "web", "teams", "api", "desktop"],
       "default": "chat",
-      "comment": "How the question reached us. 'chat' = the localhost chat-intake form. Other channels available when cloud is connected (channel ingest)."
+      "comment": "How the question reached us. 'chat' = the localhost chat-intake form. 'desktop' = admin-initiated task from the Claude Code desktop session. Other channels available when cloud is connected (channel ingest)."
     },
     {
       "id": "status",
