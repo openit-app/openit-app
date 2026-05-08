@@ -4455,20 +4455,50 @@ export function Viewer({
           </>
         )}
         {showAssetsTabs && (
-          <TabStrip variant="segmented">
-            <Tab
-              active={assetsView === "cards"}
-              onClick={() => setAssetsView("cards")}
+          <>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => {
+                if (!onShowSource || !repo) return;
+                const taken = new Set(
+                  source.kind === "assets-list"
+                    ? source.records.map((r) => r.key)
+                    : [],
+                );
+                let filename = "untitled.md";
+                let i = 2;
+                while (taken.has(filename.replace(".md", ""))) {
+                  filename = `untitled-${i}.md`;
+                  i += 1;
+                }
+                onShowSource({
+                  kind: "draft-file",
+                  path: `${repo}/databases/assets/${filename}`,
+                  subdir: "databases/assets",
+                  filename,
+                  initialContent: `# Asset record\n\n- **Name:** \n- **Type:** laptop / monitor / phone / other\n- **Serial number:** \n- **Assigned to:** \n- **Status:** available / assigned / repair / decommissioned\n- **Date:** ${new Date().toISOString().slice(0, 10)}\n\n## Notes\n\nAdd any details about this asset here.\n`,
+                });
+              }}
+              title="Draft a new asset record"
             >
-              Cards
-            </Tab>
-            <Tab
-              active={assetsView === "table"}
-              onClick={() => setAssetsView("table")}
-            >
-              Table
-            </Tab>
-          </TabStrip>
+              + New
+            </Button>
+            <TabStrip variant="segmented">
+              <Tab
+                active={assetsView === "cards"}
+                onClick={() => setAssetsView("cards")}
+              >
+                Cards
+              </Tab>
+              <Tab
+                active={assetsView === "table"}
+                onClick={() => setAssetsView("table")}
+              >
+                Table
+              </Tab>
+            </TabStrip>
+          </>
         )}
         {showConversationsFilter && (
           <TabStrip>
