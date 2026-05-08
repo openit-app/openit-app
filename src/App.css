@@ -3962,11 +3962,12 @@ input.viewer-title.viewer-title-rename {
   flex-direction: column;
   gap: 14px;
   padding: 12px;
+  height: 100%;
+  min-height: 0;
 }
 
-/* TODAY card — was a single <button>; v5 splits it into two click
-   zones (open Inbox vs. draft replies with Claude) so it's now a
-   <div> wrapper with two <button> children. */
+/* ── TODAY hero card ─────────────────────────────────────────── */
+
 .workbench-today {
   display: flex;
   flex-direction: column;
@@ -3989,9 +3990,6 @@ input.viewer-title.viewer-title-rename {
     box-shadow var(--t-fast) var(--ease);
 }
 .workbench-today.has-escalated {
-  /* Subtle warm glow on the card when there are escalated tickets —
-     enough to signal "something here needs you" without being a
-     loud notification. */
   border-color: rgba(199, 154, 46, 0.35);
   box-shadow:
     var(--shadow-card),
@@ -4019,9 +4017,6 @@ input.viewer-title.viewer-title-rename {
   opacity: 0.5;
 }
 
-/* Main click zone — open the Tickets Inbox. Reset button chrome
-   so it inherits the card's surface; the visual treatment lives on
-   the wrapping .workbench-today div. */
 .workbench-today-main {
   appearance: none;
   background: transparent;
@@ -4042,9 +4037,6 @@ input.viewer-title.viewer-title-rename {
   opacity: 0.7;
 }
 
-/* Top row of the TODAY card — TODAY eyebrow on the left, OpenIT
-   brand mark on the right. Both render in the same row so they
-   share a baseline. */
 .workbench-today-topline {
   display: flex;
   align-items: baseline;
@@ -4058,10 +4050,6 @@ input.viewer-title.viewer-title-rename {
   letter-spacing: 0.14em;
   color: var(--accent);
 }
-/* Subtle brand mark on the right of the eyebrow row. Same italic
-   Fraunces "IT" treatment as the title rail's wordmark, but
-   muted (text-faint) so it reads as a quiet signature on the
-   card rather than competing with the count below. */
 .workbench-today-brand {
   font-family: var(--font-display);
   font-weight: 600;
@@ -4110,8 +4098,6 @@ input.viewer-title.viewer-title-rename {
   line-height: 1.2;
 }
 
-/* Empty-queue celebratory state — keeps the same hero footprint
-   so the layout doesn't bounce when unresolved goes to zero. */
 .workbench-today-hero-clean {
   align-items: center;
 }
@@ -4121,9 +4107,6 @@ input.viewer-title.viewer-title-rename {
   font-size: 22px;
   font-weight: 600;
   letter-spacing: -0.02em;
-  /* Generous line-height so the descender on "g" / "p" isn't clipped
-     by the gradient text's bounding box (background-clip: text +
-     tight line-height crops descenders on macOS Safari/WebKit). */
   line-height: 1.45;
   padding-bottom: 4px;
   color: var(--text);
@@ -4133,41 +4116,69 @@ input.viewer-title.viewer-title-rename {
   background-clip: text;
 }
 
-.workbench-today-meta {
-  margin-top: 8px;
-  font-size: 11px;
-  color: var(--clay);
+/* ── Layout toggle bar ────────────────────────────────────────── */
+
+.workbench-layout-bar {
   display: flex;
-  align-items: center;
-  gap: 6px;
-  position: relative;
-  z-index: 1;
+  justify-content: flex-end;
+  gap: 2px;
+  padding: 0 2px;
 }
 
-.workbench-today-pip {
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
-  background: var(--clay);
-  box-shadow: 0 0 8px rgba(179, 74, 58, 0.55);
+.workbench-layout-btn {
+  all: unset;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  border-radius: 6px;
+  color: var(--text-faint);
+  transition:
+    color var(--t-fast) var(--ease),
+    background var(--t-fast) var(--ease);
 }
+
+.workbench-layout-btn:hover {
+  color: var(--text-muted);
+  background: var(--accent-faint);
+}
+
+.workbench-layout-btn.active {
+  color: var(--accent);
+  background: var(--accent-faint);
+}
+
+/* ── Primary station cards — big, bold, fill the pane ────────── */
 
 .workbench-stations {
   display: grid;
-  grid-template-columns: 1fr 1fr;
   gap: 10px;
-  padding: 0 6px;
-  overflow: hidden;
+  padding: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+  flex: 1 1 0;
+  min-height: 0;
+  align-content: start;
+}
+
+.workbench-stations-single {
+  grid-template-columns: 1fr;
+}
+
+.workbench-stations-grid {
+  grid-template-columns: 1fr 1fr;
 }
 
 .station {
   display: flex;
   align-items: center;
-  gap: 8px;
-  padding: 10px 10px;
+  gap: 12px;
+  padding: 16px 16px;
   background: var(--surface);
   border: 1px solid var(--border);
-  border-radius: 10px;
+  border-radius: 12px;
   cursor: pointer;
   text-align: left;
   font-family: inherit;
@@ -4190,21 +4201,17 @@ input.viewer-title.viewer-title-rename {
 }
 
 .station-glyph {
-  width: 26px;
-  height: 26px;
+  width: 36px;
+  height: 36px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  /* Tone-tinted: parent (.station with .entity-tone-*) sets the
-     --tone-* vars; we consume them here so each station's badge is
-     colored by its EntityKind, matching the EntityCardGrid + viewer
-     header treatment. */
   background: var(--tone-bg, var(--accent-faint));
   color: var(--tone-color, var(--accent));
   border: 1px solid var(--tone-border, var(--accent-soft));
-  border-radius: 7px;
+  border-radius: 10px;
   font-family: var(--font-display);
-  font-size: 13px;
+  font-size: 16px;
   font-weight: 600;
   flex: 0 0 auto;
 }
@@ -4212,16 +4219,17 @@ input.viewer-title.viewer-title-rename {
 .station-body {
   display: flex;
   flex-direction: column;
+  gap: 1px;
   flex: 1;
   min-width: 0;
   overflow: hidden;
 }
 
 .station-label {
-  font-size: 12px;
-  font-weight: 500;
+  font-size: 14px;
+  font-weight: 600;
   color: var(--text);
-  letter-spacing: -0.005em;
+  letter-spacing: -0.01em;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -4229,9 +4237,50 @@ input.viewer-title.viewer-title-rename {
 
 .station-count {
   font-family: var(--font-mono);
-  font-size: 10px;
+  font-size: 11px;
   color: var(--text-faint);
   font-variant-numeric: tabular-nums;
+}
+
+.station-unpin {
+  margin-left: auto;
+  font-size: 16px;
+  font-weight: 400;
+  color: var(--text-faint);
+  cursor: pointer;
+  flex: 0 0 auto;
+  opacity: 0;
+  transition: opacity var(--t-fast) var(--ease);
+}
+
+.station:hover .station-unpin {
+  opacity: 1;
+}
+
+.station-unpin:hover {
+  color: var(--text);
+}
+
+/* Grid (2-col) mode: compact cards so two fit side-by-side */
+.workbench-stations-grid .station {
+  padding: 10px 10px;
+  gap: 8px;
+  border-radius: 10px;
+}
+
+.workbench-stations-grid .station-glyph {
+  width: 26px;
+  height: 26px;
+  font-size: 13px;
+  border-radius: 7px;
+}
+
+.workbench-stations-grid .station-label {
+  font-size: 12px;
+}
+
+.workbench-stations-grid .station-count {
+  font-size: 10px;
 }
 
 /* ── More section (tile picker + file explorer) ──────────────── */
@@ -4268,16 +4317,6 @@ input.viewer-title.viewer-title-rename {
   gap: 10px;
 }
 
-.workbench-more-label {
-  font-family: var(--font-display);
-  font-size: 10px;
-  font-weight: 600;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-  color: var(--text-faint);
-  padding: 0 6px;
-}
-
 .workbench-files-link {
   all: unset;
   cursor: pointer;
@@ -4299,12 +4338,12 @@ input.viewer-title.viewer-title-rename {
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 6px;
-  padding: 0 6px;
+  padding: 0 2px;
 }
 
 .station.station-picker {
-  padding: 6px 8px;
-  gap: 6px;
+  padding: 8px 10px;
+  gap: 8px;
   opacity: 0.65;
   border-style: dashed;
 }
@@ -4314,65 +4353,44 @@ input.viewer-title.viewer-title-rename {
 }
 
 .station.station-picker .station-glyph {
-  width: 20px;
-  height: 20px;
-  font-size: 11px;
+  width: 24px;
+  height: 24px;
+  font-size: 12px;
+  border-radius: 7px;
 }
 
 .station.station-picker .station-label {
-  font-size: 10px;
+  font-size: 11px;
+  font-weight: 500;
 }
 
 .station-add-hint {
   margin-left: auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 6px;
   font-size: 14px;
-  font-weight: 400;
+  font-weight: 600;
   color: var(--text-faint);
   flex: 0 0 auto;
-}
-
-.station-unpin {
-  margin-left: auto;
-  font-size: 14px;
-  font-weight: 400;
-  color: var(--text-faint);
   cursor: pointer;
-  flex: 0 0 auto;
   opacity: 0;
-  transition: opacity var(--t-fast) var(--ease);
+  transition:
+    opacity var(--t-fast) var(--ease),
+    background var(--t-fast) var(--ease),
+    color var(--t-fast) var(--ease);
 }
 
-.station:hover .station-unpin {
+.station.station-picker:hover .station-add-hint {
   opacity: 1;
 }
 
-.station-unpin:hover {
-  color: var(--text);
-}
-
-.workbench-files-toggle {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 6px 4px;
-  background: transparent;
-  border: 0;
-  border-top: 1px dashed var(--border);
-  margin-top: 6px;
-  padding-top: 12px;
-  font-family: var(--font-display);
-  font-size: 11px;
-  font-weight: 600;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
-  color: var(--text-muted);
-  cursor: pointer;
-  text-align: left;
-  transition: color var(--t-fast) var(--ease);
-}
-
-.workbench-files-toggle:hover {
-  color: var(--text);
+.station-add-hint:hover {
+  background: var(--accent-faint);
+  color: var(--accent);
 }
 
 .workbench-files-caret {
@@ -4380,17 +4398,6 @@ input.viewer-title.viewer-title-rename {
   font-size: 12px;
   color: var(--text-faint);
   width: 10px;
-}
-
-.workbench-files-hint {
-  margin-left: auto;
-  font-family: var(--font-serif);
-  font-style: italic;
-  font-weight: 400;
-  font-size: 11px;
-  text-transform: none;
-  letter-spacing: 0;
-  color: var(--text-faint);
 }
 
 /* The raw file tree collapses by default; expands when the toggle
@@ -5025,7 +5032,6 @@ input.viewer-title.viewer-title-rename {
 .station,
 .thread-card,
 .entity-card-clickable,
-.workbench-files-toggle,
 .agent-activity-banner {
   cursor: pointer;
   -webkit-app-region: no-drag;
@@ -5063,8 +5069,7 @@ input.viewer-title.viewer-title-rename {
   cursor: not-allowed;
 }
 
-/* Universal radius normalization for card-as-buttons — they all use
-   the same medium radius so curves are consistent with Button. */
+/* Universal radius normalization for card-as-buttons */
 .workbench-today-main,
 .station,
 .thread-card,

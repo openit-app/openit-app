@@ -16,31 +16,26 @@ type Station = {
   countMode: "dirs" | "json-rows" | "files";
 };
 
-// Default stations always visible on the workstation.
-const DEFAULT_STATIONS: Station[] = [
-  { id: "knowledge", kind: "knowledge", rel: "knowledge-bases",   countMode: "files" },
-  { id: "commands",  kind: "commands",  rel: "filestores/skills",  countMode: "files" },
+// Primary stations — always visible.
+const PRIMARY_STATIONS: Station[] = [
+  { id: "knowledge", kind: "knowledge", rel: "knowledge-bases",  countMode: "files" },
+  { id: "commands",  kind: "commands",  rel: "filestores/skills", countMode: "files" },
 ];
 
-// Extra stations available via the tile picker.
+// Extra stations — hidden behind "More", can be pinned up.
 const EXTRA_STATIONS: Station[] = [
-  { id: "reports",    kind: "reports",    rel: "reports",            countMode: "files" },
-  { id: "people",     kind: "people",     rel: "databases/people",   countMode: "json-rows" },
-  { id: "access",     kind: "access",     rel: "databases/access",   countMode: "json-rows" },
-  { id: "assets",     kind: "assets",     rel: "databases/assets",   countMode: "json-rows" },
-  { id: "agents",     kind: "agents",     rel: "agents",             countMode: "files" },
-  { id: "scripts",    kind: "scripts",    rel: "filestores/scripts", countMode: "files" },
-  { id: "tools",      kind: "tools",      rel: "tools",              countMode: "files" },
-  { id: "databases",  kind: "databases",  rel: "databases",          countMode: "dirs" },
-  { id: "filestores", kind: "filestores", rel: "filestores",         countMode: "dirs" },
+  { id: "reports",    kind: "reports",    rel: "reports",              countMode: "files" },
+  { id: "people",     kind: "people",     rel: "databases/people",     countMode: "json-rows" },
+  { id: "access",     kind: "access",     rel: "databases/access",     countMode: "json-rows" },
+  { id: "assets",     kind: "assets",     rel: "databases/assets",     countMode: "json-rows" },
+  { id: "agents",     kind: "agents",     rel: "agents",               countMode: "files" },
+  { id: "scripts",    kind: "scripts",    rel: "filestores/scripts",   countMode: "files" },
+  { id: "tools",      kind: "tools",      rel: "tools",                countMode: "files" },
+  { id: "databases",  kind: "databases",  rel: "databases",            countMode: "dirs" },
+  { id: "filestores", kind: "filestores", rel: "filestores",           countMode: "dirs" },
   { id: "traces",     kind: "traces",     rel: ".openit/agent-traces", countMode: "dirs" },
 ];
 
-/** fs_list walks recursively (depth 6), so a naive `.length` over its
- *  result over-counts every station that has nested data — most
- *  egregiously inbox, where it returns Σ(msg-*.json across all
- *  threads) instead of one per thread. Restrict to the direct
- *  children of `rootRel`. */
 function directChildren(items: FileNode[], rootAbs: string): FileNode[] {
   const prefix = `${rootAbs}/`;
   return items.filter((n) => {
@@ -60,11 +55,8 @@ function countWithMode(items: FileNode[], mode: Station["countMode"]): number {
   }).length;
 }
 
-/**
- * Workbench — the curated front door to the project. Big "Today"
- * inbox card on top, Knowledge + Commands below, tile picker for
- * extras at the bottom.
- */
+type GridLayout = "single" | "grid";
+
 export function Workbench({
   repo,
   fsTick,
@@ -81,9 +73,10 @@ export function Workbench({
   const escalatedCount = escalatedTickets.length;
   const [pinnedExtras, setPinnedExtras] = useState<string[]>([]);
   const [pickerOpen, setPickerOpen] = useState(false);
+  const [layout, setLayout] = useState<GridLayout>("single");
 
   const allStations = [
-    ...DEFAULT_STATIONS,
+    ...PRIMARY_STATIONS,
     ...EXTRA_STATIONS.filter((s) => pinnedExtras.includes(s.id)),
   ];
 
@@ -95,9 +88,7 @@ export function Workbench({
     }
     let cancelled = false;
     (async () => {
-      // Count all stations (default + extras) so counts are ready if
-      // the user pins an extra.
-      const toCount = [...DEFAULT_STATIONS, ...EXTRA_STATIONS];
+      const toCount = [...PRIMARY_STATIONS, ...EXTRA_STATIONS];
       const next: Record<string, number> = {};
       await Promise.all(
         toCount.map(async (s) => {
@@ -170,6 +161,7 @@ export function Workbench({
 
   return (
     <div className="workbench">
+      {/* ── TODAY hero card ───────────────────────────────── */}
       <div
         className={`workbench-today${escalatedCount > 0 ? " has-escalated" : ""}`}
       >
@@ -192,7 +184,7 @@ export function Workbench({
           </span>
           {escalatedCount === 0 ? (
             <span className="workbench-today-hero workbench-today-hero-clean">
-              <span className="workbench-today-clean">Clean inbox. Congrats!</span>
+              <span className="workbench-today-clean">Clean inbox</span>
             </span>
           ) : (
             <span className="workbench-today-hero">
@@ -205,7 +197,38 @@ export function Workbench({
         </button>
       </div>
 
-      <div className="workbench-stations">
+      {/* ── Layout toggle ────────────────────────────────── */}
+      <div className="workbench-layout-bar">
+        <button
+          type="button"
+          className={`workbench-layout-btn${layout === "single" ? " active" : ""}`}
+          onClick={() => setLayout("single")}
+          title="Single column"
+          aria-label="Single column layout"
+        >
+          <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+            <rect x="1" y="1" width="12" height="3.5" rx="1" stroke="currentColor" strokeWidth="1.2"/>
+            <rect x="1" y="6.5" width="12" height="3.5" rx="1" stroke="currentColor" strokeWidth="1.2"/>
+          </svg>
+        </button>
+        <button
+          type="button"
+          className={`workbench-layout-btn${layout === "grid" ? " active" : ""}`}
+          onClick={() => setLayout("grid")}
+          title="Two columns"
+          aria-label="Two column layout"
+        >
+          <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+            <rect x="1" y="1" width="5" height="5" rx="1" stroke="currentColor" strokeWidth="1.2"/>
+            <rect x="8" y="1" width="5" height="5" rx="1" stroke="currentColor" strokeWidth="1.2"/>
+            <rect x="1" y="8" width="5" height="5" rx="1" stroke="currentColor" strokeWidth="1.2"/>
+            <rect x="8" y="8" width="5" height="5" rx="1" stroke="currentColor" strokeWidth="1.2"/>
+          </svg>
+        </button>
+      </div>
+
+      {/* ── Primary + pinned station cards (scrollable) ──── */}
+      <div className={`workbench-stations workbench-stations-${layout}`}>
         {allStations.map((s) => {
           const meta = ENTITY_META[s.kind];
           const isPinned = pinnedExtras.includes(s.id);
@@ -249,7 +272,7 @@ export function Workbench({
         })}
       </div>
 
-      {/* Unified "More" section — tile picker + file explorer */}
+      {/* ── More section — click navigates, + pins ───────── */}
       <div className="workbench-more">
         <button
           type="button"
@@ -262,30 +285,45 @@ export function Workbench({
         {pickerOpen && (
           <div className="workbench-more-body">
             {unpinnedExtras.length > 0 && (
-              <>
-                <div className="workbench-picker-grid">
-                  {unpinnedExtras.map((s) => {
-                    const meta = ENTITY_META[s.kind];
-                    return (
-                      <button
-                        key={s.id}
-                        type="button"
-                        className={`station station-picker entity-tone-${meta.tone}`}
-                        onClick={() => toggleExtra(s.id)}
-                        title={`Add ${meta.label} to workstation`}
+              <div className="workbench-picker-grid">
+                {unpinnedExtras.map((s) => {
+                  const meta = ENTITY_META[s.kind];
+                  return (
+                    <button
+                      key={s.id}
+                      type="button"
+                      className={`station station-picker entity-tone-${meta.tone}`}
+                      onClick={() => repo && onOpen(`${repo}/${s.openRel ?? s.rel}`)}
+                      title={meta.label}
+                    >
+                      <span className="station-glyph" aria-hidden>
+                        {meta.icon}
+                      </span>
+                      <span className="station-body">
+                        <span className="station-label">{meta.label}</span>
+                      </span>
+                      <span
+                        className="station-add-hint"
+                        title={`Pin ${meta.label} to workstation`}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          toggleExtra(s.id);
+                        }}
+                        role="button"
+                        tabIndex={0}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter" || e.key === " ") {
+                            e.stopPropagation();
+                            toggleExtra(s.id);
+                          }
+                        }}
                       >
-                        <span className="station-glyph" aria-hidden>
-                          {meta.icon}
-                        </span>
-                        <span className="station-body">
-                          <span className="station-label">{meta.label}</span>
-                        </span>
-                        <span className="station-add-hint">+</span>
-                      </button>
-                    );
-                  })}
-                </div>
-              </>
+                        +
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
             )}
             <button
               type="button"
