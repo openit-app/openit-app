@@ -422,6 +422,8 @@ export function Shell({
     const isAttachmentsFolder = current.kind === "attachments-folder";
     const isKnowledgeBasesList = current.kind === "knowledge-bases-list";
     const isPeopleList = current.kind === "people-list";
+    const isAccessList = current.kind === "access-list";
+    const isAssetsList = current.kind === "assets-list";
     const isDatastoreTable = current.kind === "datastore-table";
     if (
       !isConversation &&
@@ -431,6 +433,8 @@ export function Shell({
       !isAttachmentsFolder &&
       !isKnowledgeBasesList &&
       !isPeopleList &&
+      !isAccessList &&
+      !isAssetsList &&
       !isDatastoreTable
     )
       return;
@@ -455,9 +459,13 @@ export function Shell({
                     ? `${repo}/knowledge-bases`
                     : current.kind === "people-list"
                       ? `${repo}/databases/people`
-                      : current.kind === "datastore-table"
-                        ? `${repo}/databases/${current.collection.name}`
-                        : "";
+                      : current.kind === "access-list"
+                        ? `${repo}/databases/access`
+                        : current.kind === "assets-list"
+                          ? `${repo}/databases/assets`
+                          : current.kind === "datastore-table"
+                            ? `${repo}/databases/${current.collection.name}`
+                            : "";
     if (!path) return;
     let cancelled = false;
     resolvePathToSource(path, repo)
