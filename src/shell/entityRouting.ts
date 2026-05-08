@@ -7,7 +7,7 @@ import type {
   ConversationTurn,
   PersonSummary,
   ViewerSource,
-} from "./types";
+} from "./viewerTypes";
 import type { DataCollection } from "../lib/localTypes";
 
 /**
@@ -86,7 +86,7 @@ export async function resolvePathToSource(
         subject = ticket.subject;
       }
     } catch { /* missing ticket file — keep ticketId fallback */ }
-    let docs: { name: string; doc: import("./types").TraceDoc | null }[] = [];
+    let docs: { name: string; doc: import("./viewerTypes").TraceDoc | null }[] = [];
     try {
       const nodes = await fsList(path);
       const prefix = `${path}/`;
@@ -102,7 +102,7 @@ export async function resolvePathToSource(
         direct.map(async (n) => {
           try {
             const raw = await fsRead(n.path);
-            return { name: n.name, doc: JSON.parse(raw) as import("./types").TraceDoc };
+            return { name: n.name, doc: JSON.parse(raw) as import("./viewerTypes").TraceDoc };
           } catch {
             return { name: n.name, doc: null };
           }
@@ -122,10 +122,10 @@ export async function resolvePathToSource(
   );
   if (traceMatch) {
     const ticketId = traceMatch[1];
-    let doc: import("./types").TraceDoc | null = null;
+    let doc: import("./viewerTypes").TraceDoc | null = null;
     try {
       const raw = await fsRead(path);
-      doc = JSON.parse(raw) as import("./types").TraceDoc;
+      doc = JSON.parse(raw) as import("./viewerTypes").TraceDoc;
     } catch {
       /* unparseable — viewer renders the placeholder */
     }

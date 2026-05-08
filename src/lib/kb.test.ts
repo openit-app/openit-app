@@ -5,7 +5,7 @@
 // `makeSkillsFetch` here would mostly assert on the mock.
 
 import { describe, expect, it } from "vitest";
-import { OPENIT_KB_PREFIX, displayKbName } from "./kb";
+import { OPENIT_KB_PREFIX, displayKbName } from "./knowledgeBase";
 
 describe("OPENIT_KB_PREFIX", () => {
   it("is the literal `openit-` (mirrors filestore prefix)", () => {
