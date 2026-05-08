@@ -1431,6 +1431,27 @@ input.viewer-title.viewer-title-rename {
   color: var(--warn-text, #a85b00);
 }
 
+.row-edit-custom-row {
+  display: flex;
+  gap: 4px;
+  align-items: center;
+}
+.row-edit-custom-row .row-edit-input {
+  flex: 1;
+}
+
+.row-edit-add-field {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  padding-top: 8px;
+  border-top: 1px dashed var(--border-subtle, #eee);
+  margin-top: 4px;
+}
+.row-edit-add-field .row-edit-input {
+  flex: 1;
+}
+
 /* Reply composer at the bottom of the conversation-thread view.
    Sits as the bottom flex sibling of the scrolling message list
    (.viewer-thread) inside a height-bounded .viewer-thread-wrapper,

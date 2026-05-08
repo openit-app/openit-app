@@ -1334,6 +1334,15 @@ export function Viewer({
       setMode("edit");
       setContent("");
       setEditDraft(source.initialContent);
+      // When the draft carries a collection (datastore +New), seed
+      // the structured form draft so RowEditForm renders pre-filled.
+      if (source.collection) {
+        try {
+          setRowEditDraft(JSON.parse(source.initialContent));
+        } catch {
+          setRowEditDraft({});
+        }
+      }
       return;
     }
     if (source.kind === "datastore-table") {
@@ -1783,6 +1792,7 @@ export function Viewer({
                   subdir,
                   filename,
                   initialContent: JSON.stringify(template, null, 2),
+                  collection: source.collection,
                 });
               },
             };
@@ -2078,6 +2088,53 @@ export function Viewer({
     // baseline `content` is empty so any draft text reads as dirty.
     if (source.kind === "draft-file") {
       const draftSource = source;
+      const onCancelDraft = () => {
+        if (onGoBack && canGoBack) onGoBack();
+      };
+
+      // Structured form for datastore +New (has collection/schema).
+      if (draftSource.collection) {
+        const onSaveDraft = async () => {
+          if (!repo) return;
+          setEditSaving(true);
+          setEditError(null);
+          try {
+            const { entityWriteFile } = await import("../lib/api");
+            const json = JSON.stringify(rowEditDraft, null, 2);
+            await entityWriteFile(
+              repo,
+              draftSource.subdir,
+              draftSource.filename,
+              json,
+            );
+            showToast(`Created ${draftSource.filename}`);
+            if (onOpenPath) {
+              const folderAbs = `${repo}/${draftSource.subdir}`;
+              await onOpenPath(folderAbs);
+              await onOpenPath(draftSource.path);
+            }
+          } catch (err) {
+            setEditError(
+              `Save failed: ${err instanceof Error ? err.message : String(err)}`,
+            );
+          } finally {
+            setEditSaving(false);
+          }
+        };
+        return (
+          <RowEditForm
+            collection={draftSource.collection}
+            draft={rowEditDraft}
+            onChange={setRowEditDraft}
+            onSave={onSaveDraft}
+            onCancel={onCancelDraft}
+            saving={editSaving}
+            error={editError}
+          />
+        );
+      }
+
+      // Plain-text draft (non-datastore files like scripts, KB articles).
       const onSaveDraft = async () => {
         if (!repo) return;
         setEditSaving(true);
@@ -2091,12 +2148,6 @@ export function Viewer({
             editDraft,
           );
           showToast(`Created ${draftSource.filename}`);
-          // Refresh the parent folder in place so the new file shows
-          // up in its card list, THEN navigate to the file. Same-
-          // sourceKey check in setSource means the folder refresh is
-          // an in-place update (no extra back-stack entry); the file
-          // nav pushes the now-fresh folder onto back so the back
-          // arrow lands on a current listing.
           if (onOpenPath) {
             const folderAbs = `${repo}/${draftSource.subdir}`;
             await onOpenPath(folderAbs);
@@ -2109,14 +2160,6 @@ export function Viewer({
         } finally {
           setEditSaving(false);
         }
-      };
-      const onCancelDraft = () => {
-        // Discard the draft and go back. The user came from an
-        // entity-folder (the New button only appears there), so
-        // back-history is reliably non-empty here. The fallback
-        // is a no-op in that edge case rather than risk a stuck
-        // canvas — the user can navigate via the file tree.
-        if (onGoBack && canGoBack) onGoBack();
       };
       return (
         <div className="viewer-edit">
@@ -4593,16 +4636,23 @@ export function Viewer({
               variant="ghost"
               size="sm"
               onClick={() => {
-                if (!onShowSource || !repo) return;
-                let filename = "untitled.md";
+                if (!onShowSource || !repo || source.kind !== "people-list") return;
+                const col = source.collection;
+                const fields = (col.schema as { fields?: Array<Record<string, unknown>> })?.fields ?? [];
+                const template: Record<string, unknown> = {};
+                for (const f of fields) {
+                  const id = f.id as string;
+                  if (id === "createdAt" || id === "updatedAt") {
+                    template[id] = new Date().toISOString();
+                  } else {
+                    template[id] = "";
+                  }
+                }
+                const taken = new Set(source.people.map((p) => p.key));
+                let filename = "new-record.json";
                 let i = 2;
-                const taken = new Set(
-                  source.kind === "people-list"
-                    ? source.people.map((p) => p.key)
-                    : [],
-                );
-                while (taken.has(filename.replace(".md", ""))) {
-                  filename = `untitled-${i}.md`;
+                while (taken.has(filename.replace(".json", ""))) {
+                  filename = `new-record-${i}.json`;
                   i += 1;
                 }
                 onShowSource({
@@ -4610,7 +4660,8 @@ export function Viewer({
                   path: `${repo}/databases/people/${filename}`,
                   subdir: "databases/people",
                   filename,
-                  initialContent: `# Contact\n\n- **Name:** \n- **Email:** \n- **Title:** \n- **Department:** \n- **Phone:** \n\n## Notes\n\nAdd any context about this person here.\n`,
+                  initialContent: JSON.stringify(template, null, 2),
+                  collection: col,
                 });
               }}
               title="Draft a new contact"
@@ -4639,16 +4690,23 @@ export function Viewer({
               variant="ghost"
               size="sm"
               onClick={() => {
-                if (!onShowSource || !repo) return;
-                const taken = new Set(
-                  source.kind === "access-list"
-                    ? source.records.map((r) => r.key)
-                    : [],
-                );
-                let filename = "untitled.md";
+                if (!onShowSource || !repo || source.kind !== "access-list") return;
+                const col = source.collection;
+                const fields = (col.schema as { fields?: Array<Record<string, unknown>> })?.fields ?? [];
+                const template: Record<string, unknown> = {};
+                for (const f of fields) {
+                  const id = f.id as string;
+                  if (id === "createdAt" || id === "updatedAt") {
+                    template[id] = new Date().toISOString();
+                  } else {
+                    template[id] = "";
+                  }
+                }
+                const taken = new Set(source.records.map((r) => r.key));
+                let filename = "new-record.json";
                 let i = 2;
-                while (taken.has(filename.replace(".md", ""))) {
-                  filename = `untitled-${i}.md`;
+                while (taken.has(filename.replace(".json", ""))) {
+                  filename = `new-record-${i}.json`;
                   i += 1;
                 }
                 onShowSource({
@@ -4656,7 +4714,8 @@ export function Viewer({
                   path: `${repo}/databases/access/${filename}`,
                   subdir: "databases/access",
                   filename,
-                  initialContent: `# Access record\n\n- **Name:** \n- **Email:** \n- **Role:** \n- **Systems:** Slack, Salesforce, Office 365, Zoom\n- **Status:** active\n- **Date:** ${new Date().toISOString().slice(0, 10)}\n\n## Notes\n\nAdd any context about this person's access here.\n`,
+                  initialContent: JSON.stringify(template, null, 2),
+                  collection: col,
                 });
               }}
               title="Draft a new access record"
@@ -4685,16 +4744,23 @@ export function Viewer({
               variant="ghost"
               size="sm"
               onClick={() => {
-                if (!onShowSource || !repo) return;
-                const taken = new Set(
-                  source.kind === "assets-list"
-                    ? source.records.map((r) => r.key)
-                    : [],
-                );
-                let filename = "untitled.md";
+                if (!onShowSource || !repo || source.kind !== "assets-list") return;
+                const col = source.collection;
+                const fields = (col.schema as { fields?: Array<Record<string, unknown>> })?.fields ?? [];
+                const template: Record<string, unknown> = {};
+                for (const f of fields) {
+                  const id = f.id as string;
+                  if (id === "createdAt" || id === "updatedAt") {
+                    template[id] = new Date().toISOString();
+                  } else {
+                    template[id] = "";
+                  }
+                }
+                const taken = new Set(source.records.map((r) => r.key));
+                let filename = "new-record.json";
                 let i = 2;
-                while (taken.has(filename.replace(".md", ""))) {
-                  filename = `untitled-${i}.md`;
+                while (taken.has(filename.replace(".json", ""))) {
+                  filename = `new-record-${i}.json`;
                   i += 1;
                 }
                 onShowSource({
@@ -4702,7 +4768,8 @@ export function Viewer({
                   path: `${repo}/databases/assets/${filename}`,
                   subdir: "databases/assets",
                   filename,
-                  initialContent: `# Asset record\n\n- **Name:** \n- **Type:** laptop / monitor / phone / other\n- **Serial number:** \n- **Assigned to:** \n- **Status:** available / assigned / repair / decommissioned\n- **Date:** ${new Date().toISOString().slice(0, 10)}\n\n## Notes\n\nAdd any details about this asset here.\n`,
+                  initialContent: JSON.stringify(template, null, 2),
+                  collection: col,
                 });
               }}
               title="Draft a new asset record"

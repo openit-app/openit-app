@@ -124,6 +124,9 @@ export type ViewerSource =
       filename: string;
       /** Pre-filled textarea content. */
       initialContent: string;
+      /** When the draft is a new datastore row, carry the collection so
+       *  we can render a structured RowEditForm instead of a raw textarea. */
+      collection?: DataCollection;
     }
   | { kind: "datastore-table"; collection: DataCollection; items?: MemoryItem[]; hasMore?: boolean; onLoadMore?: () => void }
   | { kind: "datastore-row"; collection: DataCollection; item: MemoryItem }

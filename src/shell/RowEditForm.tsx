@@ -15,6 +15,7 @@
 // timestamp). Saving an invalid value writes it as-is; the agent
 // and downstream consumers already tolerate sparse rows.
 
+import { useState } from "react";
 import type { DataCollection } from "../lib/localTypes";
 import { Button } from "../ui";
 
@@ -174,6 +175,25 @@ export function RowEditForm({
     }
   };
 
+  // Extra fields in the draft that aren't defined in the schema.
+  const schemaIds = new Set(fields.map((f) => f.id));
+  const extraKeys = Object.keys(draft).filter((k) => !schemaIds.has(k));
+
+  const [newFieldName, setNewFieldName] = useState("");
+
+  const addCustomField = () => {
+    const key = newFieldName.trim();
+    if (!key || key in draft) return;
+    onChange({ ...draft, [key]: "" });
+    setNewFieldName("");
+  };
+
+  const removeCustomField = (key: string) => {
+    const next = { ...draft };
+    delete next[key];
+    onChange(next);
+  };
+
   return (
     <div className="row-edit">
       <div className="row-edit-form">
@@ -192,6 +212,52 @@ export function RowEditForm({
             {field.comment && <span className="row-edit-hint">{field.comment}</span>}
           </label>
         ))}
+
+        {/* Extra fields not in the schema */}
+        {extraKeys.map((key) => (
+          <div key={key} className="row-edit-field row-edit-custom-field">
+            <span className="row-edit-label">{key}</span>
+            <div className="row-edit-custom-row">
+              <input
+                type="text"
+                className="row-edit-input"
+                value={typeof draft[key] === "string" ? draft[key] as string : draft[key] == null ? "" : String(draft[key])}
+                onChange={(e) => setField(key, e.target.value)}
+              />
+              <Button
+                variant="ghost"
+                tone="destructive"
+                size="sm"
+                iconOnly
+                title={`Remove ${key}`}
+                aria-label={`Remove ${key}`}
+                onClick={() => removeCustomField(key)}
+              >
+                ×
+              </Button>
+            </div>
+          </div>
+        ))}
+
+        {/* Add custom field */}
+        <div className="row-edit-add-field">
+          <input
+            type="text"
+            className="row-edit-input"
+            placeholder="Field name"
+            value={newFieldName}
+            onChange={(e) => setNewFieldName(e.target.value)}
+            onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); addCustomField(); } }}
+          />
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={addCustomField}
+            disabled={!newFieldName.trim() || newFieldName.trim() in draft}
+          >
+            + Add field
+          </Button>
+        </div>
       </div>
       <div className="row-edit-footer">
         {error && <span className="row-edit-error">{error}</span>}
