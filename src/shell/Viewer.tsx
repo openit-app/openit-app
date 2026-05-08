@@ -3238,19 +3238,20 @@ export function Viewer({
                     <span className="thread-card-subject">{f.name}</span>
                     <span className="thread-card-count">{f.traceCount} trace{f.traceCount === 1 ? "" : "s"}</span>
                   </div>
+                  <div className="thread-card-meta">
+                    <Button
+                      variant="link"
+                      size="sm"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        if (onOpenPath) void onOpenPath(`${repo}/databases/tickets/${f.name}.json`);
+                      }}
+                      title="Open ticket"
+                    >
+                      ticket →
+                    </Button>
+                  </div>
                 </button>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="thread-card-ticket-link"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    if (onOpenPath) void onOpenPath(`${repo}/databases/tickets/${f.name}.json`);
-                  }}
-                  title="Open ticket"
-                >
-                  ticket →
-                </Button>
               </div>
             ))}
           </div>
