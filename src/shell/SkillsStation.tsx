@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { fsList, fsRead } from "../lib/api";
+import { fsList, fsRead, entityWriteFile } from "../lib/api";
 import { writeToActiveSession } from "./activeSession";
 import { Button } from "../ui";
 import styles from "./ToolsPanel.module.css";
@@ -8,13 +8,24 @@ type CommandEntry = {
   name: string;
   description: string;
   path: string;
-  /** System commands (.claude/skills/) are shown by default;
-   *  custom commands (filestores/skills/) are hidden behind "Show more". */
-  isSystem: boolean;
+  /** Whether this is a featured command that Lisa cares about. */
+  featured: boolean;
 };
 
-/** How many commands to show before the "Show more" fold. */
-const VISIBLE_COUNT = 8;
+// Commands that map directly to Lisa's pain points, in priority order.
+// Everything not in this list goes behind "Show more".
+const FEATURED_COMMANDS: string[] = [
+  "salesforce-gmail",        // Salesforce + email disconnect
+  "backup",                  // Manual backups
+  "onboard-offboard",        // Onboarding/offboarding access management
+  "salesforce-data-quality",  // Data quality / cleanup in Salesforce
+  "slack-to-kb",             // Knowledge trapped in Slack
+  "patient-inquiry",          // Patient inquiry handling (Salesforce Cases)
+  "drive-search",             // Information scattered across Drive
+  "asset-tracking",           // Asset tracking
+  "pipeline-outreach",        // Recurring reporting / outreach
+  "report",                   // Custom reports
+];
 
 /**
  * CommandsStation — flat list of slash commands with a visible Run
@@ -56,7 +67,7 @@ export function CommandsStation({
               const raw = await fsRead(skillMdPath);
               description = extractDescription(raw);
             } catch { /* SKILL.md missing */ }
-            systemEntries.push({ name: d.name, description, path: skillMdPath, isSystem: true });
+            systemEntries.push({ name: d.name, description, path: skillMdPath, featured: FEATURED_COMMANDS.includes(d.name) });
           }),
         );
       } catch { /* .claude/skills/ doesn't exist */ }
@@ -81,7 +92,7 @@ export function CommandsStation({
               const raw = await fsRead(f.path);
               description = extractDescription(raw);
             } catch { /* unreadable */ }
-            customEntries.push({ name, description, path: f.path, isSystem: false });
+            customEntries.push({ name, description, path: f.path, featured: FEATURED_COMMANDS.includes(name) });
           }),
         );
       } catch { /* filestores/skills/ doesn't exist */ }
@@ -103,9 +114,16 @@ export function CommandsStation({
           deduped.push(e);
         }
       }
-      // Sort within each group alphabetically, system first.
+      // Featured commands first (in Lisa's priority order), then the
+      // rest alphabetically behind "Show more".
       deduped.sort((a, b) => {
-        if (a.isSystem !== b.isSystem) return a.isSystem ? -1 : 1;
+        const aIdx = FEATURED_COMMANDS.indexOf(a.name);
+        const bIdx = FEATURED_COMMANDS.indexOf(b.name);
+        const aFeat = aIdx !== -1;
+        const bFeat = bIdx !== -1;
+        if (aFeat && bFeat) return aIdx - bIdx;
+        if (aFeat) return -1;
+        if (bFeat) return 1;
         return a.name.localeCompare(b.name);
       });
 
@@ -114,42 +132,102 @@ export function CommandsStation({
     return () => { cancelled = true; };
   }, [repo]);
 
-  const visible = showAll ? commands : commands.slice(0, VISIBLE_COUNT);
-  const hiddenCount = commands.length - VISIBLE_COUNT;
+  // Show featured commands by default; hide the rest behind "Show more".
+  const featuredCount = commands.filter((c) => c.featured).length;
+  const foldAt = Math.max(featuredCount, 1); // always show at least 1
+  const visible = showAll ? commands : commands.slice(0, foldAt);
+  const hiddenCount = commands.length - foldAt;
+
+  const [newName, setNewName] = useState("");
+  const [showNewInput, setShowNewInput] = useState(false);
+
+  const createNewCommand = async () => {
+    const slug = newName.trim().toLowerCase().replace(/\s+/g, "-").replace(/[^a-z0-9-]/g, "");
+    if (!slug) return;
+    const boilerplate = `---
+description: "Describe what this command does in one sentence."
+---
+
+# /${slug}
+
+<!-- This is a slash command. When you type /${slug} in the chat,
+     Claude will follow these instructions step by step. -->
+
+## What this command does
+
+Describe the goal here.
+
+## Steps
+
+1. First, ask the user what they need.
+2. Then, do the work.
+3. Finally, confirm the result.
+
+## Notes
+
+- Add any tips, edge cases, or context here.
+`;
+    await entityWriteFile(repo, "filestores/skills", `${slug}.md`, boilerplate);
+    setShowNewInput(false);
+    setNewName("");
+    onOpen(`${repo}/filestores/skills/${slug}.md`);
+  };
 
   return (
     <div className={styles.panel}>
       <div style={{ display: "flex", alignItems: "center", marginBottom: 4 }}>
         <p className={styles.tagline} style={{ margin: 0 }}>
-          Run a command or click its name to view the definition.
+          Click a command to view or edit. Hit Run to execute.
         </p>
         <span style={{ flex: 1 }} />
         <Button
           variant="ghost"
           size="sm"
-          onClick={() =>
-            writeToActiveSession(
-              "Help me create a new command for this project. Ask me what I want it to do.\r",
-            )
-          }
+          onClick={() => setShowNewInput((v) => !v)}
         >
           + New
         </Button>
       </div>
+
+      {showNewInput && (
+        <div style={{ display: "flex", gap: 8, alignItems: "center", marginBottom: 4 }}>
+          <input
+            className={styles.search}
+            type="text"
+            placeholder="command-name"
+            value={newName}
+            onChange={(e) => setNewName(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") void createNewCommand();
+              if (e.key === "Escape") { setShowNewInput(false); setNewName(""); }
+            }}
+            autoFocus
+          />
+          <Button variant="secondary" size="sm" onClick={() => void createNewCommand()}>
+            Create
+          </Button>
+        </div>
+      )}
 
       {commands.length === 0 ? (
         <div className={styles.empty}>No commands found.</div>
       ) : (
         <div className={styles.grid}>
           {visible.map((cmd) => (
-            <div key={cmd.name} className={styles.card}>
+            <div
+              key={cmd.name}
+              className={styles.card}
+              style={{ cursor: "pointer" }}
+              onClick={() => onOpen(cmd.path)}
+              role="button"
+              tabIndex={0}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" || e.key === " ") onOpen(cmd.path);
+              }}
+            >
               <div className={styles.cardHeader}>
-                <button
-                  type="button"
-                  onClick={() => onOpen(cmd.path)}
+                <span
                   style={{
-                    all: "unset",
-                    cursor: "pointer",
                     fontSize: 14,
                     fontWeight: 600,
                     color: "var(--text)",
@@ -160,11 +238,14 @@ export function CommandsStation({
                 >
                   <span style={{ color: "var(--text-muted)", fontWeight: 400 }}>/</span>
                   {cmd.name}
-                </button>
+                </span>
                 <Button
                   variant="secondary"
                   size="sm"
-                  onClick={() => writeToActiveSession(`/${cmd.name}\r`)}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    writeToActiveSession(`/${cmd.name}\r`);
+                  }}
                 >
                   Run
                 </Button>

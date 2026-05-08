@@ -1591,6 +1591,11 @@ export function Viewer({
       hasEditableTextMode(source.path) &&
       !isRunnableScript(source.path)) ||
     source.kind === "datastore-schema";
+  // Is this a command/skill file that can be deleted?
+  const isCommandFile =
+    source.kind === "file" &&
+    (source.path.includes("/filestores/skills/") ||
+      source.path.includes("/.claude/skills/"));
   const showRowTabs = source.kind === "datastore-row";
   const showAgentTabs = source.kind === "agent";
   const showPeopleTabs = source.kind === "people-list";
@@ -4249,10 +4254,6 @@ export function Viewer({
             <Tab
               active={mode !== "edit"}
               onClick={() => {
-                // Markdown files have a rendered preview; JSON,
-                // .mjs, and datastore schemas only have a raw textual
-                // view. Branch on file type so View returns the user
-                // to whichever read-only mode applies.
                 const renderable =
                   source.kind === "file" && isMarkdown(source.path);
                 setMode(renderable ? "rendered" : "raw");
@@ -4263,9 +4264,6 @@ export function Viewer({
             <Tab
               active={mode === "edit"}
               onClick={() => {
-                // Seed the draft with the current content the first
-                // time edit mode is entered, but don't clobber an
-                // in-progress draft on a re-click of Edit.
                 if (mode !== "edit") setEditDraft(content);
                 setEditError(null);
                 setMode("edit");
@@ -4274,6 +4272,33 @@ export function Viewer({
               Edit
             </Tab>
           </TabStrip>
+        )}
+        {isCommandFile && (
+          <Button
+            variant="ghost"
+            tone="destructive"
+            size="sm"
+            onClick={async () => {
+              if (source.kind !== "file") return;
+              const filename = source.path.split("/").pop() ?? "";
+              const dir = source.path.slice(0, source.path.length - filename.length - 1);
+              const ok = await ask(
+                `Delete command "${filename.replace(/\.md$/, "")}"?\n\nThis cannot be undone.`,
+                { title: "Delete command?", kind: "warning" },
+              );
+              if (!ok) return;
+              try {
+                await entityDeleteFile(repo, toRepoRelative(repo, dir), filename);
+                // Navigate back to commands list
+                if (onOpenPath) void onOpenPath(`${repo}/filestores/skills`);
+              } catch (err) {
+                console.error("[command-delete] failed:", err);
+              }
+            }}
+            title="Delete this command"
+          >
+            Delete
+          </Button>
         )}
         {showRowTabs && (
           <TabStrip variant="segmented">
