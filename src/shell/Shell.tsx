@@ -121,6 +121,38 @@ function sourceKey(s: ViewerSource): string {
   }
 }
 
+/// Human-readable label for the currently-open view, injected into the
+/// Claude PTY so CC knows what the user is looking at.
+function sourceLabel(s: ViewerSource, repo: string): string | null {
+  if (!s) return null;
+  switch (s.kind) {
+    case "file": {
+      const rel = s.path.startsWith(repo) ? s.path.slice(repo.length + 1) : s.path;
+      return rel;
+    }
+    case "datastore-table":
+      return `database collection: ${s.collection.name}`;
+    case "datastore-row":
+      return `database row in ${s.collection.name}`;
+    case "datastore-schema":
+      return `database schema: ${s.collection.name}`;
+    case "agent":
+      return `agent: ${(s.agent as { name?: string }).name ?? "unknown"}`;
+    case "workflow":
+      return `workflow: ${(s.workflow as { name?: string }).name ?? "unknown"}`;
+    case "conversation-thread":
+      return `ticket: ${s.ticketId}`;
+    case "conversations-list":
+      return "tickets list";
+    case "people-list":
+      return "people directory";
+    case "tools":
+      return "tools catalog";
+    default:
+      return null;
+  }
+}
+
 const NAV_HISTORY_CAP = 50;
 
 function capStack(s: ViewerSource[]): ViewerSource[] {
@@ -238,6 +270,21 @@ export function Shell({
   const [chatSessionKey, setChatSessionKey] = useState(0);
   const [chatResume, setChatResume] = useState(false);
   const bumpFs = useCallback(() => setFsTick((t) => t + 1), []);
+
+  // ── Tell Claude what the user is looking at ──────────────────────
+  // Write the active view to `.openit/active-context.txt` so CC can
+  // read it when it needs to know what the user is looking at.
+  // Invisible — nothing appears in the terminal.
+  const prevSourceKeyRef = useRef<string>("");
+  useEffect(() => {
+    if (!source || !repo) return;
+    const key = sourceKey(source);
+    if (key === prevSourceKeyRef.current) return;
+    prevSourceKeyRef.current = key;
+    const label = sourceLabel(source, repo);
+    if (!label) return;
+    entityWriteFile(repo, ".openit", "active-context.txt", label).catch(() => {});
+  }, [source, repo]);
 
   /// Drag-source / drop-target wiring. The grip in each pane's header
   /// sets `draggingPaneId`; hovering another pane sets `dragOverPaneId`.
