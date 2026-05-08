@@ -151,8 +151,7 @@ pub fn project_bootstrap(vault_path: Option<String>) -> Result<BootstrapResult, 
              ## Your AI-driven IT helpdesk.\n\n\
              OpenIT runs on your machine. An AI agent triages every \
              question — answering directly from your knowledge base or \
-             escalating to you when it can't. Sample data is already \
-             loaded so you can explore right away.\n\n\
+             escalating to you when it can't.\n\n\
              ## 1. Try the intake form\n\n\
              Open the intake page and submit a question — \
              *\"I can't log in\"*, *\"how do I reset my VPN\"* — to see \
@@ -163,14 +162,14 @@ pub fn project_bootstrap(vault_path: Option<String>) -> Result<BootstrapResult, 
              **People** (contacts), **Knowledge** (KB articles), **Access** \
              (onboard/offboard logs), **Assets** (device inventory), \
              **Skills** (workflow commands), and **Tools** (CLI + MCP \
-             connectors). Everything is pre-loaded with sample data.\n\n\
+             connectors).\n\n\
+             Want to see it in action first? Load sample tickets, contacts, \
+             and KB articles to explore.\n\n\
+             [**Load sample data**](openit://create-samples)\n\n\
              ## 3. Connect to Slack\n\n\
              Wire OpenIT into a Slack workspace so the agent can \
              receive tickets in DMs and reply on your behalf.\n\n\
-             [**Connect Slack**](openit://skill/connect-slack)\n\n\
-             ## 4. Clean up when ready\n\n\
-             When you're done exploring, type `/cleanup` in Claude to \
-             remove all sample data and start fresh with your own.\n";
+             [**Connect Slack**](openit://skill/connect-slack)\n";
         let _ = fs::write(&getting_started_path, getting_started);
     }
 
