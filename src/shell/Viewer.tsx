@@ -1568,7 +1568,7 @@ export function Viewer({
       case "databases-list":     return "Databases";
       case "filestores-list":    return "Filestores";
       case "attachments-folder": return "Attachments";
-      case "knowledge-bases-list": return "Knowledge Bases";
+      case "knowledge-bases-list": return "Knowledge";
       case "agent-trace":
         return `Agent trace — ${source.subject}`;
       case "agent-trace-list":
@@ -1640,6 +1640,8 @@ export function Viewer({
     if (source.kind === "assets-list") return null;
     if (source.kind === "databases-list")
       return `${repo}/databases`;
+    if (source.kind === "filestores-list")
+      return `${repo}/filestores`;
     if (source.kind === "conversations-list")
       return `${repo}/databases/conversations`;
     if (source.kind === "agent")
@@ -2557,7 +2559,7 @@ export function Viewer({
                 />
               </label>
               <AgentResourceSection
-                title="Knowledge bases"
+                title="Knowledge"
                 emptyHint="No knowledge bases connected — connect cloud first."
                 available={agentEditKbs}
                 rows={agentEditDraft.knowledgeBases}
@@ -4289,6 +4291,32 @@ export function Viewer({
             size="sm"
             onClick={() => newFileAffordance.onCreate()}
             title={newFileAffordance.title}
+          >
+            + New
+          </Button>
+        )}
+        {source && source.kind === "filestores-list" && (
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => {
+              if (!onShowSource || !repo) return;
+              const taken = new Set(source.collections.map((c) => c.name));
+              let name = "untitled";
+              let i = 2;
+              while (taken.has(name)) {
+                name = `untitled-${i}`;
+                i += 1;
+              }
+              onShowSource({
+                kind: "draft-file",
+                path: `${repo}/filestores/${name}/README.md`,
+                subdir: `filestores/${name}`,
+                filename: "README.md",
+                initialContent: `# ${name}\n\nDescribe what this filestore collection holds.\n\nDrop files here or ask Claude to add them.\n`,
+              });
+            }}
+            title="Draft a new filestore collection"
           >
             + New
           </Button>
