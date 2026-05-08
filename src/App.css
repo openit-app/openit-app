@@ -1178,7 +1178,7 @@ input.viewer-title.viewer-title-rename {
   justify-content: flex-end;
   align-items: center;
   gap: 12px;
-  padding: 2px 14px 0;
+  padding: 8px 14px 0;
   background: var(--surface);
 }
 
