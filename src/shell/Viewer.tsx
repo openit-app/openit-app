@@ -1638,6 +1638,8 @@ export function Viewer({
     // individual records — "add to chat" on the list is confusing.
     if (source.kind === "access-list") return null;
     if (source.kind === "assets-list") return null;
+    if (source.kind === "databases-list")
+      return `${repo}/databases`;
     if (source.kind === "conversations-list")
       return `${repo}/databases/conversations`;
     if (source.kind === "agent")
@@ -4287,6 +4289,32 @@ export function Viewer({
             size="sm"
             onClick={() => newFileAffordance.onCreate()}
             title={newFileAffordance.title}
+          >
+            + New
+          </Button>
+        )}
+        {source && source.kind === "databases-list" && (
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => {
+              if (!onShowSource || !repo) return;
+              const taken = new Set(source.collections.map((c) => c.name));
+              let name = "untitled";
+              let i = 2;
+              while (taken.has(name)) {
+                name = `untitled-${i}`;
+                i += 1;
+              }
+              onShowSource({
+                kind: "draft-file",
+                path: `${repo}/databases/${name}/_schema.md`,
+                subdir: `databases/${name}`,
+                filename: "_schema.md",
+                initialContent: `# ${name} database\n\nDescribe what this database tracks.\n\n## Fields\n\n- **name:** text\n- **status:** active / inactive\n- **notes:** text\n\n## Notes\n\nAdd any context about this database here. Save this file, then ask Claude to create the schema and first record.\n`,
+              });
+            }}
+            title="Draft a new database"
           >
             + New
           </Button>
