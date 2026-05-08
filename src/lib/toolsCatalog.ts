@@ -40,6 +40,16 @@ export const CATALOG: CatalogEntry[] = [
     docsUrl: "https://docs.aws.amazon.com/cli/",
   },
   {
+    id: "cloudflared",
+    name: "Cloudflare CLI",
+    description: "Cloudflare tunnels, DNS, workers, and zero-trust access.",
+    binary: "cloudflared",
+    brewPkg: "cloudflare/cloudflare/cloudflared",
+    claudeMdHint:
+      "Cloudflare CLI (`cloudflared`) is installed. Use it for tunnels (`cloudflared tunnel`), DNS, and workers. Run `cloudflared --help` for the full surface.",
+    docsUrl: "https://developers.cloudflare.com/cloudflare-one/connections/connect-networks/",
+  },
+  {
     id: "az",
     name: "Azure CLI",
     description: "Azure resources: AAD/Entra, VMs, storage, networking.",
