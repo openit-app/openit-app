@@ -414,7 +414,7 @@ export async function scriptRun(
   return invoke("script_run", { repo, scriptPath });
 }
 
-import type { TraceDoc } from "../shell/types";
+import type { TraceDoc } from "../shell/viewerTypes";
 
 /// Latest persisted agent-trace doc for a ticket, or null if none yet.
 /// Backed by `.openit/agent-traces/<ticketId>/<startedAt>.json` —

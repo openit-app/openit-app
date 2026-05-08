@@ -1,4 +1,4 @@
-import type { ViewerSource } from "./types";
+import type { ViewerSource } from "./viewerTypes";
 
 /**
  * Return the absolute filesystem path that a ViewerSource maps to in
