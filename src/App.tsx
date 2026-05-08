@@ -595,9 +595,15 @@ function App() {
     return (
       <Onboarding
         onOpenVault={async (path: string) => {
-          const name = path.split("/").filter(Boolean).pop() ?? "Vault";
-          await createWorkspace(path, name);
-          await openVault(path);
+          // Resolve the path first via projectBootstrap (handles "" → ~/OpenIT/Personal).
+          // This fixes the "Use Default" bug where "" was passed to createWorkspace
+          // which rejects empty strings. We then pass the resolved absolute path
+          // to both createWorkspace and openVault.
+          const result = await projectBootstrap(path || undefined);
+          const resolved = result.path;
+          const name = resolved.split("/").filter(Boolean).pop() ?? "Personal";
+          await createWorkspace(resolved, name);
+          await openVault(resolved);
         }}
       />
     );
