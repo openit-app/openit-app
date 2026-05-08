@@ -126,7 +126,7 @@ main().catch((e) => {
     <div className={styles.panel}>
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 4 }}>
         <p className={styles.tagline} style={{ margin: 0 }}>
-          Click the eye to view source. Hit Run to execute.
+          Click a script to run it.
         </p>
         <Button
           variant="ghost"
@@ -186,34 +186,22 @@ main().catch((e) => {
                 >
                   {s.name}
                 </span>
-                <div style={{ display: "flex", gap: 4, alignItems: "center" }}>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    iconOnly
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      onOpen(s.path);
-                    }}
-                    title={`View source of ${s.name}`}
-                    aria-label={`View source of ${s.name}`}
-                  >
-                    <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-                      <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
-                      <circle cx="12" cy="12" r="3" />
-                    </svg>
-                  </Button>
-                  <Button
-                    variant="secondary"
-                    size="sm"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      void runScript(s);
-                    }}
-                  >
-                    Run
-                  </Button>
-                </div>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  iconOnly
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onOpen(s.path);
+                  }}
+                  title={`View source of ${s.name}`}
+                  aria-label={`View source of ${s.name}`}
+                >
+                  <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+                    <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
+                    <circle cx="12" cy="12" r="3" />
+                  </svg>
+                </Button>
               </div>
               {s.description && (
                 <p className={styles.cardDesc}>{s.description}</p>
