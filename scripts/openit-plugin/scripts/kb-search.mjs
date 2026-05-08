@@ -12,7 +12,7 @@
 //
 // 2026-04-27 plural rename: walks every collection under
 // `knowledge-bases/<name>/`. The default collection ships at
-// `knowledge-bases/default/`; admins can `mkdir
+// `knowledge-bases/`; admins can `mkdir
 // knowledge-bases/<custom>/` to add more (each becomes its own
 // cloud-synced KB when connected). Search runs across all of them
 // without needing a flag — the matches array carries the full
@@ -22,7 +22,7 @@
 //   node .claude/scripts/kb-search.mjs "vpn password reset"
 //
 // Output (single JSON line on stdout):
-//   { "matches": [{ "path": "knowledge-bases/default/foo.md", "score": 0.74,
+//   { "matches": [{ "path": "knowledge-bases/foo.md", "score": 0.74,
 //                   "snippet": "first ~200 chars of the article" }, …] }
 //
 // Exit codes:

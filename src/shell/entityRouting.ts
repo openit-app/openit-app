@@ -687,6 +687,7 @@ export async function resolvePathToSource(
     entity:
       | "agents"
       | "workflows"
+      | "knowledge"
       | "knowledge-base"
       | "library"
       | "reports"
@@ -698,7 +699,7 @@ export async function resolvePathToSource(
       : rel === "workflows"
         ? { entity: "workflows" }
         : rel === "knowledge-bases"
-          ? { entity: "knowledge-base" }
+          ? { entity: "knowledge" }
           : filestoreSubdir === "skills"
             ? { entity: "skills" }
             : filestoreSubdir === "scripts"
@@ -1054,71 +1055,9 @@ export async function resolvePathToSource(
     return { kind: "filestores-list", collections: cards };
   }
 
-  // `knowledge-bases/` parent → at-a-glance overview of every KB
-  // collection. `default` ships built-in (cloud-sync target in V1);
-  // any user-created folder under `knowledge-bases/` is surfaced
-  // alongside it with a generic blurb.
-  if (rel === "knowledge-bases") {
-    type Card = {
-      name: string;
-      path: string;
-      itemCount: number;
-      description: string;
-      isBuiltin: boolean;
-    };
-    const builtinDescriptions: Record<string, string> = {
-      default:
-        "Articles Claude reads when answering tickets and that the admin captures during /answer-ticket. Cloud-synced when connected.",
-    };
-    const cardsByName = new Map<string, Card>();
-    cardsByName.set("default", {
-      name: "default",
-      path: `${path}/default`,
-      itemCount: 0,
-      description: builtinDescriptions.default,
-      isBuiltin: true,
-    });
-    try {
-      const subdirs = await fsList(path);
-      const childPrefix = `${path}/`;
-      for (const sd of subdirs) {
-        if (!sd.is_dir) continue;
-        const tail = sd.path.startsWith(childPrefix) ? sd.path.slice(childPrefix.length) : "";
-        if (!tail || tail.includes("/")) continue;
-        let itemCount = 0;
-        try {
-          const inner = await fsList(sd.path);
-          const innerPrefix = `${sd.path}/`;
-          for (const n of inner) {
-            if (n.is_dir) continue;
-            const innerTail = n.path.startsWith(innerPrefix) ? n.path.slice(innerPrefix.length) : "";
-            if (!innerTail || innerTail.includes("/")) continue;
-            if (n.name.includes(".server.")) continue;
-            if (!/\.(md|markdown|txt)$/i.test(n.name)) continue;
-            itemCount += 1;
-          }
-        } catch {
-          /* unreadable subdir — leave count at 0 */
-        }
-        const builtin = builtinDescriptions[sd.name];
-        cardsByName.set(sd.name, {
-          name: sd.name,
-          path: sd.path,
-          itemCount,
-          description:
-            builtin ?? "User-created knowledge base. Each KB syncs as its own cloud collection when you connect.",
-          isBuiltin: !!builtin,
-        });
-      }
-    } catch {
-      /* knowledge-bases/ doesn't exist yet — built-in still renders */
-    }
-    const cards = Array.from(cardsByName.values()).sort((a, b) => {
-      if (a.isBuiltin !== b.isBuiltin) return a.isBuiltin ? -1 : 1;
-      return a.name.localeCompare(b.name);
-    });
-    return { kind: "knowledge-bases-list", collections: cards };
-  }
+  // `knowledge-bases/` → flat list of all KB articles (markdown files).
+  // No more collection/subfolder concept — articles live directly in
+  // knowledge-bases/ and render as a plain entity-folder.
 
   // `filestores/attachments/` → list of per-ticket subfolders with
   // file counts, prefixed by an explanatory header (rendered in the

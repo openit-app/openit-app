@@ -16,7 +16,7 @@ Either way, your job is the same: turn what just happened in this ticket into so
 
 | Artifact | When to write it | Audience | Where it lands |
 |---|---|---|---|
-| **KB article** | Resolution is information the asker can act on directly — a setting, a link, a one-line instruction, a known limitation. | Triage agent → asker (auto-answer next time). | `knowledge-bases/default/<slug>.md` |
+| **KB article** | Resolution is information the asker can act on directly — a setting, a link, a one-line instruction, a known limitation. | Triage agent → asker (auto-answer next time). | `knowledge-bases/<slug>.md` |
 | **Skill** | Resolution is an admin process with **branches, judgment, or per-context decisions** that need a human or Claude to interpret. | Admin or Claude (with admin approval). | `filestores/skills/<slug>.md` (mirrored to `.claude/skills/<slug>/SKILL.md` for slash discovery). |
 | **Script** | Resolution is an admin process that's **fully deterministic** — same inputs always produce same outputs, no mid-flow judgment. | Admin (or Claude with approval) invokes; runtime executes. | `filestores/scripts/<slug>.<ext>` (mirrored to `.claude/scripts/<slug>.<ext>`). |
 
@@ -38,7 +38,7 @@ Combos are allowed when the resolution legitimately spans audiences (asker-facin
 
 Run all three searches before deciding what to write:
 
-- **KB articles** — list `knowledge-bases/default/`. If there's a `kb-search` script available (`.claude/scripts/kb-search.mjs`), use it with terms from the ticket subject + asker question; otherwise grep for keywords across the article bodies.
+- **KB articles** — list `knowledge-bases/`. If there's a `kb-search` script available (`.claude/scripts/kb-search.mjs`), use it with terms from the ticket subject + asker question; otherwise grep for keywords across the article bodies.
 - **Skills** — list `filestores/skills/*.md`. Read the YAML frontmatter `description` of each to find related workflows.
 - **Scripts** — list `filestores/scripts/*` and skim file headers (shebang, docstring, first few lines).
 
@@ -77,7 +77,7 @@ If you're updating, read the existing file first and extend it rather than overw
 <Symptoms that should trigger this article during triage.>
 ```
 
-Land at `knowledge-bases/default/<slug>.md`.
+Land at `knowledge-bases/<slug>.md`.
 
 #### Skill
 
@@ -134,7 +134,7 @@ Example summary:
 
 > Captured the resolution as **two artifacts**:
 >
-> - Updated `knowledge-bases/default/vpn-password-reset.md` (added the upper-left forgot-password note; the article already covered the general flow).
+> - Updated `knowledge-bases/vpn-password-reset.md` (added the upper-left forgot-password note; the article already covered the general flow).
 > - Created `filestores/scripts/notify-asker-vpn-reset.mjs` (deterministic Slack DM the admin runs after the asker resets — the existing skill `notify-asker.md` was too generic).
 >
 > Review in the Sync tab. The script will mirror to `.claude/scripts/` on commit.

@@ -6,7 +6,7 @@ description: Mine repeated Q&A from Slack channels and turn them into reusable k
 ## Prerequisites
 
 - **Slack** — must be connected via OpenIT's built-in Slack integration (BYO tokens).
-- The knowledge base lives at `knowledge-bases/default/` — articles are plain markdown files.
+- The knowledge base lives at `knowledge-bases/` — articles are plain markdown files.
 
 ## What this skill does
 
@@ -33,7 +33,7 @@ The admin may ask in different ways:
 
 1. Ask what the question is (or have them paste the Slack thread)
 2. Draft a clean KB article from the answer
-3. Save to `knowledge-bases/default/<slug>.md`
+3. Save to `knowledge-bases/<slug>.md`
 
 ## Writing KB articles
 

@@ -209,6 +209,7 @@ export type ViewerSource =
       entity:
         | "agents"
         | "workflows"
+        | "knowledge"
         | "knowledge-base"
         | "library"
         | "reports"

@@ -6,7 +6,7 @@ description: Set up a patient/researcher inquiry agent that self-serves answers 
 ## Prerequisites
 
 - OpenIT's intake form is running (check the intake URL pill in the header)
-- Knowledge base articles exist in `knowledge-bases/default/` — the agent searches these to answer questions
+- Knowledge base articles exist in `knowledge-bases/` — the agent searches these to answer questions
 
 ## What this skill does
 
@@ -56,7 +56,7 @@ Replace answered with escalated or resolved.
 
 ### Step 2: Populate the knowledge base
 
-The agent is only as good as its KB. Help the admin populate `knowledge-bases/default/` with articles relevant to their domain:
+The agent is only as good as its KB. Help the admin populate `knowledge-bases/` with articles relevant to their domain:
 
 - "What common questions do patients/researchers ask?"
 - "Do you have existing FAQ content on your website or in documents?"

@@ -11,7 +11,7 @@ You're Claude, helping the admin run their IT helpdesk. Everything lives as plai
 | `databases/access/*.json` | Onboard/offboard access log. |
 | `databases/assets/*.json` | Device and equipment inventory. |
 | `databases/conversations/<ticketId>/msg-*.json` | Conversation threads — one subfolder per ticket, one JSON per message turn. |
-| `knowledge-bases/default/*.md` | Knowledge base articles. Write new articles here. |
+| `knowledge-bases/*.md` | Knowledge base articles. Write new articles here. |
 | `filestores/skills/*.md` | Commands (slash commands). The admin runs these via `/command-name` in the chat. |
 | `filestores/scripts/*` | Runnable scripts created during sessions. |
 | `filestores/library/*` | Reference files — runbooks, recurring docs. |
@@ -48,7 +48,7 @@ This is the most important behavior. OpenIT is a **learning system** — every s
 5. **Wrap up when done.** When a task is complete:
    - Set the ticket status to `resolved`
    - Write a brief summary in `notes`
-   - **Update the KB** — if you learned something reusable, write or update an article in `knowledge-bases/default/`
+   - **Update the KB** — if you learned something reusable, write or update an article in `knowledge-bases/`
    - **Propose a command** if the workflow is repeatable (3+ steps, likely to recur)
 
 ### Ticket fields for admin-initiated tasks
@@ -76,7 +76,7 @@ The admin doesn't think about this. You handle the bookkeeping. They just work; 
 - **Ticket** → `databases/tickets/ticket-<id>.json`. Status: `open` → `resolved` → `closed`. See `_schema.json` for all fields.
 - **Person** → `databases/people/<sanitized-email>.json`. Skip the write if a row with that email exists.
 - **Conversation turn** → `databases/conversations/<ticketId>/msg-<unix-ms>-<rand>.json`. Fields: `id`, `ticketId`, `role` (`asker` / `agent` / `admin`), `sender`, `timestamp` (ISO-8601 UTC), `body`.
-- **KB article** → `knowledge-bases/default/<slug>.md`. Search with `Glob "knowledge-bases/**/*.md"` or `node .claude/scripts/kb-search.mjs "<query>"`.
+- **KB article** → `knowledge-bases/<slug>.md`. Search with `Glob "knowledge-bases/**/*.md"` or `node .claude/scripts/kb-search.mjs "<query>"`.
 - **Command** → `filestores/skills/<name>.md`. Always edit this copy, not `.claude/skills/` (which is auto-mirrored).
 
 ## How to communicate

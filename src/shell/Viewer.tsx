@@ -771,6 +771,7 @@ function sanitizeUploadFilename(name: string): string {
 const ENTITY_FOLDER_LABELS: Record<
   | "agents"
   | "workflows"
+  | "knowledge"
   | "knowledge-base"
   | "library"
   | "reports"
@@ -781,7 +782,8 @@ const ENTITY_FOLDER_LABELS: Record<
 > = {
   agents: "Agents",
   workflows: "Workflows",
-  "knowledge-base": "Knowledge base",
+  knowledge: "Knowledge",
+  "knowledge-base": "Knowledge",
   library: "Library",
   reports: "Reports",
   skills: "Skills",
@@ -795,6 +797,7 @@ const ENTITY_FOLDER_LABELS: Record<
 const ENTITY_FOLDER_EMPTY_COPY: Record<
   | "agents"
   | "workflows"
+  | "knowledge"
   | "knowledge-base"
   | "library"
   | "reports"
@@ -807,8 +810,10 @@ const ENTITY_FOLDER_EMPTY_COPY: Record<
     "No agents yet. Agents are reusable Claude prompts (triage, onboarding, audits) that drive the workflows in this project. Ask Claude in the chat — \"draft an agent that triages tickets by urgency\" — and it will scaffold one here.",
   workflows:
     "No workflows yet. Workflows orchestrate agents and connections to automate IT work end-to-end. Ask Claude — \"build a workflow that escalates SLA breaches\" — and it will land a workflow file here.",
+  knowledge:
+    "No articles yet. This is your knowledge base — Claude reads these when answering tickets. Drop in markdown files, or ask Claude to write one.",
   "knowledge-base":
-    "No knowledge-base articles yet. This is where runbooks and reference docs live — Claude reads them when answering tickets. Drop in markdown files, or ask Claude to draft one (\"write a runbook for resetting a Slack workspace owner\").",
+    "No articles yet. This is your knowledge base — Claude reads these when answering tickets. Drop in markdown files, or ask Claude to write one.",
   library:
     "No library files yet. Drop runbook PDFs, scripts, or any reference doc you reach for repeatedly — Claude can pull from these when answering tickets or building workflows.",
   reports:
@@ -1549,16 +1554,8 @@ export function Viewer({
       case "conversation-thread": return `Conversation — ${source.ticketId}`;
       case "conversations-list": return "Inbox";
       case "entity-folder": {
-        // For KB collections, surface the collection name (e.g.
-        // "Knowledge — default") so the admin can tell which KB they
-        // are in when more than one exists. Other entity-folder kinds
-        // get their bare label — the EntityBadge's tinted glyph
-        // already signals the kind and the cards below show the
-        // count.
-        if (source.entity === "knowledge-base") {
-          const m = source.path.match(/^knowledge-bases\/([^/]+)$/);
-          const colName = m ? m[1] : "default";
-          return `Knowledge — ${colName}`;
+        if (source.entity === "knowledge" || source.entity === "knowledge-base") {
+          return "Knowledge";
         }
         return ENTITY_FOLDER_LABELS[source.entity];
       }

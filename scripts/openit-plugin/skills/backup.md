@@ -116,7 +116,7 @@ Make sure the routine includes the same MCP connectors the backup needs (Salesfo
 
 ### Step 4: Save for future use
 
-After the first scheduling setup succeeds, write a KB article at `knowledge-bases/default/scheduling-setup.md` documenting:
+After the first scheduling setup succeeds, write a KB article at `knowledge-bases/scheduling-setup.md` documenting:
 - That the vault is connected to GitHub at `<repo-url>`
 - How to add new scheduled routines (just run `/schedule`)
 - The MCP connectors that are wired up
