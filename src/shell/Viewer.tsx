@@ -1784,7 +1784,36 @@ export function Viewer({
   /// separator, or matches the original — keeping a click-then-blur
   /// without changes from triggering a needless write.
   async function commitRename(): Promise<void> {
-    if (!renamingPath || !source || source.kind !== "file") return;
+    if (!renamingPath || !source || (source.kind !== "file" && source.kind !== "datastore-row")) return;
+
+    // For command files (.claude/skills/<name>/SKILL.md), renaming
+    // means renaming the parent folder, not the SKILL.md file.
+    const skillFolderMatch = renamingPath.match(/^(.+)\/\.claude\/skills\/([^/]+)\/SKILL\.md$/);
+    if (skillFolderMatch) {
+      const repoRoot = skillFolderMatch[1];
+      const oldFolderName = skillFolderMatch[2];
+      const next = renameDraft.trim().toLowerCase().replace(/\s+/g, "-").replace(/[^a-z0-9-]/g, "");
+      if (!next || next === oldFolderName) {
+        setRenamingPath(null);
+        setRenameDraft("");
+        setRenameError(null);
+        return;
+      }
+      try {
+        const { entityRenameFile } = await import("../lib/api");
+        await entityRenameFile(repo, ".claude/skills", oldFolderName, next);
+        setRenamingPath(null);
+        setRenameDraft("");
+        setRenameError(null);
+        if (onOpenPath) await onOpenPath(`${repoRoot}/.claude/skills/${next}/SKILL.md`);
+      } catch (err) {
+        const reason = err instanceof Error ? err.message : String(err);
+        console.error(`[rename] command folder ${oldFolderName} → ${next}:`, err);
+        setRenameError(`Rename failed: ${reason}`);
+      }
+      return;
+    }
+
     const original = renamingPath.split("/").pop() ?? renamingPath;
     const next = renameDraft.trim();
     if (!next || next === original) {
@@ -4106,8 +4135,8 @@ export function Viewer({
           </Button>
         </div>
         {headerKind && <EntityBadge kind={headerKind} showLabel={false} />}
-        {source && source.kind === "file" ? (
-          renamingPath === source.path ? (
+        {source && (source.kind === "file" || source.kind === "datastore-row") ? (
+          renamingPath ? (
             <input
               type="text"
               className="viewer-title viewer-title-rename"
@@ -4135,9 +4164,21 @@ export function Viewer({
               type="button"
               className="viewer-title viewer-title-editable"
               onClick={() => {
-                const filename = source.path.split("/").pop() ?? source.path;
-                setRenamingPath(source.path);
-                setRenameDraft(filename);
+                if (source.kind === "datastore-row") {
+                  const key = source.item.key || source.item.id || "";
+                  const filePath = `${repo}/databases/${source.collection.name}/${key}.json`;
+                  setRenamingPath(filePath);
+                  setRenameDraft(`${key}.json`);
+                } else {
+                  // For command files (.claude/skills/<name>/SKILL.md),
+                  // seed the rename with the folder name, not "SKILL.md".
+                  const skillFolderMatch = source.path.match(/\.claude\/skills\/([^/]+)\/SKILL\.md$/);
+                  const draft = skillFolderMatch
+                    ? skillFolderMatch[1]
+                    : source.path.split("/").pop() ?? source.path;
+                  setRenamingPath(source.path);
+                  setRenameDraft(draft);
+                }
                 setRenameError(null);
               }}
               title="Click to rename"
