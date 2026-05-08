@@ -178,10 +178,9 @@ function App() {
           .catch((e) => console.error("plugin sync failed:", e));
       }
 
-      // Auto-seed sample data on every launch (idempotent — skips
-      // files that already exist, so user data is never overwritten).
-      seedIfEmpty({ repo: result.path, onLog: (msg) => console.log(`[seed] ${msg}`) })
-        .catch((e) => console.error("seed failed:", e));
+      // Sample data is NOT auto-seeded on install. Users can opt in
+      // via the "Load sample data" CTA in getting-started.md, which
+      // dispatches the `openit:create-samples` event handled below.
     } catch (e) {
       console.error("[app] openVault failed:", e);
       setLoaded(true);
