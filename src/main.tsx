@@ -12,7 +12,6 @@ import "@fontsource-variable/source-serif-4/standard.css";
 import "@fontsource-variable/source-serif-4/standard-italic.css";
 import App from "./App";
 import { ToastProvider } from "./Toast";
-import { checkForUpdatesOnLaunch } from "./lib/updater";
 
 ReactDOM.createRoot(document.getElementById("root") as HTMLElement).render(
   <React.StrictMode>
@@ -21,5 +20,3 @@ ReactDOM.createRoot(document.getElementById("root") as HTMLElement).render(
     </ToastProvider>
   </React.StrictMode>,
 );
-
-void checkForUpdatesOnLaunch();

@@ -25,8 +25,9 @@ import {
 } from "./lib/skillState";
 import { onFsChanged } from "./lib/fsWatcher";
 import { useToast } from "./Toast";
-import { Button, TitleRail } from "./ui";
+import { Button, TitleRail, UpdateChip } from "./ui";
 import { StatusChips } from "./shell/StatusBar";
+import { useUpdateChecker } from "./lib/updater";
 import { syncSkillsToDisk, readSyncedPluginVersion } from "./lib/skillsSync";
 import { seedIfEmpty } from "./lib/seed";
 import { invoke } from "@tauri-apps/api/core";
@@ -140,6 +141,7 @@ async function migrateFlatTriage(repo: string): Promise<void> {
 }
 
 function App() {
+  const updateState = useUpdateChecker();
   const [repo, setRepo] = useState<string | null>(null);
   const [loaded, setLoaded] = useState(false);
   const [bypassOnboarding, setBypassOnboarding] = useState(false);
@@ -599,14 +601,17 @@ function App() {
     <main className="app">
       <TitleRail
         left={
-          <StatusChips
-            intakeUrl={intakeServerUrl}
-            tunnelUrl={tunnelUrl}
-            onShare={triggerShareFlow}
-            slackConfig={slackConfig}
-            slackStatus={slackStatus}
-            onConnectSlack={triggerSlackFlow}
-          />
+          <>
+            <UpdateChip update={updateState} />
+            <StatusChips
+              intakeUrl={intakeServerUrl}
+              tunnelUrl={tunnelUrl}
+              onShare={triggerShareFlow}
+              slackConfig={slackConfig}
+              slackStatus={slackStatus}
+              onConnectSlack={triggerSlackFlow}
+            />
+          </>
         }
         right={
           <>

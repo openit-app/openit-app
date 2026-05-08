@@ -23,6 +23,8 @@ export type { IntakeChipProps } from "./IntakeChip";
 export { SlackChip } from "./SlackChip";
 export type { SlackChipProps } from "./SlackChip";
 
+export { UpdateChip } from "./UpdateChip";
+
 export { Banner } from "./Banner";
 export type { BannerProps, BannerVariant } from "./Banner";
 
