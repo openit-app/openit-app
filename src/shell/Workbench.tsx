@@ -78,7 +78,13 @@ export function Workbench({
   const [counts, setCounts] = useState<Record<string, number>>({});
   const [escalatedTickets, setEscalatedTickets] = useState<TicketSummary[]>([]);
   const escalatedCount = escalatedTickets.length;
-  const allStations = DEFAULT_STATIONS;
+  const [pinnedExtras, setPinnedExtras] = useState<string[]>([]);
+  const [pickerOpen, setPickerOpen] = useState(false);
+
+  const allStations = [
+    ...DEFAULT_STATIONS,
+    ...EXTRA_STATIONS.filter((s) => pinnedExtras.includes(s.id)),
+  ];
 
   useEffect(() => {
     if (!repo) {
@@ -151,6 +157,15 @@ export function Workbench({
     if (repo) onOpen(`${repo}/databases/tickets`);
   };
 
+  const toggleExtra = (id: string) => {
+    setPinnedExtras((prev) =>
+      prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id],
+    );
+  };
+
+  const unpinnedExtras = EXTRA_STATIONS.filter(
+    (s) => !pinnedExtras.includes(s.id),
+  );
 
   return (
     <div className="workbench">
@@ -192,6 +207,7 @@ export function Workbench({
       <div className="workbench-stations">
         {allStations.map((s) => {
           const meta = ENTITY_META[s.kind];
+          const isPinned = pinnedExtras.includes(s.id);
           return (
             <button
               key={s.id}
@@ -207,18 +223,80 @@ export function Workbench({
                 <span className="station-label">{meta.label}</span>
                 <span className="station-count">{counts[s.id] ?? "·"}</span>
               </span>
+              {isPinned && (
+                <span
+                  className="station-unpin"
+                  title="Remove from workstation"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    toggleExtra(s.id);
+                  }}
+                  role="button"
+                  tabIndex={0}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" || e.key === " ") {
+                      e.stopPropagation();
+                      toggleExtra(s.id);
+                    }
+                  }}
+                >
+                  ×
+                </span>
+              )}
             </button>
           );
         })}
       </div>
 
-      <button
-        type="button"
-        className="workbench-files-link"
-        onClick={onShowFiles}
-      >
-        File explorer <span className="arrow" aria-hidden="true">&rarr;</span>
-      </button>
+      {/* Unified "More" section — tile picker + file explorer */}
+      <div className="workbench-more">
+        <button
+          type="button"
+          className="workbench-more-toggle"
+          onClick={() => setPickerOpen((v) => !v)}
+        >
+          <span className="workbench-files-caret">{pickerOpen ? "▾" : "▸"}</span>
+          <span>More</span>
+        </button>
+        {pickerOpen && (
+          <div className="workbench-more-body">
+            {unpinnedExtras.length > 0 && (
+              <>
+                <span className="workbench-more-label">Add to workstation</span>
+                <div className="workbench-picker-grid">
+                  {unpinnedExtras.map((s) => {
+                    const meta = ENTITY_META[s.kind];
+                    return (
+                      <button
+                        key={s.id}
+                        type="button"
+                        className={`station station-picker entity-tone-${meta.tone}`}
+                        onClick={() => toggleExtra(s.id)}
+                        title={`Add ${meta.label} to workstation`}
+                      >
+                        <span className="station-glyph" aria-hidden>
+                          {meta.icon}
+                        </span>
+                        <span className="station-body">
+                          <span className="station-label">{meta.label}</span>
+                        </span>
+                        <span className="station-add-hint">+</span>
+                      </button>
+                    );
+                  })}
+                </div>
+              </>
+            )}
+            <button
+              type="button"
+              className="workbench-files-link"
+              onClick={onShowFiles}
+            >
+              File explorer <span className="arrow" aria-hidden="true">&rarr;</span>
+            </button>
+          </div>
+        )}
+      </div>
     </div>
   );
 }
