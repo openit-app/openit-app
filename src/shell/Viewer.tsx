@@ -3,7 +3,7 @@ import ReactMarkdown, { defaultUrlTransform } from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import { ask } from "@tauri-apps/plugin-dialog";
-import { fsRead, fsReadBytes, fsList, fsReveal, reportOverviewRun, entityWriteFile, entityWriteFileBytes, entityDeleteFile, entityListLocal } from "../lib/api";
+import { fsRead, fsReadBytes, fsList, fsReveal, reportOverviewRun, entityWriteFile, entityWriteFileBytes, entityDeleteFile, entityClearDir, entityListLocal } from "../lib/api";
 import { loadOpenitConfig } from "../lib/openitConfig";
 import type { MemoryItem, Agent } from "../lib/localTypes";
 import { DataTable } from "./DataTable";
@@ -3167,6 +3167,24 @@ export function Viewer({
                       uploadFilesToSubdir(repo, c.path, files, setFolderUploadError, showToast)
                   : undefined,
               onReveal: () => void fsReveal(c.path).catch(console.error),
+              onDelete: repo && !c.isBuiltin ? async () => {
+                let ok = false;
+                try {
+                  ok = await ask(
+                    `Delete filestore "${c.displayName}" and all its files?\n\nThis cannot be undone.`,
+                    { title: "Delete filestore?", kind: "warning" },
+                  );
+                } catch {
+                  ok = window.confirm(`Delete filestore "${c.displayName}" and all its files?\n\nThis cannot be undone.`);
+                }
+                if (!ok) return;
+                try {
+                  await entityClearDir(repo, `filestores/${c.name}`);
+                  showToast(`Deleted filestore ${c.displayName}`);
+                } catch (err) {
+                  console.error("[filestore-delete] failed:", err);
+                }
+              } : undefined,
             }))}
           />
         </div>
@@ -3259,6 +3277,24 @@ export function Viewer({
               }${c.itemCount === 1 ? "" : "s"}`,
               onClick: () => onOpenPath && void onOpenPath(c.path),
               onReveal: () => void fsReveal(c.path).catch(console.error),
+              onDelete: repo ? async () => {
+                let ok = false;
+                try {
+                  ok = await ask(
+                    `Delete database "${c.name}" and all its records?\n\nThis cannot be undone.`,
+                    { title: "Delete database?", kind: "warning" },
+                  );
+                } catch {
+                  ok = window.confirm(`Delete database "${c.name}" and all its records?\n\nThis cannot be undone.`);
+                }
+                if (!ok) return;
+                try {
+                  await entityClearDir(repo, `databases/${c.name}`);
+                  showToast(`Deleted database ${c.name}`);
+                } catch (err) {
+                  console.error("[db-delete] failed:", err);
+                }
+              } : undefined,
             }))}
           />
         </div>

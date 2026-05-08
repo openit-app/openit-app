@@ -369,6 +369,10 @@ export async function entityDeleteFile(repo: string, subdir: string, filename: s
   return invoke("entity_delete_file", { repo, subdir, filename });
 }
 
+export async function entityClearDir(repo: string, subdir: string): Promise<void> {
+  return invoke("entity_clear_dir", { repo, subdir });
+}
+
 /// Rename a file within a subdir. Used to reconcile when the filestore
 /// server sanitizes a filename on upload (e.g. spaces → dashes) so the
 /// local working tree matches the canonical name and the next pull
