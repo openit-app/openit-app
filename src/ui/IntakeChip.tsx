@@ -49,12 +49,14 @@ export function IntakeChip({
         type="button"
         title={
           tunnelBare
-            ? `Shared at ${tunnelBare}. Click to copy.`
+            ? `Open shared intake form at ${tunnelBare}`
             : "Share this form with your team via a public link"
         }
         onClick={() => {
           if (tunnelUrl) {
-            navigator.clipboard.writeText(tunnelUrl).catch(() => {});
+            openUrl(tunnelUrl).catch((e) =>
+              console.warn("[intake-chip] openUrl failed:", e),
+            );
           } else {
             onShare();
           }
