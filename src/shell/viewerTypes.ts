@@ -266,5 +266,5 @@ export type ViewerSource =
   | { kind: "skills-station" }
   | { kind: "commands-station" }
   | { kind: "scripts-station" }
-  | { kind: "traces-list"; folders: { name: string; path: string; traceCount: number }[] }
+  | { kind: "traces-list"; folders: { name: string; subject: string; path: string; traceCount: number }[] }
   | null;
