@@ -582,13 +582,22 @@ function App() {
     return (
       <Onboarding
         onOpenVault={async (path: string) => {
-          // Resolve the path first via projectBootstrap (handles "" → ~/OpenIT/Personal).
-          // This fixes the "Use Default" bug where "" was passed to createWorkspace
-          // which rejects empty strings. We then pass the resolved absolute path
-          // to both createWorkspace and openVault.
-          const result = await projectBootstrap(path || undefined);
+          // If user picked a generic directory (Documents, Desktop, Drive),
+          // append OpenIT/Personal so we don't dump files at the root.
+          // Only do this if the path doesn't already end with an OpenIT-like name.
+          let vaultPath = path;
+          if (vaultPath) {
+            const sep = vaultPath.includes("\\") ? "\\" : "/";
+            const last = vaultPath.split(sep).filter(Boolean).pop()?.toLowerCase() ?? "";
+            const isAlreadyVault = last === "openit" || last === "personal" || vaultPath.toLowerCase().includes("openit");
+            if (!isAlreadyVault) {
+              vaultPath = vaultPath + sep + "OpenIT" + sep + "Personal";
+            }
+          }
+          const result = await projectBootstrap(vaultPath || undefined);
           const resolved = result.path;
-          const name = resolved.split("/").filter(Boolean).pop() ?? "Personal";
+          const sep = resolved.includes("\\") ? "\\" : "/";
+          const name = resolved.split(sep).filter(Boolean).pop() ?? "Personal";
           await createWorkspace(resolved, name);
           await openVault(resolved);
         }}
