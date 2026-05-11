@@ -73,7 +73,7 @@
   },
   "plugins": {
     "updater": {
-      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IEM2OTgyMTMyMkRENzYyNzEKUldSeFloY3RNaUdZeHJJRElaYUFmUHhLdkY5QURYM1ZWajlhdDdKYnRnNzRJRmZHMXVVa2RXZ3UK",
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDlBQkY2Q0RBQjIxNjY3QQpSV1I2WmlHcnpmYXJDYjVDTUJVMWtaR3lZMXlIUThDaHpEcnIyeXRVdzRBSTVoczVUTFpBQ3N2ago=",
       "endpoints": [
         "https://github.com/openit-app/openit-app/releases/latest/download/latest.json"
       ]
