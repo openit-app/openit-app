@@ -1250,10 +1250,14 @@ input.viewer-title.viewer-title-rename {
 }
 
 .viewer-breadcrumb-sep {
-  margin: 0 5px;
+  margin: 0 4px;
   color: var(--color-text-faint);
   font-weight: 400;
   flex: 0 0 auto;
+}
+
+.viewer-breadcrumb-link + .viewer-breadcrumb-sep {
+  margin-left: 0;
 }
 
 .viewer-breadcrumb-link {
