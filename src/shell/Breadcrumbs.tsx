@@ -28,18 +28,15 @@ function capitalize(s: string): string {
   return s.charAt(0).toUpperCase() + s.slice(1);
 }
 
-// First-class database collections that appear as top-level stations
-// in the Workbench. These skip the "Databases /" prefix in breadcrumbs.
-// Custom collections promoted to the workstation also get this treatment
-// — the check falls through to the generic path which adds "Databases /"
-// as a parent, which is still correct. The well-known ones here get
-// friendly display names.
-const FIRST_CLASS_COLLECTIONS: Record<string, { label: string; listPath: string }> = {
-  people:        { label: "People",  listPath: "databases/people" },
-  access:        { label: "Access",  listPath: "databases/access" },
-  assets:        { label: "Assets",  listPath: "databases/assets" },
-  tickets:       { label: "Tickets", listPath: "databases/tickets" },
-  conversations: { label: "Tickets", listPath: "databases/tickets" },
+// Friendly display names for well-known database collections.
+// All database collections show "Databases / X" in breadcrumbs —
+// Databases is a primitive, its children always have the parent crumb.
+const DB_LABELS: Record<string, string> = {
+  people:        "People",
+  access:        "Access",
+  assets:        "Assets",
+  tickets:       "Inbox",
+  conversations: "Inbox",
 };
 
 // ── Core: derive breadcrumb segments from a ViewerSource ──────────
@@ -74,54 +71,42 @@ export function breadcrumbSegments(
 
     case "datastore-table": {
       const name = source.collection?.name ?? "collection";
-      const fc = FIRST_CLASS_COLLECTIONS[name];
-      if (fc) return [{ label: fc.label, navigateTo: null }];
       return [
         { label: "Databases", navigateTo: "databases" },
-        { label: capitalize(name), navigateTo: null },
+        { label: DB_LABELS[name] ?? capitalize(name), navigateTo: null },
       ];
     }
 
     case "datastore-row": {
       const col = source.collection?.name ?? "collection";
       const key = source.item?.key || source.item?.id || "row";
-      const fc = FIRST_CLASS_COLLECTIONS[col];
-      if (fc) {
-        return [
-          { label: fc.label, navigateTo: fc.listPath },
-          { label: `${key}.json`, navigateTo: null },
-        ];
-      }
       return [
         { label: "Databases", navigateTo: "databases" },
-        { label: capitalize(col), navigateTo: `databases/${col}` },
+        { label: DB_LABELS[col] ?? capitalize(col), navigateTo: `databases/${col}` },
         { label: `${key}.json`, navigateTo: null },
       ];
     }
 
     case "datastore-schema": {
       const col = source.collection?.name ?? "collection";
-      const fc = FIRST_CLASS_COLLECTIONS[col];
-      if (fc) {
-        return [
-          { label: fc.label, navigateTo: fc.listPath },
-          { label: "Schema", navigateTo: null },
-        ];
-      }
       return [
         { label: "Databases", navigateTo: "databases" },
-        { label: capitalize(col), navigateTo: `databases/${col}` },
+        { label: DB_LABELS[col] ?? capitalize(col), navigateTo: `databases/${col}` },
         { label: "Schema", navigateTo: null },
       ];
     }
 
     // ── Conversations (tickets) ───────────────────────────────────
     case "conversations-list":
-      return [{ label: "Tickets", navigateTo: null }];
+      return [
+        { label: "Databases", navigateTo: "databases" },
+        { label: "Inbox", navigateTo: null },
+      ];
 
     case "conversation-thread":
       return [
-        { label: "Tickets", navigateTo: "databases/tickets" },
+        { label: "Databases", navigateTo: "databases" },
+        { label: "Inbox", navigateTo: "databases/tickets" },
         { label: source.ticketId, navigateTo: null },
       ];
 
@@ -158,13 +143,22 @@ export function breadcrumbSegments(
         { label: source.workflow?.name ?? "Workflow", navigateTo: null },
       ];
 
-    // ── People / Access / Assets ──────────────────────────────────
+    // ── People / Access / Assets (children of Databases primitive) ─
     case "people-list":
-      return [{ label: "People", navigateTo: null }];
+      return [
+        { label: "Databases", navigateTo: "databases" },
+        { label: "People", navigateTo: null },
+      ];
     case "access-list":
-      return [{ label: "Access", navigateTo: null }];
+      return [
+        { label: "Databases", navigateTo: "databases" },
+        { label: "Access", navigateTo: null },
+      ];
     case "assets-list":
-      return [{ label: "Assets", navigateTo: null }];
+      return [
+        { label: "Databases", navigateTo: "databases" },
+        { label: "Assets", navigateTo: null },
+      ];
 
     // ── Traces ────────────────────────────────────────────────────
     case "traces-list":
@@ -186,11 +180,20 @@ export function breadcrumbSegments(
     case "tools":
       return [{ label: "Tools", navigateTo: null }];
     case "skills-station":
-      return [{ label: "Skills", navigateTo: null }];
+      return [
+        { label: "Filestores", navigateTo: "filestores" },
+        { label: "Skills", navigateTo: null },
+      ];
     case "commands-station":
-      return [{ label: "Commands", navigateTo: null }];
+      return [
+        { label: "Filestores", navigateTo: "filestores" },
+        { label: "Commands", navigateTo: null },
+      ];
     case "scripts-station":
-      return [{ label: "Scripts", navigateTo: null }];
+      return [
+        { label: "Filestores", navigateTo: "filestores" },
+        { label: "Scripts", navigateTo: null },
+      ];
 
     // ── Misc ──────────────────────────────────────────────────────
     case "sync":
