@@ -4,7 +4,7 @@ import remarkGfm from "remark-gfm";
 import { fsRead, fsReadBytes, fsList, fsReveal, reportOverviewRun, entityDeleteFile, entityRemoveDir } from "../lib/api";
 import type { MemoryItem, Agent } from "../lib/localTypes";
 import { EntityCardGrid } from "./EntityCardGrid";
-import { EntityBadge, type EntityKind } from "./entityIcons";
+import { EntityBadge, iconForKey, type EntityKind } from "./entityIcons";
 import { ToolsPanel } from "./ToolsPanel";
 import { CommandsStation, SkillsStation } from "./SkillsStation";
 import { ScriptsStation } from "./ScriptsStation";
@@ -61,6 +61,7 @@ import type { ViewerSource } from "./viewerTypes";
 import {
   loadWorkstationConfig,
   saveWorkstationConfig,
+  type TileConfig,
 } from "../lib/workstationConfig";
 
 export type { ViewerSource };
@@ -140,6 +141,16 @@ export function Viewer({
   const [accessView, setAccessView] = useState<"cards" | "table">("cards");
   const [assetsView, setAssetsView] = useState<"cards" | "table">("cards");
   const [datastoreView, setDatastoreView] = useState<"cards" | "table">("cards");
+
+  // Workstation config tiles — loaded so the viewer header can reflect
+  // any custom icon/tone/label the user set on the tile.
+  const [wsTiles, setWsTiles] = useState<TileConfig[]>([]);
+  useEffect(() => {
+    if (!repo) return;
+    loadWorkstationConfig(repo).then((cfg) => {
+      setWsTiles([...cfg.main, ...cfg.more]);
+    });
+  }, [repo, fsTick]);
 
   // Edit-mode state for the markdown viewer. `editDraft` is the
   // textarea value (decoupled from `content` so unsaved edits don't
@@ -2187,7 +2198,12 @@ export function Viewer({
           </Button>
         </div>
         {headerKind && (
-          <EntityBadge kind={headerKind} showLabel={false} />
+          <EntityBadge
+            kind={headerKind}
+            showLabel={false}
+            overrideIcon={wsTile?.icon ? iconForKey(wsTile.icon) : undefined}
+            overrideTone={wsTile?.tone}
+          />
         )}
         <BreadcrumbAncestors
           source={source}
