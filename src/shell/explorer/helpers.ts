@@ -171,7 +171,7 @@ export function fileStatusBadge(
   return null;
 }
 
-export const KB_SUPPORTED_EXTENSIONS = new Set([
+const KB_SUPPORTED_EXTENSIONS = new Set([
   "pdf", "txt", "md", "markdown", "json", "csv",
   "docx", "xlsx", "pptx",
   "jpg", "jpeg", "png", "gif", "webp",

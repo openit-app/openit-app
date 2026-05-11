@@ -375,10 +375,6 @@ export async function entityDeleteFile(repo: string, subdir: string, filename: s
   return invoke("entity_delete_file", { repo, subdir, filename });
 }
 
-export async function entityClearDir(repo: string, subdir: string): Promise<void> {
-  return invoke("entity_clear_dir", { repo, subdir });
-}
-
 export async function entityRemoveDir(repo: string, subdir: string): Promise<void> {
   return invoke("entity_remove_dir", { repo, subdir });
 }

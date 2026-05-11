@@ -1,8 +1,8 @@
 import { invoke } from "@tauri-apps/api/core";
 import { listen, type UnlistenFn } from "@tauri-apps/api/event";
 
-export type PtyDataEvent = { session_id: string; data: string };
-export type PtyExitEvent = { session_id: string; code: number | null };
+type PtyDataEvent = { session_id: string; data: string };
+type PtyExitEvent = { session_id: string; code: number | null };
 
 export async function ptySpawn(args: {
   sessionId: string;

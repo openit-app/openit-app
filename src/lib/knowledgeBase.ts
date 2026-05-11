@@ -9,12 +9,6 @@
 // the small public types and a couple of helpers (display-name strip,
 // the OPENIT_KB_PREFIX constant) that consumer code references.
 
-export type KbCollection = {
-  id: string;
-  name: string;
-  description?: string;
-};
-
 /// Prefix every OpenIT-managed KB carries on the cloud. Used to filter
 /// the user's full collection list down to the ones we own. Mirrors
 /// `OPENIT_FILESTORE_PREFIX` from filestoreSync.ts.
