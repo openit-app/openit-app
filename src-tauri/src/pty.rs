@@ -11,13 +11,15 @@ use portable_pty::{native_pty_system, CommandBuilder, MasterPty, PtySize};
 use serde::{Deserialize, Serialize};
 use tauri::{AppHandle, Emitter, Runtime, State};
 
-/// Source URL for the official Claude Code native installer. Surfaced in the
-/// onboarding UI so the user can see what we're about to fetch.
+/// Source URL for the official Claude Code native installer. Used by the
+/// auto-install flow on macOS/Linux (curl | bash).
+#[cfg(not(target_os = "windows"))]
 const CLAUDE_INSTALL_SCRIPT_URL: &str = "https://claude.ai/install.sh";
 
 /// Hard cap on the auto-install. The installer normally finishes in ~5s; if
 /// it's still running after 120s we kill it so the UI doesn't hang forever
 /// on a captive portal or slow CDN.
+#[cfg(not(target_os = "windows"))]
 const CLAUDE_INSTALL_TIMEOUT: Duration = Duration::from_secs(120);
 
 #[derive(Default)]

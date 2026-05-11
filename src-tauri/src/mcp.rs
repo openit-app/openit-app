@@ -39,9 +39,9 @@ fn home_dir() -> Option<PathBuf> {
 
 /// Claude Desktop config path — platform-specific.
 fn claude_desktop_config_path() -> Option<PathBuf> {
-    let home = home_dir()?;
     #[cfg(target_os = "macos")]
     {
+        let home = home_dir()?;
         Some(home.join("Library/Application Support/Claude/claude_desktop_config.json"))
     }
     #[cfg(target_os = "windows")]
@@ -54,6 +54,7 @@ fn claude_desktop_config_path() -> Option<PathBuf> {
     }
     #[cfg(target_os = "linux")]
     {
+        let home = home_dir()?;
         Some(home.join(".config/Claude/claude_desktop_config.json"))
     }
 }
