@@ -139,7 +139,7 @@ export type ViewerSource =
   | { kind: "agent"; agent: Agent; path: string }
   | { kind: "workflow"; workflow: Workflow; path: string }
   | { kind: "conversation-thread"; ticketId: string; turns: ConversationTurn[] }
-  | { kind: "conversations-list"; threads: ConversationThreadSummary[] }
+  | { kind: "conversations-list"; threads: ConversationThreadSummary[]; collection?: DataCollection }
   // People directory — one row per contact. Default view is cards
   // (name + email + role/department); the header has a Cards / Table
   // toggle so admins can flip into the raw datastore-table when they
