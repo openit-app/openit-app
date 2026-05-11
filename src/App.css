@@ -1241,6 +1241,9 @@ input.viewer-title.viewer-title-rename {
   align-items: center;
   flex: 0 0 auto;
   white-space: nowrap;
+  /* Cancel the parent flex gap so the "/" separator margin is the
+     only thing controlling spacing between breadcrumb and title. */
+  margin-right: calc(-1 * var(--space-3));
 }
 
 .viewer-breadcrumb-item {
