@@ -636,7 +636,6 @@ export function Viewer({
       default: return "";
     }
   };
-  // Derive the workstation tile rel path from the current source so we
   const title = getTitle();
 
   // --- Tabs ---

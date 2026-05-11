@@ -217,8 +217,9 @@ export function Workbench({
     async (rel: string) => {
       const cfg = configRef.current;
       if (!cfg || !repo) return;
-      const tile = cfg.more.find((t) => t.rel === rel);
-      if (!tile) return;
+      // The tile may be in config.more (previously persisted) or only in
+      // the resolved moreTiles (auto-discovered, not yet in config).
+      const tile = cfg.more.find((t) => t.rel === rel) ?? { rel };
       const newConfig: WorkstationConfig = {
         main: [...cfg.main, tile],
         more: cfg.more.filter((t) => t.rel !== rel),
