@@ -466,6 +466,16 @@ function App() {
     return () => window.removeEventListener("openit:create-samples", onCreateSamples);
   }, [repo]);
 
+  // "Change vault" from command palette — reset to onboarding
+  useEffect(() => {
+    const onChangeVault = () => {
+      setBypassOnboarding(false);
+      setRepo(null);
+    };
+    window.addEventListener("openit:change-vault", onChangeVault);
+    return () => window.removeEventListener("openit:change-vault", onChangeVault);
+  }, []);
+
   // Boot sequence — registry-driven.
   // 1. Read workspace registry for the active vault path
   // 2. If no workspaces, show the vault picker (onboarding)
@@ -582,16 +592,17 @@ function App() {
     return (
       <Onboarding
         onOpenVault={async (path: string) => {
-          // If user picked a generic directory (Documents, Desktop, Drive),
-          // append OpenIT/Personal so we don't dump files at the root.
-          // Only do this if the path doesn't already end with an OpenIT-like name.
+          // Always create OpenIT/Personal inside the chosen directory,
+          // unless the user picked a path that already IS an OpenIT vault.
           let vaultPath = path;
           if (vaultPath) {
-            const sep = vaultPath.includes("\\") ? "\\" : "/";
-            const last = vaultPath.split(sep).filter(Boolean).pop()?.toLowerCase() ?? "";
-            const isAlreadyVault = last === "openit" || last === "personal" || vaultPath.toLowerCase().includes("openit");
-            if (!isAlreadyVault) {
-              vaultPath = vaultPath + sep + "OpenIT" + sep + "Personal";
+            const norm = vaultPath.replace(/\\/g, "/").replace(/\/+$/, "").toLowerCase();
+            const endsWithVault =
+              norm.endsWith("/openit/personal") ||
+              norm.endsWith("/openit");
+            if (!endsWithVault) {
+              const sep = vaultPath.includes("\\") ? "\\" : "/";
+              vaultPath = vaultPath.replace(/[\\/]+$/, "") + sep + "OpenIT" + sep + "Personal";
             }
           }
           const result = await projectBootstrap(vaultPath || undefined);

@@ -87,7 +87,7 @@ pub fn pty_spawn<R: Runtime>(
 
     let mut cmd = CommandBuilder::new(&resolved);
     // Allow Bash and Read operations for skills that need filesystem access
-    if resolved.ends_with("claude") {
+    if resolved.ends_with("claude") || resolved.ends_with("claude.exe") {
         cmd.arg("--allowedTools");
         cmd.arg("Bash Read");
         cmd.arg("--permission-mode");

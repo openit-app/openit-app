@@ -192,6 +192,7 @@ export function CommandPalette({
       // ── System ──
       { id: "sys-welcome", label: "Open Welcome", hint: "Getting-started guide", group: "System", run: () => onOpenWelcome() },
       { id: "sys-refresh", label: "Refresh from disk", hint: "Re-read files from vault", group: "System", run: () => onManualPull() },
+      { id: "sys-change-vault", label: "Change vault", hint: "Pick a different vault folder", group: "System", run: () => window.dispatchEvent(new CustomEvent("openit:change-vault")) },
     ];
     return items;
   }, [repo, dynamicTiles, onConnectSlack, onManualPull, onOpenWelcome, onShowDraft]);
