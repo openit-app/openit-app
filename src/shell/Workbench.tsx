@@ -329,7 +329,8 @@ export function Workbench({
     return (
       rel.startsWith("databases/") &&
       rel !== "databases" &&
-      rel !== "databases/conversations"
+      rel !== "databases/conversations" &&
+      rel !== "databases/tickets"
     ) ||
     (rel.startsWith("filestores/") && rel !== "filestores") ||
     rel === "knowledge-bases" ||
