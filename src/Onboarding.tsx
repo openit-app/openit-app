@@ -5,7 +5,7 @@ import { Button } from "./ui";
 
 const CLAUDE_INSTALL_DOCS =
   "https://docs.anthropic.com/claude/docs/claude-code";
-const DEFAULT_VAULT_DISPLAY = "~/OpenIT/Personal";
+const DEFAULT_VAULT_DISPLAY = "~/OpenIT";
 
 // Claude Code detection states
 type ClaudeState =

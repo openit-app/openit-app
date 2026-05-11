@@ -55,7 +55,7 @@ pub fn project_bootstrap(vault_path: Option<String>) -> Result<BootstrapResult, 
             let home = std::env::var("HOME")
                 .or_else(|_| std::env::var("USERPROFILE"))
                 .map_err(|_| "HOME/USERPROFILE not set".to_string())?;
-            [&home, "OpenIT", "Personal"].iter().collect()
+            [&home, "OpenIT"].iter().collect()
         }
     };
 

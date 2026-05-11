@@ -597,12 +597,10 @@ function App() {
           let vaultPath = path;
           if (vaultPath) {
             const norm = vaultPath.replace(/\\/g, "/").replace(/\/+$/, "").toLowerCase();
-            const endsWithVault =
-              norm.endsWith("/openit/personal") ||
-              norm.endsWith("/openit");
+            const endsWithVault = norm.endsWith("/openit");
             if (!endsWithVault) {
               const sep = vaultPath.includes("\\") ? "\\" : "/";
-              vaultPath = vaultPath.replace(/[\\/]+$/, "") + sep + "OpenIT" + sep + "Personal";
+              vaultPath = vaultPath.replace(/[\\/]+$/, "") + sep + "OpenIT";
             }
           }
           const result = await projectBootstrap(vaultPath || undefined);
