@@ -54,6 +54,7 @@ import type { ViewMode } from "./viewers";
 import { DiffViewer } from "./DiffViewer";
 import { writeToActiveSession } from "./activeSession";
 import { PaneBody } from "../ui";
+import { BreadcrumbAncestors } from "./Breadcrumbs";
 import type { ViewerSource } from "./viewerTypes";
 
 export type { ViewerSource };
@@ -572,9 +573,9 @@ export function Viewer({
   const getTitle = (): string => {
     switch (source.kind) {
       case "file": {
-        // Skill files → show "/skill-name" instead of "SKILL.md"
+        // Skill files → show "skill-name" instead of "SKILL.md"
         const sm = source.path.match(/\.claude\/skills\/([^/]+)\/SKILL\.md$/);
-        if (sm) return `/${sm[1]}`;
+        if (sm) return sm[1];
         return source.path.split("/").pop() ?? source.path;
       }
       case "sync": return "Sync output";
@@ -586,14 +587,12 @@ export function Viewer({
         const n = source.collection?.name ?? "Datastore";
         return n.charAt(0).toUpperCase() + n.slice(1);
       }
-      case "datastore-schema": {
-        const n = source.collection?.name ?? "Datastore";
-        return `${n.charAt(0).toUpperCase() + n.slice(1)} — Schema`;
-      }
-      case "datastore-row": return `${source.collection?.name ?? "Datastore"} / ${source.item?.key || source.item?.id || "Row"}`;
+      case "datastore-schema":
+        return "Schema";
+      case "datastore-row": return `${source.item?.key || source.item?.id || "Row"}.json`;
       case "agent": return source.agent?.name ?? "Agent";
       case "workflow": return source.workflow?.name ?? "Workflow";
-      case "conversation-thread": return `Conversation — ${source.ticketId}`;
+      case "conversation-thread": return source.ticketId;
       case "conversations-list": return "Inbox";
       case "entity-folder": {
         if (source.entity === "knowledge" || source.entity === "knowledge-base") {
@@ -606,9 +605,9 @@ export function Viewer({
       case "attachments-folder": return "Attachments";
       case "knowledge-bases-list": return "Knowledge";
       case "agent-trace":
-        return `Agent trace — ${source.subject}`;
+        return source.subject || source.ticketId;
       case "agent-trace-list":
-        return `Agent traces — ${source.subject} (${source.docs.length} turn${source.docs.length === 1 ? "" : "s"})`;
+        return `${source.subject || source.ticketId} (${source.docs.length} turn${source.docs.length === 1 ? "" : "s"})`;
       case "people-list":        return "People";
       case "access-list":        return "Access";
       case "assets-list":        return "Assets";
@@ -1623,7 +1622,7 @@ export function Viewer({
                 >
                   <div className="thread-card-row" style={{ display: "flex", alignItems: "center", justifyContent: "space-between", paddingRight: 0 }}>
                     <div style={{ minWidth: 0 }}>
-                      <span className="thread-card-subject">{f.name}</span>
+                      <span className="thread-card-subject">{f.subject}</span>
                       <div className="thread-card-meta">
                         <span className="thread-card-count">{f.traceCount} turn{f.traceCount === 1 ? "" : "s"}</span>
                       </div>
@@ -1973,6 +1972,15 @@ export function Viewer({
           </Button>
         </div>
         {headerKind && <EntityBadge kind={headerKind} showLabel={false} />}
+        <BreadcrumbAncestors
+          source={source}
+          repo={repo}
+          onNavigate={(relPath) => {
+            window.dispatchEvent(
+              new CustomEvent("openit:navigate", { detail: { path: `${repo}/${relPath}` } }),
+            );
+          }}
+        />
         {source && (source.kind === "file" || source.kind === "datastore-row") ? (
           renamingPath ? (
             <input

@@ -7,9 +7,9 @@ import type { TraceDoc } from "../../viewerTypes";
  */
 export async function resolveTracesList(
   path: string,
-  _repo: string,
+  repo: string,
 ): Promise<ViewerSource | null> {
-  const folders: { name: string; path: string; traceCount: number }[] = [];
+  const folders: { name: string; subject: string; path: string; traceCount: number }[] = [];
   try {
     const nodes = await fsList(path);
     const prefix = `${path}/`;
@@ -28,7 +28,16 @@ export async function resolveTracesList(
           if (f.name.endsWith(".json")) traceCount += 1;
         }
       } catch { /* */ }
-      folders.push({ name: n.name, path: n.path, traceCount });
+      // Read ticket subject for a human-readable card title
+      let subject = n.name;
+      try {
+        const ticketRaw = await fsRead(`${repo}/databases/tickets/${n.name}.json`);
+        const ticket = JSON.parse(ticketRaw);
+        if (ticket && typeof ticket.subject === "string" && ticket.subject) {
+          subject = ticket.subject;
+        }
+      } catch { /* missing ticket — keep ticketId fallback */ }
+      folders.push({ name: n.name, subject, path: n.path, traceCount });
     }
   } catch { /* dir doesn't exist yet */ }
   folders.sort((a, b) => b.name.localeCompare(a.name)); // newest first

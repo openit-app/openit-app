@@ -1191,6 +1191,54 @@ input.viewer-title.viewer-title-rename {
 /* .viewer-back-btn (and :hover, :disabled) removed — migrated to
    <Button variant="ghost" size="sm" iconOnly>. */
 
+/* Breadcrumb ancestors — sits inline in .viewer-header before the
+   leaf title. Ancestor segments are muted clickable links; the leaf
+   (viewer-title) follows immediately after and inherits the existing
+   title styling. */
+.viewer-breadcrumb-ancestors {
+  display: inline-flex;
+  align-items: center;
+  flex: 0 0 auto;
+  white-space: nowrap;
+}
+
+.viewer-breadcrumb-item {
+  display: inline-flex;
+  align-items: center;
+  white-space: nowrap;
+}
+
+.viewer-breadcrumb-sep {
+  margin: 0 5px;
+  color: var(--color-text-faint);
+  font-weight: 400;
+  flex: 0 0 auto;
+}
+
+.viewer-breadcrumb-link {
+  appearance: none;
+  background: transparent;
+  border: none;
+  padding: 2px 5px;
+  margin: -2px -5px;
+  border-radius: var(--r-sm);
+  font-family: inherit;
+  font-size: inherit;
+  font-weight: 400;
+  color: var(--color-text-muted);
+  cursor: pointer;
+  text-decoration: none;
+  flex: 0 0 auto;
+  transition:
+    color var(--t-fast) var(--ease),
+    background var(--t-fast) var(--ease);
+}
+
+.viewer-breadcrumb-link:hover {
+  color: var(--color-text);
+  background: var(--color-hover-overlay);
+}
+
 /* Markdown edit mode — full-pane textarea with a footer of action
    buttons. Monospace font + tab-friendly so it reads as "edit raw
    markdown" rather than a rich text field. */
