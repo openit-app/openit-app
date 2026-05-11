@@ -255,6 +255,20 @@
   font-style: italic;
 }
 
+.hintLink {
+  all: unset;
+  cursor: pointer;
+  color: var(--accent);
+  font-style: italic;
+  text-decoration: underline;
+  text-decoration-color: var(--accent-faint);
+  text-underline-offset: 2px;
+}
+.hintLink:hover {
+  color: var(--accent-deep);
+  text-decoration-color: var(--accent);
+}
+
 .mcpSourceBadge {
   font-size: 10px;
   font-weight: 500;

@@ -25,7 +25,19 @@ const ENTRY_SUFFIX: &str = " -->";
 /// install-source state separately.
 #[tauri::command]
 pub fn tools_is_installed(binary: String) -> bool {
-    which::which(&binary).is_ok()
+    if which::which(&binary).is_ok() {
+        return true;
+    }
+    // macOS GUI apps launched from Finder / Dock inherit a restricted
+    // PATH (/usr/bin:/bin:/usr/sbin:/sbin) that doesn't include
+    // Homebrew paths. Probe the standard Homebrew directories directly
+    // so `op`, `gh`, etc. are detected even when not on the process PATH.
+    for dir in &["/opt/homebrew/bin", "/usr/local/bin"] {
+        if PathBuf::from(dir).join(&binary).exists() {
+            return true;
+        }
+    }
+    false
 }
 
 /// Returns the target OS as a stable string the frontend can branch on:

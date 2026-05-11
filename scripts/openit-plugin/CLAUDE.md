@@ -122,6 +122,23 @@ Commands prefixed with `ai-` are agent-facing (auto-loaded, not invoked by human
 | `getting-started` | Interactive guided tour — experience the learning loop in 3 minutes. |
 | `load-sample-data` | Load sample data into the workspace across all tiles. |
 
+## UI side-channels
+
+### Tile highlight
+
+To make a workstation tile flash (pulsing orange border), write `.openit/highlight.json`:
+
+```json
+{"tiles": ["knowledge-bases", "filestores/skills"], "ts": 1715000000000}
+```
+
+- `tiles` — array of tile `rel` paths (e.g. `knowledge-bases`, `filestores/skills`, `tools`)
+- `ts` — unix milliseconds timestamp (must be fresh — the app deduplicates by timestamp)
+
+The tile glows for 5 seconds. Use this when you want to draw the admin's attention to a specific tile (e.g. after creating a KB article, say "Click the Knowledge tile" and flash it).
+
+Generate the timestamp via Bash: `date +%s000`.
+
 ## CLI tools
 
 When a request can be answered by an installed CLI tool (e.g. `gh`, `aws`, `sf`), prefer it over hand-rolled API calls. If a tool reports unauthenticated, tell the admin rather than guessing credentials.
