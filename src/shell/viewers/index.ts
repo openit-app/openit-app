@@ -54,7 +54,7 @@ export type { ViewMode } from "./viewerHelpers";
 export { ConversationsListBody, ConversationThreadBody } from "./ConversationViewer";
 
 // Datastore sub-viewers
-export { DatastoreTableBody, DatastoreRowBody, DatastoreSchemaBody } from "./DatastoreViewer";
+export { DatastoreTableBody, DatastoreRowBody, DatastoreSchemaBody, GenericRecordCardsBody } from "./DatastoreViewer";
 
 // Record-list sub-viewers (people, access, assets)
 export { PeopleListBody, AccessListBody, AssetsListBody } from "./RecordListViewer";

@@ -1,40 +1,22 @@
-import { useEffect, useRef, useState } from "react";
-import { fsList, type FileNode } from "../lib/api";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { fsList, entityRemoveDir, type FileNode } from "../lib/api";
 import { scanEscalatedTickets, type TicketSummary } from "../lib/escalatedTickets";
 import { listInstalled as listInstalledTools } from "../lib/toolsInstall";
-import { ENTITY_META, type EntityKind } from "./entityIcons";
+import { iconForKey, type ToneKey } from "./entityIcons";
+import {
+  loadWorkstationConfig,
+  saveWorkstationConfig,
+  discoverTiles,
+  mergeConfigWithDiscovery,
+  type WorkstationConfig,
+  type ResolvedTile,
+  type TileConfig,
+} from "../lib/workstationConfig";
+import { IconPicker } from "./IconPicker";
+import { Button } from "../ui";
+import { confirmDelete } from "./viewers";
 
-type Station = {
-  id: string;
-  /** Which entry in ENTITY_META drives the icon, tone, and label. */
-  kind: EntityKind;
-  /** Path relative to repo root. */
-  rel: string;
-  /** If set, opens this child path on click instead of `rel`. */
-  openRel?: string;
-  /** What to count among direct children. */
-  countMode: "dirs" | "json-rows" | "files";
-};
-
-// Primary stations — always visible.
-const PRIMARY_STATIONS: Station[] = [
-  { id: "knowledge", kind: "knowledge", rel: "knowledge-bases",  countMode: "files" },
-  { id: "commands",  kind: "commands",  rel: "filestores/skills", countMode: "files" },
-];
-
-// Extra stations — hidden behind "More", can be pinned up.
-const EXTRA_STATIONS: Station[] = [
-  { id: "reports",    kind: "reports",    rel: "reports",              countMode: "files" },
-  { id: "people",     kind: "people",     rel: "databases/people",     countMode: "json-rows" },
-  { id: "access",     kind: "access",     rel: "databases/access",     countMode: "json-rows" },
-  { id: "assets",     kind: "assets",     rel: "databases/assets",     countMode: "json-rows" },
-  { id: "agents",     kind: "agents",     rel: "agents",               countMode: "files" },
-  { id: "scripts",    kind: "scripts",    rel: "filestores/scripts",   countMode: "files" },
-  { id: "tools",      kind: "tools",      rel: "tools",                countMode: "files" },
-  { id: "databases",  kind: "databases",  rel: "databases",            countMode: "dirs" },
-  { id: "filestores", kind: "filestores", rel: "filestores",           countMode: "dirs" },
-  { id: "traces",     kind: "traces",     rel: ".openit/agent-traces", countMode: "dirs" },
-];
+// ── Helpers ──────────────────────────────────────────────────────────
 
 function directChildren(items: FileNode[], rootAbs: string): FileNode[] {
   const prefix = `${rootAbs}/`;
@@ -45,7 +27,10 @@ function directChildren(items: FileNode[], rootAbs: string): FileNode[] {
   });
 }
 
-function countWithMode(items: FileNode[], mode: Station["countMode"]): number {
+function countWithMode(
+  items: FileNode[],
+  mode: "dirs" | "json-rows" | "files" | "custom",
+): number {
   return items.filter((n) => {
     if (n.name.startsWith(".") || n.name === "_schema.json") return false;
     if (n.name.includes(".server.")) return false;
@@ -56,6 +41,8 @@ function countWithMode(items: FileNode[], mode: Station["countMode"]): number {
 }
 
 type GridLayout = "single" | "grid";
+
+// ── Component ────────────────────────────────────────────────────────
 
 export function Workbench({
   repo,
@@ -68,34 +55,57 @@ export function Workbench({
   onOpen: (path: string) => void;
   onShowFiles: () => void;
 }) {
+  const [config, setConfig] = useState<WorkstationConfig | null>(null);
+  const [mainTiles, setMainTiles] = useState<ResolvedTile[]>([]);
+  const [moreTiles, setMoreTiles] = useState<ResolvedTile[]>([]);
   const [counts, setCounts] = useState<Record<string, number>>({});
   const prevCountsRef = useRef<Record<string, number> | null>(null);
   const highlightTimerRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const [highlightedStations, setHighlightedStations] = useState<Set<string>>(new Set());
   const [escalatedTickets, setEscalatedTickets] = useState<TicketSummary[]>([]);
   const escalatedCount = escalatedTickets.length;
-  const [pinnedExtras, setPinnedExtras] = useState<string[]>([]);
   const [pickerOpen, setPickerOpen] = useState(false);
   const [layout, setLayout] = useState<GridLayout>("single");
+  const [customizing, setCustomizing] = useState<ResolvedTile | null>(null);
+  const [contextMenu, setContextMenu] = useState<{
+    tile: ResolvedTile;
+    x: number;
+    y: number;
+    section: "main" | "more";
+  } | null>(null);
 
-  const allStations = [
-    ...PRIMARY_STATIONS,
-    ...EXTRA_STATIONS.filter((s) => pinnedExtras.includes(s.id)),
-  ];
-
+  // Load config + discover tiles + count items
   useEffect(() => {
     if (!repo) {
       setCounts({});
       setEscalatedTickets([]);
+      setMainTiles([]);
+      setMoreTiles([]);
       return;
     }
     let cancelled = false;
+
     (async () => {
-      const toCount = [...PRIMARY_STATIONS, ...EXTRA_STATIONS];
+      // Load config and discover in parallel
+      const [cfg, discovered] = await Promise.all([
+        loadWorkstationConfig(repo),
+        discoverTiles(repo),
+      ]);
+      if (cancelled) return;
+      setConfig(cfg);
+
+      const { main, more } = mergeConfigWithDiscovery(cfg, discovered);
+      setMainTiles(main);
+      setMoreTiles(more);
+
+      // Count items for all tiles
+      const allTiles = [...main, ...more];
       const next: Record<string, number> = {};
+
       await Promise.all(
-        toCount.map(async (s) => {
-          if (s.id === "tools") {
+        allTiles.map(async (t) => {
+          // Tools — custom counting via which detection
+          if (t.rel === "tools") {
             try {
               const cliCount = (await listInstalledTools()).size;
               let mcpCount = 0;
@@ -103,13 +113,14 @@ export function Workbench({
                 const { listInstalledMcps } = await import("../lib/api");
                 mcpCount = (await listInstalledMcps(repo ?? undefined)).length;
               } catch { /* MCP scan optional */ }
-              next[s.id] = cliCount + mcpCount;
+              next[t.rel] = cliCount + mcpCount;
             } catch {
-              next[s.id] = 0;
+              next[t.rel] = 0;
             }
             return;
           }
-          if (s.id === "commands") {
+          // Commands (filestores/skills) — count both .claude/skills dirs + custom skills
+          if (t.rel === "filestores/skills") {
             let slashCount = 0;
             let customCount = 0;
             try {
@@ -120,44 +131,47 @@ export function Workbench({
             try {
               const customRoot = `${repo}/filestores/skills`;
               const customItems = await fsList(customRoot);
-              customCount = directChildren(customItems, customRoot).filter((n) => !n.is_dir && n.name.endsWith(".md")).length;
+              customCount = directChildren(customItems, customRoot).filter(
+                (n) => !n.is_dir && n.name.endsWith(".md"),
+              ).length;
             } catch { /* filestores/skills/ may not exist */ }
-            next[s.id] = slashCount + customCount;
+            next[t.rel] = slashCount + customCount;
             return;
           }
+          // Everything else — standard counting
           try {
-            const rootAbs = `${repo}/${s.rel}`;
+            const rootAbs = `${repo}/${t.rel}`;
             const items = await fsList(rootAbs);
             const direct = directChildren(items, rootAbs);
-            next[s.id] = countWithMode(direct, s.countMode);
+            next[t.rel] = countWithMode(direct, t.countMode);
           } catch {
-            next[s.id] = 0;
+            next[t.rel] = 0;
           }
         }),
       );
-      if (!cancelled) {
-        // Detect which stations just gained items — highlight them
-        // briefly so the admin notices new content (e.g. a new KB
-        // article just appeared after answering a ticket). Skip the
-        // first scan (prevCountsRef is null) so initial load doesn't
-        // pulse every station.
-        if (prevCountsRef.current !== null) {
-          const newHighlights = new Set<string>();
-          for (const id of Object.keys(next)) {
-            const prev = prevCountsRef.current[id] ?? 0;
-            if (next[id] > prev) {
-              newHighlights.add(id);
-            }
-          }
-          if (newHighlights.size > 0) {
-            setHighlightedStations(newHighlights);
-            clearTimeout(highlightTimerRef.current);
-            highlightTimerRef.current = setTimeout(() => setHighlightedStations(new Set()), 5000);
-          }
+
+      if (cancelled) return;
+
+      // Highlight stations that gained items
+      if (prevCountsRef.current !== null) {
+        const newHighlights = new Set<string>();
+        for (const rel of Object.keys(next)) {
+          const prev = prevCountsRef.current[rel] ?? 0;
+          if (next[rel] > prev) newHighlights.add(rel);
         }
-        prevCountsRef.current = next;
-        setCounts(next);
+        if (newHighlights.size > 0) {
+          setHighlightedStations(newHighlights);
+          clearTimeout(highlightTimerRef.current);
+          highlightTimerRef.current = setTimeout(
+            () => setHighlightedStations(new Set()),
+            5000,
+          );
+        }
       }
+      prevCountsRef.current = next;
+      setCounts(next);
+
+      // Escalated tickets
       try {
         const esc = await scanEscalatedTickets(repo);
         if (!cancelled) setEscalatedTickets(esc);
@@ -165,24 +179,160 @@ export function Workbench({
         if (!cancelled) setEscalatedTickets([]);
       }
     })();
+
     return () => {
       cancelled = true;
     };
   }, [repo, fsTick]);
 
+  // Dismiss context menu on click outside
+  useEffect(() => {
+    if (!contextMenu) return;
+    const dismiss = () => setContextMenu(null);
+    window.addEventListener("click", dismiss);
+    return () => window.removeEventListener("click", dismiss);
+  }, [contextMenu]);
+
+  // ── Config mutation helpers ──────────────────────────────────────
+  // Use a ref so callbacks always read the latest config — avoids the
+  // stale-closure race where two rapid operations (e.g. promote then
+  // customize) both read the same snapshot and the second overwrites
+  // the first on disk.
+  const configRef = useRef<WorkstationConfig | null>(config);
+  configRef.current = config;
+  const mainTilesRef = useRef(mainTiles);
+  mainTilesRef.current = mainTiles;
+  const moreTilesRef = useRef(moreTiles);
+  moreTilesRef.current = moreTiles;
+
+  const persistConfig = useCallback(
+    async (newConfig: WorkstationConfig) => {
+      configRef.current = newConfig;
+      setConfig(newConfig);
+      if (repo) await saveWorkstationConfig(repo, newConfig);
+    },
+    [repo],
+  );
+
+  const promote = useCallback(
+    async (rel: string) => {
+      const cfg = configRef.current;
+      if (!cfg || !repo) return;
+      // The tile may be in config.more (previously persisted) or only in
+      // the resolved moreTiles (auto-discovered, not yet in config).
+      const tile = cfg.more.find((t) => t.rel === rel) ?? { rel };
+      const newConfig: WorkstationConfig = {
+        main: [...cfg.main, tile],
+        more: cfg.more.filter((t) => t.rel !== rel),
+      };
+      await persistConfig(newConfig);
+      const movedTile = moreTilesRef.current.find((t) => t.rel === rel);
+      if (movedTile) setMainTiles((prev) => [...prev, movedTile]);
+      setMoreTiles((prev) => prev.filter((t) => t.rel !== rel));
+    },
+    [repo, persistConfig],
+  );
+
+  const demote = useCallback(
+    async (rel: string) => {
+      const cfg = configRef.current;
+      if (!cfg || !repo) return;
+      const tile = cfg.main.find((t) => t.rel === rel);
+      if (!tile) return;
+      const newConfig: WorkstationConfig = {
+        main: cfg.main.filter((t) => t.rel !== rel),
+        more: [...cfg.more, tile],
+      };
+      await persistConfig(newConfig);
+      const movedTile = mainTilesRef.current.find((t) => t.rel === rel);
+      if (movedTile) setMoreTiles((prev) => [...prev, movedTile]);
+      setMainTiles((prev) => prev.filter((t) => t.rel !== rel));
+    },
+    [repo, persistConfig],
+  );
+
+  const removeTile = useCallback(
+    async (rel: string) => {
+      const cfg = configRef.current;
+      if (!cfg || !repo) return;
+      const newConfig: WorkstationConfig = {
+        main: cfg.main.filter((t) => t.rel !== rel),
+        more: cfg.more.filter((t) => t.rel !== rel),
+      };
+      await persistConfig(newConfig);
+      setMainTiles((prev) => prev.filter((t) => t.rel !== rel));
+      setMoreTiles((prev) => prev.filter((t) => t.rel !== rel));
+    },
+    [repo, persistConfig],
+  );
+
+  const deleteStore = useCallback(
+    async (tile: ResolvedTile) => {
+      if (!repo) return;
+      const ok = await confirmDelete(
+        `Delete "${tile.label}" and all its contents?\n\nThis cannot be undone.`,
+        "Delete store?",
+      );
+      if (!ok) return;
+      try {
+        await entityRemoveDir(repo, tile.rel);
+        await removeTile(tile.rel);
+      } catch (err) {
+        console.error("[workbench-delete] failed:", err);
+      }
+    },
+    [repo, removeTile],
+  );
+
+  const customizeTile = useCallback(
+    async (rel: string, icon: string, tone: ToneKey, label: string, description?: string) => {
+      const cfg = configRef.current;
+      if (!cfg || !repo) return;
+      const patch: Record<string, unknown> = { icon, tone, label };
+      if (description !== undefined) patch.description = description || undefined;
+      const update = (tiles: TileConfig[]) =>
+        tiles.map((t) =>
+          t.rel === rel ? { ...t, ...patch } : t,
+        );
+      const inMain = cfg.main.some((t) => t.rel === rel);
+      const inMore = cfg.more.some((t) => t.rel === rel);
+      let newConfig: WorkstationConfig;
+      if (inMain) {
+        newConfig = { main: update(cfg.main), more: cfg.more };
+      } else if (inMore) {
+        newConfig = { main: cfg.main, more: update(cfg.more) };
+      } else {
+        newConfig = {
+          main: cfg.main,
+          more: [...cfg.more, { rel, ...patch }],
+        };
+      }
+      await persistConfig(newConfig);
+      const updateResolved = (tiles: ResolvedTile[]) =>
+        tiles.map((t) =>
+          t.rel === rel ? { ...t, icon, tone, label } : t,
+        );
+      setMainTiles(updateResolved);
+      setMoreTiles(updateResolved);
+    },
+    [repo, persistConfig],
+  );
+
+  // ── Derived state ────────────────────────────────────────────────
+
   const openInbox = () => {
     if (repo) onOpen(`${repo}/databases/tickets`);
   };
 
-  const toggleExtra = (id: string) => {
-    setPinnedExtras((prev) =>
-      prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id],
-    );
+  // Tiles that can be deleted (have a folder on disk — not system
+  // synthetics like "tools" or parent views like "databases").
+  // Only the 5 primitives (top-level containers) and system entities
+  // are non-deletable. Everything inside them is fair game.
+  const PRIMITIVES = new Set(["databases", "filestores", "knowledge-bases", "reports", "agents"]);
+  const SYSTEM = new Set(["tools", ".openit/agent-traces"]);
+  const isDeletable = (rel: string) => {
+    return !PRIMITIVES.has(rel) && !SYSTEM.has(rel);
   };
-
-  const unpinnedExtras = EXTRA_STATIONS.filter(
-    (s) => !pinnedExtras.includes(s.id),
-  );
 
   return (
     <div className="workbench">
@@ -222,94 +372,87 @@ export function Workbench({
         </button>
       </div>
 
-      {/* ── Primary + pinned station cards (scrollable) ──── */}
+      {/* ── Main station cards ────────────────────────────── */}
       <div className={`workbench-stations workbench-stations-${layout}`}>
-        {allStations.map((s) => {
-          const meta = ENTITY_META[s.kind];
-          const isPinned = pinnedExtras.includes(s.id);
+        {mainTiles.map((t) => {
+          const tileIcon = iconForKey(t.icon);
           return (
             <button
-              key={s.id}
+              key={t.rel}
               type="button"
-              className={`station entity-tone-${meta.tone}${highlightedStations.has(s.id) ? " station-highlight" : ""}`}
-              onClick={() => repo && onOpen(`${repo}/${s.openRel ?? s.rel}`)}
-              title={meta.label}
+              className={`station entity-tone-${t.tone}${highlightedStations.has(t.rel) ? " station-highlight" : ""}`}
+              onClick={() => repo && onOpen(`${repo}/${t.openRel ?? t.rel}`)}
+              onContextMenu={(e) => {
+                e.preventDefault();
+                setContextMenu({ tile: t, x: e.clientX, y: e.clientY, section: "main" });
+              }}
+              title={t.label}
             >
               <span className="station-glyph" aria-hidden>
-                {meta.icon}
+                {tileIcon}
               </span>
               <span className="station-body">
-                <span className="station-label">{meta.label}</span>
-                <span className="station-count">{counts[s.id] ?? "·"}</span>
-              </span>
-              {isPinned && (
-                <span
-                  className="station-unpin"
-                  title="Remove from workstation"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    toggleExtra(s.id);
-                  }}
-                  role="button"
-                  tabIndex={0}
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter" || e.key === " ") {
-                      e.stopPropagation();
-                      toggleExtra(s.id);
-                    }
-                  }}
-                >
-                  ×
+                <span className="station-label">{t.label}</span>
+                <span className="station-count">
+                  {counts[t.rel] ?? "·"}
                 </span>
-              )}
+              </span>
             </button>
           );
         })}
       </div>
 
-      {/* ── More section — click navigates, + pins ───────── */}
+      {/* ── More section ──────────────────────────────────── */}
       <div className="workbench-more">
         <button
           type="button"
           className="workbench-more-toggle"
           onClick={() => setPickerOpen((v) => !v)}
         >
-          <span className="workbench-files-caret">{pickerOpen ? "▾" : "▸"}</span>
+          <span className="workbench-files-caret">
+            {pickerOpen ? "▾" : "▸"}
+          </span>
           <span>More</span>
         </button>
         {pickerOpen && (
           <div className="workbench-more-body">
-            {unpinnedExtras.length > 0 && (
+            {moreTiles.length > 0 && (
               <div className="workbench-picker-grid">
-                {unpinnedExtras.map((s) => {
-                  const meta = ENTITY_META[s.kind];
+                {moreTiles.map((t) => {
+                  const tileIcon = iconForKey(t.icon);
                   return (
                     <button
-                      key={s.id}
+                      key={t.rel}
                       type="button"
-                      className={`station station-picker entity-tone-${meta.tone}`}
-                      onClick={() => repo && onOpen(`${repo}/${s.openRel ?? s.rel}`)}
-                      title={meta.label}
+                      className={`station station-picker entity-tone-${t.tone}`}
+                      onClick={() =>
+                        repo && onOpen(`${repo}/${t.openRel ?? t.rel}`)
+                      }
+                      onContextMenu={(e) => {
+                        e.preventDefault();
+                        setContextMenu({ tile: t, x: e.clientX, y: e.clientY, section: "more" });
+                      }}
+                      title={t.label}
                     >
                       <span className="station-glyph" aria-hidden>
-                        {meta.icon}
+                        {tileIcon}
                       </span>
                       <span className="station-body">
-                        <span className="station-label">{meta.label}</span>
+                        <span className="station-label">{t.label}</span>
                       </span>
                       <span
                         className="station-add-hint"
-                        title={`Pin ${meta.label} to workstation`}
+                        title={`Pin ${t.label} to workstation`}
                         onClick={(e) => {
                           e.stopPropagation();
-                          toggleExtra(s.id);
+                          void promote(t.rel);
                         }}
                         role="button"
                         tabIndex={0}
                         onKeyDown={(e) => {
                           if (e.key === "Enter" || e.key === " ") {
                             e.stopPropagation();
-                            toggleExtra(s.id);
+                            void promote(t.rel);
                           }
                         }}
                       >
@@ -325,13 +468,102 @@ export function Workbench({
               className="workbench-files-link"
               onClick={onShowFiles}
             >
-              File explorer <span className="arrow" aria-hidden="true">&rarr;</span>
+              File explorer{" "}
+              <span className="arrow" aria-hidden="true">
+                &rarr;
+              </span>
             </button>
           </div>
         )}
       </div>
 
-      {/* ── Layout toggle (bottom-right) ──────────────────── */}
+      {/* ── Context menu ──────────────────────────────────── */}
+      {contextMenu && (
+        <>
+          <div
+            className="context-menu-overlay"
+            onClick={() => setContextMenu(null)}
+            onContextMenu={(e) => {
+              e.preventDefault();
+              setContextMenu(null);
+            }}
+          />
+          <div
+            className="context-menu"
+            style={{ top: contextMenu.y, left: contextMenu.x }}
+            role="menu"
+          >
+            {contextMenu.section === "more" && (
+              <Button
+                variant="ghost"
+                className="context-menu-item"
+                onClick={() => {
+                  void promote(contextMenu.tile.rel);
+                  setContextMenu(null);
+                }}
+              >
+                Add to main
+              </Button>
+            )}
+            {contextMenu.section === "main" && (
+              <Button
+                variant="ghost"
+                className="context-menu-item"
+                onClick={() => {
+                  void demote(contextMenu.tile.rel);
+                  setContextMenu(null);
+                }}
+              >
+                Move to More
+              </Button>
+            )}
+            <Button
+              variant="ghost"
+              className="context-menu-item"
+              onClick={() => {
+                setCustomizing(contextMenu.tile);
+                setContextMenu(null);
+              }}
+            >
+              Customize
+            </Button>
+            {isDeletable(contextMenu.tile.rel) && (
+              <Button
+                variant="ghost"
+                tone="destructive"
+                className="context-menu-item"
+                onClick={() => {
+                  void deleteStore(contextMenu.tile);
+                  setContextMenu(null);
+                }}
+              >
+                Delete
+              </Button>
+            )}
+          </div>
+        </>
+      )}
+
+      {/* ── Icon/tone customizer ──────────────────────────── */}
+      {customizing && (
+        <IconPicker
+          currentIcon={customizing.icon}
+          currentTone={customizing.tone}
+          currentLabel={customizing.label}
+          currentDescription={
+            configRef.current
+              ? [...configRef.current.main, ...configRef.current.more].find((t) => t.rel === customizing.rel)?.description
+              : undefined
+          }
+          onSave={(icon, tone, label, description) => {
+            void customizeTile(customizing.rel, icon, tone, label, description);
+            setCustomizing(null);
+          }}
+          onCancel={() => setCustomizing(null)}
+        />
+      )}
+
+      {/* ── Layout toggle ─────────────────────────────────── */}
       <div className="workbench-layout-bar">
         <button
           type="button"
@@ -341,8 +573,14 @@ export function Workbench({
           aria-label="Single column layout"
         >
           <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
-            <rect x="1" y="1" width="12" height="3.5" rx="1" stroke="currentColor" strokeWidth="1.2"/>
-            <rect x="1" y="6.5" width="12" height="3.5" rx="1" stroke="currentColor" strokeWidth="1.2"/>
+            <rect
+              x="1" y="1" width="12" height="3.5" rx="1"
+              stroke="currentColor" strokeWidth="1.2"
+            />
+            <rect
+              x="1" y="6.5" width="12" height="3.5" rx="1"
+              stroke="currentColor" strokeWidth="1.2"
+            />
           </svg>
         </button>
         <button
@@ -353,10 +591,22 @@ export function Workbench({
           aria-label="Two column layout"
         >
           <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
-            <rect x="1" y="1" width="5" height="5" rx="1" stroke="currentColor" strokeWidth="1.2"/>
-            <rect x="8" y="1" width="5" height="5" rx="1" stroke="currentColor" strokeWidth="1.2"/>
-            <rect x="1" y="8" width="5" height="5" rx="1" stroke="currentColor" strokeWidth="1.2"/>
-            <rect x="8" y="8" width="5" height="5" rx="1" stroke="currentColor" strokeWidth="1.2"/>
+            <rect
+              x="1" y="1" width="5" height="5" rx="1"
+              stroke="currentColor" strokeWidth="1.2"
+            />
+            <rect
+              x="8" y="1" width="5" height="5" rx="1"
+              stroke="currentColor" strokeWidth="1.2"
+            />
+            <rect
+              x="1" y="8" width="5" height="5" rx="1"
+              stroke="currentColor" strokeWidth="1.2"
+            />
+            <rect
+              x="8" y="8" width="5" height="5" rx="1"
+              stroke="currentColor" strokeWidth="1.2"
+            />
           </svg>
         </button>
       </div>

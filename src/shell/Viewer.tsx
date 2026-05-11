@@ -43,6 +43,7 @@ import {
   DatastoreTableBody,
   DatastoreRowBody,
   DatastoreSchemaBody,
+  GenericRecordCardsBody,
   PeopleListBody,
   AccessListBody,
   AssetsListBody,
@@ -55,10 +56,36 @@ import { DiffViewer } from "./DiffViewer";
 import { writeToActiveSession } from "./activeSession";
 import { injectIntoChat } from "../lib/skillState";
 import { PaneBody } from "../ui";
-import { BreadcrumbAncestors } from "./Breadcrumbs";
+import { BreadcrumbAncestors, breadcrumbSegments } from "./Breadcrumbs";
 import type { ViewerSource } from "./viewerTypes";
+import {
+  loadWorkstationConfig,
+  saveWorkstationConfig,
+  type TileConfig,
+} from "../lib/workstationConfig";
+import { iconForKey } from "./entityIcons";
 
 export type { ViewerSource };
+
+function capitalize(s: string): string {
+  return s.charAt(0).toUpperCase() + s.slice(1);
+}
+
+type ToneKey = "accent" | "sage" | "ochre" | "link" | "clay" | "neutral";
+
+const FS_DEFAULTS: Record<string, { icon: string; tone: ToneKey; label: string }> = {
+  skills:      { icon: "commands",    tone: "accent",  label: "Commands" },
+  scripts:     { icon: "scripts",     tone: "link",    label: "Scripts" },
+  attachments: { icon: "attachments", tone: "neutral", label: "Attachments" },
+  library:     { icon: "folder",      tone: "neutral", label: "Library" },
+};
+
+const DB_DEFAULTS: Record<string, { icon: string; tone: ToneKey; label: string; description: string }> = {
+  people:  { icon: "person", tone: "sage",   label: "People",  description: "Contacts directory — employees, vendors, and external contacts referenced by tickets and access audits." },
+  access:  { icon: "access", tone: "sage",   label: "Access",  description: "Onboard/offboard audit log — who was granted or revoked access, when, and to what role." },
+  assets:  { icon: "assets", tone: "clay",   label: "Assets",  description: "Device and equipment inventory — laptops, monitors, licenses, and their assignment status." },
+  tickets: { icon: "inbox",  tone: "accent", label: "Inbox",   description: "Support tickets from chat intake and Slack. Tracks status, escalation, and resolution." },
+};
 
 export function Viewer({
   source,
@@ -134,6 +161,17 @@ export function Viewer({
   const [peopleView, setPeopleView] = useState<"cards" | "table">("cards");
   const [accessView, setAccessView] = useState<"cards" | "table">("cards");
   const [assetsView, setAssetsView] = useState<"cards" | "table">("cards");
+  const [datastoreView, setDatastoreView] = useState<"cards" | "table">("cards");
+
+  // Workstation config tiles — used to overlay custom icon/tone/label
+  // onto the filestores-list, databases-list, and viewer header.
+  const [wsTiles, setWsTiles] = useState<TileConfig[]>([]);
+  useEffect(() => {
+    if (!repo) return;
+    loadWorkstationConfig(repo).then((cfg) => {
+      setWsTiles([...cfg.main, ...cfg.more]);
+    });
+  }, [repo, fsTick]);
 
   // Edit-mode state for the markdown viewer. `editDraft` is the
   // textarea value (decoupled from `content` so unsaved edits don't
@@ -579,11 +617,43 @@ export function Viewer({
     );
   }
 
+  // --- Workstation tile lookup helper ---
+  // Maps the current ViewerSource to a workstation tile rel path so we
+  // can trickle custom icon/tone/label into the viewer header, title,
+  // and child-list card views.
+  const ENTITY_TO_REL: Record<string, string> = {
+    knowledge: "knowledge-bases", "knowledge-base": "knowledge-bases",
+    reports: "reports", library: "filestores/library",
+    scripts: "filestores/scripts", skills: "filestores/skills",
+    agents: "agents", workflows: "workflows",
+    attachments: "filestores/attachments",
+  };
+  const sourceRel: string | null = (() => {
+    if (!source) return null;
+    switch (source.kind) {
+      case "entity-folder": return ENTITY_TO_REL[source.entity] ?? null;
+      case "datastore-table": return `databases/${source.collection.name}`;
+      case "people-list": return "databases/people";
+      case "access-list": return "databases/access";
+      case "assets-list": return "databases/assets";
+      case "conversations-list": return "databases/tickets";
+      case "tools": return "tools";
+      case "commands-station": return "filestores/skills";
+      case "scripts-station": return "filestores/scripts";
+      case "traces-list": return ".openit/agent-traces";
+      case "databases-list": return "databases";
+      case "filestores-list": return "filestores";
+      default: return null;
+    }
+  })();
+  const wsTile = sourceRel ? wsTiles.find((t) => t.rel === sourceRel) : undefined;
+
   // --- Title ---
   const getTitle = (): string => {
+    // Workstation config label takes precedence when set
+    if (wsTile?.label) return wsTile.label;
     switch (source.kind) {
       case "file": {
-        // Skill files → show "skill-name" instead of "SKILL.md"
         const sm = source.path.match(/\.claude\/skills\/([^/]+)\/SKILL\.md$/);
         if (sm) return sm[1];
         return source.path.split("/").pop() ?? source.path;
@@ -1310,8 +1380,26 @@ export function Viewer({
       );
     }
 
-    // Datastore table view.
+    // Datastore table view — generic datastores with a schema get
+    // a Cards / Table toggle. Well-known collections (people, access,
+    // assets, tickets, conversations) keep their dedicated renderers.
     if (source.kind === "datastore-table") {
+      const hasCardView =
+        source.collection.schema &&
+        !["people", "access", "assets", "tickets", "conversations"].includes(source.collection.name);
+      if (hasCardView && datastoreView === "cards") {
+        return (
+          <GenericRecordCardsBody
+            collection={source.collection}
+            items={tableItems}
+            repo={repo}
+            onOpenPath={onOpenPath}
+            setFolderUploadError={setFolderUploadError}
+            showToast={showToast}
+            onFsChange={onFsChange}
+          />
+        );
+      }
       return (
         <DatastoreTableBody
           collection={source.collection}
@@ -1611,6 +1699,15 @@ export function Viewer({
                   try {
                     const { entityWriteFile } = await import("../lib/api");
                     await entityWriteFile(repo, `filestores/${slug}`, "README.md", `# ${slug}\n`);
+                    // Register as a workstation tile
+                    try {
+                      const cfg = await loadWorkstationConfig(repo);
+                      const rel = `filestores/${slug}`;
+                      if (!cfg.main.some((t) => t.rel === rel) && !cfg.more.some((t) => t.rel === rel)) {
+                        cfg.more.push({ rel });
+                        await saveWorkstationConfig(repo, cfg);
+                      }
+                    } catch { /* workstation config update optional */ }
                     setNewCollectionKind(null);
                     setNewCollectionName("");
                     onFsChange?.();
@@ -1629,14 +1726,25 @@ export function Viewer({
           )}
           <EntityCardGrid
             kind="filestores"
-            cards={source.collections.map((c) => ({
+            cards={source.collections.map((c) => {
+              // Overlay workstation config customizations (label, icon).
+              // Fall back to known default icons so each child shows its
+              // own identity, not the generic folder icon.
+              const fsWsTile = wsTiles.find((t) => t.rel === `filestores/${c.name}`);
+              const defaults = FS_DEFAULTS[c.name];
+              const cardIcon = fsWsTile?.icon ?? defaults?.icon;
+              const cardTone = fsWsTile?.tone ?? defaults?.tone;
+              const cardLabel = fsWsTile?.label ?? defaults?.label ?? capitalize(c.name);
+              return {
               key: c.path,
-              title: c.displayName,
-              description: c.description,
+              title: cardLabel,
+              description: fsWsTile?.description ?? c.description,
               meta: `${c.itemCount} ${c.itemNoun}${c.itemCount === 1 ? "" : "s"}`,
+              icon: cardIcon ? iconForKey(cardIcon) : undefined,
+              cardTone: cardTone,
               badge: c.isBuiltin
                 ? undefined
-                : { label: "custom", tone: "info" },
+                : { label: "custom", tone: "info" as const },
               onClick: () => onOpenPath && void onOpenPath(c.path),
               // Attachments collection is per-ticket — dropping into the
               // generic folder would have nowhere meaningful to land. The
@@ -1656,13 +1764,22 @@ export function Viewer({
                 if (!ok) return;
                 try {
                   await entityRemoveDir(repo, `filestores/${c.name}`);
+                  // Clean up workstation config
+                  try {
+                    const cfg = await loadWorkstationConfig(repo);
+                    const rel = `filestores/${c.name}`;
+                    cfg.main = cfg.main.filter((t) => t.rel !== rel);
+                    cfg.more = cfg.more.filter((t) => t.rel !== rel);
+                    await saveWorkstationConfig(repo, cfg);
+                  } catch { /* config cleanup optional */ }
                   showToast(`Deleted filestore ${c.displayName}`);
                   onFsChange?.();
                 } catch (err) {
                   console.error("[filestore-delete] failed:", err);
                 }
               } : undefined,
-            }))}
+            };
+            })}
           />
         </div>
       );
@@ -1812,6 +1929,15 @@ export function Viewer({
                   try {
                     const { entityWriteFile } = await import("../lib/api");
                     await entityWriteFile(repo, `databases/${slug}`, "README.md", `# ${slug}\n`);
+                    // Register as a workstation tile
+                    try {
+                      const cfg = await loadWorkstationConfig(repo);
+                      const rel = `databases/${slug}`;
+                      if (!cfg.main.some((t) => t.rel === rel) && !cfg.more.some((t) => t.rel === rel)) {
+                        cfg.more.push({ rel });
+                        await saveWorkstationConfig(repo, cfg);
+                      }
+                    } catch { /* workstation config update optional */ }
                     setNewCollectionKind(null);
                     setNewCollectionName("");
                     onFsChange?.();
@@ -1840,9 +1966,19 @@ export function Viewer({
                 starter schema.
               </p>
             }
-            cards={source.collections.map((c) => ({
+            cards={source.collections.map((c) => {
+              const dbWsTile = wsTiles.find((t) => t.rel === `databases/${c.name}`);
+              const dbDefaults = DB_DEFAULTS[c.name];
+              const dbCardIcon = dbWsTile?.icon ?? dbDefaults?.icon;
+              const dbCardTone = dbWsTile?.tone ?? dbDefaults?.tone;
+              const dbLabel = dbWsTile?.label ?? dbDefaults?.label ?? capitalize(c.name);
+              const dbDescription = dbWsTile?.description ?? dbDefaults?.description;
+              return {
               key: c.path,
-              title: c.name,
+              title: dbLabel,
+              description: dbDescription,
+              icon: dbCardIcon ? iconForKey(dbCardIcon) : undefined,
+              cardTone: dbCardTone,
               meta: `${c.itemCount} ${
                 c.name === "conversations" ? "thread" : "row"
               }${c.itemCount === 1 ? "" : "s"}`,
@@ -1850,19 +1986,27 @@ export function Viewer({
               onReveal: () => void fsReveal(c.path).catch(console.error),
               onDelete: repo ? async () => {
                 const ok = await confirmDelete(
-                  `Delete database "${c.name}" and all its records?\n\nThis cannot be undone.`,
+                  `Delete database "${dbLabel}" and all its records?\n\nThis cannot be undone.`,
                   "Delete database?",
                 );
                 if (!ok) return;
                 try {
                   await entityRemoveDir(repo, `databases/${c.name}`);
-                  showToast(`Deleted database ${c.name}`);
+                  try {
+                    const cfg = await loadWorkstationConfig(repo);
+                    const rel = `databases/${c.name}`;
+                    cfg.main = cfg.main.filter((t) => t.rel !== rel);
+                    cfg.more = cfg.more.filter((t) => t.rel !== rel);
+                    await saveWorkstationConfig(repo, cfg);
+                  } catch { /* config cleanup optional */ }
+                  showToast(`Deleted database ${dbLabel}`);
                   onFsChange?.();
                 } catch (err) {
                   console.error("[db-delete] failed:", err);
                 }
               } : undefined,
-            }))}
+            };
+            })}
           />
         </div>
       );
@@ -2097,7 +2241,17 @@ export function Viewer({
             →
           </Button>
         </div>
-        {headerKind && <EntityBadge kind={headerKind} showLabel={false} />}
+        {/* Only show the entity badge icon for top-level views (no
+            parent breadcrumb). When there's a parent like "Databases /",
+            putting the leaf icon before the parent name is confusing. */}
+        {headerKind && breadcrumbSegments(source, repo).length <= 1 && (
+          <EntityBadge
+            kind={headerKind}
+            showLabel={false}
+            overrideIcon={wsTile?.icon ? iconForKey(wsTile.icon) : undefined}
+            overrideTone={wsTile?.tone}
+          />
+        )}
         <BreadcrumbAncestors
           source={source}
           repo={repo}
@@ -2283,6 +2437,18 @@ export function Viewer({
             + New
           </Button>
         )}
+        {/* Schema-driven datastore: + New and Cards/Table toggle */}
+        {source && source.kind === "datastore-table" &&
+          !!source.collection.schema &&
+          !["people", "access", "assets", "tickets", "conversations"].includes(source.collection.name) &&
+          renderRecordListHeader({
+            dbName: source.collection.name,
+            collection: source.collection,
+            existingKeys: tableItems.map((it) => it.key || it.id),
+            newTitle: `New ${source.collection.name} record`,
+            view: datastoreView,
+            setView: setDatastoreView,
+          })}
         {showFileTabs && (
           <TabStrip variant="segmented">
             <Tab

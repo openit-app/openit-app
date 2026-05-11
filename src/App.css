@@ -1241,6 +1241,9 @@ input.viewer-title.viewer-title-rename {
   align-items: center;
   flex: 0 0 auto;
   white-space: nowrap;
+  /* Cancel the parent flex gap so the "/" separator margin is the
+     only thing controlling spacing between breadcrumb and title. */
+  margin-right: calc(-1 * var(--space-3));
 }
 
 .viewer-breadcrumb-item {
@@ -1250,7 +1253,7 @@ input.viewer-title.viewer-title-rename {
 }
 
 .viewer-breadcrumb-sep {
-  margin: 0 5px;
+  margin: 0 6px;
   color: var(--color-text-faint);
   font-weight: 400;
   flex: 0 0 auto;
@@ -1260,8 +1263,8 @@ input.viewer-title.viewer-title-rename {
   appearance: none;
   background: transparent;
   border: none;
-  padding: 2px 5px;
-  margin: -2px -5px;
+  padding: 2px 4px;
+  margin: -2px -4px;
   border-radius: var(--r-sm);
   font-family: inherit;
   font-size: inherit;
@@ -4917,7 +4920,7 @@ input.viewer-title.viewer-title-rename {
 
 .entity-card {
   display: flex;
-  align-items: flex-start;
+  align-items: center;
   gap: 12px;
   width: 100%;
   padding: 12px 14px;
@@ -5131,6 +5134,7 @@ input.viewer-title.viewer-title-rename {
   min-width: 0;
   display: flex;
   flex-direction: column;
+  justify-content: center;
   gap: 3px;
   /* Reserve space for hover-revealed action buttons (delete, run, etc.)
      so text doesn't sit under the icons. */
@@ -5266,9 +5270,9 @@ input.viewer-title.viewer-title-rename {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 22px;
-  height: 22px;
-  border-radius: 6px;
+  width: 24px;
+  height: 24px;
+  border-radius: 7px;
   background: var(--tone-bg, var(--accent-faint));
   color: var(--tone-color, var(--accent));
   border: 1px solid var(--tone-border, var(--accent-soft));
@@ -5276,9 +5280,9 @@ input.viewer-title.viewer-title-rename {
 }
 
 .entity-badge-sm .entity-badge-glyph {
-  width: 18px;
-  height: 18px;
-  border-radius: 5px;
+  width: 22px;
+  height: 22px;
+  border-radius: 6px;
 }
 
 .entity-badge-label {
@@ -5457,3 +5461,155 @@ input.viewer-title.viewer-title-rename {
 
 /* .status-chip-unset removed — handled by the v5 <Chip> primitive's
    built-in dashed/unset variant in src/ui/Chip.tsx. */
+
+/* ── Icon Picker (workstation tile customization) ─────────────── */
+
+.icon-picker-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.4);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+}
+
+.icon-picker {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--r-lg);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
+  width: 340px;
+  max-height: 80vh;
+  overflow-y: auto;
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.icon-picker-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.icon-picker-title {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.icon-picker-close {
+  all: unset;
+  cursor: pointer;
+  font-size: 18px;
+  color: var(--text-muted);
+  padding: 2px 6px;
+  border-radius: var(--r-sm);
+}
+.icon-picker-close:hover {
+  background: var(--surface-hover);
+}
+
+.icon-picker-section {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.icon-picker-label {
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-muted);
+}
+
+.icon-picker-input {
+  font-size: 13px;
+  padding: 6px 10px;
+  border: 1px solid var(--border);
+  border-radius: var(--r-sm);
+  background: var(--surface);
+  color: var(--text);
+  outline: none;
+}
+.icon-picker-input:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 2px var(--accent-faint);
+}
+
+.icon-picker-tones {
+  display: flex;
+  gap: 6px;
+}
+
+.icon-picker-tone {
+  all: unset;
+  cursor: pointer;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 2px solid transparent;
+  transition: border-color 0.15s;
+}
+.icon-picker-tone:hover {
+  border-color: var(--tone-color);
+}
+.icon-picker-tone.active {
+  border-color: var(--tone-color);
+}
+
+.icon-picker-tone-dot {
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: var(--tone-color, var(--text-muted));
+}
+
+.icon-picker-gallery {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(32px, 1fr));
+  gap: 4px;
+}
+
+.icon-picker-icon-btn {
+  all: unset;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border-radius: var(--r-sm);
+  color: var(--tone-color, var(--text-muted));
+  transition: background 0.1s, outline 0.1s;
+}
+.icon-picker-icon-btn:hover {
+  background: var(--tone-bg, var(--surface-hover));
+}
+.icon-picker-icon-btn.active {
+  background: var(--tone-bg, var(--accent-faint));
+  outline: 2px solid var(--tone-color, var(--accent));
+  outline-offset: -1px;
+}
+
+.icon-picker-preview {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  background: var(--surface-soft);
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+}
+
+.icon-picker-actions {
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
+}
