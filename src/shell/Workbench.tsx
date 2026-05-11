@@ -193,9 +193,16 @@ export function Workbench({
   }, [contextMenu]);
 
   // ── Config mutation helpers ──────────────────────────────────────
+  // Use a ref so callbacks always read the latest config — avoids the
+  // stale-closure race where two rapid operations (e.g. promote then
+  // customize) both read the same snapshot and the second overwrites
+  // the first on disk.
+  const configRef = useRef<WorkstationConfig | null>(config);
+  configRef.current = config;
 
   const persistConfig = useCallback(
     async (newConfig: WorkstationConfig) => {
+      configRef.current = newConfig;
       setConfig(newConfig);
       if (repo) await saveWorkstationConfig(repo, newConfig);
     },
@@ -204,68 +211,68 @@ export function Workbench({
 
   const promote = useCallback(
     async (rel: string) => {
-      if (!config || !repo) return;
-      const tile = config.more.find((t) => t.rel === rel);
+      const cfg = configRef.current;
+      if (!cfg || !repo) return;
+      const tile = cfg.more.find((t) => t.rel === rel);
       if (!tile) return;
       const newConfig: WorkstationConfig = {
-        main: [...config.main, tile],
-        more: config.more.filter((t) => t.rel !== rel),
+        main: [...cfg.main, tile],
+        more: cfg.more.filter((t) => t.rel !== rel),
       };
       await persistConfig(newConfig);
-      // Immediately update UI
-      const movedTile = moreTiles.find((t) => t.rel === rel);
-      if (movedTile) {
-        setMainTiles((prev) => [...prev, movedTile]);
-        setMoreTiles((prev) => prev.filter((t) => t.rel !== rel));
-      }
+      setMainTiles((prev) => {
+        const movedTile = moreTiles.find((t) => t.rel === rel);
+        return movedTile ? [...prev, movedTile] : prev;
+      });
+      setMoreTiles((prev) => prev.filter((t) => t.rel !== rel));
     },
-    [config, repo, persistConfig, moreTiles],
+    [repo, persistConfig, moreTiles],
   );
 
   const demote = useCallback(
     async (rel: string) => {
-      if (!config || !repo) return;
-      const tile = config.main.find((t) => t.rel === rel);
+      const cfg = configRef.current;
+      if (!cfg || !repo) return;
+      const tile = cfg.main.find((t) => t.rel === rel);
       if (!tile) return;
       const newConfig: WorkstationConfig = {
-        main: config.main.filter((t) => t.rel !== rel),
-        more: [...config.more, tile],
+        main: cfg.main.filter((t) => t.rel !== rel),
+        more: [...cfg.more, tile],
       };
       await persistConfig(newConfig);
-      const movedTile = mainTiles.find((t) => t.rel === rel);
-      if (movedTile) {
-        setMoreTiles((prev) => [...prev, movedTile]);
-        setMainTiles((prev) => prev.filter((t) => t.rel !== rel));
-      }
+      setMoreTiles((prev) => {
+        const movedTile = mainTiles.find((t) => t.rel === rel);
+        return movedTile ? [...prev, movedTile] : prev;
+      });
+      setMainTiles((prev) => prev.filter((t) => t.rel !== rel));
     },
-    [config, repo, persistConfig, mainTiles],
+    [repo, persistConfig, mainTiles],
   );
 
   const removeTile = useCallback(
     async (rel: string) => {
-      if (!config || !repo) return;
+      const cfg = configRef.current;
+      if (!cfg || !repo) return;
       const newConfig: WorkstationConfig = {
-        main: config.main.filter((t) => t.rel !== rel),
-        more: config.more.filter((t) => t.rel !== rel),
+        main: cfg.main.filter((t) => t.rel !== rel),
+        more: cfg.more.filter((t) => t.rel !== rel),
       };
       await persistConfig(newConfig);
       setMainTiles((prev) => prev.filter((t) => t.rel !== rel));
       setMoreTiles((prev) => prev.filter((t) => t.rel !== rel));
     },
-    [config, repo, persistConfig],
+    [repo, persistConfig],
   );
 
   const deleteStore = useCallback(
     async (tile: ResolvedTile) => {
       if (!repo) return;
-      // Determine the subdir to remove
       const ok = window.confirm(
         `Delete "${tile.label}" and all its contents?\n\nThis cannot be undone.`,
       );
       if (!ok) return;
       try {
         await entityRemoveDir(repo, tile.rel);
-        // Also remove from config
         await removeTile(tile.rel);
       } catch (err) {
         console.error("[workbench-delete] failed:", err);
@@ -276,28 +283,26 @@ export function Workbench({
 
   const customizeTile = useCallback(
     async (rel: string, icon: string, tone: ToneKey, label: string) => {
-      if (!config || !repo) return;
+      const cfg = configRef.current;
+      if (!cfg || !repo) return;
       const update = (tiles: TileConfig[]) =>
         tiles.map((t) =>
           t.rel === rel ? { ...t, icon, tone, label } : t,
         );
-      // If the tile isn't in config yet (newly discovered), add it
-      const inMain = config.main.some((t) => t.rel === rel);
-      const inMore = config.more.some((t) => t.rel === rel);
+      const inMain = cfg.main.some((t) => t.rel === rel);
+      const inMore = cfg.more.some((t) => t.rel === rel);
       let newConfig: WorkstationConfig;
       if (inMain) {
-        newConfig = { main: update(config.main), more: config.more };
+        newConfig = { main: update(cfg.main), more: cfg.more };
       } else if (inMore) {
-        newConfig = { main: config.main, more: update(config.more) };
+        newConfig = { main: cfg.main, more: update(cfg.more) };
       } else {
-        // Not in config — add to more with overrides
         newConfig = {
-          main: config.main,
-          more: [...config.more, { rel, icon, tone, label }],
+          main: cfg.main,
+          more: [...cfg.more, { rel, icon, tone, label }],
         };
       }
       await persistConfig(newConfig);
-      // Update resolved tiles
       const updateResolved = (tiles: ResolvedTile[]) =>
         tiles.map((t) =>
           t.rel === rel ? { ...t, icon, tone, label } : t,
@@ -305,7 +310,7 @@ export function Workbench({
       setMainTiles(updateResolved);
       setMoreTiles(updateResolved);
     },
-    [config, repo, persistConfig],
+    [repo, persistConfig],
   );
 
   // ── Derived state ────────────────────────────────────────────────
