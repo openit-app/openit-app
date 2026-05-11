@@ -6,6 +6,11 @@ name: Release
 # Output:   a GitHub Release with macOS DMGs (Apple Silicon + Intel),
 #           a Windows MSI/NSIS installer, updater archives + signatures,
 #           and a single `latest.json` consumed by the in-app updater.
+#
+# The first build job to run creates the GitHub Release. Subsequent jobs
+# upload their artifacts to the same release. The `finalize` job builds
+# latest.json once all builds complete. The `rebuild-landing` job always
+# runs — even on partial failure — to update the download page.
 
 on:
   push:
@@ -23,20 +28,16 @@ jobs:
     permissions:
       contents: write
     runs-on: macos-14
-
     steps:
       - uses: actions/checkout@v4
-
       - uses: actions/setup-node@v4
         with:
           node-version: 20
           cache: npm
-
       - uses: dtolnay/rust-toolchain@stable
         with:
           targets: aarch64-apple-darwin,x86_64-apple-darwin
-
-      - name: Cache cargo + target dir
+      - name: Cache cargo
         uses: actions/cache@v4
         with:
           path: |
@@ -44,11 +45,8 @@ jobs:
             ~/.cargo/git
             src-tauri/target
           key: ${{ runner.os }}-cargo-universal-${{ hashFiles('src-tauri/Cargo.lock') }}
-          restore-keys: |
-            ${{ runner.os }}-cargo-universal-
-
+          restore-keys: ${{ runner.os }}-cargo-universal-
       - run: npm ci
-
       - name: Build aarch64 (Apple Silicon)
         uses: tauri-apps/tauri-action@v0
         env:
@@ -72,7 +70,6 @@ jobs:
           prerelease: false
           includeUpdaterJson: false
           args: --target aarch64-apple-darwin
-
       - name: Build x64 (Intel)
         uses: tauri-apps/tauri-action@v0
         env:
@@ -98,18 +95,14 @@ jobs:
     permissions:
       contents: write
     runs-on: windows-latest
-
     steps:
       - uses: actions/checkout@v4
-
       - uses: actions/setup-node@v4
         with:
           node-version: 20
           cache: npm
-
       - uses: dtolnay/rust-toolchain@stable
-
-      - name: Cache cargo + target dir
+      - name: Cache cargo
         uses: actions/cache@v4
         with:
           path: |
@@ -117,11 +110,8 @@ jobs:
             ~/.cargo/git
             src-tauri/target
           key: ${{ runner.os }}-cargo-${{ hashFiles('src-tauri/Cargo.lock') }}
-          restore-keys: |
-            ${{ runner.os }}-cargo-
-
+          restore-keys: ${{ runner.os }}-cargo-
       - run: npm ci
-
       - name: Build Windows x64
         uses: tauri-apps/tauri-action@v0
         env:
@@ -135,24 +125,19 @@ jobs:
           prerelease: false
           includeUpdaterJson: false
 
-  # ── Build latest.json + trigger landing rebuild ──
+  # ── Build latest.json after all builds complete ──
   finalize:
     needs: [build-macos, build-windows]
     permissions:
       contents: write
-      actions: write
     runs-on: ubuntu-latest
-
     steps:
       - uses: actions/checkout@v4
-
       - uses: actions/setup-node@v4
         with:
           node-version: 20
           cache: npm
-
       - run: npm ci
-
       - name: Build and upload latest.json
         env:
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
@@ -163,16 +148,13 @@ jobs:
           VERSION="${TAG#v}"
           BASE="https://github.com/${{ github.repository }}/releases/download/${TAG}"
 
-          # Download updater archives
           curl -sL "${BASE}/OpenIT_aarch64.app.tar.gz" -o /tmp/aarch64.tar.gz
           curl -sL "${BASE}/OpenIT_x64.app.tar.gz" -o /tmp/x64.tar.gz
           curl -sL "${BASE}/OpenIT_${VERSION}_x64-setup.nsis.zip" -o /tmp/win64.zip || true
 
-          # Sign macOS archives
           AARCH64_SIG=$(npx tauri signer sign /tmp/aarch64.tar.gz 2>&1 | grep -A1 "Public signature:" | tail -1)
           X64_SIG=$(npx tauri signer sign /tmp/x64.tar.gz 2>&1 | grep -A1 "Public signature:" | tail -1)
 
-          # Sign Windows archive (if it exists)
           WIN64_BLOCK=""
           if [ -f /tmp/win64.zip ] && [ -s /tmp/win64.zip ]; then
             WIN64_SIG=$(npx tauri signer sign /tmp/win64.zip 2>&1 | grep -A1 "Public signature:" | tail -1)
@@ -205,31 +187,21 @@ jobs:
           }
           EOF
 
-          # Validate JSON
           python3 -m json.tool /tmp/latest.json > /dev/null
-
-          # Upload to release
           gh release upload "${TAG}" /tmp/latest.json --clobber
 
-      - name: Rebuild landing page
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: gh workflow run landing.yml
-
-  # Fallback: rebuild landing even if finalize fails (e.g. one arch timed out
-  # but the release still has assets from previous builds).
+  # ── Always rebuild landing — no dependencies on build success ──
   rebuild-landing:
     if: always()
-    needs: [finalize]
+    needs: [build-macos, build-windows]
     permissions:
       actions: write
       contents: read
     runs-on: ubuntu-latest
     steps:
-      - name: Wait for release assets to propagate
-        run: sleep 30
+      - name: Wait for release to settle
+        run: sleep 15
       - name: Trigger landing page rebuild
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          gh workflow run landing.yml --repo ${{ github.repository }} || true
+        run: gh workflow run landing.yml --repo ${{ github.repository }} || true
