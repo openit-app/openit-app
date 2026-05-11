@@ -375,13 +375,16 @@ fn claude_install_candidates() -> Vec<PathBuf> {
 fn claude_install_candidates_for(home: Option<&Path>) -> Vec<PathBuf> {
     let mut out = Vec::new();
     if let Some(home) = home {
-        out.push(home.join(".local/bin/claude"));
-        out.push(home.join(".claude/local/claude"));
-        // Windows: native installer puts claude here
         #[cfg(target_os = "windows")]
         {
+            out.push(home.join(".local\\bin\\claude.exe"));
             out.push(home.join(".claude\\local\\claude.exe"));
             out.push(home.join("AppData\\Local\\Programs\\claude-code\\claude.exe"));
+        }
+        #[cfg(not(target_os = "windows"))]
+        {
+            out.push(home.join(".local/bin/claude"));
+            out.push(home.join(".claude/local/claude"));
         }
     }
     #[cfg(not(target_os = "windows"))]
