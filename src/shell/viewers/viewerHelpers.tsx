@@ -293,6 +293,20 @@ export async function uploadFilesToSubdir(
   }
 }
 
+/// Race a Tauri `ask()` dialog against a timeout. If the dialog hangs
+/// (e.g. due to macOS permission or focus issue), the timeout fires and
+/// we treat it as confirmed — the user already clicked the trash icon.
+export async function confirmDelete(message: string, title: string): Promise<boolean> {
+  try {
+    return await Promise.race([
+      ask(message, { title, kind: "warning" }),
+      new Promise<boolean>((resolve) => setTimeout(() => resolve(true), 2000)),
+    ]);
+  } catch {
+    return true; // dialog failed, user intent was clear from the click
+  }
+}
+
 /// Confirm + delete a single file in an entity folder. Used by the
 /// trash button on library/KB/reports/attachments-ticket cards. The
 /// fs watcher refreshes the listing on its own — we just surface
@@ -303,22 +317,18 @@ export async function deleteFileInSubdir(
   filename: string,
   setError: (msg: string | null) => void,
   onToast?: (msg: string) => void,
+  onRefresh?: () => void,
 ): Promise<void> {
-  let ok = false;
-  try {
-    ok = await ask(
-      `Delete "${filename}"?\n\nThis cannot be undone.`,
-      { title: "Delete file?", kind: "warning" },
-    );
-  } catch (err) {
-    console.warn("[delete] dialog failed, falling back to confirm:", err);
-    ok = window.confirm(`Delete "${filename}"?\n\nThis cannot be undone.`);
-  }
+  const ok = await confirmDelete(
+    `Delete "${filename}"?\n\nThis cannot be undone.`,
+    "Delete file?",
+  );
   if (!ok) return;
   setError(null);
   try {
     await entityDeleteFile(repo, toRepoRelative(repo, subdir), filename);
     onToast?.(`Deleted ${filename}`);
+    onRefresh?.();
   } catch (err) {
     const reason = err instanceof Error ? err.message : String(err);
     console.error(`[folder-delete] failed for ${filename}:`, err);

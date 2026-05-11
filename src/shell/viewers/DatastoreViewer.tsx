@@ -21,6 +21,7 @@ export function DatastoreTableBody({
   onOpenPath,
   setFolderUploadError,
   showToast,
+  onFsChange,
 }: {
   collection: DataCollection;
   tableItems: MemoryItem[];
@@ -30,6 +31,7 @@ export function DatastoreTableBody({
   onOpenPath?: (path: string) => void | Promise<void>;
   setFolderUploadError: (err: string | null) => void;
   showToast: (msg: string) => void;
+  onFsChange?: () => void;
 }) {
   if (tableLoading && tableItems.length === 0) {
     return <div className="viewer-content" style={{ opacity: 0.5 }}>Loading table data...</div>;
@@ -67,6 +69,7 @@ export function DatastoreTableBody({
                 `${key}.json`,
                 setFolderUploadError,
                 showToast,
+                onFsChange,
               )
           : undefined
       }
@@ -110,7 +113,7 @@ export function DatastoreRowBody({
   repo: string;
 }) {
   if (mode === "table") {
-    const fields = ((collection.schema as Record<string, unknown> | undefined)?.fields ?? []) as Array<{
+    const schemaFields = ((collection.schema as Record<string, unknown> | undefined)?.fields ?? []) as Array<{
       id: string;
       label?: string;
       type?: string;
@@ -121,6 +124,16 @@ export function DatastoreRowBody({
       liveItem.content && typeof liveItem.content === "object"
         ? (liveItem.content as Record<string, unknown>)
         : {};
+    // When no schema is defined, auto-detect fields from the
+    // record's JSON content so the View tab isn't blank.
+    const fields: Array<{ id: string; label?: string; type?: string }> =
+      schemaFields.length > 0
+        ? schemaFields
+        : Object.keys(rowContent).map((k) => {
+            const v = rowContent[k];
+            const type = Array.isArray(v) ? "string[]" : typeof v === "string" && v.length > 100 ? "text" : undefined;
+            return { id: k, type };
+          });
     const renderValue = (
       field: { id: string; type?: string },
       value: unknown,

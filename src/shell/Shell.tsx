@@ -787,6 +787,7 @@ export function Shell({
                 onGoForward={goForward}
                 canGoBack={canGoBack}
                 canGoForward={canGoForward}
+                onFsChange={bumpFs}
               />
             </div>
           ),

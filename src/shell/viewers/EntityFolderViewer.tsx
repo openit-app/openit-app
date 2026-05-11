@@ -26,6 +26,7 @@ export function EntityFolderBody({
   onShowSource,
   showToast,
   reportError,
+  onFsChange,
 }: {
   source: Extract<ViewerSource, { kind: "entity-folder" }>;
   repo: string;
@@ -33,6 +34,7 @@ export function EntityFolderBody({
   onShowSource?: (source: ViewerSource) => void;
   showToast: (msg: string) => void;
   reportError: string | null;
+  onFsChange?: () => void;
 }) {
   const [sortReversed, setSortReversed] = useState<Record<string, boolean>>({});
   const [folderDragOver, setFolderDragOver] = useState(false);
@@ -89,7 +91,7 @@ export function EntityFolderBody({
       onClick: () => onOpenPath && void onOpenPath(f.path),
       onDelete: repo
         ? () =>
-            deleteFileInSubdir(repo, source.path, f.name, setFolderUploadError, showToast)
+            deleteFileInSubdir(repo, source.path, f.name, setFolderUploadError, showToast, onFsChange)
         : undefined,
       onReveal: () => void fsReveal(f.path).catch(console.error),
       onRun:

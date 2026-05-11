@@ -24,6 +24,7 @@ export function PeopleListBody({
   folderUploadError,
   setFolderUploadError,
   showToast,
+  onFsChange,
 }: {
   view: "cards" | "table";
   people: PersonSummary[];
@@ -34,6 +35,7 @@ export function PeopleListBody({
   folderUploadError: string | null;
   setFolderUploadError: (err: string | null) => void;
   showToast: (msg: string) => void;
+  onFsChange?: () => void;
 }) {
   if (view === "table") {
     return (
@@ -58,6 +60,7 @@ export function PeopleListBody({
                     `${key}.json`,
                     setFolderUploadError,
                     showToast,
+                    onFsChange,
                   )
               : undefined
           }
@@ -129,6 +132,7 @@ export function PeopleListBody({
                     `${p.key}.json`,
                     setFolderUploadError,
                     showToast,
+                    onFsChange,
                   );
                 }}
               >
@@ -156,6 +160,7 @@ export function AccessListBody({
   folderUploadError,
   setFolderUploadError,
   showToast,
+  onFsChange,
 }: {
   view: "cards" | "table";
   records: AccessSummary[];
@@ -166,6 +171,7 @@ export function AccessListBody({
   folderUploadError: string | null;
   setFolderUploadError: (err: string | null) => void;
   showToast: (msg: string) => void;
+  onFsChange?: () => void;
 }) {
   if (view === "table") {
     return (
@@ -190,6 +196,7 @@ export function AccessListBody({
                     `${key}.json`,
                     setFolderUploadError,
                     showToast,
+                    onFsChange,
                   )
               : undefined
           }
@@ -260,6 +267,7 @@ export function AccessListBody({
                     `${r.key}.json`,
                     setFolderUploadError,
                     showToast,
+                    onFsChange,
                   );
                 }}
               >
@@ -287,6 +295,7 @@ export function AssetsListBody({
   folderUploadError,
   setFolderUploadError,
   showToast,
+  onFsChange,
 }: {
   view: "cards" | "table";
   records: AssetSummary[];
@@ -297,6 +306,7 @@ export function AssetsListBody({
   folderUploadError: string | null;
   setFolderUploadError: (err: string | null) => void;
   showToast: (msg: string) => void;
+  onFsChange?: () => void;
 }) {
   if (view === "table") {
     return (
@@ -321,6 +331,7 @@ export function AssetsListBody({
                     `${key}.json`,
                     setFolderUploadError,
                     showToast,
+                    onFsChange,
                   )
               : undefined
           }
@@ -396,6 +407,7 @@ export function AssetsListBody({
                     `${r.key}.json`,
                     setFolderUploadError,
                     showToast,
+                    onFsChange,
                   );
                 }}
               >
