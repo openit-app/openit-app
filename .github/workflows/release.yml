@@ -215,3 +215,21 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: gh workflow run landing.yml
+
+  # Fallback: rebuild landing even if finalize fails (e.g. one arch timed out
+  # but the release still has assets from previous builds).
+  rebuild-landing:
+    if: always()
+    needs: [finalize]
+    permissions:
+      actions: write
+      contents: read
+    runs-on: ubuntu-latest
+    steps:
+      - name: Wait for release assets to propagate
+        run: sleep 30
+      - name: Trigger landing page rebuild
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh workflow run landing.yml --repo ${{ github.repository }} || true
