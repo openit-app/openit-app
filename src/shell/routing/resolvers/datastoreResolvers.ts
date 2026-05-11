@@ -256,7 +256,17 @@ export async function resolveConversationsList(
       }),
     );
     threads.sort((a, b) => b.lastTurnAt.localeCompare(a.lastTurnAt));
-    return { kind: "conversations-list", threads };
+
+    // Load the tickets schema so the conversations-list header can
+    // offer a "+ New" button that drafts a new ticket via RowEditForm.
+    let ticketsCollection: DataCollection | undefined;
+    try {
+      const schemaRaw = await fsRead(`${repo}/databases/tickets/_schema.json`);
+      const schema = JSON.parse(schemaRaw);
+      ticketsCollection = { id: "", name: "tickets", type: "datastore", numItems: threads.length, schema };
+    } catch { /* no schema — + New button won't render */ }
+
+    return { kind: "conversations-list", threads, collection: ticketsCollection };
   } catch {
     return { kind: "file", path: `${repo}/databases/tickets` };
   }
@@ -270,8 +280,10 @@ export async function resolveConversationsList(
  */
 export async function resolveConversationThread(
   path: string,
+  repo: string,
   ticketId: string,
 ): Promise<ViewerSource> {
+  // Try to read conversation turns from the thread folder.
   try {
     const nodes = await fsList(path);
     const turns: ConversationTurn[] = [];
@@ -306,11 +318,35 @@ export async function resolveConversationThread(
         /* skip unparseable */
       }
     }
-    turns.sort((a, b) => a.timestamp.localeCompare(b.timestamp));
-    return { kind: "conversation-thread", ticketId, turns };
+    if (turns.length > 0) {
+      turns.sort((a, b) => a.timestamp.localeCompare(b.timestamp));
+      return { kind: "conversation-thread", ticketId, turns };
+    }
   } catch {
-    return { kind: "file", path };
+    /* no conversation folder — fall through to ticket detail */
   }
+
+  // No conversation turns (manually created ticket or empty thread).
+  // Fall back to the ticket JSON as a datastore-row detail card.
+  try {
+    const ticketPath = `${repo}/databases/tickets/${ticketId}.json`;
+    const raw = await fsRead(ticketPath);
+    const content = JSON.parse(raw);
+    let schema;
+    try {
+      const schemaRaw = await fsRead(`${repo}/databases/tickets/_schema.json`);
+      schema = JSON.parse(schemaRaw);
+    } catch { /* no schema */ }
+    return {
+      kind: "datastore-row",
+      collection: { id: "", name: "tickets", type: "datastore", numItems: 0, schema },
+      item: { id: ticketId, key: ticketId, content, createdAt: "", updatedAt: "" },
+    };
+  } catch {
+    /* ticket JSON also missing — fall through to file */
+  }
+
+  return { kind: "file", path };
 }
 
 /**

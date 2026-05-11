@@ -1483,6 +1483,8 @@ export function Viewer({
           conversationsFilter={conversationsFilter}
           repo={repo}
           onOpenPath={onOpenPath}
+          setFolderUploadError={setFolderUploadError}
+          showToast={showToast}
         />
       );
     }
@@ -2454,18 +2456,64 @@ export function Viewer({
           setView: setAssetsView,
         })}
         {showConversationsFilter && (
-          <TabStrip>
-            {(["all", "open", "resolved", "escalated"] as const).map((key) => (
-              <Tab
-                key={key}
-                active={conversationsFilter === key}
-                count={conversationCounts[key]}
-                onClick={() => setConversationsFilter(key)}
+          <>
+            {source.kind === "conversations-list" && source.collection && onShowSource && repo && (
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => {
+                  if (source.kind !== "conversations-list" || !source.collection) return;
+                  const col = source.collection;
+                  const fields = (col.schema as { fields?: Array<Record<string, unknown>> })?.fields ?? [];
+                  const template: Record<string, unknown> = {};
+                  for (const f of fields) {
+                    const id = f.id as string;
+                    if (id === "createdAt" || id === "updatedAt") {
+                      template[id] = new Date().toISOString();
+                    } else if (id === "askerChannel") {
+                      template[id] = "desktop";
+                    } else if (id === "status") {
+                      template[id] = "open";
+                    } else if (id === "priority") {
+                      template[id] = "normal";
+                    } else {
+                      template[id] = "";
+                    }
+                  }
+                  const taken = new Set(source.threads.map((t) => t.ticketId));
+                  let filename = "new-ticket.json";
+                  let i = 2;
+                  while (taken.has(filename.replace(".json", ""))) {
+                    filename = `new-ticket-${i}.json`;
+                    i += 1;
+                  }
+                  onShowSource({
+                    kind: "draft-file",
+                    path: `${repo}/databases/tickets/${filename}`,
+                    subdir: "databases/tickets",
+                    filename,
+                    initialContent: JSON.stringify(template, null, 2),
+                    collection: col,
+                  });
+                }}
+                title="Create a new ticket"
               >
-                {key === "all" ? "All" : key[0].toUpperCase() + key.slice(1)}
-              </Tab>
-            ))}
-          </TabStrip>
+                + New
+              </Button>
+            )}
+            <TabStrip>
+              {(["all", "open", "resolved", "escalated"] as const).map((key) => (
+                <Tab
+                  key={key}
+                  active={conversationsFilter === key}
+                  count={conversationCounts[key]}
+                  onClick={() => setConversationsFilter(key)}
+                >
+                  {key === "all" ? "All" : key[0].toUpperCase() + key.slice(1)}
+                </Tab>
+              ))}
+            </TabStrip>
+          </>
         )}
         {showAddToChat && (
           <Button
