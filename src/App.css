@@ -1260,8 +1260,8 @@ input.viewer-title.viewer-title-rename {
   appearance: none;
   background: transparent;
   border: none;
-  padding: 2px 5px;
-  margin: -2px -5px;
+  padding: 2px 4px;
+  margin: -2px -4px;
   border-radius: var(--r-sm);
   font-family: inherit;
   font-size: inherit;
