@@ -9,8 +9,9 @@ import { loadOpenitConfig } from "../../lib/openitConfig";
 import type { ConversationTurn, ConversationThreadSummary } from "../viewerTypes";
 import { AttachmentList } from "../AttachmentList";
 import { Button } from "../../ui";
+import { TrashIcon } from "../TrashIcon";
 import { writeToActiveSession } from "../activeSession";
-import { BRACKETED_PASTE_OPEN, BRACKETED_PASTE_CLOSE } from "./viewerHelpers";
+import { BRACKETED_PASTE_OPEN, BRACKETED_PASTE_CLOSE, deleteFileInSubdir } from "./viewerHelpers";
 
 // ---------------------------------------------------------------------------
 // ConversationsListBody
@@ -22,12 +23,16 @@ export function ConversationsListBody({
   conversationsFilter,
   repo,
   onOpenPath,
+  setFolderUploadError,
+  showToast,
 }: {
   threads: ConversationThreadSummary[];
   intakeUrl?: string | null;
   conversationsFilter: "all" | "open" | "resolved" | "escalated";
   repo: string;
   onOpenPath?: (path: string) => void | Promise<void>;
+  setFolderUploadError: (err: string | null) => void;
+  showToast: (msg: string) => void;
 }) {
   if (threads.length === 0) {
     const sampleUrl = intakeUrl || null;
@@ -81,40 +86,64 @@ export function ConversationsListBody({
       ) : (
         <div className="viewer-thread-list">
           {visibleThreads.map((t) => (
-            <button
-              key={t.ticketId}
-              type="button"
-              className={`thread-card thread-card-status-${t.status || "unknown"}`}
-              onClick={() => {
-                if (onOpenPath) {
-                  void onOpenPath(`${repo}/databases/conversations/${t.ticketId}`);
-                }
-              }}
-              title={`Open conversation for ${t.ticketId}`}
-            >
-              <div className="thread-card-row">
-                <span className="thread-card-subject">{t.subject || "(no subject)"}</span>
-                {t.status && <span className="thread-card-status">{t.status}</span>}
-              </div>
-              <div className="thread-card-meta">
-                {t.asker && <span className="thread-card-asker">{t.asker}</span>}
-                <span className="thread-card-count">
-                  {t.turnCount} message{t.turnCount === 1 ? "" : "s"}
-                </span>
-                {t.lastTurnAt && (
-                  <span className="thread-card-time">{t.lastTurnAt}</span>
-                )}
-              </div>
-              {t.tags.length > 0 && (
-                <div className="thread-card-tags">
-                  {t.tags.map((tag) => (
-                    <span key={tag} className="thread-card-tag">
-                      {tag}
-                    </span>
-                  ))}
+            <div key={t.ticketId} className="thread-card-wrapper">
+              <button
+                type="button"
+                className={`thread-card thread-card-status-${t.status || "unknown"}`}
+                onClick={() => {
+                  if (onOpenPath) {
+                    void onOpenPath(`${repo}/databases/conversations/${t.ticketId}`);
+                  }
+                }}
+                title={`Open conversation for ${t.ticketId}`}
+              >
+                <div className="thread-card-row">
+                  <span className="thread-card-subject">{t.subject || "(no subject)"}</span>
+                  {t.status && <span className="thread-card-status">{t.status}</span>}
                 </div>
+                <div className="thread-card-meta">
+                  {t.asker && <span className="thread-card-asker">{t.asker}</span>}
+                  <span className="thread-card-count">
+                    {t.turnCount} message{t.turnCount === 1 ? "" : "s"}
+                  </span>
+                  {t.lastTurnAt && (
+                    <span className="thread-card-time">{t.lastTurnAt}</span>
+                  )}
+                </div>
+                {t.tags.length > 0 && (
+                  <div className="thread-card-tags">
+                    {t.tags.map((tag) => (
+                      <span key={tag} className="thread-card-tag">
+                        {tag}
+                      </span>
+                    ))}
+                  </div>
+                )}
+              </button>
+              {repo && (
+                <Button
+                  variant="ghost"
+                  tone="destructive"
+                  size="sm"
+                  iconOnly
+                  className="entity-card-delete thread-card-delete"
+                  title={`Delete ticket ${t.subject || t.ticketId}`}
+                  aria-label={`Delete ticket ${t.subject || t.ticketId}`}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    void deleteFileInSubdir(
+                      repo,
+                      "databases/tickets",
+                      `${t.ticketId}.json`,
+                      setFolderUploadError,
+                      showToast,
+                    );
+                  }}
+                >
+                  <TrashIcon />
+                </Button>
               )}
-            </button>
+            </div>
           ))}
         </div>
       )}

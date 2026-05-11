@@ -1450,6 +1450,8 @@ export function Viewer({
           conversationsFilter={conversationsFilter}
           repo={repo}
           onOpenPath={onOpenPath}
+          setFolderUploadError={setFolderUploadError}
+          showToast={showToast}
         />
       );
     }
