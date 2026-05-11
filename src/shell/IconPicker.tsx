@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { createPortal } from "react-dom";
 import { ICON_GALLERY, type ToneKey } from "./entityIcons";
 import { Button } from "../ui";
 
@@ -30,7 +31,7 @@ export function IconPicker({
 
   const galleryEntries = Object.entries(ICON_GALLERY);
 
-  return (
+  return createPortal(
     <div className="icon-picker-overlay" onClick={onCancel}>
       <div className="icon-picker" onClick={(e) => e.stopPropagation()}>
         <div className="icon-picker-header">
@@ -116,6 +117,7 @@ export function IconPicker({
           </Button>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }
