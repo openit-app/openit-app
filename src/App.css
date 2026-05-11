@@ -5131,6 +5131,7 @@ input.viewer-title.viewer-title-rename {
   min-width: 0;
   display: flex;
   flex-direction: column;
+  justify-content: center;
   gap: 3px;
   /* Reserve space for hover-revealed action buttons (delete, run, etc.)
      so text doesn't sit under the icons. */
