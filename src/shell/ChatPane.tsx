@@ -101,10 +101,14 @@ export function ChatPane({ cwd, resume }: { cwd: string | null; resume?: boolean
     const focusOnClick = () => term.focus();
     containerRef.current.addEventListener("click", focusOnClick);
 
-    // In-page drag-drop from the file explorer.
+    // Drag-drop: accept both in-app drags (from file explorer) and OS
+    // file drops (from Finder / desktop). OS drops deliver paths via
+    // Tauri's native onDragDropEvent below; we accept "Files" here so
+    // the cursor shows "copy" instead of the "not allowed" icon.
     const onDragOver = (e: DragEvent) => {
       if (e.dataTransfer?.types.includes("application/x-openit-path") ||
-          e.dataTransfer?.types.includes("application/x-openit-ref")) {
+          e.dataTransfer?.types.includes("application/x-openit-ref") ||
+          e.dataTransfer?.types.includes("Files")) {
         e.preventDefault();
         e.dataTransfer.dropEffect = "copy";
       }
