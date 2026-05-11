@@ -15,7 +15,7 @@ Thanks for your interest in contributing to OpenIT! This guide covers everything
 ### Dev setup
 
 ```bash
-git clone https://github.com/pinkfish-ai/openit-app.git
+git clone https://github.com/openit-app/openit-app.git
 cd openit-app
 npm install
 ```
@@ -111,7 +111,7 @@ Steps to verify the change works.
 
 ## Reporting issues
 
-File issues on [GitHub Issues](https://github.com/pinkfish-ai/openit-app/issues). Include:
+File issues on [GitHub Issues](https://github.com/openit-app/openit-app/issues). Include:
 
 - What you expected vs. what happened
 - Steps to reproduce

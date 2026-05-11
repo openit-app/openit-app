@@ -33,7 +33,7 @@ Pages, GitHub Pages once the repo is public, Vercel, S3, anything).
 ## How the download links work
 
 `src/lib/release.ts` fetches the latest release tag from
-`https://api.github.com/repos/pinkfish-ai/openit-app/releases/latest` at build
+`https://api.github.com/repos/openit-app/openit-app/releases/latest` at build
 time. If no release exists yet (404), it falls back to a "coming soon" state.
 
 The tag determines the filenames it links to. Tauri produces:

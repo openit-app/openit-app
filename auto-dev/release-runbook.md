@@ -20,7 +20,7 @@ git push origin v0.1.0
 
 That's it. The `Release` workflow runs on tag push, builds both DMGs in
 parallel on `macos-14`, signs the updater archives, and publishes a GitHub
-Release at `https://github.com/pinkfish-ai/openit-app/releases/tag/v0.1.0`.
+Release at `https://github.com/openit-app/openit-app/releases/tag/v0.1.0`.
 
 The in-app updater (configured in `tauri.conf.json` to point at
 `/releases/latest/download/latest.json`) picks up the new version on next

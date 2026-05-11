@@ -4,7 +4,7 @@ import BaseLayout from "../layouts/BaseLayout.astro";
 const base = import.meta.env.BASE_URL;
 const url = (p: string) => `${base.replace(/\/$/, "")}/${p.replace(/^\//, "")}`;
 
-const githubUrl = "https://github.com/pinkfish-ai/openit-app";
+const githubUrl = "https://github.com/openit-app/openit-app";
 
 const nativeAccess: { k: string; v: string }[] = [
   { k: "CLI tools", v: "brew install gh, aws, gcloud, kubectl, and anything else" },

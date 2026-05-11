@@ -10,9 +10,9 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/pinkfish-ai/openit-app/releases/latest"><img src="https://img.shields.io/github/v/release/pinkfish-ai/openit-app?label=download&style=flat-square" alt="Latest release" /></a>
-  <a href="https://github.com/pinkfish-ai/openit-app/actions/workflows/ci.yml"><img src="https://img.shields.io/github/actions/workflow/status/pinkfish-ai/openit-app/ci.yml?style=flat-square" alt="CI" /></a>
-  <a href="LICENSE"><img src="https://img.shields.io/github/license/pinkfish-ai/openit-app?style=flat-square" alt="License" /></a>
+  <a href="https://github.com/openit-app/openit-app/releases/latest"><img src="https://img.shields.io/github/v/release/openit-app/openit-app?label=download&style=flat-square" alt="Latest release" /></a>
+  <a href="https://github.com/openit-app/openit-app/actions/workflows/ci.yml"><img src="https://img.shields.io/github/actions/workflow/status/openit-app/openit-app/ci.yml?style=flat-square" alt="CI" /></a>
+  <a href="LICENSE"><img src="https://img.shields.io/github/license/openit-app/openit-app?style=flat-square" alt="License" /></a>
 </p>
 
 ---
@@ -31,12 +31,12 @@ OpenIT is a desktop app for IT admins at small and mid-size businesses. It wraps
 
 ## Download
 
-Grab the latest `.dmg` from [**Releases**](https://github.com/pinkfish-ai/openit-app/releases/latest):
+Grab the latest `.dmg` from [**Releases**](https://github.com/openit-app/openit-app/releases/latest):
 
 | Chip | Download |
 |------|----------|
-| Apple Silicon (M1–M4) | [`OpenIT_x.x.x_aarch64.dmg`](https://github.com/pinkfish-ai/openit-app/releases/latest) |
-| Intel Mac | [`OpenIT_x.x.x_x64.dmg`](https://github.com/pinkfish-ai/openit-app/releases/latest) |
+| Apple Silicon (M1–M4) | [`OpenIT_x.x.x_aarch64.dmg`](https://github.com/openit-app/openit-app/releases/latest) |
+| Intel Mac | [`OpenIT_x.x.x_x64.dmg`](https://github.com/openit-app/openit-app/releases/latest) |
 
 > Linux and Windows builds are planned — contributions welcome.
 
@@ -52,7 +52,7 @@ Grab the latest `.dmg` from [**Releases**](https://github.com/pinkfish-ai/openit
 ### Steps
 
 ```bash
-git clone https://github.com/pinkfish-ai/openit-app.git
+git clone https://github.com/openit-app/openit-app.git
 cd openit-app
 npm install
 npm run tauri:dev      # dev mode with hot reload

@@ -2,7 +2,7 @@
 // (or at dev-server start). If the repo has no releases yet, returns a
 // pending placeholder so the page still renders.
 
-const REPO = "pinkfish-ai/openit-app";
+const REPO = "openit-app/openit-app";
 
 export interface ReleaseInfo {
   available: boolean;
