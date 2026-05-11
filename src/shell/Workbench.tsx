@@ -70,7 +70,7 @@ export function Workbench({
 }) {
   const [counts, setCounts] = useState<Record<string, number>>({});
   const prevCountsRef = useRef<Record<string, number> | null>(null);
-  const highlightTimerRef = useRef<ReturnType<typeof setTimeout>>();
+  const highlightTimerRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const [highlightedStations, setHighlightedStations] = useState<Set<string>>(new Set());
   const [escalatedTickets, setEscalatedTickets] = useState<TicketSummary[]>([]);
   const escalatedCount = escalatedTickets.length;
