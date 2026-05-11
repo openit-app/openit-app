@@ -70,6 +70,12 @@ export function Workbench({
   // NOT suppressed — they're always intentional.
   const mountedAtRef = useRef(Date.now());
   const lastHighlightTsRef = useRef(0);
+  // On first successful read of highlight.json, seed the timestamp
+  // without pulsing — prevents stale highlights from a previous
+  // session replaying on every app launch. If the file doesn't
+  // exist (fresh install), the flag stays false so the first real
+  // write by the getting-started tour fires normally.
+  const highlightSeededRef = useRef(false);
   const [highlightedStations, setHighlightedStations] = useState<Set<string>>(new Set());
   const [escalatedTickets, setEscalatedTickets] = useState<TicketSummary[]>([]);
   const escalatedCount = escalatedTickets.length;
@@ -204,7 +210,12 @@ export function Workbench({
           parsed.ts > lastHighlightTsRef.current
         ) {
           lastHighlightTsRef.current = parsed.ts;
-          if (!cancelled) {
+          // First successful read after mount: seed the timestamp
+          // so stale highlights from a previous session don't
+          // replay. Skip the pulse this one time only.
+          if (!highlightSeededRef.current) {
+            highlightSeededRef.current = true;
+          } else if (!cancelled) {
             setHighlightedStations(new Set(parsed.tiles));
             clearTimeout(highlightTimerRef.current);
             highlightTimerRef.current = setTimeout(
