@@ -43,6 +43,7 @@ import {
   DatastoreTableBody,
   DatastoreRowBody,
   DatastoreSchemaBody,
+  GenericRecordCardsBody,
   PeopleListBody,
   AccessListBody,
   AssetsListBody,
@@ -57,6 +58,7 @@ import { injectIntoChat } from "../lib/skillState";
 import { PaneBody } from "../ui";
 import { BreadcrumbAncestors } from "./Breadcrumbs";
 import type { ViewerSource } from "./viewerTypes";
+import { loadWorkstationConfig, saveWorkstationConfig } from "../lib/workstationConfig";
 
 export type { ViewerSource };
 
@@ -134,6 +136,7 @@ export function Viewer({
   const [peopleView, setPeopleView] = useState<"cards" | "table">("cards");
   const [accessView, setAccessView] = useState<"cards" | "table">("cards");
   const [assetsView, setAssetsView] = useState<"cards" | "table">("cards");
+  const [datastoreView, setDatastoreView] = useState<"cards" | "table">("cards");
 
   // Edit-mode state for the markdown viewer. `editDraft` is the
   // textarea value (decoupled from `content` so unsaved edits don't
@@ -1310,8 +1313,26 @@ export function Viewer({
       );
     }
 
-    // Datastore table view.
+    // Datastore table view — generic datastores with a schema get
+    // a Cards / Table toggle. Well-known collections (people, access,
+    // assets, tickets, conversations) keep their dedicated renderers.
     if (source.kind === "datastore-table") {
+      const hasCardView =
+        source.collection.schema &&
+        !["people", "access", "assets", "tickets", "conversations"].includes(source.collection.name);
+      if (hasCardView && datastoreView === "cards") {
+        return (
+          <GenericRecordCardsBody
+            collection={source.collection}
+            items={tableItems}
+            repo={repo}
+            onOpenPath={onOpenPath}
+            setFolderUploadError={setFolderUploadError}
+            showToast={showToast}
+            onFsChange={onFsChange}
+          />
+        );
+      }
       return (
         <DatastoreTableBody
           collection={source.collection}
@@ -1611,6 +1632,15 @@ export function Viewer({
                   try {
                     const { entityWriteFile } = await import("../lib/api");
                     await entityWriteFile(repo, `filestores/${slug}`, "README.md", `# ${slug}\n`);
+                    // Register as a workstation tile
+                    try {
+                      const cfg = await loadWorkstationConfig(repo);
+                      const rel = `filestores/${slug}`;
+                      if (!cfg.main.some((t) => t.rel === rel) && !cfg.more.some((t) => t.rel === rel)) {
+                        cfg.more.push({ rel });
+                        await saveWorkstationConfig(repo, cfg);
+                      }
+                    } catch { /* workstation config update optional */ }
                     setNewCollectionKind(null);
                     setNewCollectionName("");
                     onFsChange?.();
@@ -1656,6 +1686,14 @@ export function Viewer({
                 if (!ok) return;
                 try {
                   await entityRemoveDir(repo, `filestores/${c.name}`);
+                  // Clean up workstation config
+                  try {
+                    const cfg = await loadWorkstationConfig(repo);
+                    const rel = `filestores/${c.name}`;
+                    cfg.main = cfg.main.filter((t) => t.rel !== rel);
+                    cfg.more = cfg.more.filter((t) => t.rel !== rel);
+                    await saveWorkstationConfig(repo, cfg);
+                  } catch { /* config cleanup optional */ }
                   showToast(`Deleted filestore ${c.displayName}`);
                   onFsChange?.();
                 } catch (err) {
@@ -1812,6 +1850,15 @@ export function Viewer({
                   try {
                     const { entityWriteFile } = await import("../lib/api");
                     await entityWriteFile(repo, `databases/${slug}`, "README.md", `# ${slug}\n`);
+                    // Register as a workstation tile
+                    try {
+                      const cfg = await loadWorkstationConfig(repo);
+                      const rel = `databases/${slug}`;
+                      if (!cfg.main.some((t) => t.rel === rel) && !cfg.more.some((t) => t.rel === rel)) {
+                        cfg.more.push({ rel });
+                        await saveWorkstationConfig(repo, cfg);
+                      }
+                    } catch { /* workstation config update optional */ }
                     setNewCollectionKind(null);
                     setNewCollectionName("");
                     onFsChange?.();
@@ -1856,6 +1903,14 @@ export function Viewer({
                 if (!ok) return;
                 try {
                   await entityRemoveDir(repo, `databases/${c.name}`);
+                  // Clean up workstation config
+                  try {
+                    const cfg = await loadWorkstationConfig(repo);
+                    const rel = `databases/${c.name}`;
+                    cfg.main = cfg.main.filter((t) => t.rel !== rel);
+                    cfg.more = cfg.more.filter((t) => t.rel !== rel);
+                    await saveWorkstationConfig(repo, cfg);
+                  } catch { /* config cleanup optional */ }
                   showToast(`Deleted database ${c.name}`);
                   onFsChange?.();
                 } catch (err) {
@@ -2283,6 +2338,18 @@ export function Viewer({
             + New
           </Button>
         )}
+        {/* Schema-driven datastore: + New and Cards/Table toggle */}
+        {source && source.kind === "datastore-table" &&
+          !!source.collection.schema &&
+          !["people", "access", "assets", "tickets", "conversations"].includes(source.collection.name) &&
+          renderRecordListHeader({
+            dbName: source.collection.name,
+            collection: source.collection,
+            existingKeys: tableItems.map((it) => it.key || it.id),
+            newTitle: `New ${source.collection.name} record`,
+            view: datastoreView,
+            setView: setDatastoreView,
+          })}
         {showFileTabs && (
           <TabStrip variant="segmented">
             <Tab

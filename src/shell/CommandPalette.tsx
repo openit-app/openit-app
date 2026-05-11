@@ -1,5 +1,11 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { injectIntoChat } from "../lib/skillState";
+import {
+  loadWorkstationConfig,
+  discoverTiles,
+  mergeConfigWithDiscovery,
+  type ResolvedTile,
+} from "../lib/workstationConfig";
 
 type Action = {
   id: string;
@@ -42,21 +48,64 @@ export function CommandPalette({
   const [active, setActive] = useState(0);
   const inputRef = useRef<HTMLInputElement>(null);
   const listRef = useRef<HTMLDivElement>(null);
+  const [dynamicTiles, setDynamicTiles] = useState<ResolvedTile[]>([]);
+
+  // Load workstation tiles for dynamic "Go to" entries
+  useEffect(() => {
+    if (!repo) return;
+    let cancelled = false;
+    (async () => {
+      const [cfg, discovered] = await Promise.all([
+        loadWorkstationConfig(repo),
+        discoverTiles(repo),
+      ]);
+      if (cancelled) return;
+      const { main, more } = mergeConfigWithDiscovery(cfg, discovered);
+      setDynamicTiles([...main, ...more]);
+    })();
+    return () => { cancelled = true; };
+  }, [repo, open]);
 
   const actions: Action[] = useMemo(() => {
     const r = repo ?? "";
+
+    // Generate "Go to" entries from workstation tiles
+    const gotoEntries: Action[] = dynamicTiles.length > 0
+      ? dynamicTiles.map((t) => ({
+          id: `goto-${t.rel}`,
+          label: t.label,
+          hint: t.rel,
+          group: "Go to" as const,
+          run: () => navigate(`${r}/${t.openRel ?? t.rel}`),
+        }))
+      : [
+          // Fallback to hardcoded entries if tiles haven't loaded yet
+          { id: "goto-inbox", label: "Inbox", hint: "Tickets & escalations", group: "Go to" as const, run: () => navigate(`${r}/databases/tickets`) },
+          { id: "goto-knowledge", label: "Knowledge", hint: "KB articles", group: "Go to" as const, run: () => navigate(`${r}/knowledge-bases`) },
+          { id: "goto-commands", label: "Commands", hint: "Slash commands", group: "Go to" as const, run: () => navigate(`${r}/filestores/skills`) },
+          { id: "goto-people", label: "People", hint: "Contacts directory", group: "Go to" as const, run: () => navigate(`${r}/databases/people`) },
+          { id: "goto-access", label: "Access", hint: "Who has access to what", group: "Go to" as const, run: () => navigate(`${r}/databases/access`) },
+          { id: "goto-assets", label: "Assets", hint: "Device & equipment inventory", group: "Go to" as const, run: () => navigate(`${r}/databases/assets`) },
+          { id: "goto-reports", label: "Reports", hint: "Generated reports", group: "Go to" as const, run: () => navigate(`${r}/reports`) },
+          { id: "goto-scripts", label: "Scripts", hint: "Runnable scripts", group: "Go to" as const, run: () => navigate(`${r}/filestores/scripts`) },
+          { id: "goto-tools", label: "Tools", hint: "Installed CLI & MCP tools", group: "Go to" as const, run: () => navigate(`${r}/tools`) },
+          { id: "goto-traces", label: "Traces", hint: "Agent activity logs", group: "Go to" as const, run: () => navigate(`${r}/.openit/agent-traces`) },
+        ];
+    // Always include Inbox as the first entry
+    const hasInbox = gotoEntries.some((a) => a.id === "goto-databases/tickets");
+    if (!hasInbox && dynamicTiles.length > 0) {
+      gotoEntries.unshift({
+        id: "goto-inbox",
+        label: "Inbox",
+        hint: "Tickets & escalations",
+        group: "Go to",
+        run: () => navigate(`${r}/databases/tickets`),
+      });
+    }
+
     const items: Action[] = [
-      // ── Go to ──
-      { id: "goto-inbox", label: "Inbox", hint: "Tickets & escalations", group: "Go to", run: () => navigate(`${r}/databases/tickets`) },
-      { id: "goto-knowledge", label: "Knowledge", hint: "KB articles", group: "Go to", run: () => navigate(`${r}/knowledge-bases`) },
-      { id: "goto-commands", label: "Commands", hint: "Slash commands", group: "Go to", run: () => navigate(`${r}/filestores/skills`) },
-      { id: "goto-people", label: "People", hint: "Contacts directory", group: "Go to", run: () => navigate(`${r}/databases/people`) },
-      { id: "goto-access", label: "Access", hint: "Who has access to what", group: "Go to", run: () => navigate(`${r}/databases/access`) },
-      { id: "goto-assets", label: "Assets", hint: "Device & equipment inventory", group: "Go to", run: () => navigate(`${r}/databases/assets`) },
-      { id: "goto-reports", label: "Reports", hint: "Generated reports", group: "Go to", run: () => navigate(`${r}/reports`) },
-      { id: "goto-scripts", label: "Scripts", hint: "Runnable scripts", group: "Go to", run: () => navigate(`${r}/filestores/scripts`) },
-      { id: "goto-tools", label: "Tools", hint: "Installed CLI & MCP tools", group: "Go to", run: () => navigate(`${r}/tools`) },
-      { id: "goto-traces", label: "Traces", hint: "Agent activity logs", group: "Go to", run: () => navigate(`${r}/.openit/agent-traces`) },
+      // ── Go to (dynamic) ──
+      ...gotoEntries,
 
       // ── Run (featured commands) ──
       { id: "run-salesforce-gmail", label: "/salesforce-gmail", hint: "Bridge Salesforce and Gmail", group: "Run", run: () => injectIntoChat("/salesforce-gmail") },
@@ -146,7 +195,7 @@ export function CommandPalette({
       { id: "sys-refresh", label: "Refresh from disk", hint: "Re-read files from vault", group: "System", run: () => onManualPull() },
     ];
     return items;
-  }, [repo, onConnectSlack, onManualPull, onOpenWelcome, onShowDraft]);
+  }, [repo, dynamicTiles, onConnectSlack, onManualPull, onOpenWelcome, onShowDraft]);
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();

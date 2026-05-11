@@ -158,6 +158,202 @@ const TracesIcon: ReactNode = (
   </svg>
 );
 
+// ── Additional gallery icons ──────────────────────────────────────
+// Extended icon set for the workstation icon picker. Users choose from
+// these when customizing a tile's appearance.
+
+const TagIcon: ReactNode = (
+  <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+    <path d="M12.586 2.586A2 2 0 0 0 11.172 2H4a2 2 0 0 0-2 2v7.172a2 2 0 0 0 .586 1.414l8.828 8.828a2 2 0 0 0 2.828 0l7.172-7.172a2 2 0 0 0 0-2.828z" />
+    <circle cx="7.5" cy="7.5" r="1.5" fill="currentColor" stroke="none" />
+  </svg>
+);
+
+const GlobeIcon: ReactNode = (
+  <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+    <circle cx="12" cy="12" r="10" />
+    <path d="M2 12h20" />
+    <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z" />
+  </svg>
+);
+
+const CalendarIcon: ReactNode = (
+  <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+    <rect x="3" y="4" width="18" height="18" rx="2" />
+    <line x1="16" y1="2" x2="16" y2="6" />
+    <line x1="8" y1="2" x2="8" y2="6" />
+    <line x1="3" y1="10" x2="21" y2="10" />
+  </svg>
+);
+
+const KeyIcon: ReactNode = (
+  <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+    <path d="M21 2l-2 2m-7.61 7.61a5.5 5.5 0 1 1-7.778 7.778 5.5 5.5 0 0 1 7.777-7.777zm0 0L15.5 7.5m0 0 3 3L22 7l-3-3m-3.5 3.5L19 4" />
+  </svg>
+);
+
+const LockIcon: ReactNode = (
+  <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+    <rect x="3" y="11" width="18" height="11" rx="2" />
+    <path d="M7 11V7a5 5 0 0 1 10 0v4" />
+  </svg>
+);
+
+const HeartIcon: ReactNode = (
+  <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+    <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z" />
+  </svg>
+);
+
+const FlagIcon: ReactNode = (
+  <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+    <path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z" />
+    <line x1="4" y1="22" x2="4" y2="15" />
+  </svg>
+);
+
+const BellIcon: ReactNode = (
+  <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+    <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9" />
+    <path d="M13.73 21a2 2 0 0 1-3.46 0" />
+  </svg>
+);
+
+const BuildingIcon: ReactNode = (
+  <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+    <rect x="4" y="2" width="16" height="20" rx="2" />
+    <path d="M9 22v-4h6v4" />
+    <line x1="8" y1="6" x2="8" y2="6.01" />
+    <line x1="16" y1="6" x2="16" y2="6.01" />
+    <line x1="12" y1="6" x2="12" y2="6.01" />
+    <line x1="8" y1="10" x2="8" y2="10.01" />
+    <line x1="16" y1="10" x2="16" y2="10.01" />
+    <line x1="12" y1="10" x2="12" y2="10.01" />
+    <line x1="8" y1="14" x2="8" y2="14.01" />
+    <line x1="16" y1="14" x2="16" y2="14.01" />
+    <line x1="12" y1="14" x2="12" y2="14.01" />
+  </svg>
+);
+
+const BriefcaseIcon: ReactNode = (
+  <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+    <rect x="2" y="7" width="20" height="14" rx="2" />
+    <path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16" />
+  </svg>
+);
+
+const CreditCardIcon: ReactNode = (
+  <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+    <rect x="1" y="4" width="22" height="16" rx="2" />
+    <line x1="1" y1="10" x2="23" y2="10" />
+  </svg>
+);
+
+const UsersIcon: ReactNode = (
+  <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+    <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
+    <circle cx="9" cy="7" r="4" />
+    <path d="M23 21v-2a4 4 0 0 0-3-3.87" />
+    <path d="M16 3.13a4 4 0 0 1 0 7.75" />
+  </svg>
+);
+
+const ServerIcon: ReactNode = (
+  <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+    <rect x="2" y="2" width="20" height="8" rx="2" />
+    <rect x="2" y="14" width="20" height="8" rx="2" />
+    <line x1="6" y1="6" x2="6.01" y2="6" />
+    <line x1="6" y1="18" x2="6.01" y2="18" />
+  </svg>
+);
+
+const BookmarkIcon: ReactNode = (
+  <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+    <path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z" />
+  </svg>
+);
+
+const ClipboardIcon: ReactNode = (
+  <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+    <path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2" />
+    <rect x="8" y="2" width="8" height="4" rx="1" />
+  </svg>
+);
+
+const HashIcon: ReactNode = (
+  <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden>
+    <line x1="4" y1="9" x2="20" y2="9" />
+    <line x1="4" y1="15" x2="20" y2="15" />
+    <line x1="10" y1="3" x2="8" y2="21" />
+    <line x1="16" y1="3" x2="14" y2="21" />
+  </svg>
+);
+
+const LayersIcon: ReactNode = (
+  <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+    <polygon points="12 2 2 7 12 12 22 7 12 2" />
+    <polyline points="2 17 12 22 22 17" />
+    <polyline points="2 12 12 17 22 12" />
+  </svg>
+);
+
+const TargetIcon: ReactNode = (
+  <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+    <circle cx="12" cy="12" r="10" />
+    <circle cx="12" cy="12" r="6" />
+    <circle cx="12" cy="12" r="2" />
+  </svg>
+);
+
+// ── Icon Gallery ─────────────────────────────────────────────────────
+// Maps string IDs to SVG ReactNodes. Used by the workstation config to
+// reference icons by name, and by the icon picker to render the gallery.
+
+export const ICON_GALLERY: Record<string, { icon: ReactNode; label: string }> = {
+  // Original entity icons
+  inbox:       { icon: InboxIcon,       label: "Inbox" },
+  reports:     { icon: ReportsIcon,     label: "Reports" },
+  person:      { icon: PersonIcon,      label: "Person" },
+  knowledge:   { icon: KnowledgeIcon,   label: "Book" },
+  folder:      { icon: FilesIcon,       label: "Folder" },
+  agents:      { icon: AgentsIcon,      label: "Star" },
+  attachments: { icon: AttachmentsIcon, label: "Paperclip" },
+  database:    { icon: DatabasesIcon,   label: "Database" },
+  workflows:   { icon: WorkflowsIcon,   label: "Cycle" },
+  tools:       { icon: ToolsIcon,       label: "Wrench" },
+  commands:    { icon: CommandsIcon,    label: "Slash" },
+  skills:      { icon: SkillsIcon,      label: "Sparkle" },
+  scripts:     { icon: ScriptsIcon,     label: "Code" },
+  access:      { icon: AccessIcon,      label: "Shield" },
+  assets:      { icon: AssetsIcon,      label: "Laptop" },
+  traces:      { icon: TracesIcon,      label: "Activity" },
+  // Extended gallery
+  tag:         { icon: TagIcon,         label: "Tag" },
+  globe:       { icon: GlobeIcon,       label: "Globe" },
+  calendar:    { icon: CalendarIcon,    label: "Calendar" },
+  key:         { icon: KeyIcon,         label: "Key" },
+  lock:        { icon: LockIcon,        label: "Lock" },
+  heart:       { icon: HeartIcon,       label: "Heart" },
+  flag:        { icon: FlagIcon,        label: "Flag" },
+  bell:        { icon: BellIcon,        label: "Bell" },
+  building:    { icon: BuildingIcon,    label: "Building" },
+  briefcase:   { icon: BriefcaseIcon,   label: "Briefcase" },
+  "credit-card": { icon: CreditCardIcon, label: "Card" },
+  users:       { icon: UsersIcon,       label: "Group" },
+  server:      { icon: ServerIcon,      label: "Server" },
+  bookmark:    { icon: BookmarkIcon,    label: "Bookmark" },
+  clipboard:   { icon: ClipboardIcon,   label: "Clipboard" },
+  hash:        { icon: HashIcon,        label: "Hash" },
+  layers:      { icon: LayersIcon,      label: "Layers" },
+  target:      { icon: TargetIcon,      label: "Target" },
+};
+
+/** Look up an icon ReactNode by gallery key, with a fallback. */
+export function iconForKey(key: string | undefined): ReactNode {
+  if (!key) return DatabasesIcon;
+  return ICON_GALLERY[key]?.icon ?? DatabasesIcon;
+}
+
 // ── Per-kind metadata (icon + tone + label) ───────────────────────
 
 type EntityMetaEntry = {

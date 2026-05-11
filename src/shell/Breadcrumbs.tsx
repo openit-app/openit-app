@@ -30,6 +30,10 @@ function capitalize(s: string): string {
 
 // First-class database collections that appear as top-level stations
 // in the Workbench. These skip the "Databases /" prefix in breadcrumbs.
+// Custom collections promoted to the workstation also get this treatment
+// — the check falls through to the generic path which adds "Databases /"
+// as a parent, which is still correct. The well-known ones here get
+// friendly display names.
 const FIRST_CLASS_COLLECTIONS: Record<string, { label: string; listPath: string }> = {
   people:        { label: "People",  listPath: "databases/people" },
   access:        { label: "Access",  listPath: "databases/access" },
