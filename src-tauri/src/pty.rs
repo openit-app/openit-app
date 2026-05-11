@@ -308,7 +308,13 @@ fn run_install_blocking() -> Result<String, String> {
 
     // Use PowerShell to run the official Windows installer
     let output = Command::new("powershell")
-        .args(["-NoProfile", "-ExecutionPolicy", "Bypass", "-Command", "irm https://claude.ai/install.ps1 | iex"])
+        .args([
+            "-NoProfile",
+            "-ExecutionPolicy",
+            "Bypass",
+            "-Command",
+            "irm https://claude.ai/install.ps1 | iex",
+        ])
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
         .output()
