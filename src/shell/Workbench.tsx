@@ -285,12 +285,13 @@ export function Workbench({
   );
 
   const customizeTile = useCallback(
-    async (rel: string, icon: string, tone: ToneKey, label: string) => {
+    async (rel: string, icon: string, tone: ToneKey, label: string, description?: string) => {
       const cfg = configRef.current;
       if (!cfg || !repo) return;
+      const patch = { icon, tone, label, ...(description ? { description } : {}) };
       const update = (tiles: TileConfig[]) =>
         tiles.map((t) =>
-          t.rel === rel ? { ...t, icon, tone, label } : t,
+          t.rel === rel ? { ...t, ...patch } : t,
         );
       const inMain = cfg.main.some((t) => t.rel === rel);
       const inMore = cfg.more.some((t) => t.rel === rel);
@@ -302,7 +303,7 @@ export function Workbench({
       } else {
         newConfig = {
           main: cfg.main,
-          more: [...cfg.more, { rel, icon, tone, label }],
+          more: [...cfg.more, { rel, ...patch }],
         };
       }
       await persistConfig(newConfig);
@@ -576,8 +577,13 @@ export function Workbench({
           currentIcon={customizing.icon}
           currentTone={customizing.tone}
           currentLabel={customizing.label}
-          onSave={(icon, tone, label) => {
-            void customizeTile(customizing.rel, icon, tone, label);
+          currentDescription={
+            configRef.current
+              ? [...configRef.current.main, ...configRef.current.more].find((t) => t.rel === customizing.rel)?.description
+              : undefined
+          }
+          onSave={(icon, tone, label, description) => {
+            void customizeTile(customizing.rel, icon, tone, label, description || undefined);
             setCustomizing(null);
           }}
           onCancel={() => setCustomizing(null)}

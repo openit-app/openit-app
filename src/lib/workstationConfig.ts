@@ -24,6 +24,8 @@ export interface TileConfig {
   icon?: string;
   /** Color tone override. */
   tone?: ToneKey;
+  /** Short description shown on list-view cards. */
+  description?: string;
 }
 
 export interface WorkstationConfig {

@@ -16,18 +16,21 @@ export function IconPicker({
   currentIcon,
   currentTone,
   currentLabel,
+  currentDescription,
   onSave,
   onCancel,
 }: {
   currentIcon: string;
   currentTone: ToneKey;
   currentLabel: string;
-  onSave: (icon: string, tone: ToneKey, label: string) => void;
+  currentDescription?: string;
+  onSave: (icon: string, tone: ToneKey, label: string, description: string) => void;
   onCancel: () => void;
 }) {
   const [icon, setIcon] = useState(currentIcon);
   const [tone, setTone] = useState<ToneKey>(currentTone);
   const [label, setLabel] = useState(currentLabel);
+  const [description, setDescription] = useState(currentDescription ?? "");
 
   const galleryEntries = Object.entries(ICON_GALLERY);
 
@@ -49,6 +52,17 @@ export function IconPicker({
             value={label}
             onChange={(e) => setLabel(e.target.value)}
             placeholder="Tile name"
+          />
+        </div>
+
+        {/* Description */}
+        <div className="icon-picker-section">
+          <label className="icon-picker-label">Description</label>
+          <input
+            className="icon-picker-input"
+            value={description}
+            onChange={(e) => setDescription(e.target.value)}
+            placeholder="Short description (shown in list views)"
           />
         </div>
 
@@ -111,7 +125,7 @@ export function IconPicker({
             variant="primary"
             size="sm"
             disabled={!label.trim()}
-            onClick={() => onSave(icon, tone, label.trim())}
+            onClick={() => onSave(icon, tone, label.trim(), description.trim())}
           >
             Save
           </Button>
