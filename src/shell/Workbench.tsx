@@ -69,11 +69,13 @@ export function Workbench({
   // content changes. Imperative highlights via highlight.json are
   // NOT suppressed — they're always intentional.
   const mountedAtRef = useRef(Date.now());
-  // Start as -1 so the first read of highlight.json seeds the
-  // timestamp without triggering a pulse. Stale highlights left
-  // over from a previous session would otherwise replay on every
-  // app launch because the ref resets to 0 on mount.
-  const lastHighlightTsRef = useRef(-1);
+  const lastHighlightTsRef = useRef(0);
+  // On first successful read of highlight.json, seed the timestamp
+  // without pulsing — prevents stale highlights from a previous
+  // session replaying on every app launch. If the file doesn't
+  // exist (fresh install), the flag stays false so the first real
+  // write by the getting-started tour fires normally.
+  const highlightSeededRef = useRef(false);
   const [highlightedStations, setHighlightedStations] = useState<Set<string>>(new Set());
   const [escalatedTickets, setEscalatedTickets] = useState<TicketSummary[]>([]);
   const escalatedCount = escalatedTickets.length;
@@ -207,12 +209,13 @@ export function Workbench({
           typeof parsed.ts === "number" &&
           parsed.ts > lastHighlightTsRef.current
         ) {
-          const firstRead = lastHighlightTsRef.current === -1;
           lastHighlightTsRef.current = parsed.ts;
-          // First read after mount: seed the timestamp so we don't
-          // replay stale highlights from a previous session, but
-          // don't actually pulse.
-          if (!firstRead && !cancelled) {
+          // First successful read after mount: seed the timestamp
+          // so stale highlights from a previous session don't
+          // replay. Skip the pulse this one time only.
+          if (!highlightSeededRef.current) {
+            highlightSeededRef.current = true;
+          } else if (!cancelled) {
             setHighlightedStations(new Set(parsed.tiles));
             clearTimeout(highlightTimerRef.current);
             highlightTimerRef.current = setTimeout(
