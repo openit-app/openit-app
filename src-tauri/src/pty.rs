@@ -302,10 +302,39 @@ fn run_install_blocking() -> Result<String, String> {
         })
 }
 
-#[cfg(not(unix))]
+#[cfg(target_os = "windows")]
+fn run_install_blocking() -> Result<String, String> {
+    use std::process::{Command, Stdio};
+
+    // Use PowerShell to run the official Windows installer
+    let output = Command::new("powershell")
+        .args(["-NoProfile", "-ExecutionPolicy", "Bypass", "-Command", "irm https://claude.ai/install.ps1 | iex"])
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .output()
+        .map_err(|e| format!("failed to spawn installer: {e}"))?;
+
+    if !output.status.success() {
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        let stdout = String::from_utf8_lossy(&output.stdout);
+        return Err(format!(
+            "installer exited with status {:?}\nstdout: {stdout}\nstderr: {stderr}",
+            output.status.code()
+        ));
+    }
+
+    locate_claude()
+        .map(|p| p.to_string_lossy().into_owned())
+        .ok_or_else(|| {
+            "installer reported success but no claude binary found in expected locations"
+                .to_string()
+        })
+}
+
+#[cfg(not(any(unix, target_os = "windows")))]
 fn run_install_blocking() -> Result<String, String> {
     Err(
-        "Auto-install is only supported on macOS and Linux. \
+        "Auto-install is not supported on this platform. \
         Please install Claude Code manually from https://docs.anthropic.com/claude/docs/claude-code"
             .to_string(),
     )
