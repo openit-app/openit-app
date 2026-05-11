@@ -2911,10 +2911,16 @@ input.viewer-title.viewer-title-rename {
   margin: 0;
   font-family: var(--font-display);
   font-size: 26px;
-  font-weight: 700;
+  font-weight: 600;
   letter-spacing: -0.025em;
   color: var(--text);
   line-height: 1;
+}
+.onboard-title em {
+  font-family: var(--font-serif);
+  font-style: italic;
+  font-weight: 400;
+  color: var(--accent);
 }
 
 .onboard-tagline {

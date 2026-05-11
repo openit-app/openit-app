@@ -420,6 +420,16 @@ export function Shell({
   // it, clicking Getting Started while already on the welcome looked
   // like a no-op.
   const [welcomeFlashKey, setWelcomeFlashKey] = useState(0);
+  // Sticky flag: once the getting-started page is viewed, pulse the
+  // agent activity banner for the rest of this session. The source
+  // changes as the admin navigates (welcome → trace → conversation →
+  // workbench) but the tour is still active.
+  const [gettingStartedActive, setGettingStartedActive] = useState(false);
+  useEffect(() => {
+    if (source?.kind === "file" && source.path.endsWith("/getting-started.html")) {
+      setGettingStartedActive(true);
+    }
+  }, [source]);
   useEffect(() => {
     if (!repo) return;
     const welcomePath = `${repo}/getting-started.html`;
@@ -690,7 +700,7 @@ export function Shell({
       <AgentActivityBanner
         repo={repo}
         fsTick={fsTick}
-        pulse={!!(source && source.kind === "file" && source.path.endsWith("/getting-started.html"))}
+        pulse={gettingStartedActive}
         onOpenTrace={async (ticketId, subject) => {
           if (!repo) return;
           try {
