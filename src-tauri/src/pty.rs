@@ -3,6 +3,7 @@ use std::io::{Read, Write};
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use std::thread;
+#[cfg(not(target_os = "windows"))]
 use std::time::Duration;
 
 use anyhow::{anyhow, Result};
