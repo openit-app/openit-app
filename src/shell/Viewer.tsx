@@ -2,8 +2,7 @@ import { useEffect, useRef, useState, type ReactNode } from "react";
 import ReactMarkdown, { defaultUrlTransform } from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { openUrl } from "@tauri-apps/plugin-opener";
-import { ask } from "@tauri-apps/plugin-dialog";
-import { fsRead, fsReadBytes, fsList, fsReveal, reportOverviewRun, entityDeleteFile, entityClearDir } from "../lib/api";
+import { fsRead, fsReadBytes, fsList, fsReveal, reportOverviewRun, entityDeleteFile, entityRemoveDir } from "../lib/api";
 import { loadOpenitConfig } from "../lib/openitConfig";
 import type { MemoryItem, Agent } from "../lib/localTypes";
 import { DataTable } from "./DataTable";
@@ -46,6 +45,7 @@ import {
   isOfficeDoc,
   mimeForPath,
   toRepoRelative,
+  confirmDelete,
   uploadFilesToSubdir,
   deleteFileInSubdir,
 } from "./viewers";
@@ -90,6 +90,7 @@ export function Viewer({
   onGoForward,
   canGoBack,
   canGoForward,
+  onFsChange,
 }: {
   source: ViewerSource;
   repo: string;
@@ -116,6 +117,8 @@ export function Viewer({
   onGoForward?: () => void;
   canGoBack?: boolean;
   canGoForward?: boolean;
+  /** Bump the parent fs-tick so listings re-scan after a delete. */
+  onFsChange?: () => void;
 }) {
   const [content, setContent] = useState<string>("");
   const [binaryData, setBinaryData] = useState<Uint8Array | null>(null);
@@ -270,6 +273,9 @@ export function Viewer({
   // wakes the explorer so the new file appears in the tree.
   const [reportRunning, setReportRunning] = useState(false);
   const [reportError, setReportError] = useState<string | null>(null);
+  // Inline "+ New" for filestores and databases lists.
+  const [newCollectionKind, setNewCollectionKind] = useState<null | "filestore" | "database">(null);
+  const [newCollectionName, setNewCollectionName] = useState("");
   // Auto-scroll the sync log to the bottom whenever new lines arrive
   // — without this, watching a multi-class push from the top of the
   // pane means the latest lines fall below the fold and the user has
@@ -316,6 +322,8 @@ export function Viewer({
     // user when they navigate away from reports/ and back.
     setReportRunning(false);
     setReportError(null);
+    setNewCollectionKind(null);
+    setNewCollectionName("");
   }, [source]);
   useEffect(() => {
     // Fetch the admin's email once and cache it so the composer
@@ -794,7 +802,7 @@ export function Viewer({
   // nothing behind).
   const newFileAffordance: { onCreate: () => void; title: string } | null =
     source && source.kind === "entity-folder" && repo &&
-    (source.entity === "scripts" || source.entity === "skills" || source.entity === "agents" || source.entity === "knowledge" || source.entity === "knowledge-base")
+    (source.entity === "scripts" || source.entity === "skills" || source.entity === "agents" || source.entity === "knowledge" || source.entity === "knowledge-base" || source.entity === "library")
       ? (() => {
           const ext: "mjs" | "md" = source.entity === "scripts" ? "mjs" : "md";
           const subdirAbs = source.path;
@@ -807,7 +815,9 @@ export function Viewer({
                   ? "Draft a new agent"
                   : source.entity === "knowledge" || source.entity === "knowledge-base"
                     ? "Draft a new article"
-                    : "Draft a new skill",
+                    : source.entity === "library"
+                      ? "Draft a new file"
+                      : "Draft a new skill",
             onCreate: () => {
               if (!onShowSource) return;
               // Pick the first free `untitled[-N].<ext>` against the
@@ -1378,6 +1388,7 @@ export function Viewer({
                     `${key}.json`,
                     setFolderUploadError,
                     showToast,
+                    onFsChange,
                   )
               : undefined
           }
@@ -1395,7 +1406,7 @@ export function Viewer({
         // form is far easier to scan when reading one row at a time.
         // (Multi-row tables still use DataTable — that's where the
         // horizontal layout pays off.)
-        const fields = ((source.collection.schema as Record<string, unknown> | undefined)?.fields ?? []) as Array<{
+        const schemaFields = ((source.collection.schema as Record<string, unknown> | undefined)?.fields ?? []) as Array<{
           id: string;
           label?: string;
           type?: string;
@@ -1406,6 +1417,16 @@ export function Viewer({
           liveItem.content && typeof liveItem.content === "object"
             ? (liveItem.content as Record<string, unknown>)
             : {};
+        // When no schema is defined, auto-detect fields from the
+        // record's JSON content so the View tab isn't blank.
+        const fields: Array<{ id: string; label?: string; type?: string }> =
+          schemaFields.length > 0
+            ? schemaFields
+            : Object.keys(content).map((k) => {
+                const v = content[k];
+                const type = Array.isArray(v) ? "string[]" : typeof v === "string" && v.length > 100 ? "text" : undefined;
+                return { id: k, type };
+              });
         const renderValue = (
           field: { id: string; type?: string },
           value: unknown,
@@ -1926,6 +1947,7 @@ export function Viewer({
                         `${key}.json`,
                         setFolderUploadError,
                         showToast,
+                        onFsChange,
                       )
                   : undefined
               }
@@ -1997,6 +2019,7 @@ export function Viewer({
                         `${p.key}.json`,
                         setFolderUploadError,
                         showToast,
+                        onFsChange,
                       );
                     }}
                   >
@@ -2037,6 +2060,7 @@ export function Viewer({
                         `${key}.json`,
                         setFolderUploadError,
                         showToast,
+                        onFsChange,
                       )
                   : undefined
               }
@@ -2107,6 +2131,7 @@ export function Viewer({
                         `${r.key}.json`,
                         setFolderUploadError,
                         showToast,
+                        onFsChange,
                       );
                     }}
                   >
@@ -2147,6 +2172,7 @@ export function Viewer({
                         `${key}.json`,
                         setFolderUploadError,
                         showToast,
+                        onFsChange,
                       )
                   : undefined
               }
@@ -2222,6 +2248,7 @@ export function Viewer({
                         `${r.key}.json`,
                         setFolderUploadError,
                         showToast,
+                        onFsChange,
                       );
                     }}
                   >
@@ -2272,6 +2299,53 @@ export function Viewer({
           {folderUploadError && (
             <p className="viewer-edit-error">{folderUploadError}</p>
           )}
+          {newCollectionKind === "filestore" && (
+            <div className="inline-new-collection">
+              <input
+                autoFocus
+                className="inline-new-input"
+                placeholder="Collection name…"
+                value={newCollectionName}
+                onChange={(e) => setNewCollectionName(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Escape") { setNewCollectionKind(null); setNewCollectionName(""); }
+                  if (e.key === "Enter") {
+                    (document.querySelector(".inline-new-create") as HTMLButtonElement | null)?.click();
+                  }
+                }}
+              />
+              <Button
+                variant="primary"
+                size="sm"
+                className="inline-new-create"
+                disabled={!newCollectionName.trim()}
+                onClick={async () => {
+                  if (!repo || !newCollectionName.trim()) return;
+                  const slug = newCollectionName.trim().toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
+                  if (!slug) return;
+                  if (source.collections.some((c) => c.name === slug)) {
+                    setFolderUploadError(`Filestore "${slug}" already exists.`);
+                    return;
+                  }
+                  try {
+                    const { entityWriteFile } = await import("../lib/api");
+                    await entityWriteFile(repo, `filestores/${slug}`, "README.md", `# ${slug}\n`);
+                    setNewCollectionKind(null);
+                    setNewCollectionName("");
+                    onFsChange?.();
+                    if (onOpenPath) void onOpenPath(`${repo}/filestores/${slug}`);
+                  } catch (err) {
+                    setFolderUploadError(`Failed to create: ${err instanceof Error ? err.message : String(err)}`);
+                  }
+                }}
+              >
+                Create
+              </Button>
+              <Button variant="ghost" size="sm" onClick={() => { setNewCollectionKind(null); setNewCollectionName(""); }}>
+                Cancel
+              </Button>
+            </div>
+          )}
           <EntityCardGrid
             kind="filestores"
             cards={source.collections.map((c) => ({
@@ -2294,19 +2368,15 @@ export function Viewer({
                   : undefined,
               onReveal: () => void fsReveal(c.path).catch(console.error),
               onDelete: repo ? async () => {
-                let ok = false;
-                try {
-                  ok = await ask(
-                    `Delete filestore "${c.displayName}" and all its files?\n\nThis cannot be undone.`,
-                    { title: "Delete filestore?", kind: "warning" },
-                  );
-                } catch {
-                  ok = window.confirm(`Delete filestore "${c.displayName}" and all its files?\n\nThis cannot be undone.`);
-                }
+                const ok = await confirmDelete(
+                  `Delete filestore "${c.displayName}" and all its files?\n\nThis cannot be undone.`,
+                  "Delete filestore?",
+                );
                 if (!ok) return;
                 try {
-                  await entityClearDir(repo, `filestores/${c.name}`);
+                  await entityRemoveDir(repo, `filestores/${c.name}`);
                   showToast(`Deleted filestore ${c.displayName}`);
+                  onFsChange?.();
                 } catch (err) {
                   console.error("[filestore-delete] failed:", err);
                 }
@@ -2430,6 +2500,53 @@ export function Viewer({
     if (source.kind === "databases-list") {
       return (
         <div className="viewer-summary">
+          {newCollectionKind === "database" && (
+            <div className="inline-new-collection">
+              <input
+                autoFocus
+                className="inline-new-input"
+                placeholder="Collection name…"
+                value={newCollectionName}
+                onChange={(e) => setNewCollectionName(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Escape") { setNewCollectionKind(null); setNewCollectionName(""); }
+                  if (e.key === "Enter") {
+                    (document.querySelector(".inline-new-create") as HTMLButtonElement | null)?.click();
+                  }
+                }}
+              />
+              <Button
+                variant="primary"
+                size="sm"
+                className="inline-new-create"
+                disabled={!newCollectionName.trim()}
+                onClick={async () => {
+                  if (!repo || !newCollectionName.trim()) return;
+                  const slug = newCollectionName.trim().toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
+                  if (!slug) return;
+                  if (source.collections.some((c) => c.name === slug)) {
+                    setFolderUploadError(`Database "${slug}" already exists.`);
+                    return;
+                  }
+                  try {
+                    const { entityWriteFile } = await import("../lib/api");
+                    await entityWriteFile(repo, `databases/${slug}`, "README.md", `# ${slug}\n`);
+                    setNewCollectionKind(null);
+                    setNewCollectionName("");
+                    onFsChange?.();
+                    if (onOpenPath) void onOpenPath(`${repo}/databases/${slug}`);
+                  } catch (err) {
+                    setFolderUploadError(`Failed to create: ${err instanceof Error ? err.message : String(err)}`);
+                  }
+                }}
+              >
+                Create
+              </Button>
+              <Button variant="ghost" size="sm" onClick={() => { setNewCollectionKind(null); setNewCollectionName(""); }}>
+                Cancel
+              </Button>
+            </div>
+          )}
           <EntityCardGrid
             kind="databases"
             empty={
@@ -2451,19 +2568,15 @@ export function Viewer({
               onClick: () => onOpenPath && void onOpenPath(c.path),
               onReveal: () => void fsReveal(c.path).catch(console.error),
               onDelete: repo ? async () => {
-                let ok = false;
-                try {
-                  ok = await ask(
-                    `Delete database "${c.name}" and all its records?\n\nThis cannot be undone.`,
-                    { title: "Delete database?", kind: "warning" },
-                  );
-                } catch {
-                  ok = window.confirm(`Delete database "${c.name}" and all its records?\n\nThis cannot be undone.`);
-                }
+                const ok = await confirmDelete(
+                  `Delete database "${c.name}" and all its records?\n\nThis cannot be undone.`,
+                  "Delete database?",
+                );
                 if (!ok) return;
                 try {
-                  await entityClearDir(repo, `databases/${c.name}`);
+                  await entityRemoveDir(repo, `databases/${c.name}`);
                   showToast(`Deleted database ${c.name}`);
+                  onFsChange?.();
                 } catch (err) {
                   console.error("[db-delete] failed:", err);
                 }
@@ -2541,7 +2654,7 @@ export function Viewer({
           onClick: () => onOpenPath && void onOpenPath(f.path),
           onDelete: repo
             ? () =>
-                deleteFileInSubdir(repo, source.path, f.name, setFolderUploadError, showToast)
+                deleteFileInSubdir(repo, source.path, f.name, setFolderUploadError, showToast, onFsChange)
             : undefined,
           onReveal: () => void fsReveal(f.path).catch(console.error),
           // "Run" only for the scripts folder. Spawns `node <script>`
@@ -3512,23 +3625,10 @@ export function Viewer({
             variant="ghost"
             size="sm"
             onClick={() => {
-              if (!onShowSource || !repo) return;
-              const taken = new Set(source.collections.map((c) => c.name));
-              let name = "untitled";
-              let i = 2;
-              while (taken.has(name)) {
-                name = `untitled-${i}`;
-                i += 1;
-              }
-              onShowSource({
-                kind: "draft-file",
-                path: `${repo}/filestores/${name}/README.md`,
-                subdir: `filestores/${name}`,
-                filename: "README.md",
-                initialContent: `# ${name}\n\nDescribe what this filestore collection holds.\n\nDrop files here or ask Claude to add them.\n`,
-              });
+              setNewCollectionKind(newCollectionKind === "filestore" ? null : "filestore");
+              setNewCollectionName("");
             }}
-            title="Draft a new filestore collection"
+            title="Create a new filestore collection"
           >
             + New
           </Button>
@@ -3538,23 +3638,10 @@ export function Viewer({
             variant="ghost"
             size="sm"
             onClick={() => {
-              if (!onShowSource || !repo) return;
-              const taken = new Set(source.collections.map((c) => c.name));
-              let name = "untitled";
-              let i = 2;
-              while (taken.has(name)) {
-                name = `untitled-${i}`;
-                i += 1;
-              }
-              onShowSource({
-                kind: "draft-file",
-                path: `${repo}/databases/${name}/_schema.md`,
-                subdir: `databases/${name}`,
-                filename: "_schema.md",
-                initialContent: `# ${name} database\n\nDescribe what this database tracks.\n\n## Fields\n\n- **name:** text\n- **status:** active / inactive\n- **notes:** text\n\n## Notes\n\nAdd any context about this database here. Save this file, then ask Claude to create the schema and first record.\n`,
-              });
+              setNewCollectionKind(newCollectionKind === "database" ? null : "database");
+              setNewCollectionName("");
             }}
-            title="Draft a new database"
+            title="Create a new database"
           >
             + New
           </Button>
@@ -3592,9 +3679,9 @@ export function Viewer({
               if (source.kind !== "file") return;
               const filename = source.path.split("/").pop() ?? "";
               const dir = source.path.slice(0, source.path.length - filename.length - 1);
-              const ok = await ask(
+              const ok = await confirmDelete(
                 `Delete command "${filename.replace(/\.md$/, "")}"?\n\nThis cannot be undone.`,
-                { title: "Delete command?", kind: "warning" },
+                "Delete command?",
               );
               if (!ok) return;
               try {

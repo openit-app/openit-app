@@ -43,6 +43,7 @@ export {
   toRepoRelative,
   sanitizeUploadFilename,
   uploadFilesToSubdir,
+  confirmDelete,
   deleteFileInSubdir,
 } from "./viewerHelpers";
 export type { ViewMode } from "./viewerHelpers";

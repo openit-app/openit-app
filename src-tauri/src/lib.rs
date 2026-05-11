@@ -114,6 +114,7 @@ pub fn run() {
             kb::entity_delete_file,
             kb::entity_rename_file,
             kb::entity_clear_dir,
+            kb::entity_remove_dir,
             skills::skills_fetch_manifest,
             skills::skills_fetch_file,
             skills::skills_fetch_bundled_manifest,

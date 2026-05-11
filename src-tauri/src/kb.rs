@@ -1073,6 +1073,25 @@ pub fn entity_clear_dir(repo: String, subdir: String) -> Result<(), String> {
     Ok(())
 }
 
+/// Permanently remove `<repo>/<subdir>` and everything inside it.
+/// Unlike `entity_clear_dir` this does NOT recreate the directory —
+/// used when the user explicitly deletes a collection from the UI.
+#[tauri::command]
+pub fn entity_remove_dir(repo: String, subdir: String) -> Result<(), String> {
+    validate_subdir(&subdir)?;
+    let dir = Path::new(&repo).join(&subdir);
+    let repo_canon = fs::canonicalize(&repo).map_err(|e| e.to_string())?;
+    if let Ok(dir_canon) = fs::canonicalize(&dir) {
+        if !dir_canon.starts_with(&repo_canon) {
+            return Err(format!("refusing to remove outside repo: {}", subdir));
+        }
+    }
+    if dir.exists() {
+        fs::remove_dir_all(&dir).map_err(|e| e.to_string())?;
+    }
+    Ok(())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

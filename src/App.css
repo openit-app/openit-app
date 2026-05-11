@@ -714,6 +714,7 @@ body::before {
   color: var(--text);
   border-radius: 3px;
   user-select: none;
+  position: relative;
 }
 
 .tree-item:hover {
@@ -842,13 +843,18 @@ body::before {
    icon stays hidden until the tree row is hovered. Button chrome lives in
    <Button variant="ghost" tone="destructive" size="sm" iconOnly>. */
 .tree-delete-btn {
-  display: none;
+  opacity: 0;
+  pointer-events: none;
+  position: absolute !important;
+  right: 4px;
+  z-index: 10;
   margin-left: 2px;
   flex-shrink: 0;
 }
 
 .tree-item:hover .tree-delete-btn {
-  display: inline-flex;
+  opacity: 1;
+  pointer-events: auto;
 }
 
 .explorer.drag-over {
@@ -4796,6 +4802,7 @@ input.viewer-title.viewer-title-rename {
   position: relative;
   display: flex;
   width: 100%;
+  isolation: isolate;
 }
 
 .entity-card-wrapper > .entity-card {
@@ -4807,16 +4814,18 @@ input.viewer-title.viewer-title-rename {
    right edge and only revealed on wrapper hover. Button chrome lives
    in <Button variant="ghost" tone="destructive" size="sm" iconOnly>. */
 .entity-card-delete {
-  position: absolute;
+  position: absolute !important;
   top: 50%;
   right: 10px;
   transform: translateY(-50%);
-  display: none;
-  z-index: 1;
+  opacity: 0;
+  pointer-events: none;
+  z-index: 10;
 }
 
 .entity-card-wrapper:hover .entity-card-delete {
-  display: inline-flex;
+  opacity: 1;
+  pointer-events: auto;
 }
 
 /* Run affordance — same hover-reveal pattern as delete, but anchored
@@ -4828,12 +4837,14 @@ input.viewer-title.viewer-title-rename {
   top: 50%;
   right: 76px;
   transform: translateY(-50%);
-  display: none;
-  z-index: 1;
+  opacity: 0;
+  pointer-events: none;
+  z-index: 10;
 }
 
 .entity-card-wrapper:hover .entity-card-add-claude {
-  display: inline-flex;
+  opacity: 1;
+  pointer-events: auto;
 }
 
 .entity-card-run {
@@ -4841,12 +4852,14 @@ input.viewer-title.viewer-title-rename {
   top: 50%;
   right: 43px;
   transform: translateY(-50%);
-  display: none;
-  z-index: 1;
+  opacity: 0;
+  pointer-events: none;
+  z-index: 10;
 }
 
 .entity-card-wrapper:hover .entity-card-run {
-  display: inline-flex;
+  opacity: 1;
+  pointer-events: auto;
 }
 
 /* When a card has run-only (no delete), pull the run slot back to the
@@ -4863,6 +4876,7 @@ input.viewer-title.viewer-title-rename {
   position: relative;
   display: flex;
   width: 100%;
+  isolation: isolate;
 }
 
 .thread-card-wrapper > .thread-card {
@@ -4870,18 +4884,45 @@ input.viewer-title.viewer-title-rename {
 }
 
 .thread-card-wrapper:hover .thread-card-delete {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
+  opacity: 1;
+  pointer-events: auto;
 }
 
 .thread-card-delete {
   /* People cards stack rows top-to-bottom and the right edge has
      metadata pills — same opaque-pill treatment as the file cards
      so it covers whatever sits beneath. */
+  position: absolute !important;
   top: 50%;
   transform: translateY(-50%);
   right: 10px;
+  opacity: 0;
+  pointer-events: none;
+  z-index: 10;
+}
+
+/* Inline +New collection input row */
+.inline-new-collection {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 0;
+}
+
+.inline-new-input {
+  flex: 1;
+  max-width: 280px;
+  padding: 5px 10px;
+  border: 1px solid var(--border, #d1c9bd);
+  border-radius: 6px;
+  font-size: 13px;
+  background: var(--bg, #fff);
+  color: var(--text, #1a1a1a);
+}
+
+.inline-new-input:focus {
+  outline: none;
+  border-color: var(--accent, #c43e3e);
 }
 
 /* File-type badge — slots into the same 30×30 glyph well as the
