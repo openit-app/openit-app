@@ -87,10 +87,16 @@ export function claudeInstall(): Promise<string> {
 }
 
 
+/// Force the app window to the foreground. On macOS uses
+/// NSApplication.activate; also bounces the dock icon once.
+export function windowFocus(): Promise<void> {
+  return invoke("window_focus");
+}
+
 export type BootstrapResult = { path: string; created: boolean };
 
 /// Bootstrap a vault at the given path. Creates standard subdirs,
-/// getting-started.md, and .openit/config.json if missing. Defaults
+/// getting-started.html, and .openit/config.json if missing. Defaults
 /// to `~/OpenIT/Personal/` when path is omitted.
 export async function projectBootstrap(vaultPath?: string): Promise<BootstrapResult> {
   return invoke("project_bootstrap", { vaultPath: vaultPath ?? null });

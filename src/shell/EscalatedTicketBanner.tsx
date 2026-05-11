@@ -1,6 +1,7 @@
 // Floating top-right notification card for escalated tickets.
-// Auto-dismisses after 5 s. Clicking opens the first ticket and
-// sends `/answer-ticket` to the active Claude session.
+// Persists until the admin clicks it or dismisses via ×. Clicking
+// opens the first ticket and sends `/answer-ticket` to the active
+// Claude session.
 //
 // Driven by fs-tick: the parent Shell's fs watcher bumps `fsTick`
 // on every change under the project root, which re-scans
@@ -8,7 +9,7 @@
 
 import { useEffect, useState } from "react";
 import { scanEscalatedTickets, type TicketSummary } from "../lib/escalatedTickets";
-import { writeToActiveSession } from "./activeSession";
+import { injectIntoChat } from "../lib/skillState";
 import styles from "./EscalatedTicketBanner.module.css";
 
 export function EscalatedTicketBanner({
@@ -49,13 +50,9 @@ export function EscalatedTicketBanner({
   // toast after a prior batch was dismissed or actioned.
   const ticketKey = tickets.map((t) => t.relPath).sort().join("|");
 
-  // Auto-dismiss after 5 seconds. Resets if ticketKey changes
-  // (new ticket comes in). The admin can still click before timeout.
-  useEffect(() => {
-    if (!ticketKey || dismissedKey === ticketKey) return;
-    const timer = setTimeout(() => setDismissedKey(ticketKey), 5000);
-    return () => clearTimeout(timer);
-  }, [ticketKey, dismissedKey]);
+  // Notification stays visible until the admin clicks it or
+  // dismisses it. No auto-dismiss — escalations are too important
+  // to disappear unnoticed.
 
   if (tickets.length === 0) return null;
   if (dismissedKey === ticketKey) return null;
@@ -68,8 +65,7 @@ export function EscalatedTicketBanner({
     if (sending) return;
     setSending(true);
     try {
-      const wrapped = `\x1b[200~/answer-ticket ${first.relPath}\x1b[201~`;
-      await writeToActiveSession(wrapped);
+      await injectIntoChat(`/answer-ticket ${first.relPath}`);
 
       if (onOpenPath && repo) {
         const ticketFile = first.relPath.split("/").pop() || "";
@@ -103,6 +99,7 @@ export function EscalatedTicketBanner({
               <span className={styles.badge}>+{others} more</span>
             )}
           </div>
+          <div className={styles.hint}>Click to respond →</div>
         </div>
         <button
           type="button"

@@ -53,6 +53,7 @@ import {
 import type { ViewMode } from "./viewers";
 import { DiffViewer } from "./DiffViewer";
 import { writeToActiveSession } from "./activeSession";
+import { injectIntoChat } from "../lib/skillState";
 import { PaneBody } from "../ui";
 import { BreadcrumbAncestors } from "./Breadcrumbs";
 import type { ViewerSource } from "./viewerTypes";
@@ -323,7 +324,8 @@ export function Viewer({
       // seeded from disk in the .then below so Cancel still has
       // something to revert to.
       const runnable = isRunnableScript(path);
-      setMode(runnable ? "edit" : isMarkdown(path) ? "rendered" : "raw");
+      const isWelcomeHtml = path.endsWith("/getting-started.html");
+      setMode(runnable ? "edit" : (isMarkdown(path) || isWelcomeHtml) ? "rendered" : "raw");
       fsRead(path)
         .then((c) => {
           if (cancelled) return;
@@ -649,6 +651,8 @@ export function Viewer({
   const chatAddPath: string | null = (() => {
     if (!source) return null;
     if (source.kind === "file") {
+      // Welcome page has no "add to chat" affordance.
+      if (source.path.endsWith("/getting-started.html")) return null;
       // Skill files → send as slash command instead of file path
       const skillMatch = source.path.match(/\.claude\/skills\/([^/]+)\/SKILL\.md$/);
       if (skillMatch) return `/${skillMatch[1]}`;
@@ -1068,6 +1072,25 @@ export function Viewer({
               : "raw",
           validateAsJson: isJsonFile(source.path),
         });
+      }
+      if (mode === "rendered" && source.path.endsWith("/getting-started.html")) {
+        const flashClass =
+          welcomeFlashKey && welcomeFlashKey > 0 ? "viewer-md-flash" : "";
+        const handleWelcomeClick = (e: React.MouseEvent<HTMLDivElement>) => {
+          const target = e.target as HTMLElement;
+          const btn = target.closest("[data-action='start-tour']");
+          if (!btn) return;
+          e.preventDefault();
+          injectIntoChat("/getting-started");
+        };
+        return (
+          <div
+            className={`welcome-page ${flashClass}`}
+            key={`welcome-${welcomeFlashKey ?? 0}`}
+            onClick={handleWelcomeClick}
+            dangerouslySetInnerHTML={{ __html: content }}
+          />
+        );
       }
       if (mode === "rendered" && isMarkdown(source.path)) {
         // Substitute live template tokens before rendering. {{INTAKE_URL}}

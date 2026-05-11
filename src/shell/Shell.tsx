@@ -407,7 +407,7 @@ export function Shell({
     return () => window.removeEventListener("openit:show-home", onHome);
   }, []);
 
-  // Auto-open getting-started.md on first load — and re-open on demand
+  // Auto-open getting-started.html on first load — and re-open on demand
   // when the App-header "Getting Started" button dispatches the
   // `openit:open-welcome` custom event. Listening for the event here
   // (rather than plumbing a callback through props) keeps the
@@ -422,7 +422,7 @@ export function Shell({
   const [welcomeFlashKey, setWelcomeFlashKey] = useState(0);
   useEffect(() => {
     if (!repo) return;
-    const welcomePath = `${repo}/getting-started.md`;
+    const welcomePath = `${repo}/getting-started.html`;
     const openWelcome = () => {
       const onWelcome =
         source && source.kind === "file" && source.path === welcomePath;
@@ -580,12 +580,12 @@ export function Shell({
     };
   }, [fsTick, repo]);
 
-  // Auto-open getting-started.md in the center pane on first load
+  // Auto-open getting-started.html in the center pane on first load
   // so new users see the welcome guide immediately. The Workbench
   // overview stays in the left pane.
   useEffect(() => {
     if (repo && !source) {
-      const welcomePath = `${repo}/getting-started.md`;
+      const welcomePath = `${repo}/getting-started.html`;
       resolvePathToSource(welcomePath, repo)
         .then(setSource)
         .catch((e) => console.error("[shell] welcome resolution failed:", e));

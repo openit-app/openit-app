@@ -120,6 +120,8 @@ Commands prefixed with `ai-` are agent-facing (auto-loaded, not invoked by human
 | `answer-ticket` | Respond to an escalated ticket and capture the answer as a KB article. |
 | `connect-slack` | Connect OpenIT to a Slack workspace. |
 | `share-intake` | Share the intake form via a public Cloudflare tunnel link. |
+| `getting-started` | Interactive guided tour — experience the learning loop in 3 minutes. |
+| `load-sample-data` | Load sample data into the workspace across all tiles. |
 
 ## CLI tools
 

@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { fsList, type FileNode } from "../lib/api";
 import { scanEscalatedTickets, type TicketSummary } from "../lib/escalatedTickets";
 import { listInstalled as listInstalledTools } from "../lib/toolsInstall";
@@ -69,6 +69,9 @@ export function Workbench({
   onShowFiles: () => void;
 }) {
   const [counts, setCounts] = useState<Record<string, number>>({});
+  const prevCountsRef = useRef<Record<string, number> | null>(null);
+  const highlightTimerRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  const [highlightedStations, setHighlightedStations] = useState<Set<string>>(new Set());
   const [escalatedTickets, setEscalatedTickets] = useState<TicketSummary[]>([]);
   const escalatedCount = escalatedTickets.length;
   const [pinnedExtras, setPinnedExtras] = useState<string[]>([]);
@@ -132,7 +135,29 @@ export function Workbench({
           }
         }),
       );
-      if (!cancelled) setCounts(next);
+      if (!cancelled) {
+        // Detect which stations just gained items — highlight them
+        // briefly so the admin notices new content (e.g. a new KB
+        // article just appeared after answering a ticket). Skip the
+        // first scan (prevCountsRef is null) so initial load doesn't
+        // pulse every station.
+        if (prevCountsRef.current !== null) {
+          const newHighlights = new Set<string>();
+          for (const id of Object.keys(next)) {
+            const prev = prevCountsRef.current[id] ?? 0;
+            if (next[id] > prev) {
+              newHighlights.add(id);
+            }
+          }
+          if (newHighlights.size > 0) {
+            setHighlightedStations(newHighlights);
+            clearTimeout(highlightTimerRef.current);
+            highlightTimerRef.current = setTimeout(() => setHighlightedStations(new Set()), 5000);
+          }
+        }
+        prevCountsRef.current = next;
+        setCounts(next);
+      }
       try {
         const esc = await scanEscalatedTickets(repo);
         if (!cancelled) setEscalatedTickets(esc);
@@ -236,7 +261,7 @@ export function Workbench({
             <button
               key={s.id}
               type="button"
-              className={`station entity-tone-${meta.tone}`}
+              className={`station entity-tone-${meta.tone}${highlightedStations.has(s.id) ? " station-highlight" : ""}`}
               onClick={() => repo && onOpen(`${repo}/${s.openRel ?? s.rel}`)}
               title={meta.label}
             >
