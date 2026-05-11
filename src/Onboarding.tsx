@@ -5,7 +5,9 @@ import { Button } from "./ui";
 
 const CLAUDE_INSTALL_DOCS =
   "https://docs.anthropic.com/claude/docs/claude-code";
-const DEFAULT_VAULT_DISPLAY = "~/OpenIT/Personal";
+const DEFAULT_VAULT_DISPLAY = navigator.userAgent.toLowerCase().includes("win")
+  ? "%USERPROFILE%\\OpenIT\\Personal"
+  : "~/OpenIT/Personal";
 
 // Claude Code detection states
 type ClaudeState =
@@ -22,6 +24,7 @@ export function Onboarding({
   const [claude, setClaude] = useState<ClaudeState>({ kind: "checking" });
   const [vaultPath, setVaultPath] = useState<string | null>(null);
   const [opening, setOpening] = useState(false);
+  const isWindows = navigator.userAgent.toLowerCase().includes("win");
 
   // Detect → auto-install flow
   useEffect(() => {
@@ -189,7 +192,7 @@ export function Onboarding({
                   "Check again".
                 </p>
                 <div className="onboard-install-options">
-                  <div className="onboard-install-option">
+                  <div className="onboard-install-option" data-os="mac" style={isWindows ? { display: "none" } : undefined}>
                     <span className="onboard-install-label">macOS / Linux</span>
                     <div className="onboard-code-block">
                       <code>curl -fsSL https://claude.ai/install.sh | sh</code>
@@ -206,8 +209,42 @@ export function Onboarding({
                       </button>
                     </div>
                   </div>
+                  <div className="onboard-install-option" data-os="win" style={!isWindows ? { display: "none" } : undefined}>
+                    <span className="onboard-install-label">Windows (PowerShell)</span>
+                    <div className="onboard-code-block">
+                      <code>irm https://claude.ai/install.ps1 | iex</code>
+                      <button
+                        className="onboard-copy-btn"
+                        onClick={() =>
+                          navigator.clipboard.writeText(
+                            "irm https://claude.ai/install.ps1 | iex",
+                          )
+                        }
+                        title="Copy"
+                      >
+                        Copy
+                      </button>
+                    </div>
+                  </div>
+                  <div className="onboard-install-option" data-os="win" style={!isWindows ? { display: "none" } : undefined}>
+                    <span className="onboard-install-label">Windows (CMD)</span>
+                    <div className="onboard-code-block">
+                      <code>curl -fsSL https://claude.ai/install.cmd -o install.cmd && install.cmd && del install.cmd</code>
+                      <button
+                        className="onboard-copy-btn"
+                        onClick={() =>
+                          navigator.clipboard.writeText(
+                            "curl -fsSL https://claude.ai/install.cmd -o install.cmd && install.cmd && del install.cmd",
+                          )
+                        }
+                        title="Copy"
+                      >
+                        Copy
+                      </button>
+                    </div>
+                  </div>
                   <div className="onboard-install-option">
-                    <span className="onboard-install-label">npm</span>
+                    <span className="onboard-install-label">npm (all platforms)</span>
                     <div className="onboard-code-block">
                       <code>npm install -g @anthropic-ai/claude-code</code>
                       <button
