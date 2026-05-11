@@ -119,6 +119,14 @@ The workstation layout is fully customizable. Users (or Claude Code) can create,
 
 Tiles in `main` appear in the primary workstation area. Tiles in `more` appear in the collapsible "More" pool. Newly created stores auto-register in `more`. Deleted stores are auto-cleaned from the config.
 
+### What can be deleted
+
+Only the 5 primitives and system entities are protected — they cannot be deleted:
+- **Non-deletable**: `databases`, `filestores`, `knowledge-bases`, `reports`, `agents`, `tools`, `.openit/agent-traces`
+- **Deletable**: everything inside a primitive — `databases/tickets`, `databases/people`, `databases/access`, `filestores/library`, `filestores/scripts`, any user-created store, etc.
+
+Deleting a store removes the folder from disk and cleans it from `.openit/workstation.json`.
+
 ### Creating a new store
 
 To create a new database via CC: `mkdir databases/<name>` and optionally add a `_schema.json` for structured fields. To create a new filestore: `mkdir filestores/<name>`. Both automatically appear as workstation tiles on the next refresh.
