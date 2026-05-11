@@ -78,7 +78,7 @@ export const ENTITY_FOLDER_EMPTY_COPY: Record<
   library:
     "No library files yet. Drop runbook PDFs, scripts, or any reference doc you reach for repeatedly — Claude can pull from these when answering tickets or building workflows.",
   reports:
-    "No reports yet. Click \"Overview\" above for an instant snapshot of ticket status, recent activity, top askers, and current escalations — or click \"Ask Claude\" to describe a custom report (\"VPN tickets last 30 days\", \"escalations by asker\").",
+    "No reports yet. Click \"generate overview\" above for an instant snapshot of ticket status, recent activity, top askers, and current escalations — or click \"ask for custom report\" to describe one (\"VPN tickets last 30 days\", \"escalations by asker\").",
   skills:
     "No skills yet. Skills capture admin workflows — markdown prompts Claude (or you) read and follow when a similar ticket comes back around. They land here automatically when you click \"Mark as resolved\" on a ticket whose resolution had branches or judgment calls. You can also ask Claude to draft one directly.",
   scripts:
