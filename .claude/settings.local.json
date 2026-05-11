@@ -14,7 +14,8 @@
       "Bash(brew search:*)",
       "Bash(brew info:*)",
       "Bash(npm view:*)",
-      "Bash(gh pr:*)"
+      "Bash(gh pr:*)",
+      "Bash(gh api:*)"
     ]
   }
 }
