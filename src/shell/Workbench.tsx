@@ -197,36 +197,6 @@ export function Workbench({
         </button>
       </div>
 
-      {/* ── Layout toggle ────────────────────────────────── */}
-      <div className="workbench-layout-bar">
-        <button
-          type="button"
-          className={`workbench-layout-btn${layout === "single" ? " active" : ""}`}
-          onClick={() => setLayout("single")}
-          title="Single column"
-          aria-label="Single column layout"
-        >
-          <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
-            <rect x="1" y="1" width="12" height="3.5" rx="1" stroke="currentColor" strokeWidth="1.2"/>
-            <rect x="1" y="6.5" width="12" height="3.5" rx="1" stroke="currentColor" strokeWidth="1.2"/>
-          </svg>
-        </button>
-        <button
-          type="button"
-          className={`workbench-layout-btn${layout === "grid" ? " active" : ""}`}
-          onClick={() => setLayout("grid")}
-          title="Two columns"
-          aria-label="Two column layout"
-        >
-          <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
-            <rect x="1" y="1" width="5" height="5" rx="1" stroke="currentColor" strokeWidth="1.2"/>
-            <rect x="8" y="1" width="5" height="5" rx="1" stroke="currentColor" strokeWidth="1.2"/>
-            <rect x="1" y="8" width="5" height="5" rx="1" stroke="currentColor" strokeWidth="1.2"/>
-            <rect x="8" y="8" width="5" height="5" rx="1" stroke="currentColor" strokeWidth="1.2"/>
-          </svg>
-        </button>
-      </div>
-
       {/* ── Primary + pinned station cards (scrollable) ──── */}
       <div className={`workbench-stations workbench-stations-${layout}`}>
         {allStations.map((s) => {
@@ -334,6 +304,36 @@ export function Workbench({
             </button>
           </div>
         )}
+      </div>
+
+      {/* ── Layout toggle (bottom-right) ──────────────────── */}
+      <div className="workbench-layout-bar">
+        <button
+          type="button"
+          className={`workbench-layout-btn${layout === "single" ? " active" : ""}`}
+          onClick={() => setLayout("single")}
+          title="Single column"
+          aria-label="Single column layout"
+        >
+          <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+            <rect x="1" y="1" width="12" height="3.5" rx="1" stroke="currentColor" strokeWidth="1.2"/>
+            <rect x="1" y="6.5" width="12" height="3.5" rx="1" stroke="currentColor" strokeWidth="1.2"/>
+          </svg>
+        </button>
+        <button
+          type="button"
+          className={`workbench-layout-btn${layout === "grid" ? " active" : ""}`}
+          onClick={() => setLayout("grid")}
+          title="Two columns"
+          aria-label="Two column layout"
+        >
+          <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+            <rect x="1" y="1" width="5" height="5" rx="1" stroke="currentColor" strokeWidth="1.2"/>
+            <rect x="8" y="1" width="5" height="5" rx="1" stroke="currentColor" strokeWidth="1.2"/>
+            <rect x="1" y="8" width="5" height="5" rx="1" stroke="currentColor" strokeWidth="1.2"/>
+            <rect x="8" y="8" width="5" height="5" rx="1" stroke="currentColor" strokeWidth="1.2"/>
+          </svg>
+        </button>
       </div>
     </div>
   );

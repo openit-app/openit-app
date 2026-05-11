@@ -4348,6 +4348,7 @@ input.viewer-title.viewer-title-rename {
   justify-content: flex-end;
   gap: 2px;
   padding: 0 2px;
+  margin-top: auto;
 }
 
 .workbench-layout-btn {
@@ -4569,12 +4570,7 @@ input.viewer-title.viewer-title-rename {
 .station.station-picker {
   padding: 8px 10px;
   gap: 8px;
-  opacity: 0.65;
   border-style: dashed;
-}
-
-.station.station-picker:hover {
-  opacity: 1;
 }
 
 .station.station-picker .station-glyph {
