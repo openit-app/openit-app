@@ -199,6 +199,10 @@ export function Workbench({
   // the first on disk.
   const configRef = useRef<WorkstationConfig | null>(config);
   configRef.current = config;
+  const mainTilesRef = useRef(mainTiles);
+  mainTilesRef.current = mainTiles;
+  const moreTilesRef = useRef(moreTiles);
+  moreTilesRef.current = moreTiles;
 
   const persistConfig = useCallback(
     async (newConfig: WorkstationConfig) => {
@@ -220,13 +224,11 @@ export function Workbench({
         more: cfg.more.filter((t) => t.rel !== rel),
       };
       await persistConfig(newConfig);
-      setMainTiles((prev) => {
-        const movedTile = moreTiles.find((t) => t.rel === rel);
-        return movedTile ? [...prev, movedTile] : prev;
-      });
+      const movedTile = moreTilesRef.current.find((t) => t.rel === rel);
+      if (movedTile) setMainTiles((prev) => [...prev, movedTile]);
       setMoreTiles((prev) => prev.filter((t) => t.rel !== rel));
     },
-    [repo, persistConfig, moreTiles],
+    [repo, persistConfig],
   );
 
   const demote = useCallback(
@@ -240,13 +242,11 @@ export function Workbench({
         more: [...cfg.more, tile],
       };
       await persistConfig(newConfig);
-      setMoreTiles((prev) => {
-        const movedTile = mainTiles.find((t) => t.rel === rel);
-        return movedTile ? [...prev, movedTile] : prev;
-      });
+      const movedTile = mainTilesRef.current.find((t) => t.rel === rel);
+      if (movedTile) setMoreTiles((prev) => [...prev, movedTile]);
       setMainTiles((prev) => prev.filter((t) => t.rel !== rel));
     },
-    [repo, persistConfig, mainTiles],
+    [repo, persistConfig],
   );
 
   const removeTile = useCallback(

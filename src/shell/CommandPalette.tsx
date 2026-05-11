@@ -52,7 +52,7 @@ export function CommandPalette({
 
   // Load workstation tiles for dynamic "Go to" entries
   useEffect(() => {
-    if (!repo) return;
+    if (!repo || !open) return;
     let cancelled = false;
     (async () => {
       const [cfg, discovered] = await Promise.all([

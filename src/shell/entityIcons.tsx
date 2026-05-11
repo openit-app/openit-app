@@ -396,20 +396,32 @@ export function EntityBadge({
   kind,
   size = "md",
   showLabel = true,
+  overrideIcon,
+  overrideTone,
+  overrideLabel,
 }: {
   kind: EntityKind;
   size?: "sm" | "md";
   showLabel?: boolean;
+  /** Override the default icon from ENTITY_META (e.g. from workstation config). */
+  overrideIcon?: ReactNode;
+  /** Override the default tone from ENTITY_META. */
+  overrideTone?: ToneKey;
+  /** Override the default label from ENTITY_META. */
+  overrideLabel?: string;
 }) {
   const meta = ENTITY_META[kind];
+  const icon = overrideIcon ?? meta.icon;
+  const tone = overrideTone ?? meta.tone;
+  const label = overrideLabel ?? meta.label;
   return (
     <span
-      className={`entity-badge entity-badge-${size} entity-tone-${meta.tone}`}
+      className={`entity-badge entity-badge-${size} entity-tone-${tone}`}
     >
       <span className="entity-badge-glyph" aria-hidden>
-        {meta.icon}
+        {icon}
       </span>
-      {showLabel && <span className="entity-badge-label">{meta.label}</span>}
+      {showLabel && <span className="entity-badge-label">{label}</span>}
     </span>
   );
 }

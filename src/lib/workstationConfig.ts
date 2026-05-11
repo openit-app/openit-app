@@ -161,23 +161,29 @@ function directChildDirs(items: FileNode[], rootAbs: string): FileNode[] {
 export async function discoverTiles(repo: string): Promise<DiscoveredTile[]> {
   const tiles: DiscoveredTile[] = [];
 
-  // Knowledge bases — always a tile
-  tiles.push({
-    rel: "knowledge-bases",
-    label: "Knowledge",
-    defaultIcon: "knowledge",
-    defaultTone: "ochre",
-    countMode: "files",
-  });
+  // Knowledge bases — only if the folder exists on disk
+  try {
+    await fsList(`${repo}/knowledge-bases`);
+    tiles.push({
+      rel: "knowledge-bases",
+      label: "Knowledge",
+      defaultIcon: "knowledge",
+      defaultTone: "ochre",
+      countMode: "files",
+    });
+  } catch { /* folder doesn't exist — skip */ }
 
-  // Reports — always a tile (flat folder of markdown files)
-  tiles.push({
-    rel: "reports",
-    label: "Reports",
-    defaultIcon: "reports",
-    defaultTone: "link",
-    countMode: "files",
-  });
+  // Reports — only if the folder exists on disk
+  try {
+    await fsList(`${repo}/reports`);
+    tiles.push({
+      rel: "reports",
+      label: "Reports",
+      defaultIcon: "reports",
+      defaultTone: "link",
+      countMode: "files",
+    });
+  } catch { /* folder doesn't exist — skip */ }
 
   // Discover database collections
   try {
