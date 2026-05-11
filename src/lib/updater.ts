@@ -15,7 +15,7 @@ export interface UpdateState {
   install: () => void;
 }
 
-const CHECK_INTERVAL_MS = 30 * 60 * 1000; // re-check every 30 min
+const CHECK_INTERVAL_MS = 5 * 60 * 1000; // re-check every 5 min
 
 /**
  * React hook that checks for updates on mount and periodically,
