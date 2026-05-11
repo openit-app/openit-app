@@ -7,7 +7,7 @@ use std::process::Command;
 
 use serde::Serialize;
 
-const GITIGNORE: &str = ".DS_Store\n.openit/\n.claude/\nCLAUDE.md\ngetting-started.md\nconnect-to-cloud.md\nknowledge-bases/**/*.server.*\nfilestores/**/*.server.*\nagents/*.server.*\nworkflows/*.server.*\ndatabases/**/*.server.json\n";
+const GITIGNORE: &str = ".DS_Store\n.openit/\n.claude/\nCLAUDE.md\ngetting-started.html\nconnect-to-cloud.md\nknowledge-bases/**/*.server.*\nfilestores/**/*.server.*\nagents/*.server.*\nworkflows/*.server.*\ndatabases/**/*.server.json\n";
 
 fn git_dir(repo: &str) -> PathBuf {
     Path::new(repo).join(".git")
@@ -64,7 +64,7 @@ fn untrack_gitignored_paths(repo: &str) -> Result<(), String> {
         ".openit/datastore-state.json",
         ".claude",
         "CLAUDE.md",
-        "getting-started.md",
+        "getting-started.html",
         "connect-to-cloud.md",
     ];
     let mut args: Vec<&str> = vec!["rm", "--cached", "-r", "--ignore-unmatch", "--quiet"];
@@ -79,7 +79,7 @@ fn untrack_gitignored_paths(repo: &str) -> Result<(), String> {
         ".openit/",
         ".claude/",
         "CLAUDE.md",
-        "getting-started.md",
+        "getting-started.html",
         "connect-to-cloud.md",
     ];
     let mut diff_args: Vec<&str> = vec!["diff", "--cached", "--quiet", "--"];

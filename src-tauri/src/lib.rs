@@ -32,6 +32,21 @@ mod scripts;
 mod user_identity;
 mod watcher;
 
+/// Force the app window to the foreground. On macOS, uses
+/// NSApplication.activateIgnoringOtherApps to bypass the window
+/// manager's focus-stealing prevention.
+#[tauri::command]
+fn window_focus(app: tauri::AppHandle) {
+    use tauri::Manager;
+    if let Some(win) = app.get_webview_window("main") {
+        let _ = win.set_focus();
+        // On macOS, set_focus alone may not bring the window forward
+        // if the app isn't the active application. Bounce the dock
+        // icon once as a secondary cue.
+        let _ = win.request_user_attention(Some(tauri::UserAttentionType::Informational));
+    }
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
@@ -140,6 +155,7 @@ pub fn run() {
             slack::slack_listener_stop,
             slack::slack_listener_status,
             slack::slack_listener_send_intro,
+            window_focus,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

@@ -141,32 +141,15 @@ pub fn project_bootstrap(vault_path: Option<String>) -> Result<BootstrapResult, 
     // `{{INTAKE_URL}}` is substituted by the markdown viewer at render
     // time (the URL changes per app launch — different OS-assigned
     // port — so a static URL can't be baked in here).
-    let getting_started_path = path.join("getting-started.md");
+    let getting_started_path = path.join("getting-started.html");
     if !getting_started_path.exists() {
-        let getting_started = "# Getting started\n\n\
-             ## Your AI-driven IT helpdesk.\n\n\
-             OpenIT runs on your machine. An AI agent triages every \
-             question — answering directly from your knowledge base or \
-             escalating to you when it can't.\n\n\
-             ## 1. Try the intake form\n\n\
-             Open the intake page and submit a question — \
-             *\"I can't log in\"*, *\"how do I reset my VPN\"* — to see \
-             how the agent handles it.\n\n\
-             [**Open intake form**]({{INTAKE_URL}})\n\n\
-             ## 2. Explore the workspace\n\n\
-             Click through the stations on the left: **Inbox** (tickets), \
-             **People** (contacts), **Knowledge** (KB articles), **Access** \
-             (onboard/offboard logs), **Assets** (device inventory), \
-             **Skills** (workflow commands), and **Tools** (CLI + MCP \
-             connectors).\n\n\
-             Want to see it in action first? Load sample tickets, contacts, \
-             and KB articles to explore.\n\n\
-             [**Load sample data**](openit://create-samples)\n\n\
-             ## 3. Connect to Slack\n\n\
-             Wire OpenIT into a Slack workspace so the agent can \
-             receive tickets in DMs and reply on your behalf.\n\n\
-             [**Connect Slack**](openit://skill/connect-slack)\n";
+        let getting_started = include_str!("getting-started.html");
         let _ = fs::write(&getting_started_path, getting_started);
+    }
+    // Clean up legacy .md welcome page from older installs.
+    let legacy_md = path.join("getting-started.md");
+    if legacy_md.exists() {
+        let _ = fs::remove_file(&legacy_md);
     }
 
     // One-time migration: legacy `filestore/<file>` content moves into

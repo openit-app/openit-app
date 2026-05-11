@@ -16,7 +16,9 @@
     0 4px 16px rgba(0, 0, 0, 0.08),
     0 1px 4px rgba(0, 0, 0, 0.04);
   position: relative;
-  animation: slideDown var(--t-base) var(--ease);
+  animation:
+    slideDown var(--t-base) var(--ease),
+    escalated-border-pulse 2s ease-in-out infinite;
   cursor: pointer;
   transition: box-shadow var(--t-base) var(--ease);
 }
@@ -37,13 +39,14 @@
   }
 }
 
-/* Accent dot — visual urgency indicator */
+/* Accent dot — visual urgency indicator, throbs to draw attention */
 .dot {
   flex: 0 0 auto;
   width: 8px;
   height: 8px;
   border-radius: 50%;
   background: var(--color-warn);
+  animation: escalated-dot-pulse 1.4s ease-in-out infinite;
 }
 
 .content {
@@ -85,6 +88,23 @@
   border-radius: 99px;
   vertical-align: middle;
   line-height: 18px;
+}
+
+.hint {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--color-warn-deep, var(--accent));
+  margin-top: 2px;
+}
+
+@keyframes escalated-dot-pulse {
+  0%, 100% { transform: scale(1); opacity: 1; }
+  50% { transform: scale(1.6); opacity: 0.6; }
+}
+
+@keyframes escalated-border-pulse {
+  0%, 100% { border-color: var(--color-border-faint); }
+  50% { border-color: var(--color-warn, #e08a3c); }
 }
 
 .close {

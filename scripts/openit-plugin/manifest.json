@@ -1,10 +1,12 @@
 {
-  "version": "2026-05-08-003",
+  "version": "2026-05-10-001",
   "files": [
     { "path": "CLAUDE.md" },
     { "path": "skills/ai-intake.md" },
     { "path": "skills/answer-ticket.md" },
     { "path": "skills/connect-slack.md" },
+    { "path": "skills/getting-started.md" },
+    { "path": "skills/load-sample-data.md" },
     { "path": "skills/conversation-to-automation.md" },
     { "path": "skills/report.md" },
     { "path": "skills/cleanup.md" },

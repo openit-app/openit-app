@@ -10,7 +10,8 @@
 // Driven by fs-tick: the parent Shell's fs watcher bumps `fsTick`
 // when ticket files change. We re-scan and refresh.
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import { windowFocus } from "../lib/api";
 import {
   scanAgentRespondingTickets,
   type TicketSummary,
@@ -31,6 +32,7 @@ export function AgentActivityBanner({
   onOpenTrace: (ticketId: string, subject: string) => void;
 }) {
   const [tickets, setTickets] = useState<TicketSummary[]>([]);
+  const prevCount = useRef<number | null>(null);
 
   useEffect(() => {
     if (!repo) {
@@ -40,7 +42,20 @@ export function AgentActivityBanner({
     let cancelled = false;
     scanAgentRespondingTickets(repo)
       .then((rows) => {
-        if (!cancelled) setTickets(rows);
+        if (cancelled) return;
+        // A new ticket entered agent-responding — pull the window
+        // to the foreground via the Rust-side window_focus command.
+        // This uses NSApplication.activate on macOS to bypass the
+        // window manager's focus-stealing prevention.
+        // Skip focus on first scan (prevCount is null) so app launch
+        // doesn't steal focus for stale tickets from a prior session.
+        if (prevCount.current !== null && rows.length > 0 && rows.length > prevCount.current) {
+          windowFocus().catch((e) =>
+            console.warn("[agent-activity] window_focus failed:", e),
+          );
+        }
+        prevCount.current = rows.length;
+        setTickets(rows);
       })
       .catch((e) => {
         if (!cancelled) {
@@ -76,6 +91,7 @@ export function AgentActivityBanner({
         Agent is responding to <strong>{subjectLabel}</strong>
         {others > 0 ? ` and ${others} other${others === 1 ? "" : "s"}` : ""}…
       </span>
+      <span className="agent-activity-banner-hint">Click to view →</span>
     </button>
   );
 }

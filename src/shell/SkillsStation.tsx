@@ -15,6 +15,8 @@ type CommandEntry = {
 // Commands that map directly to Lisa's pain points, in priority order.
 // Everything not in this list goes behind "Show more".
 const FEATURED_COMMANDS: string[] = [
+  "load-sample-data",        // Populate workspace with sample data
+  "cleanup",                 // Remove sample data
   "salesforce-gmail",        // Salesforce + email disconnect
   "backup",                  // Manual backups
   "onboard-offboard",        // Onboarding/offboarding access management
