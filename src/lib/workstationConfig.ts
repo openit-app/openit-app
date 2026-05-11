@@ -191,6 +191,7 @@ export async function discoverTiles(repo: string): Promise<DiscoveredTile[]> {
     const dbDirs = directChildDirs(dbItems, `${repo}/databases`);
     for (const dir of dbDirs) {
       if (dir.name === "conversations") continue; // hidden, tied to tickets
+      if (dir.name === "tickets") continue; // inbox hero card handles this
       const known = KNOWN_DB_DEFAULTS[dir.name];
       tiles.push({
         rel: `databases/${dir.name}`,

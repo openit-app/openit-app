@@ -61,7 +61,9 @@ import type { ViewerSource } from "./viewerTypes";
 import {
   loadWorkstationConfig,
   saveWorkstationConfig,
+  type TileConfig,
 } from "../lib/workstationConfig";
+import { iconForKey } from "./entityIcons";
 
 export type { ViewerSource };
 
@@ -141,6 +143,15 @@ export function Viewer({
   const [assetsView, setAssetsView] = useState<"cards" | "table">("cards");
   const [datastoreView, setDatastoreView] = useState<"cards" | "table">("cards");
 
+  // Workstation config tiles — used to overlay custom icon/tone/label
+  // onto the filestores-list, databases-list, and viewer header.
+  const [wsTiles, setWsTiles] = useState<TileConfig[]>([]);
+  useEffect(() => {
+    if (!repo) return;
+    loadWorkstationConfig(repo).then((cfg) => {
+      setWsTiles([...cfg.main, ...cfg.more]);
+    });
+  }, [repo, fsTick]);
 
   // Edit-mode state for the markdown viewer. `editDraft` is the
   // textarea value (decoupled from `content` so unsaved edits don't
@@ -1663,14 +1674,18 @@ export function Viewer({
           )}
           <EntityCardGrid
             kind="filestores"
-            cards={source.collections.map((c) => ({
+            cards={source.collections.map((c) => {
+              // Overlay workstation config customizations (label, icon)
+              const wsTile = wsTiles.find((t) => t.rel === `filestores/${c.name}`);
+              return {
               key: c.path,
-              title: c.displayName,
+              title: wsTile?.label ?? c.displayName,
               description: c.description,
               meta: `${c.itemCount} ${c.itemNoun}${c.itemCount === 1 ? "" : "s"}`,
+              icon: wsTile?.icon ? iconForKey(wsTile.icon) : undefined,
               badge: c.isBuiltin
                 ? undefined
-                : { label: "custom", tone: "info" },
+                : { label: "custom", tone: "info" as const },
               onClick: () => onOpenPath && void onOpenPath(c.path),
               // Attachments collection is per-ticket — dropping into the
               // generic folder would have nowhere meaningful to land. The
@@ -1704,7 +1719,8 @@ export function Viewer({
                   console.error("[filestore-delete] failed:", err);
                 }
               } : undefined,
-            }))}
+            };
+            })}
           />
         </div>
       );
@@ -1891,9 +1907,13 @@ export function Viewer({
                 starter schema.
               </p>
             }
-            cards={source.collections.map((c) => ({
+            cards={source.collections.map((c) => {
+              const wsTile = wsTiles.find((t) => t.rel === `databases/${c.name}`);
+              const label = wsTile?.label ?? c.name.charAt(0).toUpperCase() + c.name.slice(1);
+              return {
               key: c.path,
-              title: c.name,
+              title: label,
+              icon: wsTile?.icon ? iconForKey(wsTile.icon) : undefined,
               meta: `${c.itemCount} ${
                 c.name === "conversations" ? "thread" : "row"
               }${c.itemCount === 1 ? "" : "s"}`,
@@ -1901,13 +1921,12 @@ export function Viewer({
               onReveal: () => void fsReveal(c.path).catch(console.error),
               onDelete: repo ? async () => {
                 const ok = await confirmDelete(
-                  `Delete database "${c.name}" and all its records?\n\nThis cannot be undone.`,
+                  `Delete database "${label}" and all its records?\n\nThis cannot be undone.`,
                   "Delete database?",
                 );
                 if (!ok) return;
                 try {
                   await entityRemoveDir(repo, `databases/${c.name}`);
-                  // Clean up workstation config
                   try {
                     const cfg = await loadWorkstationConfig(repo);
                     const rel = `databases/${c.name}`;
@@ -1915,13 +1934,14 @@ export function Viewer({
                     cfg.more = cfg.more.filter((t) => t.rel !== rel);
                     await saveWorkstationConfig(repo, cfg);
                   } catch { /* config cleanup optional */ }
-                  showToast(`Deleted database ${c.name}`);
+                  showToast(`Deleted database ${label}`);
                   onFsChange?.();
                 } catch (err) {
                   console.error("[db-delete] failed:", err);
                 }
               } : undefined,
-            }))}
+            };
+            })}
           />
         </div>
       );
