@@ -23,7 +23,7 @@ npm install
 ### Running locally
 
 ```bash
-npm run tauri:dev          # launches the app with hot reload
+npm run tauri dev          # launches the app with hot reload
 ```
 
 This starts both the Vite dev server (frontend) and the Tauri Rust backend. Changes to `src/` hot-reload instantly; changes to `src-tauri/src/` trigger a Rust recompile.
