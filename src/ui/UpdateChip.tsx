@@ -4,7 +4,7 @@ import styles from "./Chip.module.css";
 export function UpdateChip({ update }: { update: UpdateState }) {
   if (!update.available) return null;
 
-  const label = update.installing ? "Installing…" : "Update";
+  const label = update.installing ? "Installing…" : `Update v${update.version}`;
 
   return (
     <button

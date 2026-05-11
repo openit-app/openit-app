@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { check, type Update } from "@tauri-apps/plugin-updater";
 import { relaunch } from "@tauri-apps/plugin-process";
+import { message } from "@tauri-apps/plugin-dialog";
 
 export interface UpdateState {
   /** An update is available and ready to prompt the user. */
@@ -15,7 +16,7 @@ export interface UpdateState {
   install: () => void;
 }
 
-const CHECK_INTERVAL_MS = 30 * 60 * 1000; // re-check every 30 min
+const CHECK_INTERVAL_MS = 5 * 60 * 1000; // re-check every 5 min
 
 /**
  * React hook that checks for updates on mount and periodically,
@@ -57,6 +58,10 @@ export function useUpdateChecker(): UpdateState {
       await relaunch();
     } catch (err) {
       console.error("[updater] install failed:", err);
+      const msg = err instanceof Error ? err.message : String(err);
+      // Write error to title bar so it's visible without devtools
+      document.title = `UPDATE FAILED: ${msg}`;
+      message(`Update failed: ${msg}`, { title: "Update Error", kind: "error" }).catch(() => {});
       setInstalling(false);
     }
   }, [installing]);
