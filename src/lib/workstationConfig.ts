@@ -132,7 +132,7 @@ const KNOWN_DB_DEFAULTS: Record<string, { label: string; icon: string; tone: Ton
   people:        { label: "People",   icon: "person",   tone: "sage" },
   access:        { label: "Access",   icon: "access",   tone: "sage" },
   assets:        { label: "Assets",   icon: "assets",   tone: "clay" },
-  tickets:       { label: "Tickets",  icon: "inbox",    tone: "accent" },
+  tickets:       { label: "Inbox",    icon: "inbox",    tone: "accent" },
 };
 
 /** Well-known filestore collections with custom defaults. */
