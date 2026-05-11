@@ -190,66 +190,23 @@ export function Onboarding({
                   "Check again".
                 </p>
                 <div className="onboard-install-options">
-                  <div className="onboard-install-option" data-os="mac" style={isWindows ? { display: "none" } : undefined}>
-                    <span className="onboard-install-label">macOS / Linux</span>
-                    <div className="onboard-code-block">
-                      <code>curl -fsSL https://claude.ai/install.sh | sh</code>
-                      <button
-                        className="onboard-copy-btn"
-                        onClick={() =>
-                          navigator.clipboard.writeText(
-                            "curl -fsSL https://claude.ai/install.sh | sh",
-                          )
-                        }
-                        title="Copy"
-                      >
-                        Copy
-                      </button>
-                    </div>
-                  </div>
-                  <div className="onboard-install-option" data-os="win" style={!isWindows ? { display: "none" } : undefined}>
-                    <span className="onboard-install-label">Windows (PowerShell)</span>
-                    <div className="onboard-code-block">
-                      <code>irm https://claude.ai/install.ps1 | iex</code>
-                      <button
-                        className="onboard-copy-btn"
-                        onClick={() =>
-                          navigator.clipboard.writeText(
-                            "irm https://claude.ai/install.ps1 | iex",
-                          )
-                        }
-                        title="Copy"
-                      >
-                        Copy
-                      </button>
-                    </div>
-                  </div>
-                  <div className="onboard-install-option" data-os="win" style={!isWindows ? { display: "none" } : undefined}>
-                    <span className="onboard-install-label">Windows (CMD)</span>
-                    <div className="onboard-code-block">
-                      <code>curl -fsSL https://claude.ai/install.cmd -o install.cmd && install.cmd && del install.cmd</code>
-                      <button
-                        className="onboard-copy-btn"
-                        onClick={() =>
-                          navigator.clipboard.writeText(
-                            "curl -fsSL https://claude.ai/install.cmd -o install.cmd && install.cmd && del install.cmd",
-                          )
-                        }
-                        title="Copy"
-                      >
-                        Copy
-                      </button>
-                    </div>
-                  </div>
                   <div className="onboard-install-option">
-                    <span className="onboard-install-label">npm (all platforms)</span>
+                    <span className="onboard-install-label">
+                      {isWindows ? "Open PowerShell and run" : "Open Terminal and run"}
+                    </span>
                     <div className="onboard-code-block">
-                      <code>npm install -g @anthropic-ai/claude-code</code>
+                      <code>
+                        {isWindows
+                          ? "irm https://claude.ai/install.ps1 | iex"
+                          : "curl -fsSL https://claude.ai/install.sh | sh"}
+                      </code>
                       <button
                         className="onboard-copy-btn"
                         onClick={() =>
                           navigator.clipboard.writeText(
-                            "npm install -g @anthropic-ai/claude-code",
+                            isWindows
+                              ? "irm https://claude.ai/install.ps1 | iex"
+                              : "curl -fsSL https://claude.ai/install.sh | sh",
                           )
                         }
                         title="Copy"
