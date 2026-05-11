@@ -56,7 +56,7 @@ import { DiffViewer } from "./DiffViewer";
 import { writeToActiveSession } from "./activeSession";
 import { injectIntoChat } from "../lib/skillState";
 import { PaneBody } from "../ui";
-import { BreadcrumbAncestors } from "./Breadcrumbs";
+import { BreadcrumbAncestors, breadcrumbSegments } from "./Breadcrumbs";
 import type { ViewerSource } from "./viewerTypes";
 import {
   loadWorkstationConfig,
@@ -2235,7 +2235,10 @@ export function Viewer({
             →
           </Button>
         </div>
-        {headerKind && (
+        {/* Only show the entity badge icon for top-level views (no
+            parent breadcrumb). When there's a parent like "Databases /",
+            putting the leaf icon before the parent name is confusing. */}
+        {headerKind && breadcrumbSegments(source, repo).length <= 1 && (
           <EntityBadge
             kind={headerKind}
             showLabel={false}
