@@ -112,7 +112,6 @@ Commands prefixed with `ai-` are agent-facing (auto-loaded, not invoked by human
 | `onboard-offboard` | Walk through granting or revoking access across all systems. |
 | `salesforce-data-quality` | Find and fix duplicate/dirty records in Salesforce. |
 | `slack-to-kb` | Mine Slack history into reusable KB articles. |
-| `patient-inquiry` | Handle patient/researcher inquiries via Salesforce Cases. |
 | `drive-search` | Search across Google Drive from a single place. |
 | `asset-tracking` | Query device/asset inventory — who owns what, trigger offboarding. |
 | `pipeline-outreach` | Pull pipeline reports, draft emails, update CRM records. |

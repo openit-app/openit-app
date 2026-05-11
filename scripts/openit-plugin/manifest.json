@@ -1,5 +1,5 @@
 {
-  "version": "2026-05-10-001",
+  "version": "2026-05-11-001",
   "files": [
     { "path": "CLAUDE.md" },
     { "path": "skills/ai-intake.md" },
@@ -58,7 +58,6 @@
     { "path": "seed/skills/onboard-offboard.md" },
     { "path": "seed/skills/salesforce-data-quality.md" },
     { "path": "seed/skills/slack-to-kb.md" },
-    { "path": "seed/skills/patient-inquiry.md" },
     { "path": "seed/skills/drive-search.md" },
     { "path": "seed/skills/asset-tracking.md" },
     { "path": "seed/skills/pipeline-outreach.md" },
