@@ -130,9 +130,8 @@ async function applyAction(repo: string, action: Action): Promise<void> {
     const target = `${repo}/.claude/skills/${action.slug}`;
     try {
       await fsDelete(target);
-    } catch (e) {
+    } catch {
       // Already gone, or never existed — non-fatal.
-      console.log(`[skillMirror] skill delete ${action.slug} no-op:`, e);
     }
   } else if (action.kind === "script-write") {
     const sourcePath = `${repo}/${SCRIPTS_PREFIX}${action.filename}`;
@@ -167,8 +166,8 @@ async function applyAction(repo: string, action: Action): Promise<void> {
     const target = `${repo}/.claude/scripts/${action.filename}`;
     try {
       await fsDelete(target);
-    } catch (e) {
-      console.log(`[skillMirror] script delete ${action.filename} no-op:`, e);
+    } catch {
+      // Already gone, or never existed — non-fatal.
     }
   }
 }

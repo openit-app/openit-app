@@ -111,7 +111,7 @@ async function loadCollectionManifestImpl(
 
     return defaultManifest(collectionId);
   } catch (e) {
-    console.log(
+    console.warn(
       `[nestedManifest] error loading ${entityName} manifest, starting fresh:`,
       e,
     );

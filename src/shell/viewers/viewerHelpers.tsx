@@ -400,7 +400,6 @@ export function ExternalAnchor({
           e.stopPropagation();
           const cmd = `/${skillName}`;
           const wrapped = `${BRACKETED_PASTE_OPEN}${cmd}${BRACKETED_PASTE_CLOSE}`;
-          console.log("[viewer] pasting skill into Claude:", cmd);
           writeToActiveSession(wrapped)
             .then((ok) => {
               if (!ok) {
