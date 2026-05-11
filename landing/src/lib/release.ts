@@ -9,6 +9,8 @@ export interface ReleaseInfo {
   version: string;
   arm64DmgUrl: string | null;
   x64DmgUrl: string | null;
+  winExeUrl: string | null;
+  winMsiUrl: string | null;
   releaseUrl: string | null;
 }
 
@@ -32,6 +34,8 @@ export async function getLatestRelease(): Promise<ReleaseInfo> {
       version: data.tag_name.replace(/^v/, ""),
       arm64DmgUrl: findAsset("_aarch64.dmg"),
       x64DmgUrl: findAsset("_x64.dmg"),
+      winExeUrl: findAsset("-setup.exe"),
+      winMsiUrl: findAsset("_en-US.msi"),
       releaseUrl: data.html_url,
     };
   } catch {
@@ -45,6 +49,8 @@ function pending(): ReleaseInfo {
     version: "0.1.0",
     arm64DmgUrl: null,
     x64DmgUrl: null,
+    winExeUrl: null,
+    winMsiUrl: null,
     releaseUrl: null,
   };
 }

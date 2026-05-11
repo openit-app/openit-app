@@ -16,51 +16,52 @@ const githubUrl = "https://github.com/openit-app/openit-app";
     )}
   </p>
 
-  <h2>macOS</h2>
-  <div class="cta-row">
-    <a
-      class="btn"
-      href={release.arm64DmgUrl ?? "#"}
-      aria-disabled={release.arm64DmgUrl ? "false" : "true"}
-    >
-      {release.arm64DmgUrl ? "Apple Silicon" : "Apple Silicon — coming soon"}
-      <span class="sub">M1, M2, M3, M4</span>
-    </a>
-    <a
-      class="btn secondary"
-      href={release.x64DmgUrl ?? "#"}
-      aria-disabled={release.x64DmgUrl ? "false" : "true"}
-    >
-      {release.x64DmgUrl ? "Intel Mac" : "Intel — coming soon"}
-      <span class="sub">x86_64</span>
-    </a>
+  <div id="download-sections">
+    <section id="macos-section">
+      <h2>macOS</h2>
+      <div class="cta-row">
+        <a
+          class="btn"
+          href={release.arm64DmgUrl ?? "#"}
+          aria-disabled={release.arm64DmgUrl ? "false" : "true"}
+        >
+          Apple Silicon
+        </a>
+        <a
+          class="btn secondary"
+          href={release.x64DmgUrl ?? "#"}
+          aria-disabled={release.x64DmgUrl ? "false" : "true"}
+        >
+          Intel
+        </a>
+      </div>
+
+      <p>
+        Open the DMG, drag <strong>OpenIT.app</strong> into <strong>/Applications</strong>,
+        and launch. On first launch, macOS may show a Gatekeeper prompt — open
+        <strong>System Settings &rarr; Privacy &amp; Security</strong> and click
+        "Open Anyway" next to OpenIT.
+      </p>
+    </section>
+
+    <section id="windows-section">
+      <h2>Windows</h2>
+      <div class="cta-row">
+        <a
+          class="btn"
+          href={release.winExeUrl ?? "#"}
+          aria-disabled={release.winExeUrl ? "false" : "true"}
+        >
+          Download Installer
+        </a>
+      </div>
+
+      <p>
+        Download and run the installer. Windows may show a SmartScreen prompt —
+        click <strong>More info</strong>, then <strong>Run anyway</strong>.
+      </p>
+    </section>
   </div>
-
-  <p>
-    <a href="https://support.apple.com/en-us/HT211814">Not sure which Mac you have?</a>
-  </p>
-
-  <p>
-    Open the DMG, drag <strong>OpenIT.app</strong> into <strong>/Applications</strong>,
-    and launch. On first launch, macOS may show a Gatekeeper prompt — open
-    <strong>System Settings &rarr; Privacy &amp; Security</strong> and click
-    "Open Anyway" next to OpenIT.
-  </p>
-
-  <h2>Linux &amp; Windows</h2>
-  <p>
-    Pre-built binaries coming soon. OpenIT is built on Tauri, which supports
-    all three platforms — you can build from source today:
-  </p>
-  <pre><code>git clone {githubUrl}.git
-cd openit-app
-npm install
-npm run tauri:build</code></pre>
-  <p>
-    Requires Node.js &ge; 20 and Rust (stable). See the
-    <a href={`${githubUrl}#build-from-source`}>README</a> for full instructions.
-    <a href={`${githubUrl}/issues`}>Open an issue</a> if you hit problems.
-  </p>
 
   <h2>Updates</h2>
   <p>
@@ -69,3 +70,15 @@ npm run tauri:build</code></pre>
     step.
   </p>
 </BaseLayout>
+
+<script>
+  const ua = navigator.userAgent.toLowerCase();
+  const container = document.getElementById("download-sections");
+  const macSection = document.getElementById("macos-section");
+  const winSection = document.getElementById("windows-section");
+  if (container && macSection && winSection) {
+    if (ua.includes("win")) {
+      container.insertBefore(winSection, macSection);
+    }
+  }
+</script>
