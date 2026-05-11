@@ -20,6 +20,9 @@ export type EntityCard = {
    *  thumbnails on attachment / library cards. Falls back to the
    *  kind icon when omitted. */
   icon?: ReactNode;
+  /** Per-card color tone override. When set, the card's glyph uses
+   *  this tone instead of inheriting from the parent grid's kind. */
+  cardTone?: "accent" | "sage" | "ochre" | "link" | "clay" | "neutral";
   onClick?: () => void;
   /** When set, dragging files from the desktop onto this card calls
    *  the handler with the dropped File list. Used by the filestores-
@@ -225,7 +228,7 @@ function EntityCardItem({
       type={c.onClick ? "button" : undefined}
       className={`entity-card ${c.onClick ? "entity-card-clickable" : ""}${
         dragOver ? " entity-card-drag" : ""
-      }`}
+      }${c.cardTone ? ` entity-tone-${c.cardTone}` : ""}`}
       onClick={c.onClick}
       onKeyDown={onKeyDown}
       onContextMenu={(e) => {

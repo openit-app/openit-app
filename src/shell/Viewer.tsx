@@ -67,6 +67,10 @@ import { iconForKey } from "./entityIcons";
 
 export type { ViewerSource };
 
+function capitalize(s: string): string {
+  return s.charAt(0).toUpperCase() + s.slice(1);
+}
+
 export function Viewer({
   source,
   repo,
@@ -1711,17 +1715,23 @@ export function Viewer({
               // Fall back to known default icons so each child shows its
               // own identity, not the generic folder icon.
               const fsWsTile = wsTiles.find((t) => t.rel === `filestores/${c.name}`);
-              const FS_DEFAULT_ICONS: Record<string, string> = {
-                skills: "commands", scripts: "scripts",
-                attachments: "attachments", library: "folder",
+              const FS_DEFAULTS: Record<string, { icon: string; tone: "accent" | "sage" | "ochre" | "link" | "clay" | "neutral"; label: string }> = {
+                skills:      { icon: "commands",    tone: "accent",  label: "Commands" },
+                scripts:     { icon: "scripts",     tone: "link",    label: "Scripts" },
+                attachments: { icon: "attachments", tone: "neutral", label: "Attachments" },
+                library:     { icon: "folder",      tone: "neutral", label: "Library" },
               };
-              const cardIcon = fsWsTile?.icon ?? FS_DEFAULT_ICONS[c.name];
+              const defaults = FS_DEFAULTS[c.name];
+              const cardIcon = fsWsTile?.icon ?? defaults?.icon;
+              const cardTone = fsWsTile?.tone ?? defaults?.tone;
+              const cardLabel = fsWsTile?.label ?? defaults?.label ?? capitalize(c.name);
               return {
               key: c.path,
-              title: fsWsTile?.label ?? c.displayName,
+              title: cardLabel,
               description: c.description,
               meta: `${c.itemCount} ${c.itemNoun}${c.itemCount === 1 ? "" : "s"}`,
               icon: cardIcon ? iconForKey(cardIcon) : undefined,
+              cardTone: cardTone,
               badge: c.isBuiltin
                 ? undefined
                 : { label: "custom", tone: "info" as const },
@@ -1948,16 +1958,21 @@ export function Viewer({
             }
             cards={source.collections.map((c) => {
               const dbWsTile = wsTiles.find((t) => t.rel === `databases/${c.name}`);
-              const DB_DEFAULT_ICONS: Record<string, string> = {
-                people: "person", access: "access",
-                assets: "assets", tickets: "inbox",
+              const DB_DEFAULTS: Record<string, { icon: string; tone: "accent" | "sage" | "ochre" | "link" | "clay" | "neutral"; label: string }> = {
+                people:  { icon: "person", tone: "sage",   label: "People" },
+                access:  { icon: "access", tone: "sage",   label: "Access" },
+                assets:  { icon: "assets", tone: "clay",   label: "Assets" },
+                tickets: { icon: "inbox",  tone: "accent", label: "Inbox" },
               };
-              const dbCardIcon = dbWsTile?.icon ?? DB_DEFAULT_ICONS[c.name];
-              const label = dbWsTile?.label ?? c.name.charAt(0).toUpperCase() + c.name.slice(1);
+              const dbDefaults = DB_DEFAULTS[c.name];
+              const dbCardIcon = dbWsTile?.icon ?? dbDefaults?.icon;
+              const dbCardTone = dbWsTile?.tone ?? dbDefaults?.tone;
+              const dbLabel = dbWsTile?.label ?? dbDefaults?.label ?? (c.name.charAt(0).toUpperCase() + c.name.slice(1));
               return {
               key: c.path,
-              title: label,
+              title: dbLabel,
               icon: dbCardIcon ? iconForKey(dbCardIcon) : undefined,
+              cardTone: dbCardTone,
               meta: `${c.itemCount} ${
                 c.name === "conversations" ? "thread" : "row"
               }${c.itemCount === 1 ? "" : "s"}`,
@@ -1965,7 +1980,7 @@ export function Viewer({
               onReveal: () => void fsReveal(c.path).catch(console.error),
               onDelete: repo ? async () => {
                 const ok = await confirmDelete(
-                  `Delete database "${label}" and all its records?\n\nThis cannot be undone.`,
+                  `Delete database "${dbLabel}" and all its records?\n\nThis cannot be undone.`,
                   "Delete database?",
                 );
                 if (!ok) return;
@@ -1978,7 +1993,7 @@ export function Viewer({
                     cfg.more = cfg.more.filter((t) => t.rel !== rel);
                     await saveWorkstationConfig(repo, cfg);
                   } catch { /* config cleanup optional */ }
-                  showToast(`Deleted database ${label}`);
+                  showToast(`Deleted database ${dbLabel}`);
                   onFsChange?.();
                 } catch (err) {
                   console.error("[db-delete] failed:", err);
