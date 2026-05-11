@@ -78,6 +78,7 @@ pub fn run() {
             pty::pty_kill,
             pty::claude_detect,
             pty::claude_install,
+            pty::save_dropped_file,
             fs_tree::fs_list,
             fs_tree::fs_read,
             fs_tree::fs_read_bytes,

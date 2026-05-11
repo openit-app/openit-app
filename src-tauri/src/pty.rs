@@ -347,6 +347,26 @@ fn run_install_blocking() -> Result<String, String> {
     )
 }
 
+/// Save a file dropped from the OS (Finder/Desktop) to a temp directory and
+/// return the absolute path. Called by the frontend when a native file drop
+/// lands on the terminal pane — since `dragDropEnabled` is `false` (required
+/// to keep DOM drag-and-drop working), the frontend can read file bytes via
+/// the DOM `FileReader` but cannot get the original path directly.
+#[tauri::command]
+pub fn save_dropped_file(name: String, bytes: Vec<u8>) -> Result<String, String> {
+    // Sanitise: use only the filename component to prevent path traversal.
+    let safe = std::path::Path::new(&name)
+        .file_name()
+        .ok_or("invalid filename")?
+        .to_str()
+        .ok_or("non-UTF-8 filename")?;
+    let dir = std::env::temp_dir().join("openit-drops");
+    std::fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
+    let path = dir.join(safe);
+    std::fs::write(&path, &bytes).map_err(|e| e.to_string())?;
+    Ok(path.to_string_lossy().into_owned())
+}
+
 /// Locate a usable `claude` binary: PATH first, then known install dirs.
 /// Exposed so other Tauri commands that shell out to claude (e.g.
 /// `claude_generate_commit_message`) resolve against the same set the

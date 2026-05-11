@@ -2,7 +2,7 @@ import { useEffect, useRef } from "react";
 import { Terminal } from "@xterm/xterm";
 import { FitAddon } from "@xterm/addon-fit";
 import { WebLinksAddon } from "@xterm/addon-web-links";
-import { getCurrentWebview } from "@tauri-apps/api/webview";
+import { invoke } from "@tauri-apps/api/core";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import { onPtyData, onPtyExit, ptyKill, ptyResize, ptySpawn, ptyWrite } from "../lib/terminal";
 import { setActiveSession, clearActiveSession } from "./activeSession";
@@ -11,6 +11,22 @@ import "@xterm/xterm/css/xterm.css";
 // macOS Terminal.app behavior: dragging a file in writes its shell-escaped path.
 function shellEscape(p: string): string {
   return `'${p.replace(/'/g, "'\\''")}'`;
+}
+
+/** Save OS-dropped files to a temp dir and paste the paths into the PTY. */
+async function saveAndPasteDroppedFiles(files: FileList, sessionId: string) {
+  for (const file of Array.from(files)) {
+    try {
+      const buf = await file.arrayBuffer();
+      const savedPath = await invoke<string>("save_dropped_file", {
+        name: file.name,
+        bytes: Array.from(new Uint8Array(buf)),
+      });
+      await ptyWrite(sessionId, shellEscape(savedPath) + " ");
+    } catch (err) {
+      console.error("dropped-file save failed:", err);
+    }
+  }
 }
 
 export function ChatPane({ cwd, resume }: { cwd: string | null; resume?: boolean }) {
@@ -101,10 +117,13 @@ export function ChatPane({ cwd, resume }: { cwd: string | null; resume?: boolean
     const focusOnClick = () => term.focus();
     containerRef.current.addEventListener("click", focusOnClick);
 
-    // Drag-drop: accept both in-app drags (from file explorer) and OS
-    // file drops (from Finder / desktop). OS drops deliver paths via
-    // Tauri's native onDragDropEvent below; we accept "Files" here so
-    // the cursor shows "copy" instead of the "not allowed" icon.
+    // Drag-drop: accept in-app drags (file explorer, entity refs) AND OS
+    // file drops (Finder / Desktop). We keep `dragDropEnabled: false` in
+    // tauri.conf.json because Tauri's native drag-drop handler is mutually
+    // exclusive with DOM drag events — enabling it breaks all in-page drags.
+    // Instead, OS file drops go through the DOM: the `Files` type gives us
+    // File objects, we save the bytes to a temp dir via a Tauri command,
+    // and paste the resulting path into the terminal.
     const onDragOver = (e: DragEvent) => {
       if (e.dataTransfer?.types.includes("application/x-openit-path") ||
           e.dataTransfer?.types.includes("application/x-openit-ref") ||
@@ -121,12 +140,21 @@ export function ChatPane({ cwd, resume }: { cwd: string | null; resume?: boolean
         ptyWrite(SESSION_ID, ref + " ").catch((err) => console.error("pty bridge error:", err));
         return;
       }
-      // File path drop
+      // In-app file path drop (from the file explorer)
       const path = e.dataTransfer?.getData("application/x-openit-path");
-      if (!path) return;
-      e.preventDefault();
-      const text = shellEscape(path) + " ";
-      ptyWrite(SESSION_ID, text).catch((err) => console.error("pty bridge error:", err));
+      if (path) {
+        e.preventDefault();
+        const text = shellEscape(path) + " ";
+        ptyWrite(SESSION_ID, text).catch((err) => console.error("pty bridge error:", err));
+        return;
+      }
+      // OS file drop from Finder — save to temp and paste the path.
+      // preventDefault must be called synchronously before any await.
+      const files = e.dataTransfer?.files;
+      if (files && files.length > 0) {
+        e.preventDefault();
+        saveAndPasteDroppedFiles(files, SESSION_ID);
+      }
     };
     containerRef.current.addEventListener("dragover", onDragOver, true);
     containerRef.current.addEventListener("drop", onInPageDrop, true);
@@ -201,20 +229,6 @@ export function ChatPane({ cwd, resume }: { cwd: string | null; resume?: boolean
       });
       if (containerRef.current) observer.observe(containerRef.current);
       unlistens.push(() => observer.disconnect());
-
-      const unlistenDrop = await getCurrentWebview().onDragDropEvent((event) => {
-        if (disposed) return;
-        if (event.payload.type !== "drop") return;
-        const paths = event.payload.paths ?? [];
-        if (paths.length === 0) return;
-        const text = paths.map(shellEscape).join(" ") + " ";
-        ptyWrite(SESSION_ID, text).catch((e) => console.error("pty bridge error:", e));
-      });
-      if (disposed) {
-        unlistenDrop();
-      } else {
-        unlistens.push(unlistenDrop);
-      }
     })();
 
     return () => {
