@@ -325,16 +325,12 @@ export function Workbench({
 
   // Tiles that can be deleted (have a folder on disk — not system
   // synthetics like "tools" or parent views like "databases").
+  // Only the 5 primitives (top-level containers) and system entities
+  // are non-deletable. Everything inside them is fair game.
+  const PRIMITIVES = new Set(["databases", "filestores", "knowledge-bases", "reports", "agents"]);
+  const SYSTEM = new Set(["tools", ".openit/agent-traces"]);
   const isDeletable = (rel: string) => {
-    return (
-      rel.startsWith("databases/") &&
-      rel !== "databases" &&
-      rel !== "databases/conversations" &&
-      rel !== "databases/tickets"
-    ) ||
-    (rel.startsWith("filestores/") && rel !== "filestores") ||
-    rel === "knowledge-bases" ||
-    rel === "reports";
+    return !PRIMITIVES.has(rel) && !SYSTEM.has(rel);
   };
 
   return (
@@ -406,24 +402,6 @@ export function Workbench({
                 <span className="station-count">
                   {counts[t.rel] ?? "·"}
                 </span>
-              </span>
-              <span
-                className="station-unpin"
-                title="Remove from main"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  void demote(t.rel);
-                }}
-                role="button"
-                tabIndex={0}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter" || e.key === " ") {
-                    e.stopPropagation();
-                    void demote(t.rel);
-                  }
-                }}
-              >
-                ×
               </span>
             </button>
           );
