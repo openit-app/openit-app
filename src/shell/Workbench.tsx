@@ -61,6 +61,14 @@ export function Workbench({
   const [counts, setCounts] = useState<Record<string, number>>({});
   const prevCountsRef = useRef<Record<string, number> | null>(null);
   const highlightTimerRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  // Suppress count-based highlights for the first 15 seconds after
+  // mount. The plugin sync (syncSkillsToDisk) writes skills/scripts
+  // asynchronously after vault open — file counts jump as those files
+  // land, which would flash tiles on every fresh install. The grace
+  // period lets the sync settle before we start watching for real
+  // content changes. Imperative highlights via highlight.json are
+  // NOT suppressed — they're always intentional.
+  const mountedAtRef = useRef(Date.now());
   const lastHighlightTsRef = useRef(0);
   const [highlightedStations, setHighlightedStations] = useState<Set<string>>(new Set());
   const [escalatedTickets, setEscalatedTickets] = useState<TicketSummary[]>([]);
@@ -153,12 +161,14 @@ export function Workbench({
 
       if (cancelled) return;
 
-      // Highlight stations that gained items
-      if (prevCountsRef.current !== null) {
+      // Highlight stations that gained items (suppressed during the
+      // post-mount grace period so plugin sync doesn't flash tiles).
+      const settled = Date.now() - mountedAtRef.current > 15_000;
+      if (prevCountsRef.current !== null && settled) {
         const newHighlights = new Set<string>();
         for (const rel of Object.keys(next)) {
           const prev = prevCountsRef.current[rel] ?? 0;
-          if (next[rel] > prev && prev > 0) newHighlights.add(rel);
+          if (next[rel] > prev) newHighlights.add(rel);
         }
         if (newHighlights.size > 0) {
           setHighlightedStations(newHighlights);
