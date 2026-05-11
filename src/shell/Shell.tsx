@@ -690,6 +690,7 @@ export function Shell({
       <AgentActivityBanner
         repo={repo}
         fsTick={fsTick}
+        pulse={!!(source && source.kind === "file" && source.path.endsWith("/getting-started.html"))}
         onOpenTrace={async (ticketId, subject) => {
           if (!repo) return;
           try {

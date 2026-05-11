@@ -263,6 +263,21 @@ export function ToolsPanel({ projectRoot }: { projectRoot: string | null }) {
           </div>
         ))}
       </div>
+      <p className={styles.mcpEmptyHint}>
+        Can't find your app?{" "}
+        <button
+          type="button"
+          className={styles.hintLink}
+          onClick={() => {
+            writeToActiveSession(
+              "What MCP servers or CLI tools can you install for me?\r",
+            );
+          }}
+        >
+          Ask Claude Code
+        </button>{" "}
+        to install it.
+      </p>
     </div>
   );
 }

@@ -136,10 +136,19 @@ export function routeFile(
     const filename = filePath.replace("scripts/", "");
     return { subdir: ".claude/scripts", filename, substituteSlug: false };
   }
-  // Seed files are not written by the plugin-sync pass. `seedIfEmpty`
-  // (src/lib/seed.ts) gates them on per-target empty-folder + cloud-empty
-  // and writes once on first connect. Returning null here keeps
-  // `syncSkillsToDisk` from re-writing samples on every plugin bump.
+  // Seed skills are admin-facing commands (salesforce-gmail, backup,
+  // onboard-offboard, etc.) that must be available on every fresh
+  // install — not gated behind `/load-sample-data`. Route them to
+  // `filestores/skills/` so they appear in the Commands tile. The
+  // sync loop applies a write-once gate (same as agents) so re-syncs
+  // don't clobber user-customized versions.
+  if (filePath.startsWith("seed/skills/") && filePath.endsWith(".md")) {
+    const filename = filePath.replace("seed/skills/", "");
+    return { subdir: "filestores/skills", filename, substituteSlug: false };
+  }
+  // All other seed files (tickets, people, conversations, etc.) are
+  // optional sample data, written only when the user runs
+  // `/load-sample-data` via `seedIfEmpty` (src/lib/seed.ts).
   if (filePath.startsWith("seed/")) {
     return null;
   }
@@ -207,6 +216,17 @@ export async function syncSkillsToDisk(
         // articles / scripts / schemas are managed by Claude or the
         // plugin, not free-text user input.
         if (route.subdir === "agents" || route.subdir.startsWith("agents/")) {
+          if (await fileExistsOnDisk(repo, route.subdir, route.filename)) {
+            console.log(
+              `[skillsSync] preserved user-edited ${route.subdir}/${route.filename}`,
+            );
+            continue;
+          }
+        }
+        // Write-once gate for seed skills (filestores/skills/). These are
+        // admin-customizable commands — once the user has edited one, the
+        // plugin sync must leave their version in place.
+        if (route.subdir === "filestores/skills") {
           if (await fileExistsOnDisk(repo, route.subdir, route.filename)) {
             console.log(
               `[skillsSync] preserved user-edited ${route.subdir}/${route.filename}`,

@@ -68,7 +68,7 @@ export function SkillActionDock({
     return (
       <div className="skill-action-dock">
         <Button
-          variant="subtle"
+          variant="secondary"
           size="sm"
           onClick={() => setExpanded(true)}
           title={

@@ -59,7 +59,10 @@ Do NOT wait for the admin to reply here. Instead, immediately start polling the 
 
 1. `Glob "databases/tickets/*.json"` — find the newest ticket (not in your earlier list).
 2. `Read` the ticket. If `status` is `agent-responding`, wait a few seconds and re-read.
-3. Once the status is `escalated`, proceed immediately.
+3. Once the status is **no longer** `agent-responding`, proceed — but **check what the status actually is**:
+   - If `escalated` — perfect, proceed as planned.
+   - If `open` or `resolved` — the agent answered instead of escalating (it may have found a pre-existing KB match). Tell the admin: "The agent answered this one on its own — looks like there was already relevant knowledge. Let's try a different question." Then re-open the intake form and ask them to type a unique question the KB definitely can't answer (e.g. "How do I connect to the office printer on floor 3?"). Resume polling.
+   - **Do NOT silently continue if the status isn't `escalated`** — the notification card only appears for escalated tickets.
 
 Read the conversation: `Glob "databases/conversations/<ticketId>/msg-*.json"`, read the turns.
 
@@ -77,11 +80,18 @@ Wait for the admin to click the notification. When they do, `/answer-ticket` wil
 - **Drafting the reply:** Show the draft and ask "Want me to send this, or would you like to change it?" — this is fine, it's going to the employee.
 - **Sending the reply:** On approval, send immediately. Mark the ticket as `resolved` automatically — do NOT ask the admin whether to set `open` or `resolved`. Just resolve it.
 - **Capturing the KB article:** Write the KB article immediately. Do NOT ask "Good to save?" — just create it. This is a guided tour; every answer should become knowledge.
-- **After the KB article is created:** Tell the admin:
+- **After the KB article is created:** Flash the Knowledge tile so the admin notices it:
+  ```bash
+  cat > .openit/highlight.json << 'HIGHLIGHT'
+  {"tiles":["knowledge-bases"],"ts":TIMESTAMP}
+  HIGHLIGHT
+  sed -i '' "s/TIMESTAMP/$(date +%s000)/" .openit/highlight.json
+  ```
+  Then tell the admin:
 
 > Done. I replied to the employee, resolved the ticket, and captured your answer as a **knowledge base article**.
 >
-> Click on the **Knowledge** tile in the left panel. You should see the article I just created. **Click on it to read it. Do you see it?**
+> Click on the **Knowledge** tile in the left panel — it should be glowing. You should see the article I just created. **Click on it to read it. Do you see it?**
 
 Wait for the admin to confirm (e.g. "yes", "I see it", "yep"). This is a direct question — expect a direct answer before moving on.
 
@@ -129,7 +139,14 @@ If the ticket was `escalated` instead (edge case — keyword overlap didn't matc
 
 > The agent escalated this one — the keyword search didn't match closely enough. But the knowledge is saved, and the more articles you add, the smarter it gets.
 
-Either way, continue immediately in the same message — do NOT wait for acknowledgment:
+Either way, flash the Commands tile and continue immediately in the same message — do NOT wait for acknowledgment:
+
+```bash
+cat > .openit/highlight.json << 'HIGHLIGHT'
+{"tiles":["filestores/skills"],"ts":TIMESTAMP}
+HIGHLIGHT
+sed -i '' "s/TIMESTAMP/$(date +%s000)/" .openit/highlight.json
+```
 
 > Now — during this tour, you already used two **commands** without realizing it:
 >
@@ -138,7 +155,7 @@ Either way, continue immediately in the same message — do NOT wait for acknowl
 >
 > Commands are reusable workflows you can run anytime by typing `/` followed by the name. You can also create your own.
 >
-> **Click the Commands tile** in the left panel. See the first command — **load-sample-data**? **Click Run** next to it to fill the workspace with sample data.
+> **Click the Commands tile** in the left panel — it should be glowing. See the first command — **load-sample-data**? **Click Run** next to it to fill the workspace with sample data.
 
 Wait for the admin to click Run. When they do, the `/load-sample-data` command will run in Claude Code and create sample data. Once it completes, continue:
 

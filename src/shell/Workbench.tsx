@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { fsList, entityRemoveDir, type FileNode } from "../lib/api";
+import { fsList, fsRead, entityRemoveDir, type FileNode } from "../lib/api";
 import { scanEscalatedTickets, type TicketSummary } from "../lib/escalatedTickets";
 import { listInstalled as listInstalledTools } from "../lib/toolsInstall";
 import { iconForKey, type ToneKey } from "./entityIcons";
@@ -61,6 +61,7 @@ export function Workbench({
   const [counts, setCounts] = useState<Record<string, number>>({});
   const prevCountsRef = useRef<Record<string, number> | null>(null);
   const highlightTimerRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  const lastHighlightTsRef = useRef(0);
   const [highlightedStations, setHighlightedStations] = useState<Set<string>>(new Set());
   const [escalatedTickets, setEscalatedTickets] = useState<TicketSummary[]>([]);
   const escalatedCount = escalatedTickets.length;
@@ -157,7 +158,7 @@ export function Workbench({
         const newHighlights = new Set<string>();
         for (const rel of Object.keys(next)) {
           const prev = prevCountsRef.current[rel] ?? 0;
-          if (next[rel] > prev) newHighlights.add(rel);
+          if (next[rel] > prev && prev > 0) newHighlights.add(rel);
         }
         if (newHighlights.size > 0) {
           setHighlightedStations(newHighlights);
@@ -178,6 +179,31 @@ export function Workbench({
       } catch {
         if (!cancelled) setEscalatedTickets([]);
       }
+
+      // Imperative tile highlight via .openit/highlight.json.
+      // Claude writes {"tiles":["knowledge-bases"],"ts":<ms>} when
+      // it wants a tile to flash (e.g. during the getting-started
+      // tour). We deduplicate by timestamp like flash.json.
+      try {
+        const raw = await fsRead(`${repo}/.openit/highlight.json`);
+        const parsed = JSON.parse(raw);
+        if (
+          parsed &&
+          Array.isArray(parsed.tiles) &&
+          typeof parsed.ts === "number" &&
+          parsed.ts > lastHighlightTsRef.current
+        ) {
+          lastHighlightTsRef.current = parsed.ts;
+          if (!cancelled) {
+            setHighlightedStations(new Set(parsed.tiles));
+            clearTimeout(highlightTimerRef.current);
+            highlightTimerRef.current = setTimeout(
+              () => setHighlightedStations(new Set()),
+              5000,
+            );
+          }
+        }
+      } catch { /* highlight.json doesn't exist or is malformed — fine */ }
     })();
 
     return () => {

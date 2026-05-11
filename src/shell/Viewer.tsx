@@ -737,7 +737,7 @@ export function Viewer({
       return source.path;
     }
     if (source.kind === "conversation-thread")
-      return `${repo}/databases/conversations/${source.ticketId}`;
+      return `/answer-ticket databases/tickets/${source.ticketId}.json`;
     if (source.kind === "datastore-row")
       return `${repo}/databases/${source.collection.name}/${source.item.key || source.item.id}.json`;
     if (source.kind === "datastore-table")
@@ -2710,11 +2710,18 @@ export function Viewer({
             <Button
               variant="linkMuted"
               onClick={() => {
-                writeToActiveSession(chatAddPath + " ").catch((e) =>
+                // Conversation threads use injectIntoChat (appends \r
+                // to auto-send the /answer-ticket command). Everything
+                // else just types the path as a reference.
+                const isSlashCmd = chatAddPath.startsWith("/");
+                const fn = isSlashCmd
+                  ? () => injectIntoChat(chatAddPath)
+                  : () => writeToActiveSession(chatAddPath + " ");
+                fn().catch((e) =>
                   console.warn("[viewer] add-to-chat failed:", e),
                 );
               }}
-              title="Reference this in Claude"
+              title={source?.kind === "conversation-thread" ? "Run /answer-ticket in Claude" : "Reference this in Claude"}
             >
               add to chat
               <span className="arrow" aria-hidden="true">→</span>
