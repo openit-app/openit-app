@@ -630,7 +630,7 @@ function App() {
               onClick={() => setPaletteOpen(true)}
               title="Command palette"
             >
-              <kbd>⌘</kbd>
+              <kbd>{navigator.userAgent.includes("Mac") ? "⌘" : "Ctrl"}</kbd>
               <kbd>K</kbd>
               <span>jump anywhere</span>
             </Button>
