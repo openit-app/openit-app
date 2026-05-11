@@ -1,5 +1,5 @@
 {
-  "version": "2026-05-11-003",
+  "version": "2026-05-11-004",
   "files": [
     { "path": "CLAUDE.md" },
     { "path": "skills/ai-intake.md" },
@@ -21,6 +21,7 @@
     { "path": "scripts/cleanup.mjs" },
     { "path": "scripts/slack-copy-manifest.mjs" },
     { "path": "scripts/slack-manifest.yml" },
+    { "path": "scripts/slack-listen.bundle.cjs" },
     { "path": "seed/tickets/sample-ticket-1.json" },
     { "path": "seed/tickets/sample-ticket-2.json" },
     { "path": "seed/tickets/sample-ticket-3.json" },
