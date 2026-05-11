@@ -6,9 +6,6 @@ name: Release
 # Output:   a GitHub Release with two DMGs (Apple Silicon + Intel), the matching
 #           updater archives + signatures, and a single `latest.json` consumed by
 #           the in-app updater.
-#
-# Both architectures build sequentially on the same runner so that
-# tauri-action can combine both .sig files into a single latest.json.
 
 on:
   push:
@@ -51,7 +48,7 @@ jobs:
 
       - run: npm ci
 
-      # Build Apple Silicon first
+      # Build Apple Silicon
       - name: Build aarch64 (Apple Silicon)
         uses: tauri-apps/tauri-action@v0
         env:
@@ -76,10 +73,10 @@ jobs:
             "Open Anyway."
           releaseDraft: false
           prerelease: false
-          includeUpdaterJson: true
+          includeUpdaterJson: false
           args: --target aarch64-apple-darwin
 
-      # Then Intel — same runner, so tauri-action can see the aarch64 .sig
+      # Build Intel
       - name: Build x64 (Intel)
         uses: tauri-apps/tauri-action@v0
         env:
@@ -97,5 +94,52 @@ jobs:
           releaseName: "OpenIT ${{ github.ref_name }}"
           releaseDraft: false
           prerelease: false
-          includeUpdaterJson: true
+          includeUpdaterJson: false
           args: --target x86_64-apple-darwin
+
+      # tauri-action's includeUpdaterJson is broken (can't find its own .sig
+      # files). We build latest.json ourselves: download the archives from the
+      # release, sign them with `tauri signer`, and upload.
+      - name: Build and upload latest.json
+        env:
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ github.ref_name }}
+        run: |
+          VERSION="${TAG#v}"
+          BASE="https://github.com/${{ github.repository }}/releases/download/${TAG}"
+
+          # Download the updater archives we just uploaded
+          curl -sL "${BASE}/OpenIT_aarch64.app.tar.gz" -o /tmp/aarch64.tar.gz
+          curl -sL "${BASE}/OpenIT_x64.app.tar.gz" -o /tmp/x64.tar.gz
+
+          # Sign with tauri signer (produces base64 signature strings)
+          AARCH64_SIG=$(npx tauri signer sign /tmp/aarch64.tar.gz 2>&1 | grep -A1 "Public signature:" | tail -1)
+          X64_SIG=$(npx tauri signer sign /tmp/x64.tar.gz 2>&1 | grep -A1 "Public signature:" | tail -1)
+
+          PUB_DATE=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+
+          cat > /tmp/latest.json <<EOF
+          {
+            "version": "${VERSION}",
+            "notes": "See https://github.com/${{ github.repository }}/releases/tag/${TAG} for details.",
+            "pub_date": "${PUB_DATE}",
+            "platforms": {
+              "darwin-aarch64": {
+                "signature": "${AARCH64_SIG}",
+                "url": "${BASE}/OpenIT_aarch64.app.tar.gz"
+              },
+              "darwin-x86_64": {
+                "signature": "${X64_SIG}",
+                "url": "${BASE}/OpenIT_x64.app.tar.gz"
+              }
+            }
+          }
+          EOF
+
+          # Validate JSON
+          python3 -m json.tool /tmp/latest.json > /dev/null
+
+          # Upload to release
+          gh release upload "${TAG}" /tmp/latest.json --clobber
