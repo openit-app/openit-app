@@ -72,6 +72,68 @@ scripts/openit-plugin/  # Claude plugin — skills, scripts, schemas, seed data
 landing/                # Website (Astro + Tailwind) → GitHub Pages
 ```
 
+## Data model — primitives and stores
+
+Everything in OpenIT is a file or folder on disk. The workstation organizes them into **primitives** (top-level container types) and **stores** (instances the user creates inside them).
+
+### Primitives (always available)
+
+| Primitive | Disk path | What lives inside |
+|-----------|-----------|-------------------|
+| Databases | `databases/` | JSON-row collections (people, access, assets, tickets, + user-created) |
+| Filestores | `filestores/` | File collections (attachments, library, skills, scripts, + user-created) |
+| Knowledge | `knowledge-bases/` | Markdown articles |
+| Reports | `reports/` | Generated markdown reports |
+| Agents | `agents/` | Agent definitions (.md files) |
+
+### System entities (not user-customizable containers)
+
+| Entity | Disk path | Notes |
+|--------|-----------|-------|
+| Tools | (synthetic) | Detected via `which`, no on-disk folder |
+| Traces | `.openit/agent-traces/` | Auto-generated agent activity logs |
+| Inbox | `databases/tickets/` + `databases/conversations/` | Handled by the hero card, not a standalone tile |
+
+### Workstation config (`.openit/workstation.json`)
+
+The workstation layout is fully customizable. Users (or Claude Code) can create, delete, promote, demote, and customize any store. The config file controls:
+
+```json
+{
+  "main": [
+    { "rel": "knowledge-bases" },
+    { "rel": "filestores/skills" }
+  ],
+  "more": [
+    { "rel": "databases/people", "icon": "person", "tone": "sage", "label": "People", "description": "Contacts directory" },
+    { "rel": "databases/roles", "icon": "shield", "tone": "link", "label": "Roles" }
+  ]
+}
+```
+
+- **`rel`**: repo-relative path (the tile's identity)
+- **`label`**: custom display name (overrides the default)
+- **`icon`**: key from `ICON_GALLERY` in `entityIcons.tsx` (34 icons available)
+- **`tone`**: color theme — `accent`, `sage`, `ochre`, `link`, `clay`, `neutral`
+- **`description`**: short text shown on list-view cards
+
+Tiles in `main` appear in the primary workstation area. Tiles in `more` appear in the collapsible "More" pool. Newly created stores auto-register in `more`. Deleted stores are auto-cleaned from the config.
+
+### Creating a new store
+
+To create a new database via CC: `mkdir databases/<name>` and optionally add a `_schema.json` for structured fields. To create a new filestore: `mkdir filestores/<name>`. Both automatically appear as workstation tiles on the next refresh.
+
+To customize the tile appearance, write to `.openit/workstation.json` — set `icon`, `tone`, `label`, and `description` on the relevant entry.
+
+### Key source files
+
+| File | What it does |
+|------|-------------|
+| `src/lib/workstationConfig.ts` | Config schema, load/save, filesystem discovery, merge logic |
+| `src/shell/Workbench.tsx` | Dynamic workstation rendering, promote/demote/customize/delete |
+| `src/shell/IconPicker.tsx` | Icon gallery + tone picker for tile customization |
+| `src/shell/entityIcons.tsx` | `ENTITY_META` registry, `ICON_GALLERY` (34 icons), `iconForKey()` |
+
 ## Plugin CLAUDE.md (what users see)
 
 `scripts/openit-plugin/CLAUDE.md` is the instruction file Claude reads when working in a user's vault. It defines:
