@@ -7,14 +7,8 @@ name: Release
 #           updater archives + signatures, and a single `latest.json` consumed by
 #           the in-app updater.
 #
-# Signing is auto-detected:
-#   - If APPLE_SIGNING_IDENTITY secret is set, build is signed with Developer ID
-#     and notarized via notarytool. (v0.2.0+ path.)
-#   - Otherwise, build is ad-hoc-signed only — users will see Gatekeeper's
-#     "cannot be opened" dialog on first launch and must approve via System
-#     Settings → Privacy & Security. (v0.1.0 path.)
-# Either way, the Tauri updater itself signs the update payload with the
-# minisign keypair, so auto-update works on both signed and unsigned builds.
+# Both architectures build sequentially on the same runner so that
+# tauri-action can combine both .sig files into a single latest.json.
 
 on:
   push:
@@ -22,8 +16,6 @@ on:
       - "v*.*.*"
   workflow_dispatch:
 
-# One release at a time. If two tags get pushed back-to-back, the second waits
-# for the first instead of racing on the same GH Release object.
 concurrency:
   group: release-${{ github.ref }}
   cancel-in-progress: false
@@ -32,14 +24,6 @@ jobs:
   build:
     permissions:
       contents: write
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - target: aarch64-apple-darwin
-            arch_label: aarch64
-          - target: x86_64-apple-darwin
-            arch_label: x64
     runs-on: macos-14
 
     steps:
@@ -52,7 +36,7 @@ jobs:
 
       - uses: dtolnay/rust-toolchain@stable
         with:
-          targets: ${{ matrix.target }}
+          targets: aarch64-apple-darwin,x86_64-apple-darwin
 
       - name: Cache cargo + target dir
         uses: actions/cache@v4
@@ -61,25 +45,18 @@ jobs:
             ~/.cargo/registry
             ~/.cargo/git
             src-tauri/target
-          key: ${{ runner.os }}-cargo-${{ matrix.target }}-${{ hashFiles('src-tauri/Cargo.lock') }}
+          key: ${{ runner.os }}-cargo-universal-${{ hashFiles('src-tauri/Cargo.lock') }}
           restore-keys: |
-            ${{ runner.os }}-cargo-${{ matrix.target }}-
+            ${{ runner.os }}-cargo-universal-
 
       - run: npm ci
 
-      # tauri-action handles: tauri build, ad-hoc OR Developer ID signing
-      # (auto-detected from env), notarization (if APPLE_ID is set),
-      # updater-archive signing (TAURI_SIGNING_*), and uploading artifacts to
-      # a draft release. The release is published once the matrix completes.
-      - name: Build + sign + (notarize) + upload
+      # Build Apple Silicon first
+      - name: Build aarch64 (Apple Silicon)
         uses: tauri-apps/tauri-action@v0
         env:
-          # Updater signing — required on every build, signed or not.
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
-          # Apple Developer ID signing + notarization.
-          # All of these can be absent for v0.1.0 — tauri-action skips signing
-          # cleanly and emits an ad-hoc-signed bundle instead.
           APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
           APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
           APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
@@ -91,14 +68,34 @@ jobs:
           tagName: ${{ github.ref_name }}
           releaseName: "OpenIT ${{ github.ref_name }}"
           releaseBody: |
-            macOS desktop app for OpenIT.
+            See the [full changelog](https://github.com/openit-app/openit-app/releases/tag/${{ github.ref_name }}) for details.
 
             **First-time install:** macOS will say *"OpenIT can't be opened
-            because Apple cannot check it for malicious software."* That's
-            expected for the beta. Open System Settings → Privacy & Security,
-            scroll down, and click "Open Anyway" next to OpenIT. (Future signed
-            builds will install without this step.)
+            because Apple cannot check it for malicious software."* Open
+            System Settings → Privacy & Security, scroll down, and click
+            "Open Anyway."
           releaseDraft: false
           prerelease: false
           includeUpdaterJson: true
-          args: --target ${{ matrix.target }}
+          args: --target aarch64-apple-darwin
+
+      # Then Intel — same runner, so tauri-action can see the aarch64 .sig
+      - name: Build x64 (Intel)
+        uses: tauri-apps/tauri-action@v0
+        env:
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+          APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
+          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+          APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_PASSWORD: ${{ secrets.APPLE_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tagName: ${{ github.ref_name }}
+          releaseName: "OpenIT ${{ github.ref_name }}"
+          releaseDraft: false
+          prerelease: false
+          includeUpdaterJson: true
+          args: --target x86_64-apple-darwin
