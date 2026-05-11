@@ -3,6 +3,9 @@
   "private": true,
   "version": "1.1.0",
   "type": "module",
+  "repository": "https://github.com/openit-app/openit-app",
+  "homepage": "https://openit-app.github.io/openit-app",
+  "bugs": "https://github.com/openit-app/openit-app/issues",
   "scripts": {
     "dev": "vite",
     "build": "tsc && vite build",

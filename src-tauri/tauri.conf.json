@@ -64,8 +64,8 @@
     ],
     "category": "DeveloperTool",
     "shortDescription": "OpenIT \u2014 Claude-powered IT operations for SMBs.",
-    "longDescription": "OpenIT is a desktop scaffold around Claude Code targeted at IT admins. It launches a Claude session in an embedded terminal alongside a project file explorer, viewer, and one-click deploy to Pinkfish.",
-    "copyright": "Copyright \u00a9 2026 Pinkfish",
+    "longDescription": "OpenIT is a desktop app for IT admins that wraps Claude Code in a native shell with a file explorer, viewer, and tools catalog. Answer once, automate forever.",
+    "copyright": "Copyright \u00a9 2025-2026 OpenIT Contributors",
     "macOS": {
       "minimumSystemVersion": "11.0",
       "entitlements": "entitlements.plist"

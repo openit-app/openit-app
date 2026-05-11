@@ -2,7 +2,7 @@
 name = "openit-app"
 version = "1.1.0"
 description = "OpenIT — Tauri desktop wrapper for Claude Code"
-authors = ["Pinkfish"]
+authors = ["OpenIT Contributors"]
 edition = "2021"
 
 [lib]
