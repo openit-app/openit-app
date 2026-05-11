@@ -5270,9 +5270,9 @@ input.viewer-title.viewer-title-rename {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 22px;
-  height: 22px;
-  border-radius: 6px;
+  width: 30px;
+  height: 30px;
+  border-radius: 8px;
   background: var(--tone-bg, var(--accent-faint));
   color: var(--tone-color, var(--accent));
   border: 1px solid var(--tone-border, var(--accent-soft));
@@ -5280,9 +5280,9 @@ input.viewer-title.viewer-title-rename {
 }
 
 .entity-badge-sm .entity-badge-glyph {
-  width: 18px;
-  height: 18px;
-  border-radius: 5px;
+  width: 22px;
+  height: 22px;
+  border-radius: 6px;
 }
 
 .entity-badge-label {
