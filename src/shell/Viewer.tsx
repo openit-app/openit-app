@@ -4,7 +4,7 @@ import remarkGfm from "remark-gfm";
 import { fsRead, fsReadBytes, fsList, fsReveal, reportOverviewRun, entityDeleteFile, entityRemoveDir } from "../lib/api";
 import type { MemoryItem, Agent } from "../lib/localTypes";
 import { EntityCardGrid } from "./EntityCardGrid";
-import { EntityBadge, iconForKey, type EntityKind } from "./entityIcons";
+import { EntityBadge, type EntityKind } from "./entityIcons";
 import { ToolsPanel } from "./ToolsPanel";
 import { CommandsStation, SkillsStation } from "./SkillsStation";
 import { ScriptsStation } from "./ScriptsStation";
@@ -61,7 +61,6 @@ import type { ViewerSource } from "./viewerTypes";
 import {
   loadWorkstationConfig,
   saveWorkstationConfig,
-  type TileConfig,
 } from "../lib/workstationConfig";
 
 export type { ViewerSource };
@@ -142,15 +141,6 @@ export function Viewer({
   const [assetsView, setAssetsView] = useState<"cards" | "table">("cards");
   const [datastoreView, setDatastoreView] = useState<"cards" | "table">("cards");
 
-  // Workstation config tiles — loaded so the viewer header can reflect
-  // any custom icon/tone/label the user set on the tile.
-  const [wsTiles, setWsTiles] = useState<TileConfig[]>([]);
-  useEffect(() => {
-    if (!repo) return;
-    loadWorkstationConfig(repo).then((cfg) => {
-      setWsTiles([...cfg.main, ...cfg.more]);
-    });
-  }, [repo, fsTick]);
 
   // Edit-mode state for the markdown viewer. `editDraft` is the
   // textarea value (decoupled from `content` so unsaved edits don't
@@ -647,37 +637,7 @@ export function Viewer({
     }
   };
   // Derive the workstation tile rel path from the current source so we
-  // can apply any custom icon/tone/label the user set via the tile
-  // customizer. Used by the header badge and title.
-  const wsSourceRel = (() => {
-    if (!source) return null;
-    switch (source.kind) {
-      case "entity-folder":
-        if (source.entity === "knowledge" || source.entity === "knowledge-base") return "knowledge-bases";
-        if (source.entity === "reports") return "reports";
-        if (source.entity === "library") return "filestores/library";
-        if (source.entity === "scripts") return "filestores/scripts";
-        if (source.entity === "skills") return "filestores/skills";
-        if (source.entity === "agents") return "agents";
-        if (source.entity === "workflows") return "workflows";
-        return null;
-      case "datastore-table": return `databases/${source.collection.name}`;
-      case "people-list": return "databases/people";
-      case "access-list": return "databases/access";
-      case "assets-list": return "databases/assets";
-      case "conversations-list": return "databases/tickets";
-      case "tools": return "tools";
-      case "commands-station": return "filestores/skills";
-      case "scripts-station": return "filestores/scripts";
-      case "traces-list": return ".openit/agent-traces";
-      case "databases-list": return "databases";
-      case "filestores-list": return "filestores";
-      default: return null;
-    }
-  })();
-  const wsTile = wsSourceRel ? wsTiles.find((t) => t.rel === wsSourceRel) : null;
-
-  const title = wsTile?.label || getTitle();
+  const title = getTitle();
 
   // --- Tabs ---
   // Runnable scripts skip the View/Edit toggle (they always render
@@ -2198,12 +2158,7 @@ export function Viewer({
           </Button>
         </div>
         {headerKind && (
-          <EntityBadge
-            kind={headerKind}
-            showLabel={false}
-            overrideIcon={wsTile?.icon ? iconForKey(wsTile.icon) : undefined}
-            overrideTone={wsTile?.tone}
-          />
+          <EntityBadge kind={headerKind} showLabel={false} />
         )}
         <BreadcrumbAncestors
           source={source}
