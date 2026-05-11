@@ -14,6 +14,7 @@ import {
 } from "../lib/workstationConfig";
 import { IconPicker } from "./IconPicker";
 import { Button } from "../ui";
+import { confirmDelete } from "./viewers";
 
 // ── Helpers ──────────────────────────────────────────────────────────
 
@@ -268,8 +269,9 @@ export function Workbench({
   const deleteStore = useCallback(
     async (tile: ResolvedTile) => {
       if (!repo) return;
-      const ok = window.confirm(
+      const ok = await confirmDelete(
         `Delete "${tile.label}" and all its contents?\n\nThis cannot be undone.`,
+        "Delete store?",
       );
       if (!ok) return;
       try {

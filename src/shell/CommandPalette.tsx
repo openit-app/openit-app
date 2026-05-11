@@ -91,9 +91,8 @@ export function CommandPalette({
           { id: "goto-tools", label: "Tools", hint: "Installed CLI & MCP tools", group: "Go to" as const, run: () => navigate(`${r}/tools`) },
           { id: "goto-traces", label: "Traces", hint: "Agent activity logs", group: "Go to" as const, run: () => navigate(`${r}/.openit/agent-traces`) },
         ];
-    // Always include Inbox as the first entry
-    const hasInbox = gotoEntries.some((a) => a.id === "goto-databases/tickets");
-    if (!hasInbox && dynamicTiles.length > 0) {
+    // Inbox is a primitive (not discovered as a tile) — always present.
+    if (dynamicTiles.length > 0) {
       gotoEntries.unshift({
         id: "goto-inbox",
         label: "Inbox",
