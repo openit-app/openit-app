@@ -104,7 +104,7 @@ export async function resolvePathToSource(
   // databases/conversations/<ticketId>/ directory -> conversation-thread
   const threadMatch = rel.match(/^databases\/conversations\/([^/]+)$/);
   if (threadMatch) {
-    return resolveConversationThread(path, threadMatch[1]);
+    return resolveConversationThread(path, repo, threadMatch[1]);
   }
 
   // databases/<collection>/ directory -> datastore-table

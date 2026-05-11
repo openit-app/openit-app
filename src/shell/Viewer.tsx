@@ -2354,8 +2354,8 @@ export function Viewer({
                 variant="ghost"
                 size="sm"
                 onClick={() => {
-                  const col = (source as { collection?: import("../lib/localTypes").DataCollection }).collection;
-                  if (!col) return;
+                  if (source.kind !== "conversations-list" || !source.collection) return;
+                  const col = source.collection;
                   const fields = (col.schema as { fields?: Array<Record<string, unknown>> })?.fields ?? [];
                   const template: Record<string, unknown> = {};
                   for (const f of fields) {
@@ -2372,9 +2372,7 @@ export function Viewer({
                       template[id] = "";
                     }
                   }
-                  const taken = new Set(
-                    (source as { threads: Array<{ ticketId: string }> }).threads.map((t) => t.ticketId),
-                  );
+                  const taken = new Set(source.threads.map((t) => t.ticketId));
                   let filename = "new-ticket.json";
                   let i = 2;
                   while (taken.has(filename.replace(".json", ""))) {
