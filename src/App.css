@@ -4917,7 +4917,7 @@ input.viewer-title.viewer-title-rename {
 
 .entity-card {
   display: flex;
-  align-items: flex-start;
+  align-items: center;
   gap: 12px;
   width: 100%;
   padding: 12px 14px;
