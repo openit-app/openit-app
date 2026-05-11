@@ -445,11 +445,9 @@ body::before {
   }
 }
 
-/* Attention pulse on the agent-responding banner — the banner
-   alternates between its normal background and a bright accent fill
-   so the admin notices it immediately. The banner is transient (auto-
-   clears when the agent finishes), so the bold animation doesn't
-   overstay its welcome. */
+/* Attention pulse on the agent-responding banner — only used during
+   the getting-started flow so the admin notices the first agent reply.
+   In normal usage the subtle shimmer (::before) is enough. */
 @keyframes agent-activity-pulse {
   0%, 100% {
     background: linear-gradient(90deg, var(--accent-soft) 0%, var(--surface-hover) 100%);
@@ -461,7 +459,12 @@ body::before {
     box-shadow: 0 0 12px 4px rgba(199, 90, 44, 0.35);
   }
 }
+/* Normal: slide-in only, no pulse */
 .agent-activity-banner {
+  animation: banner-slide-in var(--t-base) var(--ease);
+}
+/* Getting-started flow: add the attention pulse */
+.agent-activity-banner.agent-activity-banner--pulse {
   animation:
     banner-slide-in var(--t-base) var(--ease),
     agent-activity-pulse 1.6s ease-in-out 0.3s infinite;

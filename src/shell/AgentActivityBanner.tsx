@@ -21,6 +21,7 @@ export function AgentActivityBanner({
   repo,
   fsTick,
   onOpenTrace,
+  pulse = false,
 }: {
   repo: string | null;
   fsTick: number;
@@ -30,6 +31,8 @@ export function AgentActivityBanner({
   /// agent doing right now" without having to know about the trace
   /// file path layout.
   onOpenTrace: (ticketId: string, subject: string) => void;
+  /** When true, apply the attention-pulse animation (used during getting-started). */
+  pulse?: boolean;
 }) {
   const [tickets, setTickets] = useState<TicketSummary[]>([]);
   const prevCount = useRef<number | null>(null);
@@ -78,7 +81,7 @@ export function AgentActivityBanner({
   return (
     <button
       type="button"
-      className="agent-activity-banner"
+      className={`agent-activity-banner${pulse ? " agent-activity-banner--pulse" : ""}`}
       onClick={() => {
         if (ticketId) onOpenTrace(ticketId, subjectLabel);
       }}
