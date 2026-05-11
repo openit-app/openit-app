@@ -344,13 +344,6 @@ export function Workbench({
           type="button"
           className="workbench-today-main"
           onClick={openInbox}
-          onContextMenu={(e) => {
-            e.preventDefault();
-            setContextMenu({
-              tile: { rel: "databases/tickets", label: "Inbox", icon: "inbox", tone: "accent", countMode: "json-rows" },
-              x: e.clientX, y: e.clientY, section: "main",
-            });
-          }}
           disabled={!repo}
           title={
             escalatedCount > 0

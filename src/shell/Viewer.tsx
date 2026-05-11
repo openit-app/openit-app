@@ -71,6 +71,22 @@ function capitalize(s: string): string {
   return s.charAt(0).toUpperCase() + s.slice(1);
 }
 
+type ToneKey = "accent" | "sage" | "ochre" | "link" | "clay" | "neutral";
+
+const FS_DEFAULTS: Record<string, { icon: string; tone: ToneKey; label: string }> = {
+  skills:      { icon: "commands",    tone: "accent",  label: "Commands" },
+  scripts:     { icon: "scripts",     tone: "link",    label: "Scripts" },
+  attachments: { icon: "attachments", tone: "neutral", label: "Attachments" },
+  library:     { icon: "folder",      tone: "neutral", label: "Library" },
+};
+
+const DB_DEFAULTS: Record<string, { icon: string; tone: ToneKey; label: string; description: string }> = {
+  people:  { icon: "person", tone: "sage",   label: "People",  description: "Contacts directory — employees, vendors, and external contacts referenced by tickets and access audits." },
+  access:  { icon: "access", tone: "sage",   label: "Access",  description: "Onboard/offboard audit log — who was granted or revoked access, when, and to what role." },
+  assets:  { icon: "assets", tone: "clay",   label: "Assets",  description: "Device and equipment inventory — laptops, monitors, licenses, and their assignment status." },
+  tickets: { icon: "inbox",  tone: "accent", label: "Inbox",   description: "Support tickets from chat intake and Slack. Tracks status, escalation, and resolution." },
+};
+
 export function Viewer({
   source,
   repo,
@@ -1715,12 +1731,6 @@ export function Viewer({
               // Fall back to known default icons so each child shows its
               // own identity, not the generic folder icon.
               const fsWsTile = wsTiles.find((t) => t.rel === `filestores/${c.name}`);
-              const FS_DEFAULTS: Record<string, { icon: string; tone: "accent" | "sage" | "ochre" | "link" | "clay" | "neutral"; label: string }> = {
-                skills:      { icon: "commands",    tone: "accent",  label: "Commands" },
-                scripts:     { icon: "scripts",     tone: "link",    label: "Scripts" },
-                attachments: { icon: "attachments", tone: "neutral", label: "Attachments" },
-                library:     { icon: "folder",      tone: "neutral", label: "Library" },
-              };
               const defaults = FS_DEFAULTS[c.name];
               const cardIcon = fsWsTile?.icon ?? defaults?.icon;
               const cardTone = fsWsTile?.tone ?? defaults?.tone;
@@ -1958,12 +1968,6 @@ export function Viewer({
             }
             cards={source.collections.map((c) => {
               const dbWsTile = wsTiles.find((t) => t.rel === `databases/${c.name}`);
-              const DB_DEFAULTS: Record<string, { icon: string; tone: "accent" | "sage" | "ochre" | "link" | "clay" | "neutral"; label: string; description: string }> = {
-                people:  { icon: "person", tone: "sage",   label: "People",  description: "Contacts directory — employees, vendors, and external contacts referenced by tickets and access audits." },
-                access:  { icon: "access", tone: "sage",   label: "Access",  description: "Onboard/offboard audit log — who was granted or revoked access, when, and to what role." },
-                assets:  { icon: "assets", tone: "clay",   label: "Assets",  description: "Device and equipment inventory — laptops, monitors, licenses, and their assignment status." },
-                tickets: { icon: "inbox",  tone: "accent", label: "Inbox",   description: "Support tickets from chat intake and Slack. Tracks status, escalation, and resolution." },
-              };
               const dbDefaults = DB_DEFAULTS[c.name];
               const dbCardIcon = dbWsTile?.icon ?? dbDefaults?.icon;
               const dbCardTone = dbWsTile?.tone ?? dbDefaults?.tone;
