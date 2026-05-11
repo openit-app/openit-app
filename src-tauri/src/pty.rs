@@ -376,9 +376,28 @@ fn claude_install_candidates_for(home: Option<&Path>) -> Vec<PathBuf> {
     if let Some(home) = home {
         out.push(home.join(".local/bin/claude"));
         out.push(home.join(".claude/local/claude"));
+        // Windows: native installer puts claude here
+        #[cfg(target_os = "windows")]
+        {
+            out.push(home.join(".claude\\local\\claude.exe"));
+            out.push(home.join("AppData\\Local\\Programs\\claude-code\\claude.exe"));
+        }
     }
-    out.push(PathBuf::from("/usr/local/bin/claude"));
-    out.push(PathBuf::from("/opt/homebrew/bin/claude"));
+    #[cfg(not(target_os = "windows"))]
+    {
+        out.push(PathBuf::from("/usr/local/bin/claude"));
+        out.push(PathBuf::from("/opt/homebrew/bin/claude"));
+    }
+    #[cfg(target_os = "windows")]
+    {
+        // Also check common Windows install locations
+        if let Ok(local_app_data) = std::env::var("LOCALAPPDATA") {
+            out.push(PathBuf::from(&local_app_data).join("Programs\\claude-code\\claude.exe"));
+        }
+        if let Ok(program_files) = std::env::var("ProgramFiles") {
+            out.push(PathBuf::from(&program_files).join("claude-code\\claude.exe"));
+        }
+    }
     out
 }
 
