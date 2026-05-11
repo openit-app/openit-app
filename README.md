@@ -40,8 +40,7 @@ OpenIT is a desktop app that wraps [Claude Code](https://docs.anthropic.com/en/d
 
 OpenIT ships with ready-to-run commands for common IT tasks:
 
-- `/onboard-employee` — provision accounts across Slack, Google Workspace, Zoom, and more
-- `/offboard-employee` — revoke access, reassign assets, and generate a compliance report
+- `/onboard-offboard` — walk through granting or revoking access across Slack, Google Workspace, Zoom, and more
 - `/backup-saas-systems` — export data from Salesforce, HubSpot, Monday, Slack to cloud storage
 - `/conversation-to-automation` — turn a solved ticket into a reusable knowledge base article + skill
 
