@@ -288,7 +288,8 @@ export function Workbench({
     async (rel: string, icon: string, tone: ToneKey, label: string, description?: string) => {
       const cfg = configRef.current;
       if (!cfg || !repo) return;
-      const patch = { icon, tone, label, ...(description ? { description } : {}) };
+      const patch: Record<string, unknown> = { icon, tone, label };
+      if (description !== undefined) patch.description = description || undefined;
       const update = (tiles: TileConfig[]) =>
         tiles.map((t) =>
           t.rel === rel ? { ...t, ...patch } : t,
@@ -562,7 +563,7 @@ export function Workbench({
               : undefined
           }
           onSave={(icon, tone, label, description) => {
-            void customizeTile(customizing.rel, icon, tone, label, description || undefined);
+            void customizeTile(customizing.rel, icon, tone, label, description);
             setCustomizing(null);
           }}
           onCancel={() => setCustomizing(null)}
