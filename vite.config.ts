@@ -28,5 +28,10 @@ export default defineConfig(async () => ({
       // 3. tell Vite to ignore watching `src-tauri`
       ignored: ["**/src-tauri/**"],
     },
+    fs: {
+      // Allow serving fonts from the repo root node_modules when running
+      // from a git worktree (worktree is a subdirectory of the repo).
+      allow: [".", ".."],
+    },
   },
 }));
