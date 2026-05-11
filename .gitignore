@@ -33,6 +33,9 @@ dist-ssr
 .env*.bak.*
 
 
+# Claude Code worktrees — machine-local, never committed
+.claude/worktrees/
+
 # Ephemeral runtime state from the autonomous-dev /loop driver.
 # Machine-specific (session id, pid, start time); commits cause noise
 # and merge conflicts.

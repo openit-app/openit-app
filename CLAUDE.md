@@ -37,3 +37,16 @@ Sync-engine architecture and channel strategy: `auto-dev/plans/2026-04-25-bidire
 
 
 To get rid of keychain pop-ups. Follow the steps in openit-app/blob/main/src-tauri/scripts/README.md (need you to do somethings too) to circumvent it.
+
+## Git worktrees
+
+Claude Code creates worktrees inside `.claude/worktrees/` by default. This directory is gitignored so they won't pollute version control. Best practices:
+
+- **Always clean up worktrees when done.** Run `git worktree list` to see what exists and `git worktree remove <path>` to delete finished ones. Stale worktrees waste disk space and can cause vitest to pick up duplicate test files.
+- **For quick fixes on main:** don't bother with a worktree — commit directly.
+- **For larger refactors or risky changes:** use a worktree so main stays clean. Cherry-pick or merge commits back when done.
+- **Naming:** use descriptive names (e.g., `fix-auth-bug`, `refactor-viewer`) not auto-generated agent IDs.
+
+## Dictation note
+
+The project owner uses macOS dictation. "Cloud" in messages always means "Claude" (as in Claude Code). Interpret accordingly.

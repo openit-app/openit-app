@@ -26,8 +26,6 @@
   --r-md: 6px;
   --r-lg: 10px;
   --r-xl: 16px;
-  --preview-bg: #2d2420;
-  --preview-text: #f5edd8;
 }
 * { box-sizing: border-box; }
 body {
@@ -44,57 +42,6 @@ body {
   -moz-osx-font-smoothing: grayscale;
 }
 [hidden] { display: none !important; }
-
-/* --- Preview banner (IT admin context) --- */
-.preview-bar {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 8px 16px;
-  background: var(--preview-bg);
-  color: var(--preview-text);
-  font-size: 12px;
-  font-weight: 500;
-  gap: 12px;
-  flex-shrink: 0;
-}
-.preview-bar-left {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-.preview-dot {
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
-  background: var(--accent);
-  flex-shrink: 0;
-}
-.preview-bar span { opacity: 0.7; font-weight: 400; }
-.preview-bar .new-chat-btn {
-  padding: 5px 12px;
-  background: rgba(255,255,255,0.12);
-  color: var(--preview-text);
-  border: 1px solid rgba(255,255,255,0.15);
-  border-radius: var(--r-md);
-  font-size: 12px;
-  font-weight: 500;
-  cursor: pointer;
-  font-family: inherit;
-  transition: background 0.1s ease;
-  display: flex;
-  align-items: center;
-  gap: 5px;
-}
-.preview-bar .new-chat-btn:hover { background: rgba(255,255,255,0.2); }
-.preview-bar .new-chat-btn svg {
-  width: 12px;
-  height: 12px;
-  stroke: currentColor;
-  fill: none;
-  stroke-width: 2;
-  stroke-linecap: round;
-}
 
 /* --- Header --- */
 header {
@@ -126,6 +73,31 @@ header {
 }
 .header-text h1 { margin: 0; font-size: 15px; font-weight: 600; }
 .header-text p { margin: 2px 0 0; color: var(--text-muted); font-size: 12px; }
+.new-chat-btn {
+  margin-left: auto;
+  padding: 5px 12px;
+  background: var(--surface-soft);
+  color: var(--text-muted);
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  font-family: inherit;
+  transition: background 0.1s ease, color 0.1s ease;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+.new-chat-btn:hover { background: var(--accent-faint); color: var(--text); }
+.new-chat-btn svg {
+  width: 12px;
+  height: 12px;
+  stroke: currentColor;
+  fill: none;
+  stroke-width: 2;
+  stroke-linecap: round;
+}
 
 /* --- Gate (email form) --- */
 .gate {
@@ -508,18 +480,6 @@ button:disabled { opacity: 0.5; cursor: not-allowed; }
 </head>
 <body>
 
-<!-- Preview bar — tells the IT admin this is the employee-facing form -->
-<div class="preview-bar" id="previewBar">
-  <div class="preview-bar-left">
-    <div class="preview-dot"></div>
-    Employee preview <span>— this is what your team sees</span>
-  </div>
-  <button class="new-chat-btn" id="newChatBtn" title="Start a new conversation">
-    <svg viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-    New chat
-  </button>
-</div>
-
 <!-- Header — clean employee-facing branding -->
 <header>
   <div class="header-icon">
@@ -529,6 +489,10 @@ button:disabled { opacity: 0.5; cursor: not-allowed; }
     <h1>IT Help Desk</h1>
     <p>Ask a question — we'll try to solve it instantly, or loop in your IT team.</p>
   </div>
+  <button class="new-chat-btn" id="newChatBtn" title="Start a new conversation">
+    <svg viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+    New chat
+  </button>
 </header>
 
 <!-- Gate: collect email before starting the chat -->

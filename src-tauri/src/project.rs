@@ -91,12 +91,8 @@ pub fn project_bootstrap(vault_path: Option<String>) -> Result<BootstrapResult, 
             // before anything's been captured yet.
             "filestores/skills",
             "filestores/scripts",
-            // Knowledge bases got the same plural-with-default split
-            // as filestores (2026-04-27): one folder per KB, with
-            // `default` shipping out of the box. Skills target
-            // `knowledge-bases/default/` unless explicitly told
-            // otherwise; admins can `mkdir knowledge-bases/<custom>/`
-            // to create additional collections.
+            // Flat KB directory: all articles live directly in
+            // `knowledge-bases/`.
             "knowledge-bases",
             // On-demand markdown reports — populated by the
             // "Generate overview" button in the explorer (which shells
@@ -197,23 +193,49 @@ pub fn project_bootstrap(vault_path: Option<String>) -> Result<BootstrapResult, 
         let _ = fs::remove_dir(&legacy_filestore);
     }
 
-    // Same one-time migration for the knowledge-base split. Articles
-    // sitting at the legacy flat `knowledge-base/<file>.md` location
-    // move into `knowledge-bases/default/<file>.md`. Same collision
-    // semantics as filestore (`.legacy` / `.legacy.2` / `.legacy.3`
-    // suffix until we find a free slot).
+    // Legacy migration: singular `knowledge-base/` → flat `knowledge-bases/`.
     let legacy_kb = path.join("knowledge-base");
     if legacy_kb.is_dir() {
-        let default_kb = path.join("knowledge-bases");
+        let kb_dir = path.join("knowledge-bases");
         if let Ok(entries) = fs::read_dir(&legacy_kb) {
             for entry in entries.flatten() {
                 let from = entry.path();
                 let name = entry.file_name();
-                let to = unique_legacy_dest(&default_kb, &name);
+                let to = unique_legacy_dest(&kb_dir, &name);
                 let _ = fs::rename(&from, &to);
             }
         }
         let _ = fs::remove_dir(&legacy_kb);
+    }
+
+    // Flatten migration: move articles from `knowledge-bases/default/`
+    // (and any other collection subdirs) up into `knowledge-bases/`.
+    // Projects created before the flat-KB change may have articles
+    // nested in subdirectories; this hoists them on next open.
+    let kb_dir = path.join("knowledge-bases");
+    if kb_dir.is_dir() {
+        if let Ok(entries) = fs::read_dir(&kb_dir) {
+            for entry in entries.flatten() {
+                let sub = entry.path();
+                if !sub.is_dir() {
+                    continue;
+                }
+                // Move every file from the subdirectory up into knowledge-bases/
+                if let Ok(children) = fs::read_dir(&sub) {
+                    for child in children.flatten() {
+                        let from = child.path();
+                        if !from.is_file() {
+                            continue;
+                        }
+                        let name = child.file_name();
+                        let to = unique_legacy_dest(&kb_dir, &name);
+                        let _ = fs::rename(&from, &to);
+                    }
+                }
+                // Remove the now-empty subdirectory
+                let _ = fs::remove_dir(&sub);
+            }
+        }
     }
 
     Ok(BootstrapResult {

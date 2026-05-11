@@ -23,21 +23,29 @@
 //    them into `LiveStatus` so the UI doesn't need to know the
 //    listener's protocol.
 
+mod api;
+mod config;
+mod listener;
+
 use parking_lot::Mutex as PMutex;
 use reqwest::Client as HttpClient;
 use serde::{Deserialize, Serialize};
-use sha2::{Digest, Sha256};
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 use std::process::Stdio;
 use std::sync::{Arc, OnceLock};
 use std::time::Duration;
-use tauri::path::BaseDirectory;
-use tauri::{AppHandle, Manager, Runtime};
-use tokio::io::{AsyncBufReadExt, BufReader};
+use tauri::{AppHandle, Runtime};
 use tokio::process::Command as TokioCommand;
 use tokio::sync::{oneshot, Mutex as TokioMutex};
 use tokio::task::JoinHandle;
 use tokio::time::timeout;
+
+pub(crate) use api::{slack_lookup_user_id, slack_post_message};
+pub use config::SlackConfig;
+use config::{
+    delete_slack_config, keychain_delete_blocking, keychain_get_blocking, keychain_set_blocking,
+    read_slack_config, write_slack_config,
+};
 
 // ---------------------------------------------------------------------------
 // Constants — keychain slots, file paths, env-var names, timeouts.
@@ -109,267 +117,6 @@ fn app_token_slot(org_id: &str) -> String {
 }
 
 // ---------------------------------------------------------------------------
-// On-disk pointer file + keychain helpers
-// ---------------------------------------------------------------------------
-
-#[derive(Clone, Debug, Serialize, Deserialize)]
-pub struct SlackConfig {
-    pub workspace_id: String,
-    pub workspace_name: String,
-    pub bot_user_id: String,
-    pub bot_name: String,
-    pub connected_at: String,
-    /// Reserved for an opt-in tightening — empty in V1 means "allow
-    /// all in-workspace humans" (guests + externals + bots are
-    /// always blocked regardless).
-    #[serde(default)]
-    pub allowed_domains: Vec<String>,
-}
-
-/// Cross-platform app data directory.
-fn app_data_dir() -> Result<PathBuf, String> {
-    #[cfg(target_os = "macos")]
-    {
-        let home = std::env::var("HOME").map_err(|_| "HOME not set".to_string())?;
-        Ok(PathBuf::from(home)
-            .join("Library")
-            .join("Application Support"))
-    }
-    #[cfg(target_os = "windows")]
-    {
-        std::env::var("APPDATA")
-            .map(PathBuf::from)
-            .map_err(|_| "APPDATA not set".to_string())
-    }
-    #[cfg(target_os = "linux")]
-    {
-        let home = std::env::var("HOME").map_err(|_| "HOME not set".to_string())?;
-        Ok(PathBuf::from(home).join(".local").join("share"))
-    }
-}
-
-/// Build the app-support path for a vault's Slack config.
-///
-/// Layout: `<app-data>/OpenIT/<hash>/credentials/slack.json`
-/// where `<hash>` is the first 16 hex chars of the SHA-256 of the
-/// canonical vault path. Creates the `credentials/` directory with
-/// 0o700 permissions (Unix) if it doesn't already exist.
-///
-/// Platform paths:
-///   macOS:   ~/Library/Application Support/OpenIT/<hash>/credentials/
-///   Linux:   ~/.local/share/OpenIT/<hash>/credentials/
-///   Windows: %APPDATA%/OpenIT/<hash>/credentials/
-fn app_support_slack_config_path(repo: &Path) -> Result<PathBuf, String> {
-    let canonical = repo
-        .canonicalize()
-        .map_err(|e| format!("canonicalize repo path: {}", e))?;
-    let hash_full = Sha256::digest(canonical.to_string_lossy().as_bytes());
-    let hash_hex: String = hash_full
-        .iter()
-        .take(8) // 8 bytes = 16 hex chars
-        .map(|b| format!("{:02x}", b))
-        .collect();
-
-    let base = app_data_dir()?;
-    let cred_dir = base.join("OpenIT").join(&hash_hex).join("credentials");
-
-    if !cred_dir.is_dir() {
-        std::fs::create_dir_all(&cred_dir).map_err(|e| format!("create credentials dir: {}", e))?;
-        #[cfg(unix)]
-        {
-            use std::os::unix::fs::PermissionsExt;
-            std::fs::set_permissions(&cred_dir, std::fs::Permissions::from_mode(0o700))
-                .map_err(|e| format!("chmod credentials dir: {}", e))?;
-        }
-    }
-
-    Ok(cred_dir.join("slack.json"))
-}
-
-/// Legacy path — used only for one-time migration.
-fn legacy_slack_config_path(repo: &Path) -> PathBuf {
-    repo.join(SLACK_CONFIG_REL)
-}
-
-fn slack_config_path(repo: &Path) -> Result<PathBuf, String> {
-    app_support_slack_config_path(repo)
-}
-
-async fn read_slack_config(repo: &Path) -> Result<Option<SlackConfig>, String> {
-    let path = slack_config_path(repo)?;
-
-    // One-time migration: if the app-support file doesn't exist but the
-    // legacy in-vault file does, move it across and delete the old one.
-    if !path.exists() {
-        let legacy = legacy_slack_config_path(repo);
-        if legacy.is_file() {
-            // Ensure destination directory exists (app_support_slack_config_path
-            // already created it, but guard against a race).
-            if let Some(parent) = path.parent() {
-                tokio::fs::create_dir_all(parent)
-                    .await
-                    .map_err(|e| format!("mkdir credentials (migration): {}", e))?;
-            }
-            tokio::fs::copy(&legacy, &path)
-                .await
-                .map_err(|e| format!("migrate slack config: {}", e))?;
-            // Best-effort delete of the old file.
-            let _ = tokio::fs::remove_file(&legacy).await;
-        }
-    }
-
-    let raw = match tokio::fs::read_to_string(&path).await {
-        Ok(s) => s,
-        Err(err) if err.kind() == std::io::ErrorKind::NotFound => return Ok(None),
-        Err(err) => return Err(format!("read slack config: {}", err)),
-    };
-    serde_json::from_str(&raw)
-        .map(Some)
-        .map_err(|err| format!("parse slack config: {}", err))
-}
-
-async fn write_slack_config(repo: &Path, cfg: &SlackConfig) -> Result<(), String> {
-    let path = slack_config_path(repo)?;
-    // Parent directory (credentials/) is created by app_support_slack_config_path,
-    // but guard against a race with an explicit create_dir_all.
-    if let Some(parent) = path.parent() {
-        tokio::fs::create_dir_all(parent)
-            .await
-            .map_err(|e| format!("mkdir credentials: {}", e))?;
-    }
-    let body =
-        serde_json::to_string_pretty(cfg).map_err(|e| format!("serialize slack config: {}", e))?;
-    tokio::fs::write(&path, body)
-        .await
-        .map_err(|e| format!("write slack config: {}", e))
-}
-
-fn keychain_set_blocking(slot: &str, value: &str) -> Result<(), String> {
-    keyring::Entry::new(KEYCHAIN_SERVICE, slot)
-        .map_err(|e| e.to_string())?
-        .set_password(value)
-        .map_err(|e| e.to_string())
-}
-
-fn keychain_get_blocking(slot: &str) -> Result<Option<String>, String> {
-    let entry = keyring::Entry::new(KEYCHAIN_SERVICE, slot).map_err(|e| e.to_string())?;
-    match entry.get_password() {
-        Ok(s) => Ok(Some(s)),
-        Err(keyring::Error::NoEntry) => Ok(None),
-        Err(err) => Err(err.to_string()),
-    }
-}
-
-fn keychain_delete_blocking(slot: &str) -> Result<(), String> {
-    let entry = keyring::Entry::new(KEYCHAIN_SERVICE, slot).map_err(|e| e.to_string())?;
-    match entry.delete_credential() {
-        Ok(()) => Ok(()),
-        Err(keyring::Error::NoEntry) => Ok(()),
-        Err(err) => Err(err.to_string()),
-    }
-}
-
-// ---------------------------------------------------------------------------
-// Slack REST helpers — auth.test, users.lookupByEmail, chat.postMessage.
-//
-// Just enough to connect-validate and send the one-shot intro DM.
-// The websocket and event handling live in the Node listener.
-// ---------------------------------------------------------------------------
-
-#[derive(Deserialize)]
-struct AuthTestResp {
-    ok: bool,
-    error: Option<String>,
-    team_id: Option<String>,
-    team: Option<String>,
-    user_id: Option<String>,
-    user: Option<String>,
-}
-
-async fn slack_auth_test(http: &HttpClient, bot_token: &str) -> Result<AuthTestResp, String> {
-    let resp = http
-        .post(format!("{}/auth.test", SLACK_API_BASE))
-        .bearer_auth(bot_token)
-        .send()
-        .await
-        .map_err(|e| format!("Slack auth.test request failed: {}", e))?;
-    let body: AuthTestResp = resp
-        .json()
-        .await
-        .map_err(|e| format!("Slack auth.test parse failed: {}", e))?;
-    Ok(body)
-}
-
-#[derive(Deserialize)]
-struct LookupByEmailResp {
-    ok: bool,
-    error: Option<String>,
-    user: Option<LookupUser>,
-}
-
-#[derive(Deserialize)]
-struct LookupUser {
-    id: String,
-}
-
-pub(crate) async fn slack_lookup_user_id(
-    http: &HttpClient,
-    bot_token: &str,
-    email: &str,
-) -> Result<String, String> {
-    let resp = http
-        .post(format!("{}/users.lookupByEmail", SLACK_API_BASE))
-        .bearer_auth(bot_token)
-        .form(&[("email", email)])
-        .send()
-        .await
-        .map_err(|e| format!("Slack users.lookupByEmail request failed: {}", e))?;
-    let body: LookupByEmailResp = resp
-        .json()
-        .await
-        .map_err(|e| format!("Slack users.lookupByEmail parse failed: {}", e))?;
-    if !body.ok {
-        return Err(body
-            .error
-            .unwrap_or_else(|| "users.lookupByEmail failed".into()));
-    }
-    body.user
-        .map(|u| u.id)
-        .ok_or_else(|| "users.lookupByEmail returned no user".into())
-}
-
-#[derive(Deserialize)]
-struct PostMessageResp {
-    ok: bool,
-    error: Option<String>,
-}
-
-pub(crate) async fn slack_post_message(
-    http: &HttpClient,
-    bot_token: &str,
-    channel: &str,
-    text: &str,
-) -> Result<(), String> {
-    let resp = http
-        .post(format!("{}/chat.postMessage", SLACK_API_BASE))
-        .bearer_auth(bot_token)
-        .json(&serde_json::json!({ "channel": channel, "text": text }))
-        .send()
-        .await
-        .map_err(|e| format!("Slack chat.postMessage request failed: {}", e))?;
-    let body: PostMessageResp = resp
-        .json()
-        .await
-        .map_err(|e| format!("Slack chat.postMessage parse failed: {}", e))?;
-    if !body.ok {
-        return Err(body
-            .error
-            .unwrap_or_else(|| "chat.postMessage failed".into()));
-    }
-    Ok(())
-}
-
-// ---------------------------------------------------------------------------
 // Live supervisor state
 // ---------------------------------------------------------------------------
 
@@ -402,31 +149,31 @@ pub struct SlackSupervisorState {
     cmd_lock: TokioMutex<()>,
 }
 
-struct RunningListener {
-    workspace_id: String,
-    workspace_name: String,
-    bot_user_id: String,
-    bot_name: String,
+pub(crate) struct RunningListener {
+    pub workspace_id: String,
+    pub workspace_name: String,
+    pub bot_user_id: String,
+    pub bot_name: String,
     /// Bot token cached here so `slack_listener_send_intro` doesn't
     /// have to round-trip to the keychain (and so it works even if
     /// the keychain hasn't been touched in this session).
-    bot_token: String,
-    last_heartbeat: Arc<PMutex<Option<HeartbeatPayload>>>,
+    pub bot_token: String,
+    pub last_heartbeat: Arc<PMutex<Option<HeartbeatPayload>>>,
     /// Live error line from the listener's stderr (most recent
     /// `[slack-listen]` diagnostic). Distinct from
     /// `SlackSupervisorState.last_exit_error`, which only fills
     /// when the process *exits*.
-    last_error: Arc<PMutex<Option<String>>>,
+    pub last_error: Arc<PMutex<Option<String>>>,
     /// Send `()` to ask the supervisor task to stop the child
     /// gracefully (SIGTERM, 5s grace, SIGKILL). Taken (Some→None)
     /// during stop so the second stop call is a no-op.
-    stop_tx: Option<oneshot::Sender<()>>,
+    pub stop_tx: Option<oneshot::Sender<()>>,
     /// Single task that owns the `Child` and its stderr stream:
     /// drains heartbeat / error lines, observes either the stop
     /// signal or an unexpected child exit, kills if needed, then
     /// clears `state.inner` and writes `last_exit_error`. We await
     /// it on stop so the cleanup is observable from the caller.
-    supervisor_task: Option<JoinHandle<()>>,
+    pub supervisor_task: Option<JoinHandle<()>>,
 }
 
 #[derive(Serialize)]
@@ -474,7 +221,7 @@ pub async fn slack_validate_bot_token(bot_token: String) -> Result<SlackConnectM
         .timeout(Duration::from_secs(HTTP_TIMEOUT_SECS))
         .build()
         .map_err(|e| format!("http client: {}", e))?;
-    let auth = slack_auth_test(&http, bot_token).await?;
+    let auth = api::slack_auth_test(&http, bot_token).await?;
     if !auth.ok {
         return Err(auth
             .error
@@ -523,7 +270,7 @@ pub async fn slack_connect(
         .timeout(Duration::from_secs(HTTP_TIMEOUT_SECS))
         .build()
         .map_err(|e| format!("http client: {}", e))?;
-    let auth = slack_auth_test(&http, &bot_token).await?;
+    let auth = api::slack_auth_test(&http, &bot_token).await?;
     if !auth.ok {
         return Err(auth
             .error
@@ -591,19 +338,7 @@ pub async fn slack_disconnect(
     .map_err(|e| format!("keychain task join: {}", e))??;
 
     let repo_path = PathBuf::from(&repo);
-    let path = slack_config_path(&repo_path)?;
-    match tokio::fs::remove_file(&path).await {
-        Ok(()) => {}
-        Err(err) if err.kind() == std::io::ErrorKind::NotFound => {}
-        Err(err) => return Err(format!("delete slack config: {}", err)),
-    }
-    // Also clean up the legacy in-vault file if it still exists.
-    let legacy = legacy_slack_config_path(&repo_path);
-    match tokio::fs::remove_file(&legacy).await {
-        Ok(()) => {}
-        Err(err) if err.kind() == std::io::ErrorKind::NotFound => {}
-        Err(err) => return Err(format!("delete legacy slack config: {}", err)),
-    }
+    delete_slack_config(&repo_path).await?;
     Ok(())
 }
 
@@ -650,7 +385,7 @@ pub async fn slack_listener_start<R: Runtime>(
     let bot_token = bot_token.ok_or("bot token missing from keychain — reconnect Slack")?;
     let app_token = app_token.ok_or("app token missing from keychain — reconnect Slack")?;
 
-    let bundle_path = resolve_listener_bundle(&app, &repo_path)?;
+    let bundle_path = listener::resolve_listener_bundle(&app, &repo_path)?;
 
     // Clear stale exit error from any prior crash before we
     // attempt to come back up — otherwise a successful restart
@@ -691,7 +426,7 @@ pub async fn slack_listener_start<R: Runtime>(
     let (ready_tx, ready_rx) = oneshot::channel::<Result<(), String>>();
     let (stop_tx, stop_rx) = oneshot::channel::<()>();
 
-    let supervisor_task = spawn_supervisor_task(
+    let supervisor_task = listener::spawn_supervisor_task(
         child,
         stderr,
         ready_tx,
@@ -769,160 +504,6 @@ pub async fn slack_listener_start<R: Runtime>(
     }
     set_active_bot_token(Some(bot_token_for_global));
     Ok(())
-}
-
-/// One task per listener: owns the Child + stderr, drains heartbeat
-/// and error lines, observes either a stop signal or an unexpected
-/// child exit, ensures the child is dead, then clears
-/// `state.inner` and writes `last_exit_error` if appropriate.
-///
-/// Single owner = simpler than splitting into a "log task" and a
-/// "wait task". The select! between stderr line read, child wait,
-/// and the stop signal is the central state machine.
-#[allow(clippy::too_many_arguments)]
-fn spawn_supervisor_task(
-    mut child: tokio::process::Child,
-    stderr: tokio::process::ChildStderr,
-    ready_tx: oneshot::Sender<Result<(), String>>,
-    mut stop_rx: oneshot::Receiver<()>,
-    hb_handle: Arc<PMutex<Option<HeartbeatPayload>>>,
-    err_handle: Arc<PMutex<Option<String>>>,
-    inner_handle: Arc<PMutex<Option<RunningListener>>>,
-    exit_err_handle: Arc<PMutex<Option<String>>>,
-) -> JoinHandle<()> {
-    tokio::spawn(async move {
-        let mut reader = BufReader::new(stderr).lines();
-        let mut ready_tx = Some(ready_tx);
-
-        loop {
-            tokio::select! {
-                // Bias the stop signal so a flood of stderr lines
-                // can't starve it.
-                biased;
-
-                _ = &mut stop_rx => {
-                    #[cfg(unix)]
-                    {
-                        if let Some(pid) = child.id() {
-                            // SAFETY: pid from the live child we own.
-                            unsafe { libc::kill(pid as libc::pid_t, libc::SIGTERM); }
-                        }
-                    }
-                    // Give the listener LISTENER_STOP_GRACE_SECS to
-                    // exit cleanly; if it's still running after, the
-                    // wait branch below will pick up the kill.
-                    let kill_after = tokio::time::sleep(
-                        Duration::from_secs(LISTENER_STOP_GRACE_SECS),
-                    );
-                    tokio::pin!(kill_after);
-                    // Continue the loop so we keep draining stderr
-                    // (heartbeats may still come through during
-                    // graceful shutdown). The grace timer is
-                    // checked in the next select! arm.
-                    tokio::select! {
-                        _ = &mut kill_after => {
-                            let _ = child.kill().await;
-                        }
-                        s = child.wait() => {
-                            handle_exit(s, &exit_err_handle);
-                            break;
-                        }
-                    }
-                    // After grace timeout, ensure exit observed.
-                    if let Ok(s) = child.wait().await {
-                        handle_exit(Ok(s), &exit_err_handle);
-                    }
-                    break;
-                }
-
-                line = reader.next_line() => {
-                    match line {
-                        Ok(Some(text)) => {
-                            process_stderr_line(
-                                &text,
-                                &hb_handle,
-                                &err_handle,
-                                &mut ready_tx,
-                            );
-                        }
-                        Ok(None) | Err(_) => {
-                            // Stream closed — child has exited or is
-                            // about to. Loop will pick it up via
-                            // child.wait().
-                        }
-                    }
-                }
-
-                exit = child.wait() => {
-                    handle_exit(exit, &exit_err_handle);
-                    if let Some(tx) = ready_tx.take() {
-                        let _ = tx.send(Err(
-                            "listener exited before reporting ready (check stderr)".into()
-                        ));
-                    }
-                    break;
-                }
-            }
-        }
-
-        // Belt-and-suspenders kill in case any path above didn't
-        // observe the exit (e.g. select! fall-through after a
-        // closed stderr stream).
-        let _ = child.kill().await;
-
-        // Clear inner so status() flips to stopped. We don't take
-        // last_error/heartbeat with us — exit_err_handle is the
-        // separate channel for "last error after exit".
-        *inner_handle.lock() = None;
-        // Mirror clear into the process-global so the intake-server
-        // `/skill/slack-send-intro` route stops servicing requests
-        // against a dead listener.
-        set_active_bot_token(None);
-    })
-}
-
-fn handle_exit(
-    res: std::io::Result<std::process::ExitStatus>,
-    exit_err_handle: &Arc<PMutex<Option<String>>>,
-) {
-    match res {
-        Ok(status) if !status.success() => {
-            *exit_err_handle.lock() = Some(format!("listener exited: {}", status));
-        }
-        Ok(_) => {
-            // Clean exit (likely a graceful stop) — no error to
-            // record. If `last_exit_error` was set previously,
-            // leave it alone; the next start clears it.
-        }
-        Err(err) => {
-            *exit_err_handle.lock() = Some(format!("wait on listener failed: {}", err));
-        }
-    }
-}
-
-fn process_stderr_line(
-    line: &str,
-    hb_handle: &Arc<PMutex<Option<HeartbeatPayload>>>,
-    err_handle: &Arc<PMutex<Option<String>>>,
-    ready_tx: &mut Option<oneshot::Sender<Result<(), String>>>,
-) {
-    if line.trim_start().starts_with('{') {
-        if let Ok(parsed) = serde_json::from_str::<HeartbeatPayload>(line) {
-            *hb_handle.lock() = Some(parsed);
-            return;
-        }
-    }
-    if line.contains("socket-mode connected") {
-        if let Some(tx) = ready_tx.take() {
-            let _ = tx.send(Ok(()));
-        }
-        eprintln!("[slack] listener: {}", line);
-        return;
-    }
-    if line.contains("[slack-listen]") {
-        *err_handle.lock() = Some(line.to_string());
-    }
-    eprintln!("[slack] listener: {}", line);
 }
 
 #[tauri::command]
@@ -1006,45 +587,8 @@ pub async fn slack_listener_send_intro(
         .timeout(Duration::from_secs(HTTP_TIMEOUT_SECS))
         .build()
         .map_err(|e| format!("http client: {}", e))?;
-    let user_id = slack_lookup_user_id(&http, &bot_token, target_email.trim()).await?;
-    slack_post_message(&http, &bot_token, &user_id, text.trim()).await
-}
-
-// ---------------------------------------------------------------------------
-// Bundle path resolution
-// ---------------------------------------------------------------------------
-
-fn resolve_listener_bundle<R: Runtime>(app: &AppHandle<R>, repo: &Path) -> Result<PathBuf, String> {
-    // 1. Packaged with the .app — the canonical copy. Always
-    //    matches the running app version, so a stale plugin sync
-    //    (manifest hasn't pulled the newest bundle to the project
-    //    yet) doesn't end up running yesterday's listener against
-    //    today's intake server contract. Tauri's resolver returns
-    //    a path even when the file isn't present, so we still need
-    //    the .is_file() probe.
-    if let Ok(in_resources) = app
-        .path()
-        .resolve(LISTENER_RESOURCE_REL, BaseDirectory::Resource)
-    {
-        if in_resources.is_file() {
-            return Ok(in_resources);
-        }
-    }
-    // 2. Synced into the project by the plugin manifest. Used in
-    //    `cargo dev` (no .app to resolve out of) and as a fallback
-    //    if the resource lookup fails for some reason. A custom
-    //    local build at `npm run build:slack-listener` lands the
-    //    bundle into the source tree, which is what the plugin
-    //    manifest copies into projects.
-    let in_repo = repo.join(LISTENER_REPO_REL);
-    if in_repo.is_file() {
-        return Ok(in_repo);
-    }
-    Err(format!(
-        "slack listener bundle not found at app resources or in {}; \
-         run `npm run build:slack-listener` and re-sync the plugin",
-        in_repo.display()
-    ))
+    let user_id = api::slack_lookup_user_id(&http, &bot_token, target_email.trim()).await?;
+    api::slack_post_message(&http, &bot_token, &user_id, text.trim()).await
 }
 
 // ---------------------------------------------------------------------------
