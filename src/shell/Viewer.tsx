@@ -597,11 +597,43 @@ export function Viewer({
     );
   }
 
+  // --- Workstation tile lookup helper ---
+  // Maps the current ViewerSource to a workstation tile rel path so we
+  // can trickle custom icon/tone/label into the viewer header, title,
+  // and child-list card views.
+  const ENTITY_TO_REL: Record<string, string> = {
+    knowledge: "knowledge-bases", "knowledge-base": "knowledge-bases",
+    reports: "reports", library: "filestores/library",
+    scripts: "filestores/scripts", skills: "filestores/skills",
+    agents: "agents", workflows: "workflows",
+    attachments: "filestores/attachments",
+  };
+  const sourceRel: string | null = (() => {
+    if (!source) return null;
+    switch (source.kind) {
+      case "entity-folder": return ENTITY_TO_REL[source.entity] ?? null;
+      case "datastore-table": return `databases/${source.collection.name}`;
+      case "people-list": return "databases/people";
+      case "access-list": return "databases/access";
+      case "assets-list": return "databases/assets";
+      case "conversations-list": return "databases/tickets";
+      case "tools": return "tools";
+      case "commands-station": return "filestores/skills";
+      case "scripts-station": return "filestores/scripts";
+      case "traces-list": return ".openit/agent-traces";
+      case "databases-list": return "databases";
+      case "filestores-list": return "filestores";
+      default: return null;
+    }
+  })();
+  const wsTile = sourceRel ? wsTiles.find((t) => t.rel === sourceRel) : undefined;
+
   // --- Title ---
   const getTitle = (): string => {
+    // Workstation config label takes precedence when set
+    if (wsTile?.label) return wsTile.label;
     switch (source.kind) {
       case "file": {
-        // Skill files → show "skill-name" instead of "SKILL.md"
         const sm = source.path.match(/\.claude\/skills\/([^/]+)\/SKILL\.md$/);
         if (sm) return sm[1];
         return source.path.split("/").pop() ?? source.path;
@@ -1675,14 +1707,21 @@ export function Viewer({
           <EntityCardGrid
             kind="filestores"
             cards={source.collections.map((c) => {
-              // Overlay workstation config customizations (label, icon)
-              const wsTile = wsTiles.find((t) => t.rel === `filestores/${c.name}`);
+              // Overlay workstation config customizations (label, icon).
+              // Fall back to known default icons so each child shows its
+              // own identity, not the generic folder icon.
+              const fsWsTile = wsTiles.find((t) => t.rel === `filestores/${c.name}`);
+              const FS_DEFAULT_ICONS: Record<string, string> = {
+                skills: "commands", scripts: "scripts",
+                attachments: "attachments", library: "folder",
+              };
+              const cardIcon = fsWsTile?.icon ?? FS_DEFAULT_ICONS[c.name];
               return {
               key: c.path,
-              title: wsTile?.label ?? c.displayName,
+              title: fsWsTile?.label ?? c.displayName,
               description: c.description,
               meta: `${c.itemCount} ${c.itemNoun}${c.itemCount === 1 ? "" : "s"}`,
-              icon: wsTile?.icon ? iconForKey(wsTile.icon) : undefined,
+              icon: cardIcon ? iconForKey(cardIcon) : undefined,
               badge: c.isBuiltin
                 ? undefined
                 : { label: "custom", tone: "info" as const },
@@ -1908,12 +1947,17 @@ export function Viewer({
               </p>
             }
             cards={source.collections.map((c) => {
-              const wsTile = wsTiles.find((t) => t.rel === `databases/${c.name}`);
-              const label = wsTile?.label ?? c.name.charAt(0).toUpperCase() + c.name.slice(1);
+              const dbWsTile = wsTiles.find((t) => t.rel === `databases/${c.name}`);
+              const DB_DEFAULT_ICONS: Record<string, string> = {
+                people: "person", access: "access",
+                assets: "assets", tickets: "inbox",
+              };
+              const dbCardIcon = dbWsTile?.icon ?? DB_DEFAULT_ICONS[c.name];
+              const label = dbWsTile?.label ?? c.name.charAt(0).toUpperCase() + c.name.slice(1);
               return {
               key: c.path,
               title: label,
-              icon: wsTile?.icon ? iconForKey(wsTile.icon) : undefined,
+              icon: dbCardIcon ? iconForKey(dbCardIcon) : undefined,
               meta: `${c.itemCount} ${
                 c.name === "conversations" ? "thread" : "row"
               }${c.itemCount === 1 ? "" : "s"}`,
@@ -2177,7 +2221,12 @@ export function Viewer({
           </Button>
         </div>
         {headerKind && (
-          <EntityBadge kind={headerKind} showLabel={false} />
+          <EntityBadge
+            kind={headerKind}
+            showLabel={false}
+            overrideIcon={wsTile?.icon ? iconForKey(wsTile.icon) : undefined}
+            overrideTone={wsTile?.tone}
+          />
         )}
         <BreadcrumbAncestors
           source={source}
