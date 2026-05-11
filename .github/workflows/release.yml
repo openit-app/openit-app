@@ -143,3 +143,10 @@ jobs:
 
           # Upload to release
           gh release upload "${TAG}" /tmp/latest.json --clobber
+
+      # tauri-action creates releases with GITHUB_TOKEN, which doesn't trigger
+      # other workflows (release:published). Explicitly rebuild the landing page.
+      - name: Rebuild landing page
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: gh workflow run landing.yml
