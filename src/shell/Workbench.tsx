@@ -69,7 +69,11 @@ export function Workbench({
   // content changes. Imperative highlights via highlight.json are
   // NOT suppressed — they're always intentional.
   const mountedAtRef = useRef(Date.now());
-  const lastHighlightTsRef = useRef(0);
+  // Start as -1 so the first read of highlight.json seeds the
+  // timestamp without triggering a pulse. Stale highlights left
+  // over from a previous session would otherwise replay on every
+  // app launch because the ref resets to 0 on mount.
+  const lastHighlightTsRef = useRef(-1);
   const [highlightedStations, setHighlightedStations] = useState<Set<string>>(new Set());
   const [escalatedTickets, setEscalatedTickets] = useState<TicketSummary[]>([]);
   const escalatedCount = escalatedTickets.length;
@@ -203,8 +207,12 @@ export function Workbench({
           typeof parsed.ts === "number" &&
           parsed.ts > lastHighlightTsRef.current
         ) {
+          const firstRead = lastHighlightTsRef.current === -1;
           lastHighlightTsRef.current = parsed.ts;
-          if (!cancelled) {
+          // First read after mount: seed the timestamp so we don't
+          // replay stale highlights from a previous session, but
+          // don't actually pulse.
+          if (!firstRead && !cancelled) {
             setHighlightedStations(new Set(parsed.tiles));
             clearTimeout(highlightTimerRef.current);
             highlightTimerRef.current = setTimeout(
