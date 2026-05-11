@@ -1219,8 +1219,9 @@ input.viewer-title.viewer-title-rename {
   appearance: none;
   background: transparent;
   border: none;
-  padding: 0;
-  margin: 0;
+  padding: 2px 5px;
+  margin: -2px -5px;
+  border-radius: var(--r-sm);
   font-family: inherit;
   font-size: inherit;
   font-weight: 400;
@@ -1228,14 +1229,14 @@ input.viewer-title.viewer-title-rename {
   cursor: pointer;
   text-decoration: none;
   flex: 0 0 auto;
-  transition: color var(--t-fast) var(--ease);
+  transition:
+    color var(--t-fast) var(--ease),
+    background var(--t-fast) var(--ease);
 }
 
 .viewer-breadcrumb-link:hover {
   color: var(--color-text);
-  text-decoration: underline;
-  text-decoration-color: var(--color-border);
-  text-underline-offset: 3px;
+  background: var(--color-hover-overlay);
 }
 
 /* Markdown edit mode — full-pane textarea with a footer of action
