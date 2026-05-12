@@ -32,9 +32,50 @@ pub fn tools_is_installed(binary: String) -> bool {
     // PATH (/usr/bin:/bin:/usr/sbin:/sbin) that doesn't include
     // Homebrew paths. Probe the standard Homebrew directories directly
     // so `op`, `gh`, etc. are detected even when not on the process PATH.
-    for dir in &["/opt/homebrew/bin", "/usr/local/bin"] {
-        if PathBuf::from(dir).join(&binary).exists() {
-            return true;
+    #[cfg(not(target_os = "windows"))]
+    {
+        for dir in &["/opt/homebrew/bin", "/usr/local/bin"] {
+            if PathBuf::from(dir).join(&binary).exists() {
+                return true;
+            }
+        }
+    }
+    // On Windows, WinGet adds shims to %LOCALAPPDATA%\Microsoft\WinGet\Links
+    // and app-execution-aliases live in %LOCALAPPDATA%\Microsoft\WindowsApps.
+    // These get added to PATH only on a fresh process — a tool installed
+    // *after* OpenIT launched won't be on the running app's PATH yet.
+    // Probing those directories directly catches that case without
+    // asking the user to restart the app.
+    #[cfg(target_os = "windows")]
+    {
+        let exe = if binary.ends_with(".exe") {
+            binary.clone()
+        } else {
+            format!("{}.exe", binary)
+        };
+        let cmd = if binary.ends_with(".cmd") {
+            binary.clone()
+        } else {
+            format!("{}.cmd", binary)
+        };
+        let mut roots: Vec<PathBuf> = Vec::new();
+        if let Ok(local_app_data) = std::env::var("LOCALAPPDATA") {
+            roots.push(PathBuf::from(&local_app_data).join("Microsoft\\WinGet\\Links"));
+            roots.push(PathBuf::from(&local_app_data).join("Microsoft\\WindowsApps"));
+            roots.push(PathBuf::from(&local_app_data).join("Programs"));
+        }
+        if let Ok(program_files) = std::env::var("ProgramFiles") {
+            roots.push(PathBuf::from(program_files));
+        }
+        if let Ok(program_files_x86) = std::env::var("ProgramFiles(x86)") {
+            roots.push(PathBuf::from(program_files_x86));
+        }
+        for root in &roots {
+            for candidate in &[&binary, &exe, &cmd] {
+                if root.join(candidate).exists() {
+                    return true;
+                }
+            }
         }
     }
     false
