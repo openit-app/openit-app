@@ -42,7 +42,17 @@ export async function resolvePathToSource(
 ): Promise<ViewerSource> {
   if (!repo) return { kind: "file", path };
 
-  const rel = path.startsWith(repo + "/") ? path.slice(repo.length + 1) : null;
+  // Handle both path separators — Windows yields backslashes, Unix yields
+  // forward slashes, and the two sides (repo and path) may even disagree.
+  // Normalize both before deriving the rel-path. Without this, clicking a
+  // folder in the file explorer on Windows resolved as a generic file view
+  // and surfaced "Access is denied. (os error 5)" as the viewer tried to
+  // read the directory as a file.
+  const repoFs = repo.replace(/\\/g, "/");
+  const pathFs = path.replace(/\\/g, "/");
+  const rel = pathFs.startsWith(repoFs + "/")
+    ? pathFs.slice(repoFs.length + 1)
+    : null;
   if (!rel) return { kind: "file", path };
 
   // `tools` is a synthetic entity -- no on-disk directory at all (so it
