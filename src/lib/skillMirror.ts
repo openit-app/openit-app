@@ -26,6 +26,7 @@
 import { invoke } from "@tauri-apps/api/core";
 import { fsDelete, fsRead } from "./api";
 import { onFsChanged } from "./fsWatcher";
+import { relUnderRepo } from "./paths";
 
 const SKILLS_PREFIX = "filestores/skills/";
 const SCRIPTS_PREFIX = "filestores/scripts/";
@@ -46,8 +47,8 @@ let pendingTimer: ReturnType<typeof setTimeout> | null = null;
 /// null if the path is outside our scope. Returning null is the gate
 /// that prevents `.claude/` writes from re-triggering the mirror.
 function classifyPath(repo: string, abs: string): Action | null {
-  if (!abs.startsWith(`${repo}/`)) return null;
-  const rel = abs.slice(repo.length + 1);
+  const rel = relUnderRepo(repo, abs);
+  if (rel === null || rel === "") return null;
 
   if (rel.startsWith(SKILLS_PREFIX)) {
     const tail = rel.slice(SKILLS_PREFIX.length);

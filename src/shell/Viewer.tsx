@@ -2,6 +2,7 @@ import { useEffect, useRef, useState, type ReactNode } from "react";
 import ReactMarkdown, { defaultUrlTransform } from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { fsRead, fsReadBytes, fsList, fsReveal, reportOverviewRun, entityDeleteFile, entityRemoveDir } from "../lib/api";
+import { isUnderRepo } from "../lib/paths";
 import type { MemoryItem, Agent } from "../lib/localTypes";
 import { EntityCardGrid } from "./EntityCardGrid";
 import { EntityBadge, type EntityKind } from "./entityIcons";
@@ -1058,7 +1059,7 @@ export function Viewer({
   }): ReactNode => {
     const { filePath, afterMode, validateAsJson } = args;
     const onSave = async () => {
-      if (!repo || !filePath.startsWith(`${repo}/`)) {
+      if (!repo || !isUnderRepo(repo, filePath)) {
         setEditError("Cannot save: file is outside the project folder.");
         return;
       }

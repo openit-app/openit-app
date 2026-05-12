@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { fsList, type FileNode } from "../../lib/api";
 import { subscribeConflicts, type AggregatedConflict } from "../../lib/syncEngine";
+import { isUnderRepo, relUnderRepo } from "../../lib/paths";
 
 /**
  * Manages the file-explorer tree: node list, collapse state,
@@ -81,16 +82,18 @@ export function useTreeState(
   // out of the `collapsed` set so the row is rendered.
   useEffect(() => {
     if (!selectedPath || !repo) return;
-    if (!selectedPath.startsWith(`${repo}/`)) return;
+    if (!isUnderRepo(repo, selectedPath)) return;
+    // Walk parent dirs using whichever separator the path actually uses
+    // — Tauri gives backslashes on Windows, slashes elsewhere.
     setCollapsed((prev) => {
       if (prev.size === 0) return prev;
       const next = new Set(prev);
       let changed = false;
       let cursor = selectedPath;
       while (true) {
-        const slash = cursor.lastIndexOf("/");
-        if (slash <= repo.length) break;
-        cursor = cursor.slice(0, slash);
+        const sep = Math.max(cursor.lastIndexOf("/"), cursor.lastIndexOf("\\"));
+        if (sep <= repo.length) break;
+        cursor = cursor.slice(0, sep);
         if (next.delete(cursor)) changed = true;
       }
       return changed ? next : prev;
@@ -148,9 +151,11 @@ export function useTreeState(
 
   // Bulk toggle helpers
   const allDirs = nodes.filter((n) => n.is_dir).map((n) => n.path);
-  const repoPrefix = repo ? `${repo}/` : "";
   const topLevelDirs = repo
-    ? allDirs.filter((p) => p.startsWith(repoPrefix) && !p.slice(repoPrefix.length).includes("/"))
+    ? allDirs.filter((p) => {
+        const r = relUnderRepo(repo, p);
+        return r !== null && r.length > 0 && !r.includes("/");
+      })
     : [];
   const deeperDirs = allDirs.filter((p) => !topLevelDirs.includes(p));
   const allCollapsed = allDirs.length > 0 && allDirs.every((d) => collapsed.has(d));
