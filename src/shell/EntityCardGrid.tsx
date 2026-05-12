@@ -300,17 +300,12 @@ function EntityCardItem({
           title={`Delete ${c.title}`}
           aria-label={`Delete ${c.title}`}
           onMouseDown={(e) => {
-            // Stop the card's mousedown so it doesn't grab focus
-            // back from the click chain.
+            // Stop the card's mousedown so it doesn't grab focus back.
             e.stopPropagation();
           }}
           onClick={(e) => {
             e.stopPropagation();
             e.preventDefault();
-            // TEMPORARY DIAGNOSTIC: a sync alert is impossible for the
-            // webview to swallow silently. If you don't see this, the
-            // click is being captured upstream of this handler.
-            try { window.alert(`[trash-click] ${c.title}`); } catch { /* */ }
             void c.onDelete?.();
           }}
         >
