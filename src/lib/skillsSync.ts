@@ -198,6 +198,18 @@ export async function syncSkillsToDisk(
   // Slug = repo basename. Same value used by kbSync / datastoreSync to
   // suffix collection names. Keeps schemas/agents/databases all aligned.
   const slug = repo.split("/").filter(Boolean).pop() ?? repo;
+  // Diagnostic log written to `.openit/sync-log.json` at end of sync.
+  // Captures per-file outcome so failures aren't trapped in the renderer's
+  // dev-only console (which is hard to access on Windows during onboarding).
+  type SyncLogEntry = {
+    path: string;
+    stage: "route" | "preserved" | "fetch" | "write" | "ok";
+    subdir?: string;
+    filename?: string;
+    error?: string;
+  };
+  const syncLog: SyncLogEntry[] = [];
+
   try {
     const manifest = await fetchSkillsManifest(creds);
     let skillCount = 0;
@@ -206,9 +218,10 @@ export async function syncSkillsToDisk(
     const writtenPaths: string[] = [];
 
     for (const file of manifest.files) {
+      let stage: SyncLogEntry["stage"] = "route";
       try {
         const route = routeFile(file.path, slug);
-        if (!route) continue;
+        if (!route) { syncLog.push({ path: file.path, stage: "route" }); continue; }
         // Write-once gate for agent files. The plugin sync runs on every
         // version bump; without this, an upgrade silently overwrites
         // user-edited `agents/<name>.json` instructions. Agents are the
@@ -220,6 +233,7 @@ export async function syncSkillsToDisk(
             console.debug(
               `[skillsSync] preserved user-edited ${route.subdir}/${route.filename}`,
             );
+            syncLog.push({ path: file.path, stage: "preserved", subdir: route.subdir, filename: route.filename });
             continue;
           }
         }
@@ -231,9 +245,11 @@ export async function syncSkillsToDisk(
             console.debug(
               `[skillsSync] preserved user-edited ${route.subdir}/${route.filename}`,
             );
+            syncLog.push({ path: file.path, stage: "preserved", subdir: route.subdir, filename: route.filename });
             continue;
           }
         }
+        stage = "fetch";
         let content = await fetchSkillFile(file.path, creds);
         if (route.substituteSlug) {
           content = content.replace(/\{\{slug\}\}/g, slug);
@@ -245,12 +261,14 @@ export async function syncSkillsToDisk(
         } else {
           fileCount += 1;
         }
+        stage = "write";
         await invoke("entity_write_file", {
           repo,
           subdir: route.subdir,
           filename: route.filename,
           content,
         });
+        syncLog.push({ path: file.path, stage: "ok", subdir: route.subdir, filename: route.filename });
         const relPath = route.subdir ? `${route.subdir}/${route.filename}` : route.filename;
         // Skip paths that .gitignore rejects (.claude/, CLAUDE.md). Passing
         // them to `git add` is fatal — git refuses the entire add list with
@@ -263,9 +281,23 @@ export async function syncSkillsToDisk(
         if (!isGitignored) writtenPaths.push(relPath);
         console.debug(`[skillsSync] Synced ${file.path} → ${relPath}`);
       } catch (err) {
-        console.warn(`[skillsSync] Failed to sync ${file.path}:`, err);
+        console.warn(`[skillsSync] Failed to sync ${file.path} (stage=${stage}):`, err);
         onLog?.(`  ✗ ${file.path}: ${err}`);
+        syncLog.push({ path: file.path, stage, error: String(err) });
       }
+    }
+
+    // Persist diagnostic log so failures on Windows / locked-down envs
+    // surface somewhere the user can `cat` without opening DevTools.
+    try {
+      await invoke("entity_write_file", {
+        repo,
+        subdir: ".openit",
+        filename: "sync-log.json",
+        content: JSON.stringify({ version: manifest.version, entries: syncLog }, null, 2),
+      });
+    } catch (err) {
+      console.warn("[skillsSync] failed to write sync-log.json:", err);
     }
 
     // Roll the synced files into a commit so a fresh bootstrap doesn't
