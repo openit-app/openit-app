@@ -101,10 +101,12 @@ export function EntityFolderBody({
       onClick: () => onOpenPath && void onOpenPath(f.path),
       onDelete: repo
         ? async () => {
-            // Optimistic hide first — the user sees the card vanish
-            // before the fs round-trip even completes. If the delete
-            // ultimately fails, we restore it.
-            setHiddenPaths((prev) => new Set(prev).add(f.path));
+            console.log(`[entity-folder] onDelete entered for ${f.name} (path=${f.path})`);
+            setHiddenPaths((prev) => {
+              const next = new Set(prev).add(f.path);
+              console.log(`[entity-folder] hiddenPaths now has ${next.size} entries`);
+              return next;
+            });
             try {
               await deleteFileInSubdir(
                 repo,
@@ -114,7 +116,9 @@ export function EntityFolderBody({
                 showToast,
                 onFsChange,
               );
-            } catch {
+              console.log(`[entity-folder] deleteFileInSubdir completed for ${f.name}`);
+            } catch (err) {
+              console.log(`[entity-folder] deleteFileInSubdir threw for ${f.name}:`, err);
               setHiddenPaths((prev) => {
                 const next = new Set(prev);
                 next.delete(f.path);

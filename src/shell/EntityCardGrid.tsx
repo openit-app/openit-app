@@ -300,13 +300,23 @@ function EntityCardItem({
           title={`Delete ${c.title}`}
           aria-label={`Delete ${c.title}`}
           onMouseDown={(e) => {
-            // Stop the card's mousedown so it doesn't grab focus back.
+            console.log(`[trash] mousedown on ${c.title}`);
             e.stopPropagation();
           }}
           onClick={(e) => {
+            console.log(`[trash] click on ${c.title}`);
             e.stopPropagation();
             e.preventDefault();
-            void c.onDelete?.();
+            const fn = c.onDelete;
+            if (!fn) {
+              console.log(`[trash] no onDelete handler for ${c.title}`);
+              return;
+            }
+            console.log(`[trash] invoking onDelete for ${c.title}`);
+            Promise.resolve(fn()).then(
+              () => console.log(`[trash] onDelete resolved for ${c.title}`),
+              (err) => console.log(`[trash] onDelete rejected for ${c.title}:`, err),
+            );
           }}
         >
           <TrashIcon />

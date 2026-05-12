@@ -4989,6 +4989,11 @@ input.viewer-title.viewer-title-rename {
   opacity: 0;
   pointer-events: none;
   z-index: 10;
+  /* Larger hit target: padding extends the clickable area without
+     visually enlarging the icon. Without this, a tiny iconOnly button
+     was easy to miss on the first click and the user had to retry. */
+  padding: 12px !important;
+  margin: -12px !important;
 }
 
 .entity-card-wrapper:hover .entity-card-delete,
