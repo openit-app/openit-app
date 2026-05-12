@@ -430,7 +430,7 @@ export function ConversationThreadBody({
           {replyError && (
             <span className="thread-reply-error">{replyError}</span>
           )}
-          <span className="thread-reply-hint">⌘↩ to send · drop files to attach</span>
+          <span className="thread-reply-hint">{navigator.userAgent.includes("Mac") ? "⌘↩" : "Ctrl+Enter"} to send · drop files to attach</span>
           <Button
             variant="primary"
             size="sm"

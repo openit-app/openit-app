@@ -44,9 +44,19 @@ export async function skillStateRead(
 
 
 /// Inject a slash command (or any line of text) into the active
-/// Claude PTY. Trailing carriage return commits the line. No-op
-/// (with a console warning) when no Claude session is active.
+/// Claude PTY and commit it. Sends the body and the Enter keypress
+/// as two separate writes so Claude Code's TUI doesn't treat them
+/// as a single paste — when they rode in the same write on Windows,
+/// the trailing `\r` was being absorbed as a newline-in-input and
+/// `/answer-ticket <path>` got submitted with the path on a new line
+/// (skill saw no argument, globbed, and replied to the wrong ticket).
+/// No-op (with a console warning) when no Claude session is active.
 export async function injectIntoChat(text: string): Promise<boolean> {
-  const trimmed = text.endsWith("\n") || text.endsWith("\r") ? text : `${text}\r`;
-  return writeToActiveSession(trimmed);
+  const body = text.replace(/[\r\n]+$/, "");
+  const ok = await writeToActiveSession(body);
+  if (!ok) return false;
+  // 50ms is enough for the TUI to flush the paste buffer before the
+  // Enter keypress arrives; longer feels laggy.
+  await new Promise((r) => setTimeout(r, 50));
+  return writeToActiveSession("\r");
 }
