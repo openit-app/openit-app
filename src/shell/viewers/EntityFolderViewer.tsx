@@ -4,7 +4,7 @@
 /// skills, scripts, and per-ticket attachments.
 /// No behavior changes — purely structural extraction.
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { fsReveal } from "../../lib/api";
 import type { ViewerSource } from "../viewerTypes";
 import { EntityCardGrid } from "../EntityCardGrid";
@@ -39,10 +39,20 @@ export function EntityFolderBody({
   const [sortReversed, setSortReversed] = useState<Record<string, boolean>>({});
   const [folderDragOver, setFolderDragOver] = useState(false);
   const [folderUploadError, setFolderUploadError] = useState<string | null>(null);
+  // Optimistically hide deleted files immediately. The viewer's
+  // `source.files` is a snapshot from when the path was resolved and
+  // doesn't auto-refresh after a delete — so without this the card
+  // would stick around until the user navigated away and back, which
+  // looked like delete-didn't-work. Reset on path change.
+  const [hiddenPaths, setHiddenPaths] = useState<Set<string>>(new Set());
+  useEffect(() => {
+    setHiddenPaths(new Set());
+  }, [source.path]);
 
   const isReport = source.entity === "reports";
   const reversed = !!sortReversed[source.path];
-  const orderedFiles = reversed ? [...source.files].reverse() : source.files;
+  const visibleFiles = source.files.filter((f) => !hiddenPaths.has(f.path));
+  const orderedFiles = reversed ? [...visibleFiles].reverse() : visibleFiles;
   const cards = orderedFiles.map((f) => {
     let slug = f.displayName;
     let dateLabel = "";
@@ -90,8 +100,28 @@ export function EntityFolderBody({
       ) : undefined,
       onClick: () => onOpenPath && void onOpenPath(f.path),
       onDelete: repo
-        ? () =>
-            deleteFileInSubdir(repo, source.path, f.name, setFolderUploadError, showToast, onFsChange)
+        ? async () => {
+            // Optimistic hide first — the user sees the card vanish
+            // before the fs round-trip even completes. If the delete
+            // ultimately fails, we restore it.
+            setHiddenPaths((prev) => new Set(prev).add(f.path));
+            try {
+              await deleteFileInSubdir(
+                repo,
+                source.path,
+                f.name,
+                setFolderUploadError,
+                showToast,
+                onFsChange,
+              );
+            } catch {
+              setHiddenPaths((prev) => {
+                const next = new Set(prev);
+                next.delete(f.path);
+                return next;
+              });
+            }
+          }
         : undefined,
       onReveal: () => void fsReveal(f.path).catch(console.error),
       onRun:
