@@ -183,7 +183,7 @@ async function flush(): Promise<void> {
   for (const a of actions) {
     await applyAction(repo, a);
   }
-  console.log(`[skillMirror] mirrored ${actions.length} change(s)`);
+  console.debug(`[skillMirror] mirrored ${actions.length} change(s)`);
 }
 
 /// Start the mirror driver for `repo`. Idempotent — calling again with

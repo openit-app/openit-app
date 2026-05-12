@@ -117,7 +117,7 @@ async function migrateFlatTriage(repo: string): Promise<void> {
         // entity_clear_dir wipes contents; the dir stays but is empty)
         await invoke("entity_clear_dir", { repo, subdir: "agents/triage" }).catch(() => {});
       } catch { /* cleanup is best-effort */ }
-      console.log("[migrate] V2 agents/triage/ folder → agents/triage.md");
+      console.debug("[migrate] V2 agents/triage/ folder → agents/triage.md");
     } catch (e) {
       console.error("[migrate] V2→V3 agent migration failed:", e);
     }
@@ -132,7 +132,7 @@ async function migrateFlatTriage(repo: string): Promise<void> {
       const instructions = typeof parsed.instructions === "string" ? parsed.instructions : "";
       if (instructions) {
         await entityWriteFile(repo, "agents", "triage.md", instructions);
-        console.log("[migrate] V1 agents/triage.json → agents/triage.md");
+        console.debug("[migrate] V1 agents/triage.json → agents/triage.md");
       }
     } catch (e) {
       console.error("[migrate] V1→V3 agent migration failed:", e);
@@ -162,7 +162,7 @@ function App() {
   const openVault = useCallback(async (vaultPath: string) => {
     try {
       const result = await projectBootstrap(vaultPath);
-      console.log("[app] vault bootstrapped:", result.path, result.created ? "(new)" : "(existing)");
+      console.debug("[app] vault bootstrapped:", result.path, result.created ? "(new)" : "(existing)");
 
       try {
         await migrateFlatTriage(result.path);
@@ -176,7 +176,7 @@ function App() {
 
       if (!(await bundledPluginIsCurrent(result.path))) {
         syncSkillsToDisk(result.path)
-          .then(() => console.log("[app] plugin sync complete"))
+          .then(() => console.debug("[app] plugin sync complete"))
           .catch((e) => console.error("plugin sync failed:", e));
       }
 
@@ -458,8 +458,8 @@ function App() {
         console.warn("[app] create-samples clicked before repo is ready");
         return;
       }
-      seedIfEmpty({ repo, onLog: (msg) => console.log(`[seed] ${msg}`) })
-        .then((res) => console.log(`[app] create-samples wrote ${res.wrote} file(s)`))
+      seedIfEmpty({ repo, onLog: (msg) => console.debug(`[seed] ${msg}`) })
+        .then((res) => console.debug(`[app] create-samples wrote ${res.wrote} file(s)`))
         .catch((e) => console.error("[app] create-samples failed:", e));
     };
     window.addEventListener("openit:create-samples", onCreateSamples);
@@ -484,7 +484,7 @@ function App() {
     listWorkspaces()
       .then(async (reg) => {
         const activePath = reg.active;
-        console.log("[app] startup:", {
+        console.debug("[app] startup:", {
           workspaces: reg.workspaces.length,
           active: activePath,
         });
@@ -546,7 +546,7 @@ function App() {
     intakeStart(repo)
       .then((url) => {
         if (intakeGenRef.current !== myGen) return;
-        console.log("[app] intake server up at", url);
+        console.debug("[app] intake server up at", url);
         setIntakeServerUrl(url);
       })
       .catch((e) => {

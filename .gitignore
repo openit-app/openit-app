@@ -25,12 +25,10 @@ dist-ssr
 *.sln
 *.sw?
 
-# Dev credentials (keychain bypass) — also catch .disabled / .bak renames
-# so a "rename aside" doesn't accidentally commit creds.
-.env.development
-.env*.disabled
-.env*.bak
-.env*.bak.*
+# Environment files — blanket-ignore all .env variants so contributors
+# can't accidentally commit credentials (.env, .env.production, etc.).
+.env*
+!.env.development.example
 
 
 # Claude Code worktrees — machine-local, never committed

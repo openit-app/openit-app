@@ -97,7 +97,7 @@ async function loadCollectionManifestImpl(
     // at the root. Drop the legacy data and start fresh for this
     // collection — engine re-fetches.
     if (root.collection_id && !isNestedFormat(root)) {
-      console.log(
+      console.debug(
         `[nestedManifest] migrating ${entityName} from flat to nested format`,
       );
       return defaultManifest(collectionId);

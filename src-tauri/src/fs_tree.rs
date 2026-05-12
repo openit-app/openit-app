@@ -33,12 +33,11 @@ pub fn fs_list(root: String) -> Result<Vec<FileNode>, String> {
         let path = entry.path();
         let rel = path.strip_prefix(&root_path).unwrap_or(path);
         // Top-level dotdirs split into two buckets:
-        //   - Always hidden: `.git`, `.vscode`, `.env*` (creds).
-        //     Tooling internals — the user never wants to see these.
-        //   - User-toggleable: `.claude` (skills source) and
-        //     `.openit` (engine state — agent traces, sync shadows).
-        //     Returned here; the explorer filters under its "show
-        //     system files" toggle.
+        //   - Always hidden: `.git`, `.claude`, `.vscode`, `.env*`
+        //     (creds). Tooling internals — not user-facing.
+        //   - User-toggleable: `.openit` (engine state — agent traces,
+        //     workstation config). Returned here; the explorer filters
+        //     under its "show system files" toggle.
         let top = rel
             .components()
             .next()
@@ -240,28 +239,30 @@ mod tests {
     }
 
     #[test]
-    fn fs_list_returns_dot_claude_but_hides_other_dot_dirs() {
-        // `.claude` (skills source) is user-toggleable so fs_list
-        // returns it; the frontend FileExplorer filters under a
-        // "show system files" toggle. Everything else dotty
-        // (`.git`, `.openit`, `.vscode`) is always hidden — those
-        // are tooling internals the user never wants to see.
+    fn fs_list_hides_dot_claude_and_dot_git() {
+        // All top-level dotdirs except `.openit` are hidden.
+        // `.claude` and `.git` are tooling internals — never surfaced.
+        // `.openit` is the only dotdir shown (user-toggleable).
         let dir = tempdir().unwrap();
         fs::create_dir(dir.path().join(".claude")).unwrap();
         fs::create_dir(dir.path().join(".claude/skills")).unwrap();
         fs::write(dir.path().join(".claude/skills/SKILL.md"), "x").unwrap();
         fs::create_dir(dir.path().join(".git")).unwrap();
         fs::write(dir.path().join(".git/HEAD"), "ref: x").unwrap();
+        fs::create_dir(dir.path().join(".openit")).unwrap();
+        fs::write(dir.path().join(".openit/workstation.json"), "{}").unwrap();
         fs::write(dir.path().join("README.md"), "y").unwrap();
 
         let nodes = fs_list(dir.path().to_string_lossy().to_string()).unwrap();
         let names: Vec<&str> = nodes.iter().map(|n| n.name.as_str()).collect();
         // Regular files come through.
         assert!(names.contains(&"README.md"));
-        // .claude AND its descendants come through (frontend will hide).
-        assert!(names.contains(&".claude"));
-        assert!(names.contains(&"SKILL.md"));
-        // .git and its contents stay hidden — never surfaced.
+        // .openit and its descendants come through.
+        assert!(names.contains(&".openit"));
+        assert!(names.contains(&"workstation.json"));
+        // .claude and .git stay hidden — never surfaced.
+        assert!(!names.contains(&".claude"));
+        assert!(!names.contains(&"SKILL.md"));
         assert!(!names.contains(&".git"));
         assert!(!names.contains(&"HEAD"));
     }

@@ -217,7 +217,7 @@ export async function syncSkillsToDisk(
         // plugin, not free-text user input.
         if (route.subdir === "agents" || route.subdir.startsWith("agents/")) {
           if (await fileExistsOnDisk(repo, route.subdir, route.filename)) {
-            console.log(
+            console.debug(
               `[skillsSync] preserved user-edited ${route.subdir}/${route.filename}`,
             );
             continue;
@@ -228,7 +228,7 @@ export async function syncSkillsToDisk(
         // plugin sync must leave their version in place.
         if (route.subdir === "filestores/skills") {
           if (await fileExistsOnDisk(repo, route.subdir, route.filename)) {
-            console.log(
+            console.debug(
               `[skillsSync] preserved user-edited ${route.subdir}/${route.filename}`,
             );
             continue;
@@ -261,7 +261,7 @@ export async function syncSkillsToDisk(
           relPath === "CLAUDE.md" ||
           relPath.startsWith(".openit/");
         if (!isGitignored) writtenPaths.push(relPath);
-        console.log(`[skillsSync] Synced ${file.path} → ${relPath}`);
+        console.debug(`[skillsSync] Synced ${file.path} → ${relPath}`);
       } catch (err) {
         console.warn(`[skillsSync] Failed to sync ${file.path}:`, err);
         onLog?.(`  ✗ ${file.path}: ${err}`);
