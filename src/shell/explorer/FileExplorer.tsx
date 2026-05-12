@@ -286,8 +286,8 @@ export function FileExplorer({
       <ul className="tree">
         {/* Real file tree */}
         {visible.map((n) => {
-          const rel = n.path.startsWith(repo + "/") ? n.path.slice(repo.length + 1) : n.name;
-          const depth = rel.split("/").length - 1;
+          const rel = relPath(repo, n.path);
+          const depth = rel.includes("/") ? rel.split("/").length - 1 : 0;
           const isCollapsedRow = collapsed.has(n.path);
           const colorClass = repo ? fileColorClass(n, repo, conflictPaths) : "";
           const badge = repo ? fileStatusBadge(n, repo, conflictPaths) : null;

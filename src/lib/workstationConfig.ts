@@ -206,11 +206,13 @@ export async function discoverTiles(repo: string): Promise<DiscoveredTile[]> {
   } catch { /* databases/ may not exist */ }
 
   // Discover filestore collections
+  const fsSeen = new Set<string>();
   try {
     const fsItems = await fsList(`${repo}/filestores`);
     const fsDirs = directChildDirs(fsItems, `${repo}/filestores`);
     for (const dir of fsDirs) {
       const known = KNOWN_FS_DEFAULTS[dir.name];
+      fsSeen.add(dir.name);
       tiles.push({
         rel: `filestores/${dir.name}`,
         label: known?.label ?? capitalize(dir.name),
@@ -221,6 +223,20 @@ export async function discoverTiles(repo: string): Promise<DiscoveredTile[]> {
       });
     }
   } catch { /* filestores/ may not exist */ }
+
+  // Always synthesize the Commands tile (filestores/skills) so it appears
+  // in a fresh vault even before the folder is materialized — it's a core
+  // workstation tile pinned to `main` in the default config.
+  if (!fsSeen.has("skills")) {
+    const known = KNOWN_FS_DEFAULTS.skills;
+    tiles.push({
+      rel: "filestores/skills",
+      label: known.label,
+      defaultIcon: known.icon,
+      defaultTone: known.tone,
+      countMode: "files",
+    });
+  }
 
   // System tiles
   tiles.push(...SYSTEM_TILES);
