@@ -352,6 +352,10 @@ fn run_install_blocking() -> Result<String, String> {
 /// lands on the terminal pane — since `dragDropEnabled` is `false` (required
 /// to keep DOM drag-and-drop working), the frontend can read file bytes via
 /// the DOM `FileReader` but cannot get the original path directly.
+///
+/// Each saved file gets a UUID prefix so that dropping two different files
+/// with the same name (e.g. `screenshot.png` from different folders) never
+/// overwrites a previous drop.
 #[tauri::command]
 pub fn save_dropped_file(name: String, bytes: Vec<u8>) -> Result<String, String> {
     // Sanitise: use only the filename component to prevent path traversal.
@@ -362,7 +366,8 @@ pub fn save_dropped_file(name: String, bytes: Vec<u8>) -> Result<String, String>
         .ok_or("non-UTF-8 filename")?;
     let dir = std::env::temp_dir().join("openit-drops");
     std::fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
-    let path = dir.join(safe);
+    let unique = format!("{}-{}", uuid::Uuid::new_v4(), safe);
+    let path = dir.join(unique);
     std::fs::write(&path, &bytes).map_err(|e| e.to_string())?;
     Ok(path.to_string_lossy().into_owned())
 }

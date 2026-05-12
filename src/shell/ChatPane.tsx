@@ -13,9 +13,18 @@ function shellEscape(p: string): string {
   return `'${p.replace(/'/g, "'\\''")}'`;
 }
 
+/** Max file size we'll shuttle through IPC (bytes are JSON-serialised as a
+ *  number array — same pattern as entity_write_file_bytes in api.ts). Files
+ *  above this limit are skipped with a warning to avoid freezing the UI. */
+const DROP_SIZE_LIMIT = 25 * 1024 * 1024; // 25 MB
+
 /** Save OS-dropped files to a temp dir and paste the paths into the PTY. */
 async function saveAndPasteDroppedFiles(files: FileList, sessionId: string) {
   for (const file of Array.from(files)) {
+    if (file.size > DROP_SIZE_LIMIT) {
+      console.warn(`dropped file too large (${(file.size / 1e6).toFixed(1)} MB), skipping:`, file.name);
+      continue;
+    }
     try {
       const buf = await file.arrayBuffer();
       const savedPath = await invoke<string>("save_dropped_file", {
