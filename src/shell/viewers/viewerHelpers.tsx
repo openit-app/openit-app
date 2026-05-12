@@ -299,13 +299,26 @@ export async function uploadFilesToSubdir(
 /// (e.g. due to macOS permission or focus issue), the timeout fires and
 /// we treat it as confirmed — the user already clicked the trash icon.
 export async function confirmDelete(message: string, title: string): Promise<boolean> {
+  // Try the native Tauri dialog first (nicer styling), but race it
+  // against the browser-native `window.confirm` so an unresponsive
+  // platform plugin (we've seen this on Windows) doesn't trap the
+  // delete behind a dialog the user never sees. Fall back to "true"
+  // after 2s as a final safety net — the click itself already signaled
+  // intent.
   try {
+    const native = ask(message, { title, kind: "warning" });
+    const fallback = new Promise<boolean>((resolve) => {
+      setTimeout(() => {
+        try { resolve(window.confirm(message)); } catch { resolve(true); }
+      }, 200);
+    });
     return await Promise.race([
-      ask(message, { title, kind: "warning" }),
+      native,
+      fallback,
       new Promise<boolean>((resolve) => setTimeout(() => resolve(true), 2000)),
     ]);
   } catch {
-    return true; // dialog failed, user intent was clear from the click
+    return true;
   }
 }
 
@@ -321,14 +334,19 @@ export async function deleteFileInSubdir(
   onToast?: (msg: string) => void,
   onRefresh?: () => void,
 ): Promise<void> {
+  console.debug(`[folder-delete] requested ${subdir}/${filename}`);
   const ok = await confirmDelete(
     `Delete "${filename}"?\n\nThis cannot be undone.`,
     "Delete file?",
   );
+  console.debug(`[folder-delete] confirm result: ${ok}`);
   if (!ok) return;
   setError(null);
   try {
-    await entityDeleteFile(repo, toRepoRelative(repo, subdir), filename);
+    const rel = toRepoRelative(repo, subdir);
+    console.debug(`[folder-delete] invoking entityDeleteFile(repo, ${JSON.stringify(rel)}, ${JSON.stringify(filename)})`);
+    await entityDeleteFile(repo, rel, filename);
+    console.debug(`[folder-delete] success: ${rel}/${filename}`);
     onToast?.(`Deleted ${filename}`);
     onRefresh?.();
   } catch (err) {
