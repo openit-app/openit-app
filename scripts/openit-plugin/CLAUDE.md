@@ -73,7 +73,7 @@ The admin doesn't think about this. You handle the bookkeeping. They just work; 
 
 ## File conventions
 
-- **Ticket** → `databases/tickets/ticket-<id>.json`. Status: `open` → `resolved` → `closed`. See `_schema.json` for all fields.
+- **Ticket** → `databases/tickets/<ticketId>.json`, where `<ticketId>` is the intake server's generated id (ISO-timestamp + 4-hex random, e.g. `2026-05-12T20-21-13Z-20aa.json`). Search with `Glob "databases/tickets/*.json"` — do NOT assume a `ticket-` prefix. Status: `open` → `resolved` → `closed`. See `_schema.json` for all fields.
 - **Person** → `databases/people/<sanitized-email>.json`. Skip the write if a row with that email exists.
 - **Conversation turn** → `databases/conversations/<ticketId>/msg-<unix-ms>-<rand>.json`. Fields: `id`, `ticketId`, `role` (`asker` / `agent` / `admin`), `sender`, `timestamp` (ISO-8601 UTC), `body`.
 - **KB article** → `knowledge-bases/<slug>.md`. Search with `Glob "knowledge-bases/**/*.md"` or `node .claude/scripts/kb-search.mjs "<query>"`.
