@@ -142,26 +142,25 @@ export function ChatPane({ cwd, resume }: { cwd: string | null; resume?: boolean
       }
     };
     const onInPageDrop = (e: DragEvent) => {
+      // preventDefault MUST run before any early return — without it
+      // the Tauri webview navigates to the file URL and unloads the SPA.
+      e.preventDefault();
       // Entity reference drop (databases, agents, workflows, rows)
       const ref = e.dataTransfer?.getData("application/x-openit-ref");
       if (ref) {
-        e.preventDefault();
         ptyWrite(SESSION_ID, ref + " ").catch((err) => console.error("pty bridge error:", err));
         return;
       }
       // In-app file path drop (from the file explorer)
       const path = e.dataTransfer?.getData("application/x-openit-path");
       if (path) {
-        e.preventDefault();
         const text = shellEscape(path) + " ";
         ptyWrite(SESSION_ID, text).catch((err) => console.error("pty bridge error:", err));
         return;
       }
       // OS file drop from Finder — save to temp and paste the path.
-      // preventDefault must be called synchronously before any await.
       const files = e.dataTransfer?.files;
       if (files && files.length > 0) {
-        e.preventDefault();
         saveAndPasteDroppedFiles(files, SESSION_ID);
       }
     };
