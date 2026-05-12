@@ -323,49 +323,27 @@ export async function deleteFileInSubdir(
   onToast?: (msg: string) => void,
   onRefresh?: () => void,
 ): Promise<void> {
-  const buffer: string[] = [];
-  const log = (msg: string) => {
-    const line = `${new Date().toISOString()} ${msg}`;
-    console.debug(`[folder-delete] ${msg}`);
-    buffer.push(line);
-  };
-  const flushLog = async () => {
-    try {
-      const { invoke } = await import("@tauri-apps/api/core");
-      await invoke("entity_write_file", {
-        repo,
-        subdir: ".openit",
-        filename: "delete-log.txt",
-        content: buffer.join("\n") + "\n",
-      });
-    } catch { /* logging is best-effort */ }
-  };
-
-  log(`requested ${subdir}/${filename}`);
-  const ok = await confirmDelete(
-    `Delete "${filename}"?\n\nThis cannot be undone.`,
-    "Delete file?",
-  );
-  log(`confirm result: ${ok}`);
-  if (!ok) {
-    await flushLog();
-    return;
-  }
+  // Toast the moment the handler is entered so we have proof the click
+  // reached us — separate from the actual delete result. Without this
+  // the user has no signal that anything is happening.
+  onToast?.(`Deleting ${filename}…`);
   setError(null);
   try {
     const rel = toRepoRelative(repo, subdir);
-    log(`invoking entityDeleteFile(repo, ${JSON.stringify(rel)}, ${JSON.stringify(filename)})`);
+    console.debug(`[folder-delete] entityDeleteFile(repo, ${JSON.stringify(rel)}, ${JSON.stringify(filename)})`);
     await entityDeleteFile(repo, rel, filename);
-    log(`success: ${rel}/${filename}`);
+    console.debug(`[folder-delete] success: ${rel}/${filename}`);
     onToast?.(`Deleted ${filename}`);
     onRefresh?.();
   } catch (err) {
     const reason = err instanceof Error ? err.message : String(err);
-    log(`failed: ${reason}`);
     console.error(`[folder-delete] failed for ${filename}:`, err);
+    // Surface the actual error to the user — both as a toast and as
+    // the inline error banner. Silent failures are exactly what's been
+    // confusing us about this flow.
+    onToast?.(`Failed to delete ${filename}: ${reason}`);
     setError(`Failed to delete ${filename}: ${reason}`);
   }
-  await flushLog();
 }
 
 /// Anchor tag override for ReactMarkdown rendering. Three URL shapes
