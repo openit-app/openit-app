@@ -298,25 +298,14 @@ export async function uploadFilesToSubdir(
 /// Race a Tauri `ask()` dialog against a timeout. If the dialog hangs
 /// (e.g. due to macOS permission or focus issue), the timeout fires and
 /// we treat it as confirmed — the user already clicked the trash icon.
-export async function confirmDelete(message: string, title: string): Promise<boolean> {
-  // Try the native Tauri dialog first (nicer styling), but race it
-  // against the browser-native `window.confirm` so an unresponsive
-  // platform plugin (we've seen this on Windows) doesn't trap the
-  // delete behind a dialog the user never sees. Fall back to "true"
-  // after 2s as a final safety net — the click itself already signaled
-  // intent.
+export async function confirmDelete(message: string, _title: string): Promise<boolean> {
+  // Browser-native modal: synchronous, always rendered by the webview
+  // itself (no native-Z-order quirks like the Tauri dialog plugin
+  // ran into on Windows). The plugin path stayed dark for some
+  // installs — a click on the trash icon did nothing visible — so the
+  // simpler approach wins.
   try {
-    const native = ask(message, { title, kind: "warning" });
-    const fallback = new Promise<boolean>((resolve) => {
-      setTimeout(() => {
-        try { resolve(window.confirm(message)); } catch { resolve(true); }
-      }, 200);
-    });
-    return await Promise.race([
-      native,
-      fallback,
-      new Promise<boolean>((resolve) => setTimeout(() => resolve(true), 2000)),
-    ]);
+    return window.confirm(message);
   } catch {
     return true;
   }
@@ -334,26 +323,49 @@ export async function deleteFileInSubdir(
   onToast?: (msg: string) => void,
   onRefresh?: () => void,
 ): Promise<void> {
-  console.debug(`[folder-delete] requested ${subdir}/${filename}`);
+  const buffer: string[] = [];
+  const log = (msg: string) => {
+    const line = `${new Date().toISOString()} ${msg}`;
+    console.debug(`[folder-delete] ${msg}`);
+    buffer.push(line);
+  };
+  const flushLog = async () => {
+    try {
+      const { invoke } = await import("@tauri-apps/api/core");
+      await invoke("entity_write_file", {
+        repo,
+        subdir: ".openit",
+        filename: "delete-log.txt",
+        content: buffer.join("\n") + "\n",
+      });
+    } catch { /* logging is best-effort */ }
+  };
+
+  log(`requested ${subdir}/${filename}`);
   const ok = await confirmDelete(
     `Delete "${filename}"?\n\nThis cannot be undone.`,
     "Delete file?",
   );
-  console.debug(`[folder-delete] confirm result: ${ok}`);
-  if (!ok) return;
+  log(`confirm result: ${ok}`);
+  if (!ok) {
+    await flushLog();
+    return;
+  }
   setError(null);
   try {
     const rel = toRepoRelative(repo, subdir);
-    console.debug(`[folder-delete] invoking entityDeleteFile(repo, ${JSON.stringify(rel)}, ${JSON.stringify(filename)})`);
+    log(`invoking entityDeleteFile(repo, ${JSON.stringify(rel)}, ${JSON.stringify(filename)})`);
     await entityDeleteFile(repo, rel, filename);
-    console.debug(`[folder-delete] success: ${rel}/${filename}`);
+    log(`success: ${rel}/${filename}`);
     onToast?.(`Deleted ${filename}`);
     onRefresh?.();
   } catch (err) {
     const reason = err instanceof Error ? err.message : String(err);
+    log(`failed: ${reason}`);
     console.error(`[folder-delete] failed for ${filename}:`, err);
     setError(`Failed to delete ${filename}: ${reason}`);
   }
+  await flushLog();
 }
 
 /// Anchor tag override for ReactMarkdown rendering. Three URL shapes
