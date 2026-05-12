@@ -19,10 +19,17 @@ import { confirmDelete } from "./viewers";
 // ── Helpers ──────────────────────────────────────────────────────────
 
 function directChildren(items: FileNode[], rootAbs: string): FileNode[] {
-  const prefix = `${rootAbs}/`;
+  // Path separator differs across platforms (Windows `\` vs Unix `/`),
+  // and `rootAbs` and `n.path` may not use the same one. Normalize both
+  // to forward slashes before the prefix/tail check so the count works
+  // on both. (Workstation tile counts were silently 0 on Windows
+  // because the prefix `<root>/` never matched paths with `\`.)
+  const root = rootAbs.replace(/\\/g, "/");
+  const prefix = `${root}/`;
   return items.filter((n) => {
-    if (!n.path.startsWith(prefix)) return false;
-    const tail = n.path.slice(prefix.length);
+    const p = n.path.replace(/\\/g, "/");
+    if (!p.startsWith(prefix)) return false;
+    const tail = p.slice(prefix.length);
     return tail.length > 0 && !tail.includes("/");
   });
 }

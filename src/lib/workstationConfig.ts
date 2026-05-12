@@ -151,11 +151,14 @@ function capitalize(s: string): string {
 }
 
 function directChildDirs(items: FileNode[], rootAbs: string): FileNode[] {
-  const prefix = `${rootAbs}/`;
+  // Normalize separators — see comment in Workbench.directChildren.
+  const root = rootAbs.replace(/\\/g, "/");
+  const prefix = `${root}/`;
   return items.filter((n) => {
     if (!n.is_dir) return false;
-    if (!n.path.startsWith(prefix)) return false;
-    const tail = n.path.slice(prefix.length);
+    const p = n.path.replace(/\\/g, "/");
+    if (!p.startsWith(prefix)) return false;
+    const tail = p.slice(prefix.length);
     return tail.length > 0 && !tail.includes("/");
   });
 }
