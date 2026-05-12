@@ -57,9 +57,16 @@ fn run_blocking(repo: &str, script_path: &str) -> Result<ScriptRunOutput, String
 
     let interpreter = pick_interpreter(&canon_script)?;
     let started = Instant::now();
+    // Strip the Windows extended-path (`\\?\C:\…`) prefix before
+    // handing the path to Node — Node's module resolver chokes on it
+    // (`realpathSync` ends up calling lstat on just `'C:'` and errors
+    // with EISDIR). Drive-letter paths are accepted by every Windows
+    // API we care about so we don't need the extended form.
+    let script_for_cmd = strip_unc_prefix(&canon_script);
+    let cwd_for_cmd = strip_unc_prefix(&canon_repo);
     let output = Command::new(interpreter)
-        .arg(&canon_script)
-        .current_dir(&canon_repo)
+        .arg(&script_for_cmd)
+        .current_dir(&cwd_for_cmd)
         .output()
         .map_err(|e| format!("failed to spawn {}: {}", interpreter, e))?;
     let duration_ms = started.elapsed().as_millis();
@@ -92,6 +99,25 @@ fn pick_interpreter(script: &Path) -> Result<&'static str, String> {
             other
         )),
     }
+}
+
+/// Strip the Windows `\\?\` (extended-path) prefix that `canonicalize`
+/// adds on Windows. No-op on Unix. Node and many subprocess APIs don't
+/// handle the extended form well — the regular `C:\…` form is what
+/// every Windows tool expects.
+fn strip_unc_prefix(p: &Path) -> PathBuf {
+    #[cfg(target_os = "windows")]
+    {
+        let s = p.to_string_lossy();
+        if let Some(rest) = s.strip_prefix(r"\\?\") {
+            // Don't strip UNC server paths like \\?\UNC\server\share —
+            // those need different handling and we don't expect them.
+            if !rest.starts_with("UNC\\") {
+                return PathBuf::from(rest);
+            }
+        }
+    }
+    p.to_path_buf()
 }
 
 /// Accept either a repo-relative path (e.g. `filestores/scripts/foo.mjs`)
