@@ -269,7 +269,7 @@ export function CommandPalette({
     <div className="cmdk-overlay" onClick={onClose}>
       <div className="cmdk-panel" onClick={(e) => e.stopPropagation()}>
         <div className="cmdk-search">
-          <span className="cmdk-search-icon" aria-hidden>⌘</span>
+          <span className="cmdk-search-icon" aria-hidden>{navigator.userAgent.includes("Mac") ? "⌘" : "⌕"}</span>
           <input
             ref={inputRef}
             className="cmdk-input"
