@@ -44,7 +44,7 @@ pub fn fs_list(root: String) -> Result<Vec<FileNode>, String> {
             .next()
             .and_then(|c| c.as_os_str().to_str())
             .unwrap_or("");
-        if top.starts_with('.') && top != ".claude" && top != ".openit" {
+        if top.starts_with('.') && top != ".openit" {
             continue;
         }
         let name = entry.file_name().to_string_lossy().to_string();
