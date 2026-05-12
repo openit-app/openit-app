@@ -1,5 +1,6 @@
 import { fsRead, fsList, entityWriteFile } from "../../../lib/api";
 import { loadOpenitConfig } from "../../../lib/openitConfig";
+import { isDirectChild } from "../../../lib/paths";
 import type {
   AccessSummary,
   AssetSummary,
@@ -75,12 +76,10 @@ export async function resolveConversationsList(
     const conversationsDir = `${repo}/databases/conversations`;
     const ticketNodes = await fsList(ticketsDir);
     const threads: ConversationThreadSummary[] = [];
-    const ticketsPrefix = `${ticketsDir}/`;
     for (const node of ticketNodes) {
       if (node.is_dir) continue;
       // Depth-1 filter -- fs_list is recursive.
-      const tail = node.path.startsWith(ticketsPrefix) ? node.path.slice(ticketsPrefix.length) : "";
-      if (!tail || tail.includes("/")) continue;
+      if (!isDirectChild(ticketsDir, node.path)) continue;
       if (!node.name.endsWith(".json")) continue;
       if (node.name === "_schema.json") continue;
       if (node.name.includes(".server.")) continue;
@@ -117,11 +116,9 @@ export async function resolveConversationsList(
       try {
         const msgs = await fsList(threadDir);
         msgs.sort((a, b) => a.name.localeCompare(b.name));
-        const threadPrefix = `${threadDir}/`;
         for (const m of msgs) {
           if (m.is_dir) continue;
-          const mTail = m.path.startsWith(threadPrefix) ? m.path.slice(threadPrefix.length) : "";
-          if (!mTail || mTail.includes("/")) continue;
+          if (!isDirectChild(threadDir, m.path)) continue;
           if (!m.name.endsWith(".json")) continue;
           if (m.name.includes(".server.")) continue;
           turnCount += 1;
@@ -287,12 +284,10 @@ export async function resolveConversationThread(
   try {
     const nodes = await fsList(path);
     const turns: ConversationTurn[] = [];
-    const tPrefix = `${path}/`;
     for (const node of nodes) {
       if (node.is_dir) continue;
       // Depth-1 filter -- fs_list is recursive.
-      const tail = node.path.startsWith(tPrefix) ? node.path.slice(tPrefix.length) : "";
-      if (!tail || tail.includes("/")) continue;
+      if (!isDirectChild(path, node.path)) continue;
       if (!node.name.endsWith(".json")) continue;
       if (node.name.includes(".server.")) continue;
       try {
@@ -369,14 +364,12 @@ export async function resolveDatastoreTable(
     // Read all row files
     const nodes = await fsList(path);
     const items = [];
-    const colPrefix = `${path}/`;
     for (const node of nodes) {
       if (node.is_dir || node.name === "_schema.json") continue;
       // Depth-1 filter -- fs_list walks recursively, so without this
       // a collection like `conversations` would slurp every msg file
       // out of every thread folder as if it were a top-level row.
-      const tail = node.path.startsWith(colPrefix) ? node.path.slice(colPrefix.length) : "";
-      if (!tail || tail.includes("/")) continue;
+      if (!isDirectChild(path, node.path)) continue;
       try {
         const raw = await fsRead(node.path);
         const content = JSON.parse(raw);
@@ -540,15 +533,13 @@ export async function resolveDatabasesList(
       itemCount: number;
       hasSchema: boolean;
     }[] = [];
-    const dbChildPrefix = `${path}/`;
     for (const sd of subdirs) {
       if (!sd.is_dir) continue;
       // fs_list walks recursively, so the raw subdir list contains
       // every nested folder (e.g. each conversation thread under
       // `conversations/`). Keep only direct children of `databases/`
       // -- those are the actual collections.
-      const tail = sd.path.startsWith(dbChildPrefix) ? sd.path.slice(dbChildPrefix.length) : "";
-      if (!tail || tail.includes("/")) continue;
+      if (!isDirectChild(path, sd.path)) continue;
       // Hide the `conversations` collection from the databases
       // overview. Conversations are folder-of-msg-*.json data tied
       // to a specific ticket; the ticket-list view (which we route
@@ -559,13 +550,11 @@ export async function resolveDatabasesList(
       let hasSchema = false;
       try {
         const inner = await fsList(sd.path);
-        const innerPrefix = `${sd.path}/`;
         for (const node of inner) {
           // Same depth-1 filter as above -- counting `inner`
           // recursively would over-count (every msg-*.json inside
           // every thread for `conversations`, etc.).
-          const innerTail = node.path.startsWith(innerPrefix) ? node.path.slice(innerPrefix.length) : "";
-          if (!innerTail || innerTail.includes("/")) continue;
+          if (!isDirectChild(sd.path, node.path)) continue;
           if (node.name === "_schema.json") {
             hasSchema = true;
             continue;

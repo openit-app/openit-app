@@ -1,6 +1,7 @@
 import { fsRead, fsList } from "../../../lib/api";
 import type { ViewerSource } from "../../viewerTypes";
 import type { TraceDoc } from "../../viewerTypes";
+import { isDirectChild } from "../../../lib/paths";
 
 /**
  * .openit/agent-traces/ parent -- list all ticket trace folders
@@ -12,19 +13,15 @@ export async function resolveTracesList(
   const folders: { name: string; subject: string; path: string; traceCount: number }[] = [];
   try {
     const nodes = await fsList(path);
-    const prefix = `${path}/`;
     for (const n of nodes) {
       if (!n.is_dir) continue;
-      const tail = n.path.startsWith(prefix) ? n.path.slice(prefix.length) : "";
-      if (!tail || tail.includes("/")) continue;
+      if (!isDirectChild(path, n.path)) continue;
       let traceCount = 0;
       try {
         const inner = await fsList(n.path);
-        const innerPrefix = `${n.path}/`;
         for (const f of inner) {
           if (f.is_dir) continue;
-          const innerTail = f.path.startsWith(innerPrefix) ? f.path.slice(innerPrefix.length) : "";
-          if (!innerTail || innerTail.includes("/")) continue;
+          if (!isDirectChild(n.path, f.path)) continue;
           if (f.name.endsWith(".json")) traceCount += 1;
         }
       } catch { /* */ }
@@ -65,12 +62,10 @@ export async function resolveTraceFolder(
   let docs: { name: string; doc: TraceDoc | null }[] = [];
   try {
     const nodes = await fsList(path);
-    const prefix = `${path}/`;
     const direct = nodes
       .filter((n) => {
         if (n.is_dir) return false;
-        const tail = n.path.startsWith(prefix) ? n.path.slice(prefix.length) : "";
-        if (!tail || tail.includes("/")) return false;
+        if (!isDirectChild(path, n.path)) return false;
         return n.name.endsWith(".json");
       })
       .sort((a, b) => a.name.localeCompare(b.name));

@@ -44,3 +44,17 @@ export function dirname(p: string): string {
   const slash = n.lastIndexOf("/");
   return slash >= 0 ? n.slice(0, slash) : "";
 }
+
+/// True when `child` is an immediate (non-recursive) child of `parent`.
+/// `parent="/repo/tickets"` matches `/repo/tickets/foo.json` but not
+/// `/repo/tickets/sub/foo.json`. Handles either separator.
+///
+/// Replaces the recurring `startsWith(prefix) ? slice(prefix.length) : ""`
+/// pattern used to filter `fs_list` results to depth-1 entries.
+export function isDirectChild(parent: string, child: string): boolean {
+  const p = fsNorm(parent);
+  const c = fsNorm(child);
+  if (!c.startsWith(p + "/")) return false;
+  const tail = c.slice(p.length + 1);
+  return tail.length > 0 && !tail.includes("/");
+}
