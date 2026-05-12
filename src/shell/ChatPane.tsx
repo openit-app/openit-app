@@ -2,7 +2,7 @@ import { useEffect, useRef } from "react";
 import { Terminal } from "@xterm/xterm";
 import { FitAddon } from "@xterm/addon-fit";
 import { WebLinksAddon } from "@xterm/addon-web-links";
-import { getCurrentWebview } from "@tauri-apps/api/webview";
+import { invoke } from "@tauri-apps/api/core";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import { onPtyData, onPtyExit, ptyKill, ptyResize, ptySpawn, ptyWrite } from "../lib/terminal";
 import { setActiveSession, clearActiveSession } from "./activeSession";
@@ -11,6 +11,31 @@ import "@xterm/xterm/css/xterm.css";
 // macOS Terminal.app behavior: dragging a file in writes its shell-escaped path.
 function shellEscape(p: string): string {
   return `'${p.replace(/'/g, "'\\''")}'`;
+}
+
+/** Max file size we'll shuttle through IPC (bytes are JSON-serialised as a
+ *  number array — same pattern as entity_write_file_bytes in api.ts). Files
+ *  above this limit are skipped with a warning to avoid freezing the UI. */
+const DROP_SIZE_LIMIT = 25 * 1024 * 1024; // 25 MB
+
+/** Save OS-dropped files to a temp dir and paste the paths into the PTY. */
+async function saveAndPasteDroppedFiles(files: FileList, sessionId: string) {
+  for (const file of Array.from(files)) {
+    if (file.size > DROP_SIZE_LIMIT) {
+      console.warn(`dropped file too large (${(file.size / 1e6).toFixed(1)} MB), skipping:`, file.name);
+      continue;
+    }
+    try {
+      const buf = await file.arrayBuffer();
+      const savedPath = await invoke<string>("save_dropped_file", {
+        name: file.name,
+        bytes: Array.from(new Uint8Array(buf)),
+      });
+      await ptyWrite(sessionId, shellEscape(savedPath) + " ");
+    } catch (err) {
+      console.error("dropped-file save failed:", err);
+    }
+  }
 }
 
 export function ChatPane({ cwd, resume }: { cwd: string | null; resume?: boolean }) {
@@ -101,28 +126,43 @@ export function ChatPane({ cwd, resume }: { cwd: string | null; resume?: boolean
     const focusOnClick = () => term.focus();
     containerRef.current.addEventListener("click", focusOnClick);
 
-    // In-page drag-drop from the file explorer.
+    // Drag-drop: accept in-app drags (file explorer, entity refs) AND OS
+    // file drops (Finder / Desktop). We keep `dragDropEnabled: false` in
+    // tauri.conf.json because Tauri's native drag-drop handler is mutually
+    // exclusive with DOM drag events — enabling it breaks all in-page drags.
+    // Instead, OS file drops go through the DOM: the `Files` type gives us
+    // File objects, we save the bytes to a temp dir via a Tauri command,
+    // and paste the resulting path into the terminal.
     const onDragOver = (e: DragEvent) => {
       if (e.dataTransfer?.types.includes("application/x-openit-path") ||
-          e.dataTransfer?.types.includes("application/x-openit-ref")) {
+          e.dataTransfer?.types.includes("application/x-openit-ref") ||
+          e.dataTransfer?.types.includes("Files")) {
         e.preventDefault();
         e.dataTransfer.dropEffect = "copy";
       }
     };
     const onInPageDrop = (e: DragEvent) => {
+      // preventDefault MUST run before any early return — without it
+      // the Tauri webview navigates to the file URL and unloads the SPA.
+      e.preventDefault();
       // Entity reference drop (databases, agents, workflows, rows)
       const ref = e.dataTransfer?.getData("application/x-openit-ref");
       if (ref) {
-        e.preventDefault();
         ptyWrite(SESSION_ID, ref + " ").catch((err) => console.error("pty bridge error:", err));
         return;
       }
-      // File path drop
+      // In-app file path drop (from the file explorer)
       const path = e.dataTransfer?.getData("application/x-openit-path");
-      if (!path) return;
-      e.preventDefault();
-      const text = shellEscape(path) + " ";
-      ptyWrite(SESSION_ID, text).catch((err) => console.error("pty bridge error:", err));
+      if (path) {
+        const text = shellEscape(path) + " ";
+        ptyWrite(SESSION_ID, text).catch((err) => console.error("pty bridge error:", err));
+        return;
+      }
+      // OS file drop from Finder — save to temp and paste the path.
+      const files = e.dataTransfer?.files;
+      if (files && files.length > 0) {
+        saveAndPasteDroppedFiles(files, SESSION_ID);
+      }
     };
     containerRef.current.addEventListener("dragover", onDragOver, true);
     containerRef.current.addEventListener("drop", onInPageDrop, true);
@@ -197,20 +237,6 @@ export function ChatPane({ cwd, resume }: { cwd: string | null; resume?: boolean
       });
       if (containerRef.current) observer.observe(containerRef.current);
       unlistens.push(() => observer.disconnect());
-
-      const unlistenDrop = await getCurrentWebview().onDragDropEvent((event) => {
-        if (disposed) return;
-        if (event.payload.type !== "drop") return;
-        const paths = event.payload.paths ?? [];
-        if (paths.length === 0) return;
-        const text = paths.map(shellEscape).join(" ") + " ";
-        ptyWrite(SESSION_ID, text).catch((e) => console.error("pty bridge error:", e));
-      });
-      if (disposed) {
-        unlistenDrop();
-      } else {
-        unlistens.push(unlistenDrop);
-      }
     })();
 
     return () => {
