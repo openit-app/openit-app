@@ -53,10 +53,10 @@ export function useTreeState(
           // Pre-expand ancestors of the active canvas item so the
           // highlight is visible the moment the user lands on Files.
           const sp = selectedPathRef.current;
-          if (sp && sp.startsWith(`${repo}/`)) {
+          if (sp && (sp.startsWith(`${repo}/`) || sp.startsWith(`${repo}\\`))) {
             let cursor = sp;
             while (true) {
-              const slash = cursor.lastIndexOf("/");
+              const slash = Math.max(cursor.lastIndexOf("/"), cursor.lastIndexOf("\\"));
               if (slash <= repo.length) break;
               cursor = cursor.slice(0, slash);
               next.delete(cursor);
@@ -100,10 +100,12 @@ export function useTreeState(
   // System / scaffolding entries hidden by default.
   const isSystemEntry = (n: FileNode): boolean => {
     if (!repo) return false;
-    const rel = n.path.startsWith(repo + "/") ? n.path.slice(repo.length + 1) : n.path;
+    const rel = (n.path.startsWith(repo + "/") || n.path.startsWith(repo + "\\"))
+      ? n.path.slice(repo.length + 1)
+      : n.path;
     if (rel === "CLAUDE.md") return true;
-    if (rel === ".claude" || rel.startsWith(".claude/")) return true;
-    if (rel === ".openit" || rel.startsWith(".openit/")) return true;
+    if (rel === ".claude" || rel.startsWith(".claude/") || rel.startsWith(".claude\\")) return true;
+    if (rel === ".openit" || rel.startsWith(".openit/") || rel.startsWith(".openit\\")) return true;
     if (n.name.startsWith("_")) return true;
     return false;
   };
@@ -118,7 +120,7 @@ export function useTreeState(
       // (`openit-conversations`) — the file explorer renders it like
       // any other database.
       for (const c of collapsed) {
-        if (n.path !== c && n.path.startsWith(c + "/")) return false;
+        if (n.path !== c && (n.path.startsWith(c + "/") || n.path.startsWith(c + "\\"))) return false;
       }
       return true;
     });
