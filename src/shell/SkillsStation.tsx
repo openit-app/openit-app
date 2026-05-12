@@ -57,10 +57,13 @@ export function CommandsStation({
       try {
         const root = `${repo}/.claude/skills`;
         const nodes = await fsList(root);
-        const prefix = `${root}/`;
+        // Normalize path separators so `startsWith` works on Windows
+        // (where node.path comes back with backslashes).
+        const prefix = `${root.replace(/\\/g, "/")}/`;
         const dirs = nodes.filter((n) => {
           if (!n.is_dir) return false;
-          const tail = n.path.startsWith(prefix) ? n.path.slice(prefix.length) : "";
+          const p = n.path.replace(/\\/g, "/");
+          const tail = p.startsWith(prefix) ? p.slice(prefix.length) : "";
           return tail.length > 0 && !tail.includes("/");
         });
         await Promise.all(
@@ -80,10 +83,11 @@ export function CommandsStation({
       try {
         const root = `${repo}/filestores/skills`;
         const nodes = await fsList(root);
-        const prefix = `${root}/`;
+        const prefix = `${root.replace(/\\/g, "/")}/`;
         const files = nodes.filter((n) => {
           if (n.is_dir) return false;
-          const tail = n.path.startsWith(prefix) ? n.path.slice(prefix.length) : "";
+          const p = n.path.replace(/\\/g, "/");
+          const tail = p.startsWith(prefix) ? p.slice(prefix.length) : "";
           if (!tail || tail.includes("/")) return false;
           if (n.name.includes(".server.")) return false;
           return n.name.endsWith(".md");
