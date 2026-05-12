@@ -10,13 +10,9 @@
 import { useEffect, useState } from "react";
 import { fsOpen, fsReadBytes } from "../lib/api";
 import { Button } from "../ui";
+import { basename } from "../lib/paths";
 
 const IMAGE_EXT = /\.(png|jpe?g|gif|webp|svg)$/i;
-
-function basename(p: string): string {
-  const slash = p.lastIndexOf("/");
-  return slash >= 0 ? p.slice(slash + 1) : p;
-}
 
 function AttachmentImage({ absPath, label }: { absPath: string; label: string }) {
   const [url, setUrl] = useState<string | null>(null);

@@ -28,3 +28,19 @@ export function relUnderRepo(repo: string, abs: string): string | null {
 export function isUnderRepo(repo: string, abs: string): boolean {
   return relUnderRepo(repo, abs) !== null;
 }
+
+/// Filename portion of a path. Handles either path separator so it
+/// works on Windows-shaped paths returned by Tauri (`C:\...\file.png`)
+/// the same way it works on Unix paths (`/.../file.png`).
+export function basename(p: string): string {
+  const n = fsNorm(p);
+  const slash = n.lastIndexOf("/");
+  return slash >= 0 ? n.slice(slash + 1) : n;
+}
+
+/// Directory portion of a path (no trailing separator). Forward slashes.
+export function dirname(p: string): string {
+  const n = fsNorm(p);
+  const slash = n.lastIndexOf("/");
+  return slash >= 0 ? n.slice(0, slash) : "";
+}

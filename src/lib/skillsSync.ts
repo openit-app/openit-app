@@ -1,4 +1,5 @@
 import { invoke } from "@tauri-apps/api/core";
+import { basename } from "./paths";
 
 export type Skill = {
   name: string;
@@ -197,7 +198,7 @@ export async function syncSkillsToDisk(
 ): Promise<{ bubbles: Bubble[] }> {
   // Slug = repo basename. Same value used by kbSync / datastoreSync to
   // suffix collection names. Keeps schemas/agents/databases all aligned.
-  const slug = repo.split("/").filter(Boolean).pop() ?? repo;
+  const slug = basename(repo) || repo;
   // Diagnostic log written to `.openit/sync-log.json` at end of sync.
   // Captures per-file outcome so failures aren't trapped in the renderer's
   // dev-only console (which is hard to access on Windows during onboarding).

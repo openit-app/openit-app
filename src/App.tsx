@@ -30,6 +30,7 @@ import { StatusChips } from "./shell/StatusBar";
 import { useUpdateChecker } from "./lib/updater";
 import { syncSkillsToDisk, readSyncedPluginVersion } from "./lib/skillsSync";
 import { seedIfEmpty } from "./lib/seed";
+import { basename } from "./lib/paths";
 import { invoke } from "@tauri-apps/api/core";
 import "./App.css";
 
@@ -496,7 +497,7 @@ function App() {
             const s = await stateLoad();
             if (s.last_repo && !s.last_repo.includes("/Documents/OpenIT/")) {
               // Migrate: register the legacy repo as a workspace
-              const name = s.last_repo.split("/").filter(Boolean).pop() ?? "Personal";
+              const name = basename(s.last_repo) || "Personal";
               await createWorkspace(s.last_repo, name);
               await openVault(s.last_repo);
               return;

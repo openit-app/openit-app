@@ -6,6 +6,7 @@ import { ask } from "@tauri-apps/plugin-dialog";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import { entityWriteFileBytes, entityDeleteFile, entityListLocal } from "../../lib/api";
 import { writeToActiveSession } from "../activeSession";
+import { relUnderRepo } from "../../lib/paths";
 
 /// Pasting a slash command into the active Claude PTY uses bracketed-
 /// paste sequences so the terminal treats it as a single atomic input,
@@ -182,10 +183,11 @@ export function mimeForPath(path: string): string {
 /// otherwise return the path as-is and let the validator complain
 /// with a useful message.
 export function toRepoRelative(repo: string, path: string): string {
-  const r = repo.endsWith("/") ? repo : `${repo}/`;
-  if (path.startsWith(r)) return path.slice(r.length);
-  if (path === repo) return "";
-  return path;
+  // Delegate separator-handling to the shared helper so Windows paths
+  // with backslashes don't slip through as absolute (and trip the
+  // Rust-side validate_subdir guard).
+  const rel = relUnderRepo(repo, path);
+  return rel ?? path;
 }
 
 /// Filenames that survive Finder (narrow no-break space, colons,

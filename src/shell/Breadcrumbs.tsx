@@ -1,5 +1,5 @@
 import type { ViewerSource } from "./viewerTypes";
-import { relUnderRepo, fsNorm } from "../lib/paths";
+import { relUnderRepo, fsNorm, basename } from "../lib/paths";
 
 /** One segment of the breadcrumb trail. `navigateTo` is a repo-relative
  *  path that will be dispatched as `openit:navigate`. Null for the last
@@ -204,7 +204,7 @@ export function breadcrumbSegments(
     case "script-output":
       return [
         { label: "Scripts", navigateTo: "filestores/scripts" },
-        { label: `Run: ${source.script.split("/").pop() ?? source.script}`, navigateTo: null },
+        { label: `Run: ${basename(source.script) || source.script}`, navigateTo: null },
       ];
     case "knowledge-bases-list":
       return [{ label: "Knowledge", navigateTo: null }];

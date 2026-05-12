@@ -2,7 +2,7 @@ import { useEffect, useRef, useState, type ReactNode } from "react";
 import ReactMarkdown, { defaultUrlTransform } from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { fsRead, fsReadBytes, fsList, fsReveal, reportOverviewRun, entityDeleteFile, entityRemoveDir } from "../lib/api";
-import { isUnderRepo } from "../lib/paths";
+import { isUnderRepo, relUnderRepo, basename, dirname, fsNorm } from "../lib/paths";
 import type { MemoryItem, Agent } from "../lib/localTypes";
 import { EntityCardGrid } from "./EntityCardGrid";
 import { EntityBadge, type EntityKind } from "./entityIcons";
@@ -655,14 +655,14 @@ export function Viewer({
     if (wsTile?.label) return wsTile.label;
     switch (source.kind) {
       case "file": {
-        const sm = source.path.match(/\.claude\/skills\/([^/]+)\/SKILL\.md$/);
+        const sm = fsNorm(source.path).match(/\.claude\/skills\/([^/]+)\/SKILL\.md$/);
         if (sm) return sm[1];
-        return source.path.split("/").pop() ?? source.path;
+        return basename(source.path) || source.path;
       }
       case "sync": return "Sync output";
       case "diff": return "Git diff";
       case "script-output":
-        return `Run: ${source.script.split("/").pop() ?? source.script}`;
+        return `Run: ${basename(source.script) || source.script}`;
       case "draft-file": return source.filename;
       case "datastore-table": {
         const n = source.collection?.name ?? "Datastore";
@@ -946,7 +946,7 @@ export function Viewer({
       return;
     }
 
-    const original = renamingPath.split("/").pop() ?? renamingPath;
+    const original = basename(renamingPath) || renamingPath;
     const next = renameDraft.trim();
     if (!next || next === original) {
       setRenamingPath(null);
@@ -1071,7 +1071,7 @@ export function Viewer({
           return;
         }
       }
-      const rel = filePath.slice(repo.length + 1);
+      const rel = relUnderRepo(repo, filePath) ?? "";
       const lastSlash = rel.lastIndexOf("/");
       const subdir = lastSlash >= 0 ? rel.slice(0, lastSlash) : "";
       const filename = lastSlash >= 0 ? rel.slice(lastSlash + 1) : rel;
@@ -1326,7 +1326,7 @@ export function Viewer({
     // so a successful silent run doesn't leave dangling labels.
     if (source.kind === "script-output") {
       const ok = source.exitCode === 0;
-      const filename = source.script.split("/").pop() ?? source.script;
+      const filename = basename(source.script) || source.script;
       return (
         <div className="viewer-summary script-output">
           <div className="script-output-summary">
@@ -2299,10 +2299,10 @@ export function Viewer({
                 } else {
                   // For command files (.claude/skills/<name>/SKILL.md),
                   // seed the rename with the folder name, not "SKILL.md".
-                  const skillFolderMatch = source.path.match(/\.claude\/skills\/([^/]+)\/SKILL\.md$/);
+                  const skillFolderMatch = fsNorm(source.path).match(/\.claude\/skills\/([^/]+)\/SKILL\.md$/);
                   const draft = skillFolderMatch
                     ? skillFolderMatch[1]
-                    : source.path.split("/").pop() ?? source.path;
+                    : basename(source.path) || source.path;
                   setRenamingPath(source.path);
                   setRenameDraft(draft);
                 }
@@ -2481,8 +2481,8 @@ export function Viewer({
             size="sm"
             onClick={async () => {
               if (source.kind !== "file") return;
-              const filename = source.path.split("/").pop() ?? "";
-              const dir = source.path.slice(0, source.path.length - filename.length - 1);
+              const filename = basename(source.path) || "";
+              const dir = dirname(source.path);
               const ok = await confirmDelete(
                 `Delete command "${filename.replace(/\.md$/, "")}"?\n\nThis cannot be undone.`,
                 "Delete command?",
