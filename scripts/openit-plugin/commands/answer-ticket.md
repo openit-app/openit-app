@@ -50,7 +50,7 @@ Treat the chat / slack cases as the default unless the ticket clearly says other
 - `Edit` the ticket:
   - `status` → `"open"` if the admin's reply is conversational (asking for more info, partial answer, ack-while-investigating). The asker may follow up; the conversation is alive but no banner fires.
   - `status` → `"resolved"` only if the admin is confident the case is fully done (the answer fixes it, no follow-up expected). Don't preemptively close — `open` is the safer default.
-  - Append cited KB filenames (if any) to `kbArticleRefs`, set `updatedAt` to now. If the admin assigned themselves, set `assignee`.
+  - Append cited KB filenames (if any) to `knowledgeArticleRefs`, set `updatedAt` to now. If the admin assigned themselves, set `assignee`.
 - `Write` a conversation turn at `databases/conversations/<ticketId>/msg-<timestamp>-<rand>.json` (same thread subfolder as the asker's turns):
 
   ```json

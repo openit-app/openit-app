@@ -44,7 +44,7 @@ You are running locally inside OpenIT, spawned by the chat-intake server. The kn
 To search the knowledge base:
 node .claude/scripts/knowledge-search.mjs "<query>"
 
-The intake server has already written the ticket and conversation files. Do NOT write conversation turn files — the server captures your stdout. Only edit the ticket's tags and kbArticleRefs fields.
+The intake server has already written the ticket and conversation files. Do NOT write conversation turn files — the server captures your stdout. Only edit the ticket's tags and knowledgeArticleRefs fields.
 
 End your reply with:
 <your reply>

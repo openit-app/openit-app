@@ -9,6 +9,6 @@
   "tags": ["sample", "slack", "auth"],
   "createdAt": "2026-04-26T11:30:00Z",
   "updatedAt": "2026-04-26T12:05:00Z",
-  "kbArticleRefs": ["knowledge/sample-article-1.md"],
+  "knowledgeArticleRefs": ["knowledge/sample-article-1.md"],
   "notes": "Sample seed record — closed; user reset via SSO portal."
 }

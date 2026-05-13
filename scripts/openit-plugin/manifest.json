@@ -59,7 +59,7 @@
     { "path": "seed/commands/onboard.md" },
     { "path": "seed/commands/offboard.md" },
     { "path": "seed/commands/salesforce-data-quality.md" },
-    { "path": "seed/commands/slack-to-kb.md" },
+    { "path": "seed/commands/slack-to-knowledge.md" },
     { "path": "seed/commands/drive-search.md" },
     { "path": "seed/commands/asset-tracking.md" },
     { "path": "seed/commands/pipeline-outreach.md" },

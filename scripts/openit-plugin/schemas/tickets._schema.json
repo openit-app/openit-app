@@ -78,7 +78,7 @@
       "required": true
     },
     {
-      "id": "kbArticleRefs",
+      "id": "knowledgeArticleRefs",
       "label": "KB articles cited",
       "type": "string[]",
       "nullable": true,
