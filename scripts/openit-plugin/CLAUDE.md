@@ -25,6 +25,14 @@ When a command runs and the admin's choices narrow its behavior (e.g. `/backup` 
 
 Do this automatically. Don't ask. The admin has the history file if they disagree.
 
+## Auto vs ask
+
+**Auto, no permission:** capturing a new command, updating an existing command's defaults, writing a knowledge article, fixing an obvious data error, normal record edits. Anything the admin can trivially undo (delete a file, revert a command body from `_history/`) is auto.
+
+**Ask first:** irreversible deletes, anything affecting more than one record without a clear pattern, anything where two reasonable interpretations of the admin's request would produce meaningfully different outcomes. Show the options and let them pick.
+
+The rule of thumb: writes that fan out or destroy information need a check. Single-row edits and additive captures do not.
+
 ## Tickets feed knowledge
 
 When the admin resolves a ticket, **write or update an article in `knowledge/`** capturing the answer. The intake agent reads from `knowledge/` when answering future employee tickets, so anything you write there is employee-facing. The same employee question never needs solving twice.
@@ -76,8 +84,8 @@ When a tool reports unauthenticated or missing, tell the admin which Tools tile 
 ## File conventions
 
 - **Ticket** lives at `databases/tickets/ticket-<id>.json`. Status flow: `open` → `resolved` → `closed`. Fields documented in `_schema.json`.
-- **Person** lives at `databases/people/<sanitized-email>.json`. Skip the write if a row with that email already exists.
-- **Conversation turn** lives at `databases/conversations/<ticketId>/msg-<unix-ms>-<rand>.json`. Fields: `id`, `ticketId`, `role` (`asker`, `agent`, or `admin`), `sender`, `timestamp` (ISO-8601 UTC), `body`.
+- **Person** lives at `databases/people/<sanitized-email>.json`. Sanitize by lowercasing and replacing `@` and `.` with `-` (so `Bob@Example.com` becomes `bob-example-com.json`). If a row with that email already exists, **merge** new fields into it rather than overwriting.
+- **Conversation turn** lives at `databases/conversations/<ticketId>/msg-<unix-ms>-<rand>.json`. Fields: `id`, `ticketId`, `role` (`asker`, `agent`, or `admin`), `sender`, `timestamp` (ISO-8601 UTC), `body`. The intake server writes asker turns on inbound; you only write these for agent or admin turns you generate yourself.
 - **Knowledge article** lives at `knowledge/<slug>.md`. Search with `Glob "knowledge/**/*.md"` or `node .claude/scripts/knowledge-search.mjs "<query>"`.
 - **Command** lives at `filestores/commands/<name>.md`. Edit this copy, not `.claude/skills/`.
 
@@ -150,7 +158,16 @@ Two small JSON files the app watches for visual feedback:
 {"tiles": ["knowledge", "filestores/commands"], "ts": 1715000000000}
 ```
 
-Both deduplicate on `ts`. Bump it each write. Generate via `date +%s000` in Bash. Use highlights sparingly to direct attention ("Click the Knowledge tile" plus a highlight).
+Both deduplicate on `ts`. Bump it each write. For real millisecond precision use `date +%s%3N` in Bash (not `date +%s000`, which is second-precision padded with three zeros). Use highlights sparingly to direct attention ("Click the Knowledge tile" plus a highlight).
+
+## Edge cases
+
+- **Tool reports unauthenticated.** Don't guess credentials. Name the Tools tile entry that fixes it and tell the admin to install or reconnect.
+- **Two existing commands plausibly match the request.** Show both names with one-line summaries, ask which one to run.
+- **A captured command would conflict with an existing name.** Pick a more specific name. Don't overwrite the existing one.
+- **A ticket resolution isn't generalizable** (one-off, confidential, weird specifics that won't recur). Resolve the ticket, skip the knowledge article, note in the ticket's `notes` why you didn't capture it.
+- **The admin contradicts a captured command mid-run.** Follow the new way, update the command body to match, save the prior body to `_history/<timestamp>.md`.
+- **A command body has drifted from what the admin actually does.** When you notice the gap, update the body. That's the learning loop working.
 
 ## CLI tools, marker block
 
