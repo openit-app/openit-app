@@ -24903,7 +24903,8 @@ async function handleMessageIm(event) {
       channelId,
       threadTs,
       email,
-      firstMessage: session.original_message
+      firstMessage: session.original_message,
+      resumeTicketId: session.resume_ticket_id ?? null
     });
     return;
   }
@@ -24917,7 +24918,11 @@ async function handleMessageIm(event) {
       state: "pending_email",
       channel_id: channelId,
       thread_ts: threadTs,
-      original_message: text
+      original_message: text,
+      // Preserve the resume hint discovered before we knew the
+      // email — otherwise an in-thread reply that lands in
+      // pending_email forks a fresh ticket once the email arrives.
+      resume_ticket_id: existingTicketId
     };
     await persistAll();
     await postSlack(channelId, SLACK_REPLY_PROMPT_EMAIL, threadTs);

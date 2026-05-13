@@ -93,11 +93,15 @@ function mustEnv(k) {
 //
 // sessions[`${channel_id}:${thread_ts}`] is one of two shapes:
 //
-//   { state: "pending_email", channel_id, thread_ts, original_message }
+//   { state: "pending_email", channel_id, thread_ts, original_message,
+//     resume_ticket_id }
 //     We DM'd the user asking for their work email and are waiting
 //     for their reply. Their next message in the same thread becomes
 //     the email; the `original_message` is replayed as the first
-//     ticket turn.
+//     ticket turn. `resume_ticket_id` is non-null when the prompt
+//     fired on an in-thread reply that already had a ticket bound
+//     to it — preserved so the post-email handoff continues the
+//     existing ticket instead of forking a new one.
 //
 //   { state: "active", session_id, ticket_id, channel_id, thread_ts,
 //     slack_user_id, email }
@@ -431,6 +435,7 @@ async function handleMessageIm(event) {
       threadTs,
       email,
       firstMessage: session.original_message,
+      resumeTicketId: session.resume_ticket_id ?? null,
     });
     return;
   }
@@ -455,6 +460,10 @@ async function handleMessageIm(event) {
       channel_id: channelId,
       thread_ts: threadTs,
       original_message: text,
+      // Preserve the resume hint discovered before we knew the
+      // email — otherwise an in-thread reply that lands in
+      // pending_email forks a fresh ticket once the email arrives.
+      resume_ticket_id: existingTicketId,
     };
     await persistAll();
     await postSlack(channelId, SLACK_REPLY_PROMPT_EMAIL, threadTs);
