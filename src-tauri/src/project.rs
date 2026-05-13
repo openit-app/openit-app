@@ -115,9 +115,10 @@ pub fn project_bootstrap(vault_path: Option<String>) -> Result<BootstrapResult, 
     // first-use.
     let _ = fs::create_dir_all(path.join("filestores").join("attachments"));
     let _ = fs::create_dir_all(path.join("filestores").join("library"));
-    let _ = fs::create_dir_all(path.join("filestores").join("skills"));
+    let _ = fs::create_dir_all(path.join("filestores").join("commands"));
     let _ = fs::create_dir_all(path.join("filestores").join("scripts"));
     let _ = fs::create_dir_all(path.join("knowledge"));
+    let _ = fs::create_dir_all(path.join("traces"));
     // Same idempotent guard for `reports/` so projects bootstrapped
     // before the reports feature shipped get the dir on next open.
     let _ = fs::create_dir_all(path.join("reports"));

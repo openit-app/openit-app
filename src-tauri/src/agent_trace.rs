@@ -88,7 +88,7 @@ pub fn verb_for_tool(tool: &str, input: &Value) -> Option<String> {
         }
         "Glob" => {
             let pattern = input.get("pattern").and_then(|v| v.as_str()).unwrap_or("");
-            if pattern.contains("knowledge") {
+            if pattern.contains("knowledge/") {
                 Some("Listing knowledge-base articles".to_string())
             } else if pattern.contains("databases/conversations") {
                 Some("Listing the conversation thread".to_string())

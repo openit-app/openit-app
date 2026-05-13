@@ -24,6 +24,7 @@
     { "path": "scripts/slack-listen.bundle.cjs" },
     { "path": "scripts/slack-disconnect.mjs" },
     { "path": "scripts/slack-send-intro.mjs" },
+    { "path": "scripts/_flash.mjs" },
     { "path": "seed/tickets/sample-ticket-1.json" },
     { "path": "seed/tickets/sample-ticket-2.json" },
     { "path": "seed/tickets/sample-ticket-3.json" },
