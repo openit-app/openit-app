@@ -115,7 +115,6 @@ function rewriteLegacyRel(tile: TileConfig): TileConfig {
 const DROPPED_PRIMITIVE_RELS = new Set([
   "databases",
   "filestores",
-  "knowledge-bases",
 ]);
 
 function parseWorkstationConfig(raw: unknown): WorkstationConfig {
