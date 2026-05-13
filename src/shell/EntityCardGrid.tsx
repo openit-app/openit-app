@@ -299,24 +299,22 @@ function EntityCardItem({
           className="entity-card-delete"
           title={`Delete ${c.title}`}
           aria-label={`Delete ${c.title}`}
+          // Fire on mousedown, not click. The button's `:active` rule
+          // does a translateY(1px) — between mousedown and mouseup the
+          // button moves out from under the cursor, mouseup lands on
+          // the card behind it, and click never fires on the trash
+          // button itself. mousedown is unaffected and is the actual
+          // commit signal we want.
           onMouseDown={(e) => {
-            console.log(`[trash] mousedown on ${c.title}`);
-            e.stopPropagation();
-          }}
-          onClick={(e) => {
-            console.log(`[trash] click on ${c.title}`);
             e.stopPropagation();
             e.preventDefault();
-            const fn = c.onDelete;
-            if (!fn) {
-              console.log(`[trash] no onDelete handler for ${c.title}`);
-              return;
-            }
-            console.log(`[trash] invoking onDelete for ${c.title}`);
-            Promise.resolve(fn()).then(
-              () => console.log(`[trash] onDelete resolved for ${c.title}`),
-              (err) => console.log(`[trash] onDelete rejected for ${c.title}:`, err),
-            );
+            void c.onDelete?.();
+          }}
+          // Eat the synthetic click that the browser may still try to
+          // dispatch later so the card behind doesn't open.
+          onClick={(e) => {
+            e.stopPropagation();
+            e.preventDefault();
           }}
         >
           <TrashIcon />
