@@ -90,16 +90,57 @@ export async function saveWorkstationConfig(
   );
 }
 
+/// Map legacy tile rels to their renamed counterparts. Used when
+/// loading a workstation config that was saved before the 2026-05
+/// layout rename so existing vaults keep their pinned tiles instead
+/// of going empty after the disk migration moves files to the new
+/// paths.
+const LEGACY_REL_REWRITES: Record<string, string> = {
+  "filestores/skills": "filestores/commands",
+  "knowledge-bases": "knowledge",
+  ".openit/agent-traces": "traces",
+};
+
+function rewriteLegacyRel(tile: TileConfig): TileConfig {
+  const replacement = LEGACY_REL_REWRITES[tile.rel];
+  return replacement ? { ...tile, rel: replacement } : tile;
+}
+
+/// Drop tile entries whose rel matches a primitive container folder.
+/// The 2026-05 tile-UX change dropped these from the default set —
+/// tiles are daily-access shortcuts, not folder mirrors. Vaults that
+/// pinned them before the change had them auto-discovered in `more`;
+/// after the change those tiles render with no data and confuse the
+/// admin. Strip on load instead of forcing a manual edit.
+const DROPPED_PRIMITIVE_RELS = new Set([
+  "databases",
+  "filestores",
+  "knowledge-bases",
+]);
+
 function parseWorkstationConfig(raw: unknown): WorkstationConfig {
   if (!raw || typeof raw !== "object") {
     return structuredClone(DEFAULT_WORKSTATION_CONFIG);
   }
   const r = raw as Record<string, unknown>;
-  const main = Array.isArray(r.main)
-    ? r.main.filter(isTileConfig)
+  const cleanup = (arr: unknown): TileConfig[] =>
+    Array.isArray(arr)
+      ? arr
+          .filter(isTileConfig)
+          .map(rewriteLegacyRel)
+          .filter((t) => !DROPPED_PRIMITIVE_RELS.has(t.rel))
+      : [];
+
+  // If `main` becomes empty after cleanup (e.g. the saved tiles all
+  // pointed at legacy primitives), fall back to the default main set
+  // so the admin doesn't see an empty workstation hero.
+  const cleanedMain = cleanup(r.main);
+  const main = cleanedMain.length > 0
+    ? cleanedMain
     : structuredClone(DEFAULT_WORKSTATION_CONFIG.main);
+
   const more = Array.isArray(r.more)
-    ? r.more.filter(isTileConfig)
+    ? cleanup(r.more)
     : structuredClone(DEFAULT_WORKSTATION_CONFIG.more);
   return { main, more };
 }
