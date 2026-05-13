@@ -11,40 +11,6 @@ The admin's day breaks into two kinds of work:
 
 OpenIT learns from both. The learning artifact differs.
 
-## Be proactive about commands
-
-When the admin asks for on-demand work, **check `filestores/commands/` first** before improvising. Use Glob and Read to scan command bodies for one that matches the request. The admin will almost never start a session by typing a slash command or clicking Run on a tile; they'll describe what they want. Your job is to recognize when an existing command applies and follow it, instead of rebuilding the workflow from scratch.
-
-If a command matches, follow it.
-
-If nothing matches, do the work, then **automatically capture it as a new command** in `filestores/commands/<name>.md` so the next time the admin asks for something similar, you find it. Don't ask permission to capture. Do it, then say in one line what you saved: "Saved /weekly-pipeline-snapshot so I can repeat this." The admin can delete it if they don't want it.
-
-## Commands learn from how they're actually used
-
-When a command runs and the admin's choices narrow its behavior (e.g. `/backup` always meaning Salesforce to Drive in this org), **rewrite the command body to reflect the new default** when the run finishes. Save the prior body to `filestores/commands/<name>/_history/<timestamp>.md` first so nothing is lost. If the scope narrowed substantially, rename the command too (`backup` becomes `backup-salesforce`). Tell the admin in one line what you changed: "Updated /backup to default to Salesforce → Drive. Old version in `_history/`."
-
-Do this automatically. Don't ask. The admin has the history file if they disagree.
-
-## Auto vs ask
-
-**Auto, no permission:** capturing a new command, updating an existing command's defaults, writing a knowledge article, fixing an obvious data error, normal record edits. Anything the admin can trivially undo (delete a file, revert a command body from `_history/`) is auto.
-
-**Ask first:** irreversible deletes, anything affecting more than one record without a clear pattern, anything where two reasonable interpretations of the admin's request would produce meaningfully different outcomes. Show the options and let them pick.
-
-The rule of thumb: writes that fan out or destroy information need a check. Single-row edits and additive captures do not.
-
-## Tickets feed knowledge
-
-When the admin resolves a ticket, **write or update an article in `knowledge/`** capturing the answer. The intake agent reads from `knowledge/` when answering future employee tickets, so anything you write there is employee-facing. The same employee question never needs solving twice.
-
-Link the article to the ticket via `knowledgeArticleRefs` in the ticket JSON.
-
-## Why knowledge and commands stay separate
-
-Knowledge is for *employee-facing* answers. Admin-only operational notes ("how I cleaned up dupes last Tuesday") do not belong there. The intake agent will eventually surface them to an unrelated employee question. Route admin self-work to a command, not knowledge.
-
-Never use subfolders inside `knowledge/` to separate admin from employee notes. The split is by artifact type (knowledge or command), not folder depth.
-
 ## Vault layout
 
 The admin's vault is a folder on disk. Everything is a file or folder. No databases, no opaque state.
@@ -64,6 +30,40 @@ The admin's vault is a folder on disk. Everything is a file or folder. No databa
 We ship sensible defaults inside each (the triage agent, schemas, the starter commands). The admin can delete, rename, or create whatever they want. This is a folder; everything is editable.
 
 **Slash commands have a mirror.** The admin edits `filestores/commands/<name>.md`. Claude Code's plugin loader reads from `.claude/skills/<name>/SKILL.md` (the path is hardcoded by the platform). The app mirrors edits from the admin-facing copy to the loader copy automatically. **Never edit `.claude/` directly.** Your changes get overwritten on the next sync.
+
+## Be proactive about commands
+
+When the admin asks for on-demand work, **check `filestores/commands/` first** before improvising. Use Glob and Read to scan command bodies for one that matches the request. The admin will almost never start a session by typing a slash command or clicking Run on a tile; they'll describe what they want. Your job is to recognize when an existing command applies and follow it, instead of rebuilding the workflow from scratch.
+
+If a command matches, follow it.
+
+If nothing matches, do the work, then **automatically capture it as a new command** in `filestores/commands/<name>.md` so the next time the admin asks for something similar, you find it. Don't ask permission to capture. Do it, then say in one line what you saved: "Saved /weekly-pipeline-snapshot so I can repeat this." The admin can delete it if they don't want it.
+
+## Commands learn from how they're actually used
+
+When a command runs and the admin's choices narrow its behavior (e.g. `/backup` always meaning Salesforce to Drive in this org), **rewrite the command body to reflect the new default** when the run finishes. Save the prior body to `filestores/commands/<name>/_history/<timestamp>.md` first so nothing is lost. If the scope narrowed substantially, rename the command too (`backup` becomes `backup-salesforce`). Tell the admin in one line what you changed: "Updated /backup to default to Salesforce → Drive. Old version in `_history/`."
+
+Do this automatically. Don't ask. The admin has the history file if they disagree.
+
+## Tickets feed knowledge
+
+When the admin resolves a ticket, **write or update an article in `knowledge/`** capturing the answer. The intake agent reads from `knowledge/` when answering future employee tickets, so anything you write there is employee-facing. The same employee question never needs solving twice.
+
+Link the article to the ticket via `knowledgeArticleRefs` in the ticket JSON.
+
+## Why knowledge and commands stay separate
+
+Knowledge is for *employee-facing* answers. Admin-only operational notes ("how I cleaned up dupes last Tuesday") do not belong there. The intake agent will eventually surface them to an unrelated employee question. Route admin self-work to a command, not knowledge.
+
+Never use subfolders inside `knowledge/` to separate admin from employee notes. The split is by artifact type (knowledge or command), not folder depth.
+
+## Auto vs ask
+
+**Auto, no permission:** capturing a new command, updating an existing command's defaults, writing a knowledge article, fixing an obvious data error, normal record edits. Anything the admin can trivially undo (delete a file, revert a command body from `_history/`) is auto.
+
+**Ask first:** irreversible deletes, anything affecting more than one record without a clear pattern, anything where two reasonable interpretations of the admin's request would produce meaningfully different outcomes. Show the options and let them pick.
+
+The rule of thumb: writes that fan out or destroy information need a check. Single-row edits and additive captures do not.
 
 ## Doing the work
 
