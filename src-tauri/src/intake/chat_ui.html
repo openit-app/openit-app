@@ -362,10 +362,63 @@ header {
   background: var(--surface);
   position: relative;
 }
-#form.drag-over {
-  background: var(--accent-soft);
-  outline: 2px dashed var(--accent-soft);
-  outline-offset: -4px;
+/* Chips own the top border when present; form sits flush under them. */
+.compose-chips:not([hidden]) + #form { border-top: 0; }
+
+/* --- Full-page drop overlay --- */
+.drop-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  background: rgba(199, 90, 44, 0.08);
+  border: 3px dashed var(--accent);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+  animation: drop-overlay-in 0.12s ease-out;
+}
+@keyframes drop-overlay-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+.drop-overlay-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  padding: 24px 36px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  box-shadow: 0 12px 32px rgba(0,0,0,0.12);
+}
+.drop-overlay-icon {
+  width: 44px;
+  height: 44px;
+  background: var(--accent-faint);
+  border-radius: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.drop-overlay-icon svg {
+  width: 22px;
+  height: 22px;
+  stroke: var(--accent);
+  fill: none;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.drop-overlay-text {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text);
+}
+.drop-overlay-hint {
+  font-size: 12px;
+  color: var(--text-muted);
 }
 input[type=text] {
   flex: 1;
@@ -430,42 +483,85 @@ button:disabled { opacity: 0.5; cursor: not-allowed; }
 .compose-chips {
   display: flex;
   flex-wrap: wrap;
-  gap: 6px;
-  padding: 0 20px 6px;
+  gap: 8px;
+  padding: 12px 20px 0;
   background: var(--surface);
   border-top: 1px solid var(--border);
 }
 .compose-chips:empty { display: none; }
 .compose-chip {
+  position: relative;
   display: inline-flex;
   align-items: center;
-  gap: 6px;
-  padding: 4px 8px;
-  font-size: 11px;
-  background: var(--accent-soft);
-  border: 1px solid var(--accent-soft);
-  border-radius: 999px;
-  max-width: 200px;
+  gap: 8px;
+  padding: 6px 28px 6px 6px;
+  background: var(--bg-canvas);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  max-width: 240px;
+}
+.compose-chip-thumb {
+  width: 36px;
+  height: 36px;
+  border-radius: 6px;
+  background: var(--surface-soft);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  overflow: hidden;
+  color: var(--text-muted);
+  font-size: 16px;
+}
+.compose-chip-thumb img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.compose-chip-body {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  line-height: 1.2;
 }
 .compose-chip-name {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--text);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  max-width: 150px;
 }
 .compose-chip-status {
-  color: var(--text-muted);
+  color: var(--text-faint);
   font-size: 10px;
+  margin-top: 2px;
 }
+.compose-chip.is-ready .compose-chip-status { display: none; }
 .compose-chip-remove {
-  background: transparent;
-  border: 0;
-  padding: 0 0 0 4px;
-  font-size: 14px;
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  width: 18px;
+  height: 18px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 50%;
+  padding: 0;
+  font-size: 12px;
   line-height: 1;
   color: var(--text-muted);
   cursor: pointer;
 }
-.compose-chip-remove:hover { color: var(--text); }
+.compose-chip-remove:hover {
+  color: var(--text);
+  background: var(--accent-faint);
+  border-color: var(--accent-soft);
+}
 .attach-btn {
   background: var(--surface);
   border: 1px solid var(--border);
@@ -549,6 +645,17 @@ button:disabled { opacity: 0.5; cursor: not-allowed; }
   <input id="msg" type="text" placeholder="Describe your issue…" autocomplete="off">
   <button type="submit" id="send">Send</button>
 </form>
+
+<!-- Full-page drop target — shown while files are being dragged over the window -->
+<div class="drop-overlay" id="dropOverlay" hidden>
+  <div class="drop-overlay-card">
+    <div class="drop-overlay-icon">
+      <svg viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+    </div>
+    <div class="drop-overlay-text">Drop to attach</div>
+    <div class="drop-overlay-hint">Files will be added to your message</div>
+  </div>
+</div>
 <script>
 let sessionId = null;
 let ticketId = null;
@@ -570,12 +677,17 @@ const fileInput = document.getElementById('fileInput');
 const attachBtn = document.getElementById('attachBtn');
 const newChatBtn = document.getElementById('newChatBtn');
 const welcomeState = document.getElementById('welcomeState');
+const dropOverlay = document.getElementById('dropOverlay');
 
 // Pending attachments awaiting Send. Each entry tracks its upload
 // state so the chip renders accurately and the submit handler only
 // includes successfully-uploaded paths. Browser-native File objects
 // are stashed for retry on transient failures.
 const pendingAttachments = [];
+
+function isImageFile(file) {
+  return file && file.type && file.type.startsWith('image/');
+}
 
 function renderChips() {
   chipsBar.innerHTML = '';
@@ -586,17 +698,33 @@ function renderChips() {
   chipsBar.hidden = false;
   for (const att of pendingAttachments) {
     const chip = document.createElement('span');
-    chip.className = 'compose-chip';
+    chip.className = 'compose-chip' + (att.status === 'ready' ? ' is-ready' : '');
+
+    const thumb = document.createElement('span');
+    thumb.className = 'compose-chip-thumb';
+    if (att.previewUrl) {
+      const img = document.createElement('img');
+      img.src = att.previewUrl;
+      img.alt = '';
+      thumb.appendChild(img);
+    } else {
+      thumb.textContent = '📎';
+    }
+    chip.appendChild(thumb);
+
+    const body = document.createElement('span');
+    body.className = 'compose-chip-body';
     const name = document.createElement('span');
     name.className = 'compose-chip-name';
     name.textContent = att.filename;
-    chip.appendChild(name);
-    if (att.status !== 'ready') {
-      const status = document.createElement('span');
-      status.className = 'compose-chip-status';
-      status.textContent = att.status;
-      chip.appendChild(status);
-    }
+    name.title = att.filename;
+    body.appendChild(name);
+    const status = document.createElement('span');
+    status.className = 'compose-chip-status';
+    status.textContent = att.status;
+    body.appendChild(status);
+    chip.appendChild(body);
+
     const remove = document.createElement('button');
     remove.type = 'button';
     remove.className = 'compose-chip-remove';
@@ -604,7 +732,10 @@ function renderChips() {
     remove.textContent = '×';
     remove.addEventListener('click', () => {
       const idx = pendingAttachments.indexOf(att);
-      if (idx >= 0) pendingAttachments.splice(idx, 1);
+      if (idx >= 0) {
+        if (att.previewUrl) URL.revokeObjectURL(att.previewUrl);
+        pendingAttachments.splice(idx, 1);
+      }
       renderChips();
     });
     chip.appendChild(remove);
@@ -642,6 +773,7 @@ function addFiles(files) {
       filename: file.name || 'upload',
       status: 'uploading…',
       path: null,
+      previewUrl: isImageFile(file) ? URL.createObjectURL(file) : null,
     };
     pendingAttachments.push(att);
     void uploadOne(att);
@@ -827,6 +959,9 @@ newChatBtn.addEventListener('click', () => {
   ticketId = null;
   lastSeen = '';
   seenTurnKeys.clear();
+  for (const a of pendingAttachments) {
+    if (a.previewUrl) URL.revokeObjectURL(a.previewUrl);
+  }
   pendingAttachments.length = 0;
   if (pollTimer) { clearInterval(pollTimer); pollTimer = null; }
   // Clear chat bubbles and restore welcome state
@@ -896,37 +1031,68 @@ fileInput.addEventListener('change', () => {
   }
 });
 
-// Drag-and-drop on the composer area. We treat the form as the drop
-// zone (visible + always present once gate is passed). The window-
-// level dragover/drop handlers prevent the browser from navigating
-// to the dropped file when the user releases outside the form.
-['dragover', 'dragenter'].forEach((evt) => {
-  form.addEventListener(evt, (e) => {
-    if (!sessionId) return;
-    if (!e.dataTransfer || !Array.from(e.dataTransfer.types || []).includes('Files')) return;
-    e.preventDefault();
-    e.stopPropagation();
+// Drag-and-drop is window-wide: anywhere on the page is a valid drop
+// target. We track enter/leave depth because `dragleave` fires when
+// the cursor crosses into child elements, which would otherwise flicker
+// the overlay off mid-drag.
+let dragDepth = 0;
+function dragHasFiles(e) {
+  return !!(e.dataTransfer && Array.from(e.dataTransfer.types || []).includes('Files'));
+}
+window.addEventListener('dragenter', (e) => {
+  if (!sessionId || !dragHasFiles(e)) return;
+  e.preventDefault();
+  dragDepth++;
+  dropOverlay.hidden = false;
+});
+window.addEventListener('dragover', (e) => {
+  // Always preventDefault so the browser doesn't navigate to the file
+  // if the user releases outside any specific handler.
+  e.preventDefault();
+  if (sessionId && dragHasFiles(e)) {
     e.dataTransfer.dropEffect = 'copy';
-    form.classList.add('drag-over');
-  });
+  }
 });
-['dragleave', 'dragend'].forEach((evt) => {
-  form.addEventListener(evt, () => form.classList.remove('drag-over'));
+window.addEventListener('dragleave', (e) => {
+  if (!sessionId) return;
+  // Only counts if it was a file drag — otherwise depth wasn't incremented.
+  if (dragDepth === 0) return;
+  dragDepth--;
+  if (dragDepth <= 0) {
+    dragDepth = 0;
+    dropOverlay.hidden = true;
+  }
 });
-form.addEventListener('drop', (e) => {
-  form.classList.remove('drag-over');
+window.addEventListener('drop', (e) => {
+  e.preventDefault();
+  dragDepth = 0;
+  dropOverlay.hidden = true;
   if (!sessionId) return;
   if (!e.dataTransfer || !e.dataTransfer.files) return;
-  e.preventDefault();
-  e.stopPropagation();
   if (e.dataTransfer.files.length > 0) {
     addFiles(Array.from(e.dataTransfer.files));
   }
 });
-// Stop the browser from navigating to a dropped file outside the
-// form (would replace the whole chat with a file preview).
-window.addEventListener('dragover', (e) => e.preventDefault());
-window.addEventListener('drop', (e) => e.preventDefault());
+
+// Paste-to-attach: if the clipboard contains image data (screenshot
+// taken with Cmd-Shift-Ctrl-4, copied image from a browser, etc.),
+// attach it as a file. Plain-text paste falls through to the input.
+window.addEventListener('paste', (e) => {
+  if (!sessionId) return;
+  const items = e.clipboardData && e.clipboardData.items;
+  if (!items || items.length === 0) return;
+  const files = [];
+  for (const item of items) {
+    if (item.kind === 'file') {
+      const f = item.getAsFile();
+      if (f) files.push(f);
+    }
+  }
+  if (files.length > 0) {
+    e.preventDefault();
+    addFiles(files);
+  }
+});
 
 form.addEventListener('submit', async (e) => {
   e.preventDefault();
@@ -949,6 +1115,9 @@ form.addEventListener('submit', async (e) => {
   // Clear the composer + chips immediately. Failed attachments are
   // already filtered out (only `ready` ones are sent).
   input.value = '';
+  for (const a of pendingAttachments) {
+    if (a.previewUrl) URL.revokeObjectURL(a.previewUrl);
+  }
   pendingAttachments.length = 0;
   renderChips();
   sendBtn.disabled = true;
