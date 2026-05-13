@@ -173,7 +173,7 @@ export async function resolvePathToSource(
         ? { entity: "workflows" }
         : rel === "knowledge"
           ? { entity: "knowledge" }
-          : filestoreSubdir === "skills"
+          : filestoreSubdir === "commands"
             ? { entity: "skills" }
             : filestoreSubdir === "scripts"
               ? { entity: "scripts" }
