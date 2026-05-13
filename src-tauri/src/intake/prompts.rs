@@ -220,54 +220,41 @@ pub(super) fn build_chat_prompt(
         );
     }
     prompt.push_str(
-        "\nIMPORTANT: Do NOT write any conversation turn files (no \
-         msg-*.json under databases/conversations/). The server \
-         already wrote the asker's turn before invoking you, and the \
-         server will write your agent reply turn after you finish \
-         using your stdout as the body. If you write a turn yourself \
-         it WILL appear duplicated in the admin UI.\n\n\
-         Also do NOT Edit the ticket's `status` field — the server \
-         sets it based on the marker you emit (see below), so an \
-         agent-side Edit will race against the server and may be \
-         clobbered.\n\n\
-         Your job: (1) read the ticket + conversation history for \
-         context, (2) run `Bash node .claude/scripts/kb-search.mjs \
-         \"<query>\"` to search the local knowledge base when the \
-         user is asking a new question — pass a compact query that \
-         captures it, (3) decide one of exactly three outcomes — \
-         `answered` (KB had a relevant article and you replied from \
-         it; ticket → open), `escalated` (KB had no relevant match, \
-         or the question needs a human; ticket → escalated), or \
-         `resolved` (the asker has explicitly confirmed the case is \
-         done — \"thanks that worked\" / \"all good\" / \"works now\" \
-         — and a prior agent or admin turn provided the answer; \
-         ticket → resolved, terminal), (4) output your reply to the \
-         user, then (5) end with a status marker on its own line: \
-         `<<STATUS:answered>>`, `<<STATUS:escalated>>`, or \
-         `<<STATUS:resolved>>`.\n\n\
-         The marker reflects your *turn outcome*, not just the case \
-         lifecycle. Multiple `answered` turns in a row is normal for \
-         ongoing back-and-forth. Use `resolved` only when you're \
-         confident the asker is closing the loop — when in doubt, \
-         emit `answered`; the admin can always close manually, and \
-         the asker can reopen by sending another message.\n\n\
-         CRITICAL: do NOT ask the user a follow-up question. There \
-         is no \"clarifying\" outcome. If you can't answer from the \
-         KB on the information you already have, escalate — the \
-         admin will ask the asker any follow-ups themselves. Asking \
-         the user another question instead of escalating leaves the \
-         ticket stuck and frustrates the user.\n\n\
-         The reply is what the user sees in the chat — conversational, \
-         no file paths, no status narration, no meta-commentary. \
-         Plain text only: no markdown formatting (no `**bold**`, no \
-         `*italics*`, no `# headings`, no `- bullet lists`, no fenced \
-         code blocks, no tables). The chat surface renders raw text \
-         and so will the eventual Slack/Teams ingest, so markdown \
-         shows through as literal asterisks and pound signs. If you \
-         need to enumerate steps, use plain numbers (`1. `, `2. `) in \
-         normal sentences. The server strips the marker line before \
-         writing the turn. Missing or malformed marker → defaults to \
-         escalated, so the admin still sees the ticket.",
+        "\nRuntime contract — system invariants that apply to every \
+         agent, regardless of the persona above:\n\n\
+         Do NOT write any conversation turn files (no msg-*.json \
+         under databases/conversations/). The server wrote the \
+         asker's turn before invoking you and will write your reply \
+         turn after, using your stdout as the body — a turn you \
+         write yourself will appear duplicated in the admin UI.\n\n\
+         Do NOT Edit the ticket's `status` field. The server sets \
+         status from the marker you emit (below); an agent-side \
+         Edit races against the server and may be clobbered.\n\n\
+         Do NOT ask the asker a follow-up question. The system has \
+         no \"waiting on the asker\" state — a turn that asks for \
+         more info leaves the ticket stuck. If you can't answer \
+         from the information you already have, hand off; the human \
+         teammate will ask any follow-ups themselves.\n\n\
+         Plain text only. The chat surface and the Slack ingest both \
+         render raw text, so markdown shows through as literal \
+         characters: no `**bold**`, no `*italics*`, no `# headings`, \
+         no `- bullet lists`, no fenced code blocks, no tables. If \
+         you need to enumerate steps, write `1. `, `2. ` inside \
+         normal sentences.\n\n\
+         End your output with a status marker on its own line: \
+         `<<STATUS:answered>>` (you replied from a saved article), \
+         `<<STATUS:escalated>>` (no usable answer — hand off), or \
+         `<<STATUS:resolved>>` (the asker has explicitly confirmed \
+         the case is done — \"thanks that worked\" / \"all good\" — \
+         and a prior agent or admin turn provided the answer). The \
+         marker reflects this turn's outcome, not the whole case; \
+         multiple `answered` turns in a row is normal for ongoing \
+         back-and-forth. When in doubt, emit `answered` — the admin \
+         can close manually, and the asker can reopen by sending \
+         another message.\n\n\
+         The server strips the marker line before writing the turn. \
+         Missing or malformed marker → defaults to escalated, so the \
+         admin still sees the ticket.",
     );
     prompt
 }
