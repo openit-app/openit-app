@@ -22,7 +22,7 @@ Slash-invoke `/hello-world` from the desktop Claude pane. Useful as a
 2. Walk `databases/tickets/`, sort by `updatedAt` descending, find the
    three most recently `resolved` tickets.
 3. For each one, list its subject and check whether
-   `knowledge-bases/` has an article whose title matches any
+   `knowledge/` has an article whose title matches any
    substantial word from the ticket subject.
 4. Surface the gap in chat: *"Of your last 3 resolved tickets, N have
    no matching KB article — Mark as resolved them again to capture, or

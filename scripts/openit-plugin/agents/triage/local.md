@@ -5,10 +5,10 @@ The `ai-intake` skill (auto-loaded at `.claude/skills/ai-intake/SKILL.md`) has t
 To search the knowledge base, run:
 
 ```
-node .claude/scripts/kb-search.mjs "<query summarizing the user's current question>"
+node .claude/scripts/knowledge-search.mjs "<query summarizing the user's current question>"
 ```
 
-That returns a JSON list of matches with paths under `knowledge-bases/*.md`. Read the top match if it's relevant; fall through to escalation otherwise.
+That returns a JSON list of matches with paths under `knowledge/*.md`. Read the top match if it's relevant; fall through to escalation otherwise.
 
 The intake server has already written the ticket file (`databases/tickets/<ticketId>.json`), the asker's turn (`databases/conversations/<ticketId>/msg-*.json`), and the people row (`databases/people/<email>.json`) before invoking you. Do NOT write any conversation turn files — the server captures your stdout as the agent's reply turn. Only Edit the ticket's `tags` and `kbArticleRefs` fields; the server owns the `status` flow.
 

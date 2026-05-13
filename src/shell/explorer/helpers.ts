@@ -106,7 +106,7 @@ export function prettyName(
   }
   // Knowledge-base markdown articles — same logic as agents/workflows:
   // the .md is implementation noise; users think of them by title.
-  if (rel.match(/^knowledge-bases\/[^/]+\.(md|markdown)$/)) {
+  if (rel.match(/^knowledge\/[^/]+\.(md|markdown)$/)) {
     return name.replace(/\.(md|markdown)$/, "");
   }
   return name;

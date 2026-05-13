@@ -53,27 +53,27 @@ export async function resolvePathToSource(
   if (rel === "tools" || rel === "tools/") return { kind: "tools" };
 
   // Skills station -- intercept before the generic entity-folder routing
-  // so `filestores/skills` renders the combined slash-commands + custom
+  // so `filestores/commands` renders the combined slash-commands + custom
   // skills view instead of the plain file list.
-  if (rel === "filestores/skills") return { kind: "commands-station" };
+  if (rel === "filestores/commands") return { kind: "commands-station" };
   if (rel === "filestores/scripts") return { kind: "scripts-station" };
 
   // ── Trace resolvers ──
 
-  // .openit/agent-traces/ parent -> list all ticket trace folders
-  if (rel === ".openit/agent-traces") {
+  // traces/ parent -> list all ticket trace folders
+  if (rel === "traces") {
     return resolveTracesList(path, repo);
   }
 
-  // .openit/agent-traces/<ticketId>/ (folder) -> agent-trace-list
-  const traceFolderMatch = rel.match(/^\.openit\/agent-traces\/([^/]+)$/);
+  // traces/<ticketId>/ (folder) -> agent-trace-list
+  const traceFolderMatch = rel.match(/^\.openit\/traces\/([^/]+)$/);
   if (traceFolderMatch) {
     return resolveTraceFolder(path, repo, traceFolderMatch[1]);
   }
 
-  // .openit/agent-traces/<ticketId>/<isoStamp>.json -> agent-trace
+  // traces/<ticketId>/<isoStamp>.json -> agent-trace
   const traceMatch = rel.match(
-    /^\.openit\/agent-traces\/([^/]+)\/([^/]+)\.json$/,
+    /^\.openit\/traces\/([^/]+)\/([^/]+)\.json$/,
   );
   if (traceMatch) {
     return resolveTraceFile(path, repo, traceMatch[1]);
@@ -171,7 +171,7 @@ export async function resolvePathToSource(
       ? { entity: "agents" }
       : rel === "workflows"
         ? { entity: "workflows" }
-        : rel === "knowledge-bases"
+        : rel === "knowledge"
           ? { entity: "knowledge" }
           : filestoreSubdir === "skills"
             ? { entity: "skills" }
@@ -196,9 +196,9 @@ export async function resolvePathToSource(
     return resolveFilestoresList(path);
   }
 
-  // `knowledge-bases/` -> flat list of all KB articles (markdown files).
+  // `knowledge/` -> flat list of all KB articles (markdown files).
   // No more collection/subfolder concept -- articles live directly in
-  // knowledge-bases/ and render as a plain entity-folder.
+  // knowledge/ and render as a plain entity-folder.
 
   // `filestores/attachments/` -> list of per-ticket subfolders
   if (rel === "filestores/attachments") {

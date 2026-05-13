@@ -181,7 +181,7 @@ export function FileExplorer({
       return;
     }
 
-    // Default: drop into the knowledge base (`knowledge-bases/`)
+    // Default: drop into the knowledge base (`knowledge/`)
     // with file type filtering.
     const acceptedRecords: { file: File; filename: string }[] = [];
     const rejected: string[] = [];
@@ -214,8 +214,8 @@ export function FileExplorer({
     return <div className="explorer error">{error}</div>;
   }
 
-  // KB articles live directly in `knowledge-bases/`.
-  const KB_PREFIX = "knowledge-bases/";
+  // KB articles live directly in `knowledge/`.
+  const KB_PREFIX = "knowledge/";
   const isDeletable = (node: { is_dir: boolean; path: string }) => {
     if (node.is_dir || !repo) return false;
     return relPath(repo, node.path).startsWith(KB_PREFIX);
@@ -331,8 +331,8 @@ export function FileExplorer({
                     rel.match(/^databases\/conversations\/[^/]+$/) ||
                     rel === "agents" ||
                     rel === "workflows" ||
-                    // Flat KB directory: all articles in knowledge-bases/
-                    rel === "knowledge-bases" ||
+                    // Flat KB directory: all articles in knowledge/
+                    rel === "knowledge" ||
                     // 2026-04-27 filestore split:
                     //   - `filestores/`             → two-card overview
                     //   - `filestores/attachments/` → welcome stub +
@@ -348,9 +348,9 @@ export function FileExplorer({
                     // On-demand markdown reports — sorted newest-first
                     // in the entity-folder view via filename prefix.
                     rel === "reports" ||
-                    // Per-ticket agent-traces folder → agent-trace-list
+                    // Per-ticket traces folder → agent-trace-list
                     // view (every turn stacked with separators).
-                    rel.match(/^\.openit\/agent-traces\/[^/]+$/)
+                    rel.match(/^\.openit\/traces\/[^/]+$/)
                   ) {
                     onSelect(n.path);
                   }

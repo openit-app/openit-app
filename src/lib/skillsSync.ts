@@ -99,10 +99,16 @@ export function routeFile(
   if (filePath === "CLAUDE.md" || filePath === "claude-md.template.md") {
     return { subdir: "", filename: "CLAUDE.md", substituteSlug: false };
   }
-  if (filePath.startsWith("skills/") && filePath.endsWith(".md")) {
-    const skillName = filePath.replace("skills/", "").replace(".md", "");
+  // Canonical command bodies bundled at `commands/<name>.md` are mirrored
+  // into `.claude/skills/<name>/SKILL.md` — Claude Code's plugin loader
+  // hard-codes that exact path to invoke `/name`. The admin never edits
+  // this copy; they edit `filestores/commands/<name>.md` (the seed flow
+  // below writes that), and `skillMirror` keeps the `.claude/skills/`
+  // path in sync on save.
+  if (filePath.startsWith("commands/") && filePath.endsWith(".md")) {
+    const commandName = filePath.replace("commands/", "").replace(".md", "");
     return {
-      subdir: `.claude/skills/${skillName}`,
+      subdir: `.claude/skills/${commandName}`,
       filename: "SKILL.md",
       substituteSlug: false,
     };
@@ -136,15 +142,15 @@ export function routeFile(
     const filename = filePath.replace("scripts/", "");
     return { subdir: ".claude/scripts", filename, substituteSlug: false };
   }
-  // Seed skills are admin-facing commands (salesforce-gmail, backup,
-  // onboard, offboard, etc.) that must be available on every fresh
-  // install — not gated behind `/load-sample-data`. Route them to
-  // `filestores/skills/` so they appear in the Commands tile. The
-  // sync loop applies a write-once gate (same as agents) so re-syncs
-  // don't clobber user-customized versions.
-  if (filePath.startsWith("seed/skills/") && filePath.endsWith(".md")) {
-    const filename = filePath.replace("seed/skills/", "");
-    return { subdir: "filestores/skills", filename, substituteSlug: false };
+  // Seed commands are admin-facing slash commands (salesforce-gmail,
+  // backup, onboard, offboard, etc.) that must be available on every
+  // fresh install — not gated behind `/load-sample-data`. Route them
+  // to `filestores/commands/` so they appear in the Commands tile.
+  // The sync loop applies a write-once gate (same as agents) so re-
+  // syncs don't clobber user-customized versions.
+  if (filePath.startsWith("seed/commands/") && filePath.endsWith(".md")) {
+    const filename = filePath.replace("seed/commands/", "");
+    return { subdir: "filestores/commands", filename, substituteSlug: false };
   }
   // All other seed files (tickets, people, conversations, etc.) are
   // optional sample data, written only when the user runs
@@ -223,10 +229,10 @@ export async function syncSkillsToDisk(
             continue;
           }
         }
-        // Write-once gate for seed skills (filestores/skills/). These are
-        // admin-customizable commands — once the user has edited one, the
-        // plugin sync must leave their version in place.
-        if (route.subdir === "filestores/skills") {
+        // Write-once gate for seed commands (filestores/commands/). These
+        // are admin-customizable slash commands — once the user has edited
+        // one, the plugin sync must leave their version in place.
+        if (route.subdir === "filestores/commands") {
           if (await fileExistsOnDisk(repo, route.subdir, route.filename)) {
             console.debug(
               `[skillsSync] preserved user-edited ${route.subdir}/${route.filename}`,
@@ -238,9 +244,9 @@ export async function syncSkillsToDisk(
         if (route.substituteSlug) {
           content = content.replace(/\{\{slug\}\}/g, slug);
         }
-        if (file.path.startsWith("skills/") && file.path.endsWith(".md")) {
-          const skillName = file.path.replace("skills/", "").replace(".md", "");
-          content = ensureSkillFrontmatter(skillName, content);
+        if (file.path.startsWith("commands/") && file.path.endsWith(".md")) {
+          const commandName = file.path.replace("commands/", "").replace(".md", "");
+          content = ensureSkillFrontmatter(commandName, content);
           skillCount += 1;
         } else {
           fileCount += 1;

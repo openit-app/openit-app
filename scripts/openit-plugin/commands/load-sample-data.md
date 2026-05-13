@@ -110,9 +110,9 @@ Write 3 sample people as JSON files:
 }
 ```
 
-### 4. Knowledge base articles (`knowledge-bases/`)
+### 4. Knowledge base articles (`knowledge/`)
 
-**`knowledge-bases/how-to-reset-slack-password.md`**
+**`knowledge/how-to-reset-slack-password.md`**
 ```markdown
 # How to reset your Slack password
 
@@ -125,7 +125,7 @@ Write 3 sample people as JSON files:
 If you're having trouble, contact IT.
 ```
 
-**`knowledge-bases/how-to-request-figma-access.md`**
+**`knowledge/how-to-request-figma-access.md`**
 ```markdown
 # How to request Figma access
 

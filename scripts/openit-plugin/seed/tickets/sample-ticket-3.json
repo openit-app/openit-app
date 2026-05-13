@@ -9,6 +9,6 @@
   "tags": ["sample", "access", "onboarding"],
   "createdAt": "2026-04-27T10:11:00Z",
   "updatedAt": "2026-04-27T10:42:18Z",
-  "kbArticleRefs": ["knowledge-bases/sample-article-2.md"],
+  "kbArticleRefs": ["knowledge/sample-article-2.md"],
   "notes": "Sample seed record — resolved by adding to design-team Figma group."
 }

@@ -91,11 +91,11 @@ pub fn project_bootstrap(vault_path: Option<String>) -> Result<BootstrapResult, 
             // captured by /conversation-to-automation. Auto-created so
             // the file tree + station tiles render the empty folders
             // before anything's been captured yet.
-            "filestores/skills",
+            "filestores/commands",
             "filestores/scripts",
             // Flat KB directory: all articles live directly in
-            // `knowledge-bases/`.
-            "knowledge-bases",
+            // `knowledge/`.
+            "knowledge",
             // On-demand markdown reports — populated by the
             // "Generate overview" button in the explorer (which shells
             // out to .claude/scripts/report-overview.mjs) and by the
@@ -117,7 +117,7 @@ pub fn project_bootstrap(vault_path: Option<String>) -> Result<BootstrapResult, 
     let _ = fs::create_dir_all(path.join("filestores").join("library"));
     let _ = fs::create_dir_all(path.join("filestores").join("skills"));
     let _ = fs::create_dir_all(path.join("filestores").join("scripts"));
-    let _ = fs::create_dir_all(path.join("knowledge-bases"));
+    let _ = fs::create_dir_all(path.join("knowledge"));
     // Same idempotent guard for `reports/` so projects bootstrapped
     // before the reports feature shipped get the dir on next open.
     let _ = fs::create_dir_all(path.join("reports"));
@@ -178,10 +178,10 @@ pub fn project_bootstrap(vault_path: Option<String>) -> Result<BootstrapResult, 
         let _ = fs::remove_dir(&legacy_filestore);
     }
 
-    // Legacy migration: singular `knowledge-base/` → flat `knowledge-bases/`.
+    // Legacy migration: singular `knowledge-base/` → flat `knowledge/`.
     let legacy_kb = path.join("knowledge-base");
     if legacy_kb.is_dir() {
-        let kb_dir = path.join("knowledge-bases");
+        let kb_dir = path.join("knowledge");
         if let Ok(entries) = fs::read_dir(&legacy_kb) {
             for entry in entries.flatten() {
                 let from = entry.path();
@@ -193,11 +193,11 @@ pub fn project_bootstrap(vault_path: Option<String>) -> Result<BootstrapResult, 
         let _ = fs::remove_dir(&legacy_kb);
     }
 
-    // Flatten migration: move articles from `knowledge-bases/default/`
-    // (and any other collection subdirs) up into `knowledge-bases/`.
+    // Flatten migration: move articles from `knowledge/default/`
+    // (and any other collection subdirs) up into `knowledge/`.
     // Projects created before the flat-KB change may have articles
     // nested in subdirectories; this hoists them on next open.
-    let kb_dir = path.join("knowledge-bases");
+    let kb_dir = path.join("knowledge");
     if kb_dir.is_dir() {
         if let Ok(entries) = fs::read_dir(&kb_dir) {
             for entry in entries.flatten() {
@@ -205,7 +205,7 @@ pub fn project_bootstrap(vault_path: Option<String>) -> Result<BootstrapResult, 
                 if !sub.is_dir() {
                     continue;
                 }
-                // Move every file from the subdirectory up into knowledge-bases/
+                // Move every file from the subdirectory up into knowledge/
                 if let Ok(children) = fs::read_dir(&sub) {
                     for child in children.flatten() {
                         let from = child.path();

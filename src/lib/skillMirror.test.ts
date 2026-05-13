@@ -62,7 +62,7 @@ describe("classifyPath — the loop-prevention gate", () => {
   const repo = "/repo";
 
   it("classifies a skill write", () => {
-    expect(__test.classifyPath(repo, "/repo/filestores/skills/foo.md")).toEqual({
+    expect(__test.classifyPath(repo, "/repo/filestores/commands/foo.md")).toEqual({
       kind: "skill-write",
       slug: "foo",
     });
@@ -97,25 +97,25 @@ describe("classifyPath — the loop-prevention gate", () => {
 
   it("ignores nested files inside a skill subdir (skills are flat)", () => {
     expect(
-      __test.classifyPath(repo, "/repo/filestores/skills/foo/inner.md"),
+      __test.classifyPath(repo, "/repo/filestores/commands/foo/inner.md"),
     ).toBeNull();
   });
 
   it("ignores non-md files in skills/", () => {
     expect(
-      __test.classifyPath(repo, "/repo/filestores/skills/foo.txt"),
+      __test.classifyPath(repo, "/repo/filestores/commands/foo.txt"),
     ).toBeNull();
   });
 
   it("ignores paths outside the repo", () => {
     expect(
-      __test.classifyPath(repo, "/other-repo/filestores/skills/foo.md"),
+      __test.classifyPath(repo, "/other-repo/filestores/commands/foo.md"),
     ).toBeNull();
   });
 
   it("ignores empty slug", () => {
     expect(
-      __test.classifyPath(repo, "/repo/filestores/skills/.md"),
+      __test.classifyPath(repo, "/repo/filestores/commands/.md"),
     ).toBeNull();
   });
 });
@@ -145,7 +145,7 @@ describe("startSkillMirrorDriver — end-to-end behavior", () => {
     mockFsRead.mockResolvedValue("---\nname: foo\n---\n# foo\n");
     await startSkillMirrorDriver("/repo");
     expect(fsHandler).toBeTruthy();
-    fsHandler!(["/repo/filestores/skills/foo.md"]);
+    fsHandler!(["/repo/filestores/commands/foo.md"]);
     await vi.advanceTimersByTimeAsync(600);
 
     expect(mockInvoke).toHaveBeenCalledWith(
@@ -185,7 +185,7 @@ describe("startSkillMirrorDriver — end-to-end behavior", () => {
       new Error("No such file or directory (os error 2)"),
     );
     await startSkillMirrorDriver("/repo");
-    fsHandler!(["/repo/filestores/skills/gone.md"]);
+    fsHandler!(["/repo/filestores/commands/gone.md"]);
     await vi.advanceTimersByTimeAsync(600);
 
     expect(mockFsDelete).toHaveBeenCalledWith("/repo/.claude/skills/gone");
@@ -201,7 +201,7 @@ describe("startSkillMirrorDriver — end-to-end behavior", () => {
       new Error("Permission denied (os error 13)"),
     );
     await startSkillMirrorDriver("/repo");
-    fsHandler!(["/repo/filestores/skills/foo.md"]);
+    fsHandler!(["/repo/filestores/commands/foo.md"]);
     await vi.advanceTimersByTimeAsync(600);
 
     expect(mockFsDelete).not.toHaveBeenCalled();
@@ -225,9 +225,9 @@ describe("startSkillMirrorDriver — end-to-end behavior", () => {
     mockFsRead.mockResolvedValue("body");
     await startSkillMirrorDriver("/repo");
     // Three rapid writes to the same skill.
-    fsHandler!(["/repo/filestores/skills/foo.md"]);
-    fsHandler!(["/repo/filestores/skills/foo.md"]);
-    fsHandler!(["/repo/filestores/skills/foo.md"]);
+    fsHandler!(["/repo/filestores/commands/foo.md"]);
+    fsHandler!(["/repo/filestores/commands/foo.md"]);
+    fsHandler!(["/repo/filestores/commands/foo.md"]);
     await vi.advanceTimersByTimeAsync(600);
 
     const writeCalls = mockInvoke.mock.calls.filter(

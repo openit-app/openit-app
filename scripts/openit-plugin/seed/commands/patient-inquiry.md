@@ -6,7 +6,7 @@ description: Set up a patient/researcher inquiry agent that self-serves answers 
 ## Prerequisites
 
 - OpenIT's intake form is running (check the intake URL pill in the header)
-- Knowledge base articles exist in `knowledge-bases/default/` — the agent searches these to answer questions
+- Knowledge base articles exist in `knowledge/default/` — the agent searches these to answer questions
 
 ## What this skill does
 
@@ -42,7 +42,7 @@ Reply in plain text — no markdown formatting.
 You are running locally inside OpenIT, spawned by the chat-intake server. The knowledge base, tickets, and conversations are files on disk.
 
 To search the knowledge base:
-node .claude/scripts/kb-search.mjs "<query>"
+node .claude/scripts/knowledge-search.mjs "<query>"
 
 The intake server has already written the ticket and conversation files. Do NOT write conversation turn files — the server captures your stdout. Only edit the ticket's tags and kbArticleRefs fields.
 
@@ -56,7 +56,7 @@ Replace answered with escalated or resolved.
 
 ### Step 2: Populate the knowledge base
 
-The agent is only as good as its KB. Help the admin populate `knowledge-bases/default/` with articles relevant to their domain:
+The agent is only as good as its KB. Help the admin populate `knowledge/default/` with articles relevant to their domain:
 
 - "What common questions do patients/researchers ask?"
 - "Do you have existing FAQ content on your website or in documents?"

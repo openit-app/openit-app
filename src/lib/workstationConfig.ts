@@ -6,9 +6,9 @@
 // overrides merge with defaults.
 //
 // The `rel` field on each tile is the repo-relative path that doubles as
-// the tile's identity (e.g. `databases/people`, `filestores/skills`,
-// `knowledge-bases`). System primitives use their canonical paths too
-// (`agents`, `tools`, `.openit/agent-traces`).
+// the tile's identity (e.g. `databases/people`, `filestores/commands`,
+// `knowledge`). System primitives use their canonical paths too
+// (`agents`, `tools`, `traces`).
 
 import { fsRead, fsList, entityWriteFile, type FileNode } from "./api";
 import type { ToneKey } from "../shell/entityIcons";
@@ -39,20 +39,28 @@ export interface WorkstationConfig {
 
 export const DEFAULT_WORKSTATION_CONFIG: WorkstationConfig = {
   main: [
-    { rel: "knowledge-bases" },
-    { rel: "filestores/skills" },
+    { rel: "knowledge" },
+    { rel: "filestores/commands" },
   ],
+  // Tiles are shortcuts to surfaces the admin uses day-to-day, not a
+  // mirror of the disk tree. Sub-stores get their own tiles (People,
+  // Access, Assets, ...); the primitive folders that contain them
+  // (`databases/`, `filestores/`, the legacy `knowledge-bases` name)
+  // are intentionally NOT in the default pool — they're folder
+  // categories, not features the admin clicks on. Power users can
+  // still pin a primitive via `.openit/workstation.json` if they
+  // want.
   more: [
-    { rel: "reports" },
     { rel: "databases/people" },
     { rel: "databases/access" },
     { rel: "databases/assets" },
-    { rel: "agents" },
     { rel: "filestores/scripts" },
+    { rel: "filestores/library" },
+    { rel: "filestores/attachments" },
+    { rel: "agents" },
     { rel: "tools" },
-    { rel: "databases" },
-    { rel: "filestores" },
-    { rel: ".openit/agent-traces" },
+    { rel: "traces" },
+    { rel: "reports" },
   ],
 };
 
@@ -120,13 +128,19 @@ export interface DiscoveredTile {
   openRel?: string;
 }
 
-/** Well-known tiles that exist regardless of filesystem state. */
+/// Well-known tiles that exist regardless of filesystem state.
+///
+/// The primitive container folders (`databases/`, `filestores/`,
+/// `knowledge/`) are intentionally NOT listed here. Tiles are
+/// shortcuts to surfaces the admin uses day-to-day; primitive
+/// folders are organizational categories the admin browses via the
+/// file explorer, not features they click on. Their sub-stores
+/// (People, Access, Scripts, Commands, ...) are surfaced as their
+/// own tiles instead, discovered below.
 const SYSTEM_TILES: DiscoveredTile[] = [
-  { rel: "agents",               label: "Agents",      defaultIcon: "agents",      defaultTone: "accent",  countMode: "files" },
-  { rel: "tools",                label: "Tools",       defaultIcon: "tools",       defaultTone: "accent",  countMode: "custom" },
-  { rel: ".openit/agent-traces", label: "Traces",      defaultIcon: "traces",      defaultTone: "neutral", countMode: "dirs" },
-  { rel: "databases",            label: "Databases",   defaultIcon: "database",    defaultTone: "link",    countMode: "dirs" },
-  { rel: "filestores",           label: "Filestores",  defaultIcon: "folder",      defaultTone: "neutral", countMode: "dirs" },
+  { rel: "agents", label: "Agents", defaultIcon: "agents", defaultTone: "accent",  countMode: "files" },
+  { rel: "tools",  label: "Tools",  defaultIcon: "tools",  defaultTone: "accent",  countMode: "custom" },
+  { rel: "traces", label: "Traces", defaultIcon: "traces", defaultTone: "neutral", countMode: "dirs" },
 ];
 
 /** Well-known database collections with custom defaults. */
@@ -139,7 +153,7 @@ const KNOWN_DB_DEFAULTS: Record<string, { label: string; icon: string; tone: Ton
 
 /** Well-known filestore collections with custom defaults. */
 const KNOWN_FS_DEFAULTS: Record<string, { label: string; icon: string; tone: ToneKey; openRel?: string }> = {
-  skills:      { label: "Commands",    icon: "commands",    tone: "accent" },
+  commands:    { label: "Commands",    icon: "commands",    tone: "accent" },
   scripts:     { label: "Scripts",     icon: "scripts",     tone: "link" },
   library:     { label: "Library",     icon: "folder",      tone: "neutral" },
   attachments: { label: "Attachments", icon: "attachments", tone: "neutral" },
@@ -165,9 +179,9 @@ export async function discoverTiles(repo: string): Promise<DiscoveredTile[]> {
 
   // Knowledge bases — only if the folder exists on disk
   try {
-    await fsList(`${repo}/knowledge-bases`);
+    await fsList(`${repo}/knowledge`);
     tiles.push({
-      rel: "knowledge-bases",
+      rel: "knowledge",
       label: "Knowledge",
       defaultIcon: "knowledge",
       defaultTone: "ochre",

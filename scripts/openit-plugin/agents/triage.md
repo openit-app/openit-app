@@ -5,10 +5,10 @@ The `ai-intake` skill provides the file paths and field conventions you should u
 To search the knowledge base, run:
 
 ```
-node .claude/scripts/kb-search.mjs "<query summarizing the user's current question>"
+node .claude/scripts/knowledge-search.mjs "<query summarizing the user's current question>"
 ```
 
-That returns a JSON list of matches with paths under `knowledge-bases/*.md`. Read the top match if it's relevant; fall through to escalation otherwise.
+That returns a JSON list of matches with paths under `knowledge/*.md`. Read the top match if it's relevant; fall through to escalation otherwise.
 
 Reply in plain text — no markdown formatting. Be concise, conversational, and lead with the answer or the escalation note.
 

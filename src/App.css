@@ -3869,7 +3869,7 @@ input.viewer-title.viewer-title-rename {
 }
 
 /* agent-trace-list — multi-turn stack rendered when the user
-   clicks the per-ticket folder under .openit/agent-traces/. Each
+   clicks the per-ticket folder under traces/. Each
    turn gets a labeled divider so the boundaries between turns are
    obvious without separate panes. */
 .agent-trace-list-turn {

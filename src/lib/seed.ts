@@ -28,10 +28,10 @@ export function seedRoute(
     return { subdir: "databases/people", filename: manifestPath.replace("seed/people/", "") };
   }
   if (manifestPath.startsWith("seed/knowledge/")) {
-    return { subdir: "knowledge-bases", filename: manifestPath.replace("seed/knowledge/", "") };
+    return { subdir: "knowledge", filename: manifestPath.replace("seed/knowledge/", "") };
   }
-  if (manifestPath.startsWith("seed/skills/")) {
-    return { subdir: "filestores/skills", filename: manifestPath.replace("seed/skills/", "") };
+  if (manifestPath.startsWith("seed/commands/")) {
+    return { subdir: "filestores/commands", filename: manifestPath.replace("seed/commands/", "") };
   }
   if (manifestPath.startsWith("seed/scripts/")) {
     return { subdir: "filestores/scripts", filename: manifestPath.replace("seed/scripts/", "") };

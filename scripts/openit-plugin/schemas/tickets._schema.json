@@ -82,7 +82,7 @@
       "label": "KB articles cited",
       "type": "string[]",
       "nullable": true,
-      "comment": "Repo-relative paths (e.g. `knowledge-bases/foo.md`) used to answer this ticket. Helps the 'answer once' loop stay traceable across multiple KB collections."
+      "comment": "Repo-relative paths (e.g. `knowledge/foo.md`) used to answer this ticket. Helps the 'answer once' loop stay traceable across multiple KB collections."
     },
     {
       "id": "notes",

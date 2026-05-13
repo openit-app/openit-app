@@ -116,7 +116,7 @@ export function isMarkdown(path: string): boolean {
 /// `workflow` / etc.). Datastore rows, agents, workflows, and
 /// `_schema.json` files all have dedicated structured editors and route
 /// by `source.kind` upstream — they don't hit the file branch.
-/// What's left here is config (`.openit/config.json`), agent-traces, and
+/// What's left here is config (`.openit/config.json`), traces, and
 /// any standalone `.json` an admin drops in. All editable as raw text.
 export function isJsonFile(path: string): boolean {
   return /\.json$/i.test(path);
@@ -174,7 +174,7 @@ export function mimeForPath(path: string): string {
   return map[ext] ?? "application/octet-stream";
 }
 
-/// Some sources (filestores-list, knowledge-bases-list) carry the
+/// Some sources (filestores-list, knowledge-list) carry the
 /// collection's absolute on-disk path because that's what `fsList`
 /// returns. The Rust write commands require a repo-relative subdir
 /// (the `validate_subdir` guard rejects absolute paths to prevent
@@ -206,7 +206,7 @@ export function sanitizeUploadFilename(name: string): string {
 
 /// Land each dropped file into `<repo>/<subdir>/<filename>`. Used by
 /// every drag-from-desktop affordance on entity-folder views and on
-/// the filestores/knowledge-bases collection cards. On any failure
+/// the filestores/knowledge collection cards. On any failure
 /// the error string is set via `setError` so the call site can render
 /// it; successes are silent because the fs watcher refreshes the
 /// folder listing on its own.

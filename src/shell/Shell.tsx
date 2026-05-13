@@ -100,8 +100,8 @@ function sourceKey(s: ViewerSource): string {
       return "filestores-list";
     case "attachments-folder":
       return "attachments-folder";
-    case "knowledge-bases-list":
-      return "knowledge-bases-list";
+    case "knowledge-list":
+      return "knowledge-list";
     case "tools":
       return "tools";
     case "skills-station":
@@ -500,7 +500,7 @@ export function Shell({
     const isDatabasesList = current.kind === "databases-list";
     const isFilestoresList = current.kind === "filestores-list";
     const isAttachmentsFolder = current.kind === "attachments-folder";
-    const isKnowledgeBasesList = current.kind === "knowledge-bases-list";
+    const isKnowledgeBasesList = current.kind === "knowledge-list";
     const isPeopleList = current.kind === "people-list";
     const isAccessList = current.kind === "access-list";
     const isAssetsList = current.kind === "assets-list";
@@ -535,8 +535,8 @@ export function Shell({
                 ? `${repo}/filestores`
                 : current.kind === "attachments-folder"
                   ? `${repo}/filestores/attachments`
-                  : current.kind === "knowledge-bases-list"
-                    ? `${repo}/knowledge-bases`
+                  : current.kind === "knowledge-list"
+                    ? `${repo}/knowledge`
                     : current.kind === "people-list"
                       ? `${repo}/databases/people`
                       : current.kind === "access-list"

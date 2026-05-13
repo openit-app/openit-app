@@ -36,17 +36,17 @@ describe("routeFile", () => {
     });
   });
 
-  describe("skills/", () => {
+  describe("commands/", () => {
     it("expands name to .claude/skills/<name>/SKILL.md", () => {
-      expect(routeFile("skills/ai-intake.md", slug)).toEqual({
+      expect(routeFile("commands/ai-intake.md", slug)).toEqual({
         subdir: ".claude/skills/ai-intake",
         filename: "SKILL.md",
         substituteSlug: false,
       });
     });
 
-    it("handles multi-word skill names", () => {
-      expect(routeFile("skills/answer-ticket.md", slug)).toEqual({
+    it("handles multi-word command names", () => {
+      expect(routeFile("commands/answer-ticket.md", slug)).toEqual({
         subdir: ".claude/skills/answer-ticket",
         filename: "SKILL.md",
         substituteSlug: false,

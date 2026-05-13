@@ -81,15 +81,15 @@ export function CommandPalette({
       : [
           // Fallback to hardcoded entries if tiles haven't loaded yet
           { id: "goto-inbox", label: "Inbox", hint: "Tickets & escalations", group: "Go to" as const, run: () => navigate(`${r}/databases/tickets`) },
-          { id: "goto-knowledge", label: "Knowledge", hint: "KB articles", group: "Go to" as const, run: () => navigate(`${r}/knowledge-bases`) },
-          { id: "goto-commands", label: "Commands", hint: "Slash commands", group: "Go to" as const, run: () => navigate(`${r}/filestores/skills`) },
+          { id: "goto-knowledge", label: "Knowledge", hint: "KB articles", group: "Go to" as const, run: () => navigate(`${r}/knowledge`) },
+          { id: "goto-commands", label: "Commands", hint: "Slash commands", group: "Go to" as const, run: () => navigate(`${r}/filestores/commands`) },
           { id: "goto-people", label: "People", hint: "Contacts directory", group: "Go to" as const, run: () => navigate(`${r}/databases/people`) },
           { id: "goto-access", label: "Access", hint: "Who has access to what", group: "Go to" as const, run: () => navigate(`${r}/databases/access`) },
           { id: "goto-assets", label: "Assets", hint: "Device & equipment inventory", group: "Go to" as const, run: () => navigate(`${r}/databases/assets`) },
           { id: "goto-reports", label: "Reports", hint: "Generated reports", group: "Go to" as const, run: () => navigate(`${r}/reports`) },
           { id: "goto-scripts", label: "Scripts", hint: "Runnable scripts", group: "Go to" as const, run: () => navigate(`${r}/filestores/scripts`) },
           { id: "goto-tools", label: "Tools", hint: "Installed CLI & MCP tools", group: "Go to" as const, run: () => navigate(`${r}/tools`) },
-          { id: "goto-traces", label: "Traces", hint: "Agent activity logs", group: "Go to" as const, run: () => navigate(`${r}/.openit/agent-traces`) },
+          { id: "goto-traces", label: "Traces", hint: "Agent activity logs", group: "Go to" as const, run: () => navigate(`${r}/traces`) },
         ];
     // Inbox is a primitive (not discovered as a tile) — always present.
     if (dynamicTiles.length > 0) {
@@ -131,8 +131,8 @@ export function CommandPalette({
           if (!onShowDraft || !r) return;
           onShowDraft({
             kind: "draft-file",
-            path: `${r}/knowledge-bases/untitled.md`,
-            subdir: "knowledge-bases",
+            path: `${r}/knowledge/untitled.md`,
+            subdir: "knowledge",
             filename: "untitled.md",
             initialContent: "# Untitled article\n\nWrite your article here.\n",
           });
@@ -147,8 +147,8 @@ export function CommandPalette({
           if (!onShowDraft || !r) return;
           onShowDraft({
             kind: "draft-file",
-            path: `${r}/filestores/skills/untitled.md`,
-            subdir: "filestores/skills",
+            path: `${r}/filestores/commands/untitled.md`,
+            subdir: "filestores/commands",
             filename: "untitled.md",
             initialContent: `---\ndescription: "Describe what this command does."\n---\n\n# /untitled\n\n## What this command does\n\nDescribe the goal here.\n\n## Steps\n\n1. First, ask the user what they need.\n2. Then, do the work.\n3. Finally, confirm the result.\n`,
           });

@@ -82,7 +82,7 @@ Wait for the admin to click the notification. When they do, `/answer-ticket` wil
 - **Capturing the KB article:** Write the KB article immediately. Do NOT ask "Good to save?" — just create it. This is a guided tour; every answer should become knowledge.
 - **After the KB article is created:** Flash the Knowledge tile so the admin notices it:
   ```bash
-  node -e "require('fs').writeFileSync('.openit/highlight.json',JSON.stringify({tiles:['knowledge-bases'],ts:Date.now()}))"
+  node -e "require('fs').writeFileSync('.openit/highlight.json',JSON.stringify({tiles:['knowledge'],ts:Date.now()}))"
   ```
   Then tell the admin:
 
@@ -139,7 +139,7 @@ If the ticket was `escalated` instead (edge case — keyword overlap didn't matc
 Either way, flash the Commands tile and continue immediately in the same message — do NOT wait for acknowledgment:
 
 ```bash
-node -e "require('fs').writeFileSync('.openit/highlight.json',JSON.stringify({tiles:['filestores/skills'],ts:Date.now()}))"
+node -e "require('fs').writeFileSync('.openit/highlight.json',JSON.stringify({tiles:['filestores/commands'],ts:Date.now()}))"
 ```
 
 > Now — during this tour, you already used two **commands** without realizing it:

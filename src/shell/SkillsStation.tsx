@@ -33,7 +33,7 @@ const FEATURED_COMMANDS: string[] = [
 /**
  * CommandsStation — flat list of slash commands with a visible Run
  * button on each row. Merges system (.claude/skills/) and custom
- * (filestores/skills/) into one deduplicated list. System commands
+ * (filestores/commands/) into one deduplicated list. System commands
  * appear first; extras are behind "Show more".
  */
 export function CommandsStation({
@@ -77,9 +77,9 @@ export function CommandsStation({
         );
       } catch { /* .claude/skills/ doesn't exist */ }
 
-      // Custom commands from filestores/skills/
+      // Custom commands from filestores/commands/
       try {
-        const root = `${repo}/filestores/skills`;
+        const root = `${repo}/filestores/commands`;
         const nodes = await fsList(root);
         const prefix = `${root}/`;
         const files = nodes.filter((n) => {
@@ -100,7 +100,7 @@ export function CommandsStation({
             customEntries.push({ name, description, path: f.path, featured: FEATURED_COMMANDS.includes(name) });
           }),
         );
-      } catch { /* filestores/skills/ doesn't exist */ }
+      } catch { /* filestores/commands/ doesn't exist */ }
 
       // Deduplicate: if a name exists in both system and custom, keep
       // the system version (it's the curated one).
@@ -177,10 +177,10 @@ Describe the goal here.
 
 - Add any tips, edge cases, or context here.
 `;
-    await entityWriteFile(repo, "filestores/skills", `${slug}.md`, boilerplate);
+    await entityWriteFile(repo, "filestores/commands", `${slug}.md`, boilerplate);
     setShowNewInput(false);
     setNewName("");
-    onOpen(`${repo}/filestores/skills/${slug}.md`);
+    onOpen(`${repo}/filestores/commands/${slug}.md`);
   };
 
   return (

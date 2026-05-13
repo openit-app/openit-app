@@ -84,7 +84,7 @@ pub(crate) async fn list_remote(
         .collect())
 }
 
-/// Multipart upload of a file from `<repo>/knowledge-bases/<filename>`
+/// Multipart upload of a file from `<repo>/knowledge/<filename>`
 /// to the skills file storage endpoint. Returns the parsed response
 /// (id, filename, etc.) on success. Works for any file type, including
 /// binary — we stream the file bytes directly rather than going through
@@ -113,7 +113,7 @@ pub(crate) async fn upload_kb_file(
     .await
 }
 
-/// Fetch a download URL and save the body into `<repo>/knowledge-bases/<filename>`.
+/// Fetch a download URL and save the body into `<repo>/knowledge/<filename>`.
 /// Used by the puller to materialise remote KB files locally.
 /// The `subdir` parameter is accepted for API compat but ignored.
 pub(crate) async fn download_kb_to_local(

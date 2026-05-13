@@ -34,13 +34,13 @@ The server will ALSO write your agent reply turn after you finish, taking your s
 ### 2. Search the knowledge base
 
 ```bash
-node .claude/scripts/kb-search.mjs "<query summarizing the user's current question>"
+node .claude/scripts/knowledge-search.mjs "<query summarizing the user's current question>"
 ```
 
 Output:
 
 ```json
-{ "matches": [{ "path": "knowledge-bases/foo.md", "score": 0.83, "snippet": "..." }, …] }
+{ "matches": [{ "path": "knowledge/foo.md", "score": 0.83, "snippet": "..." }, …] }
 ```
 
 If `matches` is non-empty, `Read` the top match. If it plausibly addresses the user's question, **use it** — answer the user from the article (you can quote it, summarize it, or paraphrase steps). Don't be perfectionist about score; word-overlap scoring is noisy and a moderate match is often the right answer.

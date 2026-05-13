@@ -172,7 +172,7 @@ pub(super) fn build_chat_prompt(
         "Operational context: You are running inside a chat-intake \
          turn. Use the `ai-intake` skill at `.claude/skills/ai-intake/SKILL.md` \
          for the file paths and field conventions. Use \
-         `Bash node .claude/scripts/kb-search.mjs \"<query>\"` to find \
+         `Bash node .claude/scripts/knowledge-search.mjs \"<query>\"` to find \
          relevant knowledge-base articles.\n\n",
     );
     prompt.push_str(&format!(
@@ -231,7 +231,7 @@ pub(super) fn build_chat_prompt(
          agent-side Edit will race against the server and may be \
          clobbered.\n\n\
          Your job: (1) read the ticket + conversation history for \
-         context, (2) run `Bash node .claude/scripts/kb-search.mjs \
+         context, (2) run `Bash node .claude/scripts/knowledge-search.mjs \
          \"<query>\"` to search the local knowledge base when the \
          user is asking a new question — pass a compact query that \
          captures it, (3) decide one of exactly three outcomes — \

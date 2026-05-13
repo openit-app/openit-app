@@ -6,7 +6,7 @@ description: Mine repeated Q&A from Slack channels and turn them into reusable k
 ## Prerequisites
 
 - **Slack** — must be connected via OpenIT's built-in Slack integration (BYO tokens).
-- The knowledge base lives at `knowledge-bases/` — articles are plain markdown files.
+- The knowledge base lives at `knowledge/` — articles are plain markdown files.
 
 ## What this skill does
 
@@ -33,7 +33,7 @@ The admin may ask in different ways:
 
 1. Ask what the question is (or have them paste the Slack thread)
 2. Draft a clean KB article from the answer
-3. Save to `knowledge-bases/<slug>.md`
+3. Save to `knowledge/<slug>.md`
 
 ## Writing KB articles
 
@@ -65,7 +65,7 @@ If none of this works, contact IT — the VPN server may be down.
 Before writing a new article, check if one already exists:
 
 ```bash
-node .claude/scripts/kb-search.mjs "<question summary>"
+node .claude/scripts/knowledge-search.mjs "<question summary>"
 ```
 
 If a match exists, offer to **update** the existing article rather than creating a duplicate. Show the admin the existing article and ask: "This article already covers this topic — want me to update it with the new info?"

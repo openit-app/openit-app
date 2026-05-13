@@ -1278,16 +1278,16 @@ async fn spawn_claude_chat(
     let claude_path = crate::pty::locate_claude()
         .ok_or_else(|| "Claude CLI not found on PATH. Install claude (see https://docs.anthropic.com/claude/docs/claude-code) and ensure it's reachable from this app.".to_string())?;
     // `--permission-mode bypassPermissions` so the headless run can
-    // Write/Edit ticket+conversation files and Bash the kb-search
+    // Write/Edit ticket+conversation files and Bash the knowledge-search
     // script without prompting. Safe in this context — scope is the
     // user's own repo, the skill is OpenIT-bundled, and the only
-    // shell command is the local kb-search.mjs.
+    // shell command is the local knowledge-search.mjs.
     //
     // `--verbose --output-format stream-json` makes claude emit one
     // JSON event per line: a `system/init`, then per-step
     // `assistant`/`user`/`tool_*` messages, ending with a `result`.
     // We parse those into a normalized timeline so the audit log
-    // (`.openit/agent-traces/`) and the eventual live banner can
+    // (`traces/`) and the eventual live banner can
     // surface friendly verbs ("Reading the ticket", "Searching the
     // knowledge base for …") without re-parsing claude's wire format
     // on the frontend.
