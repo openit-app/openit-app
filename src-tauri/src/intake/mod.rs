@@ -91,6 +91,13 @@ enum TransportMeta {
         /// for outbound replies.
         channel_id: String,
         user_id: String,
+        /// Slack thread anchor — the `ts` of the top-level DM that
+        /// kicked off this ticket. The listener replies in this
+        /// thread, and a later in-thread reply from the asker is the
+        /// signal to resume this ticket. Optional so older callers
+        /// (and the chat transport) don't need to know about it.
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        thread_ts: Option<String>,
     },
 }
 
@@ -334,7 +341,7 @@ struct SlackSendIntroBody {
 }
 
 const DEFAULT_INTRO_TEXT: &str =
-    "Hi! I'm the OpenIT triage bot. Try asking me a question — e.g. \"how do I reset my Mac password?\" — and I'll either answer from your knowledge base or escalate to your IT team.";
+    "Hi! I'm the OpenIT triage bot. DM me a question — e.g. \"how do I reset my Mac password?\" — and I'll either answer from your knowledge base or escalate to your IT team.\n\nEach new DM starts a fresh ticket. To continue a conversation, reply inside the same thread; to start a new one, just send a new top-level DM.";
 
 async fn skill_slack_send_intro(Json(body): Json<SlackSendIntroBody>) -> Response {
     // Bot token lives in a process-global Arc that `slack.rs`
@@ -1736,6 +1743,7 @@ async fn ensure_responding_stub(
             workspace_id,
             channel_id,
             user_id,
+            thread_ts,
         } = transport
         {
             if let Some(obj) = row.as_object_mut() {
@@ -1751,6 +1759,12 @@ async fn ensure_responding_stub(
                     "slackUserId".to_string(),
                     serde_json::Value::String(user_id.clone()),
                 );
+                if let Some(ts) = thread_ts {
+                    obj.insert(
+                        "slackThreadTs".to_string(),
+                        serde_json::Value::String(ts.clone()),
+                    );
+                }
             }
         }
         let json =

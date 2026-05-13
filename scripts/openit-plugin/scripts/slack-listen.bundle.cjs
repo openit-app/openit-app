@@ -258,7 +258,7 @@ var require_package = __commonJS({
   "node_modules/@slack/web-api/package.json"(exports2, module2) {
     module2.exports = {
       name: "@slack/web-api",
-      version: "7.15.1",
+      version: "7.15.2",
       description: "Official library for using the Slack Platform's Web API",
       author: "Slack Technologies, LLC",
       license: "MIT",
@@ -298,17 +298,16 @@ var require_package = __commonJS({
         "build:clean": "shx rm -rf ./dist",
         docs: "npx typedoc --plugin typedoc-plugin-markdown",
         prepack: "npm run build",
-        test: "npm run test:unit",
-        "test:node18": "npm run build && bash -c 'node --test --test-reporter=spec --import tsx src/*.test.ts'",
+        test: "npm run build && bash -c 'node --test-reporter=spec --test-reporter-destination=stdout --test-reporter=junit --test-reporter-destination=test-results.xml --import tsx --test src/*.test.ts'",
+        "test:coverage": "npm run build && node --experimental-test-coverage --test-reporter=spec --test-reporter-destination=stdout --test-reporter=lcov --test-reporter-destination=lcov.info --test-reporter=junit --test-reporter-destination=test-results.xml --import tsx --test src/*.test.ts",
         "test:integration": "npm run build && node test/integration/commonjs-project/index.js && node test/integration/esm-project/index.mjs && npm run test:integration:ts",
         "test:integration:ts": "cd test/integration/ts-4.7-project && npm i && npm run build",
         "test:types": "tsd",
-        "test:unit": "npm run build && node --experimental-test-coverage --test-reporter=spec --test-reporter-destination=stdout --test-reporter=lcov --test-reporter-destination=lcov.info --test-reporter=junit --test-reporter-destination=test-results.xml --import tsx --test src/*.test.ts",
         watch: "npx nodemon --watch 'src' --ext 'ts' --exec npm run build"
       },
       dependencies: {
         "@slack/logger": "^4.0.1",
-        "@slack/types": "^2.20.1",
+        "@slack/types": "^2.21.0",
         "@types/node": ">=18",
         "@types/retry": "0.12.0",
         axios: "^1.15.0",
@@ -12119,7 +12118,7 @@ var require_follow_redirects = __commonJS({
 var require_axios = __commonJS({
   "node_modules/axios/dist/node/axios.cjs"(exports2, module2) {
     "use strict";
-    /*! Axios v1.15.2 Copyright (c) 2026 Matt Zabriskie and contributors */
+    /*! Axios v1.16.0 Copyright (c) 2026 Matt Zabriskie and contributors */
     var FormData$1 = require_form_data();
     var crypto = require("crypto");
     var url = require("url");
@@ -12277,7 +12276,7 @@ var require_axios = __commonJS({
       return typeof self !== "undefined" ? self : typeof window !== "undefined" ? window : global;
     })();
     var isContextDefined = (context) => !isUndefined(context) && context !== _global;
-    function merge() {
+    function merge(...objs) {
       const {
         caseless,
         skipUndefined
@@ -12288,8 +12287,9 @@ var require_axios = __commonJS({
           return;
         }
         const targetKey = caseless && findKey(result, key) || key;
-        if (isPlainObject(result[targetKey]) && isPlainObject(val)) {
-          result[targetKey] = merge(result[targetKey], val);
+        const existing = hasOwnProperty(result, targetKey) ? result[targetKey] : void 0;
+        if (isPlainObject(existing) && isPlainObject(val)) {
+          result[targetKey] = merge(existing, val);
         } else if (isPlainObject(val)) {
           result[targetKey] = merge({}, val);
         } else if (isArray(val)) {
@@ -12298,8 +12298,8 @@ var require_axios = __commonJS({
           result[targetKey] = val;
         }
       };
-      for (let i = 0, l = arguments.length; i < l; i++) {
-        arguments[i] && forEach(arguments[i], assignValue);
+      for (let i = 0, l = objs.length; i < l; i++) {
+        objs[i] && forEach(objs[i], assignValue);
       }
       return result;
     }
@@ -12309,6 +12309,9 @@ var require_axios = __commonJS({
       forEach(b, (val, key) => {
         if (thisArg && isFunction$1(val)) {
           Object.defineProperty(a, key, {
+            // Null-proto descriptor so a polluted Object.prototype.get cannot
+            // hijack defineProperty's accessor-vs-data resolution.
+            __proto__: null,
             value: bind(val, thisArg),
             writable: true,
             enumerable: true,
@@ -12316,6 +12319,7 @@ var require_axios = __commonJS({
           });
         } else {
           Object.defineProperty(a, key, {
+            __proto__: null,
             value: val,
             writable: true,
             enumerable: true,
@@ -12336,12 +12340,14 @@ var require_axios = __commonJS({
     var inherits = (constructor, superConstructor, props, descriptors) => {
       constructor.prototype = Object.create(superConstructor.prototype, descriptors);
       Object.defineProperty(constructor.prototype, "constructor", {
+        __proto__: null,
         value: constructor,
         writable: true,
         enumerable: false,
         configurable: true
       });
       Object.defineProperty(constructor, "super", {
+        __proto__: null,
         value: superConstructor.prototype
       });
       props && Object.assign(constructor.prototype, props);
@@ -12432,7 +12438,7 @@ var require_axios = __commonJS({
     };
     var freezeMethods = (obj) => {
       reduceDescriptors(obj, (descriptor, name) => {
-        if (isFunction$1(obj) && ["arguments", "caller", "callee"].indexOf(name) !== -1) {
+        if (isFunction$1(obj) && ["arguments", "caller", "callee"].includes(name)) {
           return false;
         }
         const value = obj[name];
@@ -12577,6 +12583,337 @@ var require_axios = __commonJS({
       asap,
       isIterable
     };
+    var ignoreDuplicateOf = utils$1.toObjectSet(["age", "authorization", "content-length", "content-type", "etag", "expires", "from", "host", "if-modified-since", "if-unmodified-since", "last-modified", "location", "max-forwards", "proxy-authorization", "referer", "retry-after", "user-agent"]);
+    var parseHeaders = (rawHeaders) => {
+      const parsed = {};
+      let key;
+      let val;
+      let i;
+      rawHeaders && rawHeaders.split("\n").forEach(function parser(line) {
+        i = line.indexOf(":");
+        key = line.substring(0, i).trim().toLowerCase();
+        val = line.substring(i + 1).trim();
+        if (!key || parsed[key] && ignoreDuplicateOf[key]) {
+          return;
+        }
+        if (key === "set-cookie") {
+          if (parsed[key]) {
+            parsed[key].push(val);
+          } else {
+            parsed[key] = [val];
+          }
+        } else {
+          parsed[key] = parsed[key] ? parsed[key] + ", " + val : val;
+        }
+      });
+      return parsed;
+    };
+    var $internals = Symbol("internals");
+    var INVALID_HEADER_VALUE_CHARS_RE = /[^\x09\x20-\x7E\x80-\xFF]/g;
+    function trimSPorHTAB(str) {
+      let start = 0;
+      let end = str.length;
+      while (start < end) {
+        const code = str.charCodeAt(start);
+        if (code !== 9 && code !== 32) {
+          break;
+        }
+        start += 1;
+      }
+      while (end > start) {
+        const code = str.charCodeAt(end - 1);
+        if (code !== 9 && code !== 32) {
+          break;
+        }
+        end -= 1;
+      }
+      return start === 0 && end === str.length ? str : str.slice(start, end);
+    }
+    function normalizeHeader(header) {
+      return header && String(header).trim().toLowerCase();
+    }
+    function sanitizeHeaderValue(str) {
+      return trimSPorHTAB(str.replace(INVALID_HEADER_VALUE_CHARS_RE, ""));
+    }
+    function normalizeValue(value) {
+      if (value === false || value == null) {
+        return value;
+      }
+      return utils$1.isArray(value) ? value.map(normalizeValue) : sanitizeHeaderValue(String(value));
+    }
+    function parseTokens(str) {
+      const tokens = /* @__PURE__ */ Object.create(null);
+      const tokensRE = /([^\s,;=]+)\s*(?:=\s*([^,;]+))?/g;
+      let match;
+      while (match = tokensRE.exec(str)) {
+        tokens[match[1]] = match[2];
+      }
+      return tokens;
+    }
+    var isValidHeaderName = (str) => /^[-_a-zA-Z0-9^`|~,!#$%&'*+.]+$/.test(str.trim());
+    function matchHeaderValue(context, value, header, filter, isHeaderNameFilter) {
+      if (utils$1.isFunction(filter)) {
+        return filter.call(this, value, header);
+      }
+      if (isHeaderNameFilter) {
+        value = header;
+      }
+      if (!utils$1.isString(value)) return;
+      if (utils$1.isString(filter)) {
+        return value.indexOf(filter) !== -1;
+      }
+      if (utils$1.isRegExp(filter)) {
+        return filter.test(value);
+      }
+    }
+    function formatHeader(header) {
+      return header.trim().toLowerCase().replace(/([a-z\d])(\w*)/g, (w, char, str) => {
+        return char.toUpperCase() + str;
+      });
+    }
+    function buildAccessors(obj, header) {
+      const accessorName = utils$1.toCamelCase(" " + header);
+      ["get", "set", "has"].forEach((methodName) => {
+        Object.defineProperty(obj, methodName + accessorName, {
+          // Null-proto descriptor so a polluted Object.prototype.get cannot turn
+          // this data descriptor into an accessor descriptor on the way in.
+          __proto__: null,
+          value: function(arg1, arg2, arg3) {
+            return this[methodName].call(this, header, arg1, arg2, arg3);
+          },
+          configurable: true
+        });
+      });
+    }
+    var AxiosHeaders = class {
+      constructor(headers) {
+        headers && this.set(headers);
+      }
+      set(header, valueOrRewrite, rewrite) {
+        const self2 = this;
+        function setHeader(_value, _header, _rewrite) {
+          const lHeader = normalizeHeader(_header);
+          if (!lHeader) {
+            throw new Error("header name must be a non-empty string");
+          }
+          const key = utils$1.findKey(self2, lHeader);
+          if (!key || self2[key] === void 0 || _rewrite === true || _rewrite === void 0 && self2[key] !== false) {
+            self2[key || _header] = normalizeValue(_value);
+          }
+        }
+        const setHeaders = (headers, _rewrite) => utils$1.forEach(headers, (_value, _header) => setHeader(_value, _header, _rewrite));
+        if (utils$1.isPlainObject(header) || header instanceof this.constructor) {
+          setHeaders(header, valueOrRewrite);
+        } else if (utils$1.isString(header) && (header = header.trim()) && !isValidHeaderName(header)) {
+          setHeaders(parseHeaders(header), valueOrRewrite);
+        } else if (utils$1.isObject(header) && utils$1.isIterable(header)) {
+          let obj = {}, dest, key;
+          for (const entry of header) {
+            if (!utils$1.isArray(entry)) {
+              throw TypeError("Object iterator must return a key-value pair");
+            }
+            obj[key = entry[0]] = (dest = obj[key]) ? utils$1.isArray(dest) ? [...dest, entry[1]] : [dest, entry[1]] : entry[1];
+          }
+          setHeaders(obj, valueOrRewrite);
+        } else {
+          header != null && setHeader(valueOrRewrite, header, rewrite);
+        }
+        return this;
+      }
+      get(header, parser) {
+        header = normalizeHeader(header);
+        if (header) {
+          const key = utils$1.findKey(this, header);
+          if (key) {
+            const value = this[key];
+            if (!parser) {
+              return value;
+            }
+            if (parser === true) {
+              return parseTokens(value);
+            }
+            if (utils$1.isFunction(parser)) {
+              return parser.call(this, value, key);
+            }
+            if (utils$1.isRegExp(parser)) {
+              return parser.exec(value);
+            }
+            throw new TypeError("parser must be boolean|regexp|function");
+          }
+        }
+      }
+      has(header, matcher) {
+        header = normalizeHeader(header);
+        if (header) {
+          const key = utils$1.findKey(this, header);
+          return !!(key && this[key] !== void 0 && (!matcher || matchHeaderValue(this, this[key], key, matcher)));
+        }
+        return false;
+      }
+      delete(header, matcher) {
+        const self2 = this;
+        let deleted = false;
+        function deleteHeader(_header) {
+          _header = normalizeHeader(_header);
+          if (_header) {
+            const key = utils$1.findKey(self2, _header);
+            if (key && (!matcher || matchHeaderValue(self2, self2[key], key, matcher))) {
+              delete self2[key];
+              deleted = true;
+            }
+          }
+        }
+        if (utils$1.isArray(header)) {
+          header.forEach(deleteHeader);
+        } else {
+          deleteHeader(header);
+        }
+        return deleted;
+      }
+      clear(matcher) {
+        const keys = Object.keys(this);
+        let i = keys.length;
+        let deleted = false;
+        while (i--) {
+          const key = keys[i];
+          if (!matcher || matchHeaderValue(this, this[key], key, matcher, true)) {
+            delete this[key];
+            deleted = true;
+          }
+        }
+        return deleted;
+      }
+      normalize(format) {
+        const self2 = this;
+        const headers = {};
+        utils$1.forEach(this, (value, header) => {
+          const key = utils$1.findKey(headers, header);
+          if (key) {
+            self2[key] = normalizeValue(value);
+            delete self2[header];
+            return;
+          }
+          const normalized = format ? formatHeader(header) : String(header).trim();
+          if (normalized !== header) {
+            delete self2[header];
+          }
+          self2[normalized] = normalizeValue(value);
+          headers[normalized] = true;
+        });
+        return this;
+      }
+      concat(...targets) {
+        return this.constructor.concat(this, ...targets);
+      }
+      toJSON(asStrings) {
+        const obj = /* @__PURE__ */ Object.create(null);
+        utils$1.forEach(this, (value, header) => {
+          value != null && value !== false && (obj[header] = asStrings && utils$1.isArray(value) ? value.join(", ") : value);
+        });
+        return obj;
+      }
+      [Symbol.iterator]() {
+        return Object.entries(this.toJSON())[Symbol.iterator]();
+      }
+      toString() {
+        return Object.entries(this.toJSON()).map(([header, value]) => header + ": " + value).join("\n");
+      }
+      getSetCookie() {
+        return this.get("set-cookie") || [];
+      }
+      get [Symbol.toStringTag]() {
+        return "AxiosHeaders";
+      }
+      static from(thing) {
+        return thing instanceof this ? thing : new this(thing);
+      }
+      static concat(first, ...targets) {
+        const computed = new this(first);
+        targets.forEach((target) => computed.set(target));
+        return computed;
+      }
+      static accessor(header) {
+        const internals = this[$internals] = this[$internals] = {
+          accessors: {}
+        };
+        const accessors = internals.accessors;
+        const prototype2 = this.prototype;
+        function defineAccessor(_header) {
+          const lHeader = normalizeHeader(_header);
+          if (!accessors[lHeader]) {
+            buildAccessors(prototype2, _header);
+            accessors[lHeader] = true;
+          }
+        }
+        utils$1.isArray(header) ? header.forEach(defineAccessor) : defineAccessor(header);
+        return this;
+      }
+    };
+    AxiosHeaders.accessor(["Content-Type", "Content-Length", "Accept", "Accept-Encoding", "User-Agent", "Authorization"]);
+    utils$1.reduceDescriptors(AxiosHeaders.prototype, ({
+      value
+    }, key) => {
+      let mapped = key[0].toUpperCase() + key.slice(1);
+      return {
+        get: () => value,
+        set(headerValue) {
+          this[mapped] = headerValue;
+        }
+      };
+    });
+    utils$1.freezeMethods(AxiosHeaders);
+    var REDACTED = "[REDACTED ****]";
+    function hasOwnOrPrototypeToJSON(source) {
+      if (utils$1.hasOwnProp(source, "toJSON")) {
+        return true;
+      }
+      let prototype2 = Object.getPrototypeOf(source);
+      while (prototype2 && prototype2 !== Object.prototype) {
+        if (utils$1.hasOwnProp(prototype2, "toJSON")) {
+          return true;
+        }
+        prototype2 = Object.getPrototypeOf(prototype2);
+      }
+      return false;
+    }
+    function redactConfig(config, redactKeys) {
+      const lowerKeys = new Set(redactKeys.map((k) => String(k).toLowerCase()));
+      const seen = [];
+      const visit = (source) => {
+        if (source === null || typeof source !== "object") return source;
+        if (utils$1.isBuffer(source)) return source;
+        if (seen.indexOf(source) !== -1) return void 0;
+        if (source instanceof AxiosHeaders) {
+          source = source.toJSON();
+        }
+        seen.push(source);
+        let result;
+        if (utils$1.isArray(source)) {
+          result = [];
+          source.forEach((v, i) => {
+            const reducedValue = visit(v);
+            if (!utils$1.isUndefined(reducedValue)) {
+              result[i] = reducedValue;
+            }
+          });
+        } else {
+          if (!utils$1.isPlainObject(source) && hasOwnOrPrototypeToJSON(source)) {
+            seen.pop();
+            return source;
+          }
+          result = /* @__PURE__ */ Object.create(null);
+          for (const [key, value] of Object.entries(source)) {
+            const reducedValue = lowerKeys.has(key.toLowerCase()) ? REDACTED : visit(value);
+            if (!utils$1.isUndefined(reducedValue)) {
+              result[key] = reducedValue;
+            }
+          }
+        }
+        seen.pop();
+        return result;
+      };
+      return visit(config);
+    }
     var AxiosError = class _AxiosError extends Error {
       static from(error, code, config, request, response, customProps) {
         const axiosError = new _AxiosError(error.message, code || error.code, config, request, response);
@@ -12602,6 +12939,9 @@ var require_axios = __commonJS({
       constructor(message, code, config, request, response) {
         super(message);
         Object.defineProperty(this, "message", {
+          // Null-proto descriptor so a polluted Object.prototype.get cannot turn
+          // this data descriptor into an accessor descriptor on the way in.
+          __proto__: null,
           value: message,
           enumerable: true,
           writable: true,
@@ -12618,6 +12958,9 @@ var require_axios = __commonJS({
         }
       }
       toJSON() {
+        const config = this.config;
+        const redactKeys = config && utils$1.hasOwnProp(config, "redact") ? config.redact : void 0;
+        const serializedConfig = utils$1.isArray(redactKeys) && redactKeys.length > 0 ? redactConfig(config, redactKeys) : utils$1.toJSONObject(config);
         return {
           // Standard
           message: this.message,
@@ -12631,7 +12974,7 @@ var require_axios = __commonJS({
           columnNumber: this.columnNumber,
           stack: this.stack,
           // Axios
-          config: utils$1.toJSONObject(this.config),
+          config: serializedConfig,
           code: this.code,
           status: this.status
         };
@@ -12641,6 +12984,7 @@ var require_axios = __commonJS({
     AxiosError.ERR_BAD_OPTION = "ERR_BAD_OPTION";
     AxiosError.ECONNABORTED = "ECONNABORTED";
     AxiosError.ETIMEDOUT = "ETIMEDOUT";
+    AxiosError.ECONNREFUSED = "ECONNREFUSED";
     AxiosError.ERR_NETWORK = "ERR_NETWORK";
     AxiosError.ERR_FR_TOO_MANY_REDIRECTS = "ERR_FR_TOO_MANY_REDIRECTS";
     AxiosError.ERR_DEPRECATED = "ERR_DEPRECATED";
@@ -13106,285 +13450,9 @@ var require_axios = __commonJS({
         }
       }
     };
-    utils$1.forEach(["delete", "get", "head", "post", "put", "patch"], (method) => {
+    utils$1.forEach(["delete", "get", "head", "post", "put", "patch", "query"], (method) => {
       defaults.headers[method] = {};
     });
-    var ignoreDuplicateOf = utils$1.toObjectSet(["age", "authorization", "content-length", "content-type", "etag", "expires", "from", "host", "if-modified-since", "if-unmodified-since", "last-modified", "location", "max-forwards", "proxy-authorization", "referer", "retry-after", "user-agent"]);
-    var parseHeaders = (rawHeaders) => {
-      const parsed = {};
-      let key;
-      let val;
-      let i;
-      rawHeaders && rawHeaders.split("\n").forEach(function parser(line) {
-        i = line.indexOf(":");
-        key = line.substring(0, i).trim().toLowerCase();
-        val = line.substring(i + 1).trim();
-        if (!key || parsed[key] && ignoreDuplicateOf[key]) {
-          return;
-        }
-        if (key === "set-cookie") {
-          if (parsed[key]) {
-            parsed[key].push(val);
-          } else {
-            parsed[key] = [val];
-          }
-        } else {
-          parsed[key] = parsed[key] ? parsed[key] + ", " + val : val;
-        }
-      });
-      return parsed;
-    };
-    var $internals = Symbol("internals");
-    var INVALID_HEADER_VALUE_CHARS_RE = /[^\x09\x20-\x7E\x80-\xFF]/g;
-    function trimSPorHTAB(str) {
-      let start = 0;
-      let end = str.length;
-      while (start < end) {
-        const code = str.charCodeAt(start);
-        if (code !== 9 && code !== 32) {
-          break;
-        }
-        start += 1;
-      }
-      while (end > start) {
-        const code = str.charCodeAt(end - 1);
-        if (code !== 9 && code !== 32) {
-          break;
-        }
-        end -= 1;
-      }
-      return start === 0 && end === str.length ? str : str.slice(start, end);
-    }
-    function normalizeHeader(header) {
-      return header && String(header).trim().toLowerCase();
-    }
-    function sanitizeHeaderValue(str) {
-      return trimSPorHTAB(str.replace(INVALID_HEADER_VALUE_CHARS_RE, ""));
-    }
-    function normalizeValue(value) {
-      if (value === false || value == null) {
-        return value;
-      }
-      return utils$1.isArray(value) ? value.map(normalizeValue) : sanitizeHeaderValue(String(value));
-    }
-    function parseTokens(str) {
-      const tokens = /* @__PURE__ */ Object.create(null);
-      const tokensRE = /([^\s,;=]+)\s*(?:=\s*([^,;]+))?/g;
-      let match;
-      while (match = tokensRE.exec(str)) {
-        tokens[match[1]] = match[2];
-      }
-      return tokens;
-    }
-    var isValidHeaderName = (str) => /^[-_a-zA-Z0-9^`|~,!#$%&'*+.]+$/.test(str.trim());
-    function matchHeaderValue(context, value, header, filter, isHeaderNameFilter) {
-      if (utils$1.isFunction(filter)) {
-        return filter.call(this, value, header);
-      }
-      if (isHeaderNameFilter) {
-        value = header;
-      }
-      if (!utils$1.isString(value)) return;
-      if (utils$1.isString(filter)) {
-        return value.indexOf(filter) !== -1;
-      }
-      if (utils$1.isRegExp(filter)) {
-        return filter.test(value);
-      }
-    }
-    function formatHeader(header) {
-      return header.trim().toLowerCase().replace(/([a-z\d])(\w*)/g, (w, char, str) => {
-        return char.toUpperCase() + str;
-      });
-    }
-    function buildAccessors(obj, header) {
-      const accessorName = utils$1.toCamelCase(" " + header);
-      ["get", "set", "has"].forEach((methodName) => {
-        Object.defineProperty(obj, methodName + accessorName, {
-          value: function(arg1, arg2, arg3) {
-            return this[methodName].call(this, header, arg1, arg2, arg3);
-          },
-          configurable: true
-        });
-      });
-    }
-    var AxiosHeaders = class {
-      constructor(headers) {
-        headers && this.set(headers);
-      }
-      set(header, valueOrRewrite, rewrite) {
-        const self2 = this;
-        function setHeader(_value, _header, _rewrite) {
-          const lHeader = normalizeHeader(_header);
-          if (!lHeader) {
-            throw new Error("header name must be a non-empty string");
-          }
-          const key = utils$1.findKey(self2, lHeader);
-          if (!key || self2[key] === void 0 || _rewrite === true || _rewrite === void 0 && self2[key] !== false) {
-            self2[key || _header] = normalizeValue(_value);
-          }
-        }
-        const setHeaders = (headers, _rewrite) => utils$1.forEach(headers, (_value, _header) => setHeader(_value, _header, _rewrite));
-        if (utils$1.isPlainObject(header) || header instanceof this.constructor) {
-          setHeaders(header, valueOrRewrite);
-        } else if (utils$1.isString(header) && (header = header.trim()) && !isValidHeaderName(header)) {
-          setHeaders(parseHeaders(header), valueOrRewrite);
-        } else if (utils$1.isObject(header) && utils$1.isIterable(header)) {
-          let obj = {}, dest, key;
-          for (const entry of header) {
-            if (!utils$1.isArray(entry)) {
-              throw TypeError("Object iterator must return a key-value pair");
-            }
-            obj[key = entry[0]] = (dest = obj[key]) ? utils$1.isArray(dest) ? [...dest, entry[1]] : [dest, entry[1]] : entry[1];
-          }
-          setHeaders(obj, valueOrRewrite);
-        } else {
-          header != null && setHeader(valueOrRewrite, header, rewrite);
-        }
-        return this;
-      }
-      get(header, parser) {
-        header = normalizeHeader(header);
-        if (header) {
-          const key = utils$1.findKey(this, header);
-          if (key) {
-            const value = this[key];
-            if (!parser) {
-              return value;
-            }
-            if (parser === true) {
-              return parseTokens(value);
-            }
-            if (utils$1.isFunction(parser)) {
-              return parser.call(this, value, key);
-            }
-            if (utils$1.isRegExp(parser)) {
-              return parser.exec(value);
-            }
-            throw new TypeError("parser must be boolean|regexp|function");
-          }
-        }
-      }
-      has(header, matcher) {
-        header = normalizeHeader(header);
-        if (header) {
-          const key = utils$1.findKey(this, header);
-          return !!(key && this[key] !== void 0 && (!matcher || matchHeaderValue(this, this[key], key, matcher)));
-        }
-        return false;
-      }
-      delete(header, matcher) {
-        const self2 = this;
-        let deleted = false;
-        function deleteHeader(_header) {
-          _header = normalizeHeader(_header);
-          if (_header) {
-            const key = utils$1.findKey(self2, _header);
-            if (key && (!matcher || matchHeaderValue(self2, self2[key], key, matcher))) {
-              delete self2[key];
-              deleted = true;
-            }
-          }
-        }
-        if (utils$1.isArray(header)) {
-          header.forEach(deleteHeader);
-        } else {
-          deleteHeader(header);
-        }
-        return deleted;
-      }
-      clear(matcher) {
-        const keys = Object.keys(this);
-        let i = keys.length;
-        let deleted = false;
-        while (i--) {
-          const key = keys[i];
-          if (!matcher || matchHeaderValue(this, this[key], key, matcher, true)) {
-            delete this[key];
-            deleted = true;
-          }
-        }
-        return deleted;
-      }
-      normalize(format) {
-        const self2 = this;
-        const headers = {};
-        utils$1.forEach(this, (value, header) => {
-          const key = utils$1.findKey(headers, header);
-          if (key) {
-            self2[key] = normalizeValue(value);
-            delete self2[header];
-            return;
-          }
-          const normalized = format ? formatHeader(header) : String(header).trim();
-          if (normalized !== header) {
-            delete self2[header];
-          }
-          self2[normalized] = normalizeValue(value);
-          headers[normalized] = true;
-        });
-        return this;
-      }
-      concat(...targets) {
-        return this.constructor.concat(this, ...targets);
-      }
-      toJSON(asStrings) {
-        const obj = /* @__PURE__ */ Object.create(null);
-        utils$1.forEach(this, (value, header) => {
-          value != null && value !== false && (obj[header] = asStrings && utils$1.isArray(value) ? value.join(", ") : value);
-        });
-        return obj;
-      }
-      [Symbol.iterator]() {
-        return Object.entries(this.toJSON())[Symbol.iterator]();
-      }
-      toString() {
-        return Object.entries(this.toJSON()).map(([header, value]) => header + ": " + value).join("\n");
-      }
-      getSetCookie() {
-        return this.get("set-cookie") || [];
-      }
-      get [Symbol.toStringTag]() {
-        return "AxiosHeaders";
-      }
-      static from(thing) {
-        return thing instanceof this ? thing : new this(thing);
-      }
-      static concat(first, ...targets) {
-        const computed = new this(first);
-        targets.forEach((target) => computed.set(target));
-        return computed;
-      }
-      static accessor(header) {
-        const internals = this[$internals] = this[$internals] = {
-          accessors: {}
-        };
-        const accessors = internals.accessors;
-        const prototype2 = this.prototype;
-        function defineAccessor(_header) {
-          const lHeader = normalizeHeader(_header);
-          if (!accessors[lHeader]) {
-            buildAccessors(prototype2, _header);
-            accessors[lHeader] = true;
-          }
-        }
-        utils$1.isArray(header) ? header.forEach(defineAccessor) : defineAccessor(header);
-        return this;
-      }
-    };
-    AxiosHeaders.accessor(["Content-Type", "Content-Length", "Accept", "Accept-Encoding", "User-Agent", "Authorization"]);
-    utils$1.reduceDescriptors(AxiosHeaders.prototype, ({
-      value
-    }, key) => {
-      let mapped = key[0].toUpperCase() + key.slice(1);
-      return {
-        get: () => value,
-        set(headerValue) {
-          this[mapped] = headerValue;
-        }
-      };
-    });
-    utils$1.freezeMethods(AxiosHeaders);
     function transformData(fns, response) {
       const config = this || defaults;
       const context = response || config;
@@ -13420,7 +13488,7 @@ var require_axios = __commonJS({
       if (!response.status || !validateStatus || validateStatus(response.status)) {
         resolve(response);
       } else {
-        reject(new AxiosError("Request failed with status code " + response.status, [AxiosError.ERR_BAD_REQUEST, AxiosError.ERR_BAD_RESPONSE][Math.floor(response.status / 100) - 4], response.config, response.request, response));
+        reject(new AxiosError("Request failed with status code " + response.status, response.status >= 400 && response.status < 500 ? AxiosError.ERR_BAD_REQUEST : AxiosError.ERR_BAD_RESPONSE, response.config, response.request, response));
       }
     }
     function isAbsoluteURL(url2) {
@@ -13504,9 +13572,9 @@ var require_axios = __commonJS({
     function getEnv(key) {
       return process.env[key.toLowerCase()] || process.env[key.toUpperCase()] || "";
     }
-    var VERSION = "1.15.2";
+    var VERSION = "1.16.0";
     function parseProtocol(url2) {
-      const match = /^([-+\w]{1,25})(:?\/\/|:)/.exec(url2);
+      const match = /^([-+\w]{1,25}):(?:\/\/)?/.exec(url2);
       return match && match[1] || "";
     }
     var DATA_URL_PATTERN = /^(?:([^;]+);)?(?:[^;]+;)?(base64|),([\s\S]*)$/;
@@ -13717,7 +13785,7 @@ var require_axios = __commonJS({
         throw TypeError("FormData instance required");
       }
       if (boundary.length < 1 || boundary.length > 70) {
-        throw Error("boundary must be 10-70 characters long");
+        throw Error("boundary must be 1-70 characters long");
       }
       const boundaryBytes = textEncoder.encode("--" + boundary + CRLF);
       const footerBytes = textEncoder.encode("--" + boundary + "--" + CRLF);
@@ -13834,6 +13902,20 @@ var require_axios = __commonJS({
       }
       return [entryHost, entryPort];
     };
+    var IPV4_MAPPED_DOTTED_RE = /^(?:::|(?:0{1,4}:){1,4}:|(?:0{1,4}:){5})ffff:(\d+\.\d+\.\d+\.\d+)$/i;
+    var IPV4_MAPPED_HEX_RE = /^(?:::|(?:0{1,4}:){1,4}:|(?:0{1,4}:){5})ffff:([0-9a-f]{1,4}):([0-9a-f]{1,4})$/i;
+    var unmapIPv4MappedIPv6 = (host) => {
+      if (typeof host !== "string" || host.indexOf(":") === -1) return host;
+      const dotted = host.match(IPV4_MAPPED_DOTTED_RE);
+      if (dotted) return dotted[1];
+      const hex = host.match(IPV4_MAPPED_HEX_RE);
+      if (hex) {
+        const high = parseInt(hex[1], 16);
+        const low = parseInt(hex[2], 16);
+        return `${high >> 8}.${high & 255}.${low >> 8}.${low & 255}`;
+      }
+      return host;
+    };
     var normalizeNoProxyHost = (hostname) => {
       if (!hostname) {
         return hostname;
@@ -13841,7 +13923,7 @@ var require_axios = __commonJS({
       if (hostname.charAt(0) === "[" && hostname.charAt(hostname.length - 1) === "]") {
         hostname = hostname.slice(1, -1);
       }
-      return hostname.replace(/\.+$/, "");
+      return unmapIPv4MappedIPv6(hostname.replace(/\.+$/, ""));
     };
     function shouldBypassProxy(location) {
       let parsed;
@@ -14022,10 +14104,32 @@ var require_axios = __commonJS({
           }
         }
         const groups = Math.floor(effectiveLen / 4);
-        const bytes = groups * 3 - (pad || 0);
-        return bytes > 0 ? bytes : 0;
+        const bytes2 = groups * 3 - (pad || 0);
+        return bytes2 > 0 ? bytes2 : 0;
       }
-      return Buffer.byteLength(body, "utf8");
+      if (typeof Buffer !== "undefined" && typeof Buffer.byteLength === "function") {
+        return Buffer.byteLength(body, "utf8");
+      }
+      let bytes = 0;
+      for (let i = 0, len = body.length; i < len; i++) {
+        const c = body.charCodeAt(i);
+        if (c < 128) {
+          bytes += 1;
+        } else if (c < 2048) {
+          bytes += 2;
+        } else if (c >= 55296 && c <= 56319 && i + 1 < len) {
+          const next = body.charCodeAt(i + 1);
+          if (next >= 56320 && next <= 57343) {
+            bytes += 4;
+            i++;
+          } else {
+            bytes += 3;
+          }
+        } else {
+          bytes += 3;
+        }
+      }
+      return bytes;
     }
     var zlibOptions = {
       flush: zlib.constants.Z_SYNC_FLUSH,
@@ -14041,11 +14145,33 @@ var require_axios = __commonJS({
       https: httpsFollow
     } = followRedirects;
     var isHttps = /https:?/;
+    var FORM_DATA_CONTENT_HEADERS$1 = ["content-type", "content-length"];
+    function setFormDataHeaders$1(headers, formHeaders, policy) {
+      if (policy !== "content-only") {
+        headers.set(formHeaders);
+        return;
+      }
+      Object.entries(formHeaders).forEach(([key, val]) => {
+        if (FORM_DATA_CONTENT_HEADERS$1.includes(key.toLowerCase())) {
+          headers.set(key, val);
+        }
+      });
+    }
     var kAxiosSocketListener = Symbol("axios.http.socketListener");
     var kAxiosCurrentReq = Symbol("axios.http.currentReq");
     var supportedProtocols = platform.protocols.map((protocol) => {
       return protocol + ":";
     });
+    var decodeURIComponentSafe = (value) => {
+      if (!utils$1.isString(value)) {
+        return value;
+      }
+      try {
+        return decodeURIComponent(value);
+      } catch (error) {
+        return value;
+      }
+    };
     var flushOnFinish = (stream2, [throttled, flush]) => {
       stream2.on("end", flush).on("error", flush);
       return throttled;
@@ -14122,15 +14248,15 @@ var require_axios = __commonJS({
       }
     };
     var http2Sessions = new Http2Sessions();
-    function dispatchBeforeRedirect(options, responseDetails) {
+    function dispatchBeforeRedirect(options, responseDetails, requestDetails) {
       if (options.beforeRedirects.proxy) {
         options.beforeRedirects.proxy(options);
       }
       if (options.beforeRedirects.config) {
-        options.beforeRedirects.config(options, responseDetails);
+        options.beforeRedirects.config(options, responseDetails, requestDetails);
       }
     }
-    function setProxy(options, configProxy, location) {
+    function setProxy(options, configProxy, location, isRedirect) {
       let proxy = configProxy;
       if (!proxy && proxy !== false) {
         const proxyUrl = getProxyForUrl(location);
@@ -14140,34 +14266,59 @@ var require_axios = __commonJS({
           }
         }
       }
-      if (proxy) {
-        if (proxy.username) {
-          proxy.auth = (proxy.username || "") + ":" + (proxy.password || "");
+      if (isRedirect && options.headers) {
+        for (const name of Object.keys(options.headers)) {
+          if (name.toLowerCase() === "proxy-authorization") {
+            delete options.headers[name];
+          }
         }
-        if (proxy.auth) {
-          const validProxyAuth = Boolean(proxy.auth.username || proxy.auth.password);
+      }
+      if (proxy) {
+        const isProxyURL = proxy instanceof URL;
+        const readProxyField = (key) => isProxyURL || utils$1.hasOwnProp(proxy, key) ? proxy[key] : void 0;
+        const proxyUsername = readProxyField("username");
+        const proxyPassword = readProxyField("password");
+        let proxyAuth = utils$1.hasOwnProp(proxy, "auth") ? proxy.auth : void 0;
+        if (proxyUsername) {
+          proxyAuth = (proxyUsername || "") + ":" + (proxyPassword || "");
+        }
+        if (proxyAuth) {
+          const authIsObject = typeof proxyAuth === "object";
+          const authUsername = authIsObject && utils$1.hasOwnProp(proxyAuth, "username") ? proxyAuth.username : void 0;
+          const authPassword = authIsObject && utils$1.hasOwnProp(proxyAuth, "password") ? proxyAuth.password : void 0;
+          const validProxyAuth = Boolean(authUsername || authPassword);
           if (validProxyAuth) {
-            proxy.auth = (proxy.auth.username || "") + ":" + (proxy.auth.password || "");
-          } else if (typeof proxy.auth === "object") {
+            proxyAuth = (authUsername || "") + ":" + (authPassword || "");
+          } else if (authIsObject) {
             throw new AxiosError("Invalid proxy authorization", AxiosError.ERR_BAD_OPTION, {
               proxy
             });
           }
-          const base64 = Buffer.from(proxy.auth, "utf8").toString("base64");
+          const base64 = Buffer.from(proxyAuth, "utf8").toString("base64");
           options.headers["Proxy-Authorization"] = "Basic " + base64;
         }
-        options.headers.host = options.hostname + (options.port ? ":" + options.port : "");
-        const proxyHost = proxy.hostname || proxy.host;
+        let hasUserHostHeader = false;
+        for (const name of Object.keys(options.headers)) {
+          if (name.toLowerCase() === "host") {
+            hasUserHostHeader = true;
+            break;
+          }
+        }
+        if (!hasUserHostHeader) {
+          options.headers.host = options.hostname + (options.port ? ":" + options.port : "");
+        }
+        const proxyHost = readProxyField("hostname") || readProxyField("host");
         options.hostname = proxyHost;
         options.host = proxyHost;
-        options.port = proxy.port;
+        options.port = readProxyField("port");
         options.path = location;
-        if (proxy.protocol) {
-          options.protocol = proxy.protocol.includes(":") ? proxy.protocol : `${proxy.protocol}:`;
+        const proxyProtocol = readProxyField("protocol");
+        if (proxyProtocol) {
+          options.protocol = proxyProtocol.includes(":") ? proxyProtocol : `${proxyProtocol}:`;
         }
       }
       options.beforeRedirects.proxy = function beforeRedirect(redirectOptions) {
-        setProxy(redirectOptions, configProxy, redirectOptions.href);
+        setProxy(redirectOptions, configProxy, redirectOptions.href, true);
       };
     }
     var isHttpAdapterSupported = typeof process !== "undefined" && utils$1.kindOf(process) === "process";
@@ -14257,6 +14408,7 @@ var require_axios = __commonJS({
         let isDone;
         let rejected = false;
         let req;
+        let connectPhaseTimer;
         httpVersion = +httpVersion;
         if (Number.isNaN(httpVersion)) {
           throw TypeError(`Invalid protocol version: '${config.httpVersion}' is not a number`);
@@ -14285,8 +14437,23 @@ var require_axios = __commonJS({
             console.warn("emit error", err);
           }
         }
+        function clearConnectPhaseTimer() {
+          if (connectPhaseTimer) {
+            clearTimeout(connectPhaseTimer);
+            connectPhaseTimer = null;
+          }
+        }
+        function createTimeoutError() {
+          let timeoutErrorMessage = config.timeout ? "timeout of " + config.timeout + "ms exceeded" : "timeout exceeded";
+          const transitional = config.transitional || transitionalDefaults;
+          if (config.timeoutErrorMessage) {
+            timeoutErrorMessage = config.timeoutErrorMessage;
+          }
+          return new AxiosError(timeoutErrorMessage, transitional.clarifyTimeoutError ? AxiosError.ETIMEDOUT : AxiosError.ECONNABORTED, config, req);
+        }
         abortEmitter.once("abort", reject);
         const onFinished = () => {
+          clearConnectPhaseTimer();
           if (config.cancelToken) {
             config.cancelToken.unsubscribe(abort);
           }
@@ -14303,6 +14470,7 @@ var require_axios = __commonJS({
         }
         onDone((response, isRejected) => {
           isDone = true;
+          clearConnectPhaseTimer();
           if (isRejected) {
             rejected = true;
             onFinished();
@@ -14384,7 +14552,7 @@ var require_axios = __commonJS({
             boundary: userBoundary && userBoundary[1] || void 0
           });
         } else if (utils$1.isFormData(data) && utils$1.isFunction(data.getHeaders) && data.getHeaders !== Object.prototype.getHeaders) {
-          headers.set(data.getHeaders());
+          setFormDataHeaders$1(headers, data.getHeaders(), own2("formDataHeaderPolicy"));
           if (!headers.hasContentLength()) {
             try {
               const knownLength = await util.promisify(data.getLength).call(data);
@@ -14436,8 +14604,8 @@ var require_axios = __commonJS({
           auth = username + ":" + password;
         }
         if (!auth && parsed.username) {
-          const urlUsername = parsed.username;
-          const urlPassword = parsed.password;
+          const urlUsername = decodeURIComponentSafe(parsed.username);
+          const urlPassword = decodeURIComponentSafe(parsed.password);
           auth = urlUsername + ":" + urlPassword;
         }
         auth && headers.delete("authorization");
@@ -14487,6 +14655,7 @@ var require_axios = __commonJS({
           setProxy(options, config.proxy, protocol + "//" + parsed.hostname + (parsed.port ? ":" + parsed.port : "") + options.path);
         }
         let transport;
+        let isNativeTransport = false;
         const isHttpsRequest = isHttps.test(options.protocol);
         options.agent = isHttpsRequest ? config.httpsAgent : config.httpAgent;
         if (isHttp2) {
@@ -14497,6 +14666,7 @@ var require_axios = __commonJS({
             transport = configTransport;
           } else if (config.maxRedirects === 0) {
             transport = isHttpsRequest ? https : http;
+            isNativeTransport = true;
           } else {
             if (config.maxRedirects) {
               options.maxRedirects = config.maxRedirects;
@@ -14515,6 +14685,7 @@ var require_axios = __commonJS({
         }
         options.insecureHTTPParser = Boolean(own2("insecureHTTPParser"));
         req = transport.request(options, function handleResponse(res) {
+          clearConnectPhaseTimer();
           if (req.destroyed) return;
           const streams = [res];
           const responseLength = utils$1.toFiniteNumber(res.headers["content-length"]);
@@ -14596,13 +14767,13 @@ var require_axios = __commonJS({
               if (rejected) {
                 return;
               }
-              const err = new AxiosError("stream has been aborted", AxiosError.ERR_BAD_RESPONSE, config, lastRequest);
+              const err = new AxiosError("stream has been aborted", AxiosError.ERR_BAD_RESPONSE, config, lastRequest, response);
               responseStream.destroy(err);
               reject(err);
             });
             responseStream.on("error", function handleStreamError(err) {
-              if (req.destroyed) return;
-              reject(AxiosError.from(err, null, config, lastRequest));
+              if (rejected) return;
+              reject(AxiosError.from(err, null, config, lastRequest, response));
             });
             responseStream.on("end", function handleStreamEnd() {
               try {
@@ -14637,6 +14808,7 @@ var require_axios = __commonJS({
         req.on("error", function handleRequestError(err) {
           reject(AxiosError.from(err, null, config, req));
         });
+        const boundSockets = /* @__PURE__ */ new Set();
         req.on("socket", function handleRequestSocket(socket) {
           socket.setKeepAlive(true, 1e3 * 60);
           if (!socket[kAxiosSocketListener]) {
@@ -14649,11 +14821,16 @@ var require_axios = __commonJS({
             socket[kAxiosSocketListener] = true;
           }
           socket[kAxiosCurrentReq] = req;
-          req.once("close", function clearCurrentReq() {
+          boundSockets.add(socket);
+        });
+        req.once("close", function clearCurrentReq() {
+          clearConnectPhaseTimer();
+          for (const socket of boundSockets) {
             if (socket[kAxiosCurrentReq] === req) {
               socket[kAxiosCurrentReq] = null;
             }
-          });
+          }
+          boundSockets.clear();
         });
         if (config.timeout) {
           const timeout = parseInt(config.timeout, 10);
@@ -14661,15 +14838,14 @@ var require_axios = __commonJS({
             abort(new AxiosError("error trying to parse `config.timeout` to int", AxiosError.ERR_BAD_OPTION_VALUE, config, req));
             return;
           }
-          req.setTimeout(timeout, function handleRequestTimeout() {
+          const handleTimeout = function handleTimeout2() {
             if (isDone) return;
-            let timeoutErrorMessage = config.timeout ? "timeout of " + config.timeout + "ms exceeded" : "timeout exceeded";
-            const transitional = config.transitional || transitionalDefaults;
-            if (config.timeoutErrorMessage) {
-              timeoutErrorMessage = config.timeoutErrorMessage;
-            }
-            abort(new AxiosError(timeoutErrorMessage, transitional.clarifyTimeoutError ? AxiosError.ETIMEDOUT : AxiosError.ECONNABORTED, config, req));
-          });
+            abort(createTimeoutError());
+          };
+          if (isNativeTransport && timeout > 0) {
+            connectPhaseTimer = setTimeout(handleTimeout, timeout);
+          }
+          req.setTimeout(timeout, handleTimeout);
         } else {
           req.setTimeout(0);
         }
@@ -14741,8 +14917,15 @@ var require_axios = __commonJS({
         },
         read(name) {
           if (typeof document === "undefined") return null;
-          const match = document.cookie.match(new RegExp("(?:^|; )" + name + "=([^;]*)"));
-          return match ? decodeURIComponent(match[1]) : null;
+          const cookies2 = document.cookie.split(";");
+          for (let i = 0; i < cookies2.length; i++) {
+            const cookie = cookies2[i].replace(/^\s+/, "");
+            const eq = cookie.indexOf("=");
+            if (eq !== -1 && cookie.slice(0, eq) === name) {
+              return decodeURIComponent(cookie.slice(eq + 1));
+            }
+          }
+          return null;
         },
         remove(name) {
           this.write(name, "", Date.now() - 864e5, "/");
@@ -14767,6 +14950,9 @@ var require_axios = __commonJS({
       config2 = config2 || {};
       const config = /* @__PURE__ */ Object.create(null);
       Object.defineProperty(config, "hasOwnProperty", {
+        // Null-proto descriptor so a polluted Object.prototype.get cannot turn
+        // this data descriptor into an accessor descriptor on the way in.
+        __proto__: null,
         value: Object.prototype.hasOwnProperty,
         enumerable: false,
         writable: true,
@@ -14855,6 +15041,19 @@ var require_axios = __commonJS({
       });
       return config;
     }
+    var FORM_DATA_CONTENT_HEADERS = ["content-type", "content-length"];
+    function setFormDataHeaders(headers, formHeaders, policy) {
+      if (policy !== "content-only") {
+        headers.set(formHeaders);
+        return;
+      }
+      Object.entries(formHeaders).forEach(([key, val]) => {
+        if (FORM_DATA_CONTENT_HEADERS.includes(key.toLowerCase())) {
+          headers.set(key, val);
+        }
+      });
+    }
+    var encodeUTF8 = (str) => encodeURIComponent(str).replace(/%([0-9A-F]{2})/gi, (_, hex) => String.fromCharCode(parseInt(hex, 16)));
     var resolveConfig = (config) => {
       const newConfig = mergeConfig({}, config);
       const own2 = (key) => utils$1.hasOwnProp(newConfig, key) ? newConfig[key] : void 0;
@@ -14870,19 +15069,13 @@ var require_axios = __commonJS({
       newConfig.headers = headers = AxiosHeaders.from(headers);
       newConfig.url = buildURL(buildFullPath(baseURL, url2, allowAbsoluteUrls), config.params, config.paramsSerializer);
       if (auth) {
-        headers.set("Authorization", "Basic " + btoa((auth.username || "") + ":" + (auth.password ? unescape(encodeURIComponent(auth.password)) : "")));
+        headers.set("Authorization", "Basic " + btoa((auth.username || "") + ":" + (auth.password ? encodeUTF8(auth.password) : "")));
       }
       if (utils$1.isFormData(data)) {
         if (platform.hasStandardBrowserEnv || platform.hasStandardBrowserWebWorkerEnv) {
           headers.setContentType(void 0);
         } else if (utils$1.isFunction(data.getHeaders)) {
-          const formHeaders = data.getHeaders();
-          const allowedHeaders = ["content-type", "content-length"];
-          Object.entries(formHeaders).forEach(([key, val]) => {
-            if (allowedHeaders.includes(key.toLowerCase())) {
-              headers.set(key, val);
-            }
-          });
+          setFormDataHeaders(headers, data.getHeaders(), own2("formDataHeaderPolicy"));
         }
       }
       if (platform.hasStandardBrowserEnv) {
@@ -14952,7 +15145,7 @@ var require_axios = __commonJS({
             if (!request || request.readyState !== 4) {
               return;
             }
-            if (request.status === 0 && !(request.responseURL && request.responseURL.indexOf("file:") === 0)) {
+            if (request.status === 0 && !(request.responseURL && request.responseURL.startsWith("file:"))) {
               return;
             }
             setTimeout(onloadend);
@@ -14963,6 +15156,7 @@ var require_axios = __commonJS({
             return;
           }
           reject(new AxiosError("Request aborted", AxiosError.ECONNABORTED, config, request));
+          done();
           request = null;
         };
         request.onerror = function handleError(event) {
@@ -14970,6 +15164,7 @@ var require_axios = __commonJS({
           const err = new AxiosError(msg, AxiosError.ERR_NETWORK, config, request);
           err.event = event || null;
           reject(err);
+          done();
           request = null;
         };
         request.ontimeout = function handleTimeout() {
@@ -14979,6 +15174,7 @@ var require_axios = __commonJS({
             timeoutErrorMessage = _config.timeoutErrorMessage;
           }
           reject(new AxiosError(timeoutErrorMessage, transitional.clarifyTimeoutError ? AxiosError.ETIMEDOUT : AxiosError.ECONNABORTED, config, request));
+          done();
           request = null;
         };
         requestData === void 0 && requestHeaders.setContentType(null);
@@ -15009,6 +15205,7 @@ var require_axios = __commonJS({
             }
             reject(!cancel || cancel.type ? new CanceledError(null, config, request) : cancel);
             request.abort();
+            done();
             request = null;
           };
           _config.cancelToken && _config.cancelToken.subscribe(onCanceled);
@@ -15017,7 +15214,7 @@ var require_axios = __commonJS({
           }
         }
         const protocol = parseProtocol(_config.url);
-        if (protocol && platform.protocols.indexOf(protocol) === -1) {
+        if (protocol && !platform.protocols.includes(protocol)) {
           reject(new AxiosError("Unsupported protocol " + protocol + ":", AxiosError.ERR_BAD_REQUEST, config));
           return;
         }
@@ -15146,17 +15343,6 @@ var require_axios = __commonJS({
     var {
       isFunction
     } = utils$1;
-    var globalFetchAPI = (({
-      Request,
-      Response
-    }) => ({
-      Request,
-      Response
-    }))(utils$1.global);
-    var {
-      ReadableStream: ReadableStream$1,
-      TextEncoder: TextEncoder$1
-    } = utils$1.global;
     var test = (fn, ...args) => {
       try {
         return !!fn(...args);
@@ -15165,9 +15351,18 @@ var require_axios = __commonJS({
       }
     };
     var factory = (env) => {
+      var _utils$global;
+      const globalObject = (_utils$global = utils$1.global) !== null && _utils$global !== void 0 ? _utils$global : globalThis;
+      const {
+        ReadableStream: ReadableStream2,
+        TextEncoder: TextEncoder2
+      } = globalObject;
       env = utils$1.merge.call({
         skipUndefined: true
-      }, globalFetchAPI, env);
+      }, {
+        Request: globalObject.Request,
+        Response: globalObject.Response
+      }, env);
       const {
         fetch: envFetch,
         Request,
@@ -15179,12 +15374,12 @@ var require_axios = __commonJS({
       if (!isFetchSupported) {
         return false;
       }
-      const isReadableStreamSupported = isFetchSupported && isFunction(ReadableStream$1);
-      const encodeText = isFetchSupported && (typeof TextEncoder$1 === "function" ? /* @__PURE__ */ ((encoder) => (str) => encoder.encode(str))(new TextEncoder$1()) : async (str) => new Uint8Array(await new Request(str).arrayBuffer()));
+      const isReadableStreamSupported = isFetchSupported && isFunction(ReadableStream2);
+      const encodeText = isFetchSupported && (typeof TextEncoder2 === "function" ? /* @__PURE__ */ ((encoder) => (str) => encoder.encode(str))(new TextEncoder2()) : async (str) => new Uint8Array(await new Request(str).arrayBuffer()));
       const supportsRequestStream = isRequestSupported && isReadableStreamSupported && test(() => {
         let duplexAccessed = false;
         const request = new Request(platform.origin, {
-          body: new ReadableStream$1(),
+          body: new ReadableStream2(),
           method: "POST",
           get duplex() {
             duplexAccessed = true;
@@ -15253,8 +15448,12 @@ var require_axios = __commonJS({
           responseType,
           headers,
           withCredentials = "same-origin",
-          fetchOptions
+          fetchOptions,
+          maxContentLength,
+          maxBodyLength
         } = resolveConfig(config);
+        const hasMaxContentLength = utils$1.isNumber(maxContentLength) && maxContentLength > -1;
+        const hasMaxBodyLength = utils$1.isNumber(maxBodyLength) && maxBodyLength > -1;
         let _fetch = envFetch || fetch;
         responseType = responseType ? (responseType + "").toLowerCase() : "text";
         let composedSignal = composeSignals([signal, cancelToken && cancelToken.toAbortSignal()], timeout);
@@ -15264,6 +15463,18 @@ var require_axios = __commonJS({
         });
         let requestContentLength;
         try {
+          if (hasMaxContentLength && typeof url2 === "string" && url2.startsWith("data:")) {
+            const estimated = estimateDataURLDecodedBytes(url2);
+            if (estimated > maxContentLength) {
+              throw new AxiosError("maxContentLength size of " + maxContentLength + " exceeded", AxiosError.ERR_BAD_RESPONSE, config, request);
+            }
+          }
+          if (hasMaxBodyLength && method !== "get" && method !== "head") {
+            const outboundLength = await resolveBodyLength(headers, data);
+            if (typeof outboundLength === "number" && isFinite(outboundLength) && outboundLength > maxBodyLength) {
+              throw new AxiosError("Request body larger than maxBodyLength limit", AxiosError.ERR_BAD_REQUEST, config, request);
+            }
+          }
           if (onUploadProgress && supportsRequestStream && method !== "get" && method !== "head" && (requestContentLength = await resolveBodyLength(headers, data)) !== 0) {
             let _request = new Request(url2, {
               method: "POST",
@@ -15289,6 +15500,7 @@ var require_axios = __commonJS({
               headers.delete("content-type");
             }
           }
+          headers.set("User-Agent", "axios/" + VERSION, false);
           const resolvedOptions = {
             ...fetchOptions,
             signal: composedSignal,
@@ -15300,21 +15512,52 @@ var require_axios = __commonJS({
           };
           request = isRequestSupported && new Request(url2, resolvedOptions);
           let response = await (isRequestSupported ? _fetch(request, fetchOptions) : _fetch(url2, resolvedOptions));
+          if (hasMaxContentLength) {
+            const declaredLength = utils$1.toFiniteNumber(response.headers.get("content-length"));
+            if (declaredLength != null && declaredLength > maxContentLength) {
+              throw new AxiosError("maxContentLength size of " + maxContentLength + " exceeded", AxiosError.ERR_BAD_RESPONSE, config, request);
+            }
+          }
           const isStreamResponse = supportsResponseStream && (responseType === "stream" || responseType === "response");
-          if (supportsResponseStream && (onDownloadProgress || isStreamResponse && unsubscribe)) {
+          if (supportsResponseStream && response.body && (onDownloadProgress || hasMaxContentLength || isStreamResponse && unsubscribe)) {
             const options = {};
             ["status", "statusText", "headers"].forEach((prop) => {
               options[prop] = response[prop];
             });
             const responseContentLength = utils$1.toFiniteNumber(response.headers.get("content-length"));
             const [onProgress, flush] = onDownloadProgress && progressEventDecorator(responseContentLength, progressEventReducer(asyncDecorator(onDownloadProgress), true)) || [];
-            response = new Response(trackStream(response.body, DEFAULT_CHUNK_SIZE, onProgress, () => {
+            let bytesRead = 0;
+            const onChunkProgress = (loadedBytes) => {
+              if (hasMaxContentLength) {
+                bytesRead = loadedBytes;
+                if (bytesRead > maxContentLength) {
+                  throw new AxiosError("maxContentLength size of " + maxContentLength + " exceeded", AxiosError.ERR_BAD_RESPONSE, config, request);
+                }
+              }
+              onProgress && onProgress(loadedBytes);
+            };
+            response = new Response(trackStream(response.body, DEFAULT_CHUNK_SIZE, onChunkProgress, () => {
               flush && flush();
               unsubscribe && unsubscribe();
             }), options);
           }
           responseType = responseType || "text";
           let responseData = await resolvers[utils$1.findKey(resolvers, responseType) || "text"](response, config);
+          if (hasMaxContentLength && !supportsResponseStream && !isStreamResponse) {
+            let materializedSize;
+            if (responseData != null) {
+              if (typeof responseData.byteLength === "number") {
+                materializedSize = responseData.byteLength;
+              } else if (typeof responseData.size === "number") {
+                materializedSize = responseData.size;
+              } else if (typeof responseData === "string") {
+                materializedSize = typeof TextEncoder2 === "function" ? new TextEncoder2().encode(responseData).byteLength : responseData.length;
+              }
+            }
+            if (typeof materializedSize === "number" && materializedSize > maxContentLength) {
+              throw new AxiosError("maxContentLength size of " + maxContentLength + " exceeded", AxiosError.ERR_BAD_RESPONSE, config, request);
+            }
+          }
           !isStreamResponse && unsubscribe && unsubscribe();
           return await new Promise((resolve, reject) => {
             settle(resolve, reject, {
@@ -15328,6 +15571,13 @@ var require_axios = __commonJS({
           });
         } catch (err) {
           unsubscribe && unsubscribe();
+          if (composedSignal && composedSignal.aborted && composedSignal.reason instanceof AxiosError) {
+            const canceledError = composedSignal.reason;
+            canceledError.config = config;
+            request && (canceledError.request = request);
+            err !== canceledError && (canceledError.cause = err);
+            throw canceledError;
+          }
           if (err && err.name === "TypeError" && /Load failed|fetch/i.test(err.message)) {
             throw Object.assign(new AxiosError("Network Error", AxiosError.ERR_NETWORK, config, request, err && err.response), {
               cause: err.cause || err
@@ -15367,11 +15617,13 @@ var require_axios = __commonJS({
       if (fn) {
         try {
           Object.defineProperty(fn, "name", {
+            __proto__: null,
             value
           });
         } catch (e) {
         }
         Object.defineProperty(fn, "adapterName", {
+          __proto__: null,
           value
         });
       }
@@ -15438,14 +15690,24 @@ var require_axios = __commonJS({
       const adapter = adapters.getAdapter(config.adapter || defaults.adapter, config);
       return adapter(config).then(function onAdapterResolution(response) {
         throwIfCancellationRequested(config);
-        response.data = transformData.call(config, config.transformResponse, response);
+        config.response = response;
+        try {
+          response.data = transformData.call(config, config.transformResponse, response);
+        } finally {
+          delete config.response;
+        }
         response.headers = AxiosHeaders.from(response.headers);
         return response;
       }, function onAdapterRejection(reason) {
         if (!isCancel(reason)) {
           throwIfCancellationRequested(config);
           if (reason && reason.response) {
-            reason.response.data = transformData.call(config, config.transformResponse, reason.response);
+            config.response = reason.response;
+            try {
+              reason.response.data = transformData.call(config, config.transformResponse, reason.response);
+            } finally {
+              delete config.response;
+            }
             reason.response.headers = AxiosHeaders.from(reason.response.headers);
           }
         }
@@ -15599,7 +15861,7 @@ var require_axios = __commonJS({
         }, true);
         config.method = (config.method || this.defaults.method || "get").toLowerCase();
         let contextHeaders = headers && utils$1.merge(headers.common, headers[config.method]);
-        headers && utils$1.forEach(["delete", "get", "head", "post", "put", "patch", "common"], (method) => {
+        headers && utils$1.forEach(["delete", "get", "head", "post", "put", "patch", "query", "common"], (method) => {
           delete headers[method];
         });
         config.headers = AxiosHeaders.concat(contextHeaders, headers);
@@ -15675,7 +15937,7 @@ var require_axios = __commonJS({
         }));
       };
     });
-    utils$1.forEach(["post", "put", "patch"], function forEachMethodWithData(method) {
+    utils$1.forEach(["post", "put", "patch", "query"], function forEachMethodWithData(method) {
       function generateHTTPMethod(isForm) {
         return function httpMethod(url2, data, config) {
           return this.request(mergeConfig(config || {}, {
@@ -15689,7 +15951,9 @@ var require_axios = __commonJS({
         };
       }
       Axios.prototype[method] = generateHTTPMethod();
-      Axios.prototype[method + "Form"] = generateHTTPMethod(true);
+      if (method !== "query") {
+        Axios.prototype[method + "Form"] = generateHTTPMethod(true);
+      }
     });
     var CancelToken = class _CancelToken {
       constructor(executor) {
@@ -20074,7 +20338,7 @@ var require_package2 = __commonJS({
   "node_modules/@slack/socket-mode/dist/package.json"(exports2, module2) {
     module2.exports = {
       name: "@slack/socket-mode",
-      version: "2.0.6",
+      version: "2.0.7",
       description: "Official library for using the Slack Platform's Socket Mode API",
       author: "Slack Technologies, LLC",
       license: "MIT",
@@ -21472,6 +21736,9 @@ var require_sender = __commonJS({
     "use strict";
     var { Duplex } = require("stream");
     var { randomFillSync } = require("crypto");
+    var {
+      types: { isUint8Array }
+    } = require("util");
     var PerMessageDeflate = require_permessage_deflate();
     var { EMPTY_BUFFER, kWebSocket, NOOP } = require_constants();
     var { isBlob, isValidStatusCode } = require_validation();
@@ -21625,8 +21892,10 @@ var require_sender = __commonJS({
           buf.writeUInt16BE(code, 0);
           if (typeof data === "string") {
             buf.write(data, 2);
-          } else {
+          } else if (isUint8Array(data)) {
             buf.set(data, 2);
+          } else {
+            throw new TypeError("Second argument must be a string or a Uint8Array");
           }
         }
         const options = {
@@ -23898,6 +24167,9 @@ var require_SlackWebSocket = __commonJS({
           if (this.closeFrameReceived) {
             this.logger.debug("Terminating WebSocket (close frame received).");
             this.terminate();
+          } else if (this.websocket.readyState === ws_1.WebSocket.CLOSING) {
+            this.logger.debug("Terminating WebSocket (close frame sent but no response, force-terminating).");
+            this.terminate();
           } else {
             this.logger.debug("Sending close frame (status=1000).");
             this.websocket.close(1e3);
@@ -24381,8 +24653,6 @@ var ALLOWED_DOMAINS = (process.env.OPENIT_SLACK_ALLOWED_DOMAINS ?? "").split(","
 var STATE_DIR = import_node_path.default.join(REPO, ".openit");
 var SESSIONS_PATH = import_node_path.default.join(STATE_DIR, "slack-sessions.json");
 var DELIVERY_PATH = import_node_path.default.join(STATE_DIR, "slack-delivery.json");
-var SESSION_REUSE_MS = 6 * 60 * 60 * 1e3;
-var RESUME_DEFENSIVE_MS = 30 * 60 * 1e3;
 var EGRESS_INTERVAL_MS = 2e3;
 var HEARTBEAT_INTERVAL_MS = 3e4;
 var WORKER_CONCURRENCY = 4;
@@ -24400,6 +24670,9 @@ function mustEnv(k) {
 var sessions = {};
 var delivery = {};
 var writeMutex = { busy: false, queued: false };
+function threadKey(channelId, threadTs) {
+  return `${channelId}:${threadTs}`;
+}
 async function loadState() {
   await import_node_fs.promises.mkdir(STATE_DIR, { recursive: true });
   try {
@@ -24449,7 +24722,8 @@ async function seedDeliveryFromDisk() {
       if (!t.slackChannelId) continue;
       delivery[ticketId] = {
         last_delivered_msg_id: null,
-        channel_id: t.slackChannelId
+        channel_id: t.slackChannelId,
+        thread_ts: t.slackThreadTs ?? null
       };
     } catch {
     }
@@ -24500,6 +24774,14 @@ async function latestAdminMsgId(ticketId) {
   }
   return best;
 }
+function findTicketForThread(channelId, threadTs) {
+  for (const [ticketId, entry] of Object.entries(delivery)) {
+    if (entry.channel_id === channelId && entry.thread_ts === threadTs) {
+      return ticketId;
+    }
+  }
+  return null;
+}
 async function intakePost(pathname, body) {
   const res = await fetch(`${INTAKE_URL}${pathname}`, {
     method: "POST",
@@ -24532,8 +24814,10 @@ async function chatTurn({ sessionId, message }) {
 }
 var web = new import_web_api.WebClient(BOT_TOKEN);
 var sock = new import_socket_mode.SocketModeClient({ appToken: APP_TOKEN });
-async function postSlack(channel, text) {
-  await web.chat.postMessage({ channel, text });
+async function postSlack(channel, text, threadTs) {
+  const args = { channel, text };
+  if (threadTs) args.thread_ts = threadTs;
+  await web.chat.postMessage(args);
 }
 function eventIsBot(event) {
   if (event.bot_id) return true;
@@ -24569,36 +24853,6 @@ async function userPassesTrustGates(slackUserId) {
   }
   return { ok: true, email };
 }
-async function findRecentSlackTicketForEmail(email, slackUserId) {
-  const dir = import_node_path.default.join(REPO, "databases", "tickets");
-  let entries;
-  try {
-    entries = await import_node_fs.promises.readdir(dir);
-  } catch {
-    return null;
-  }
-  const cutoffMs = Date.now() - RESUME_DEFENSIVE_MS;
-  let bestId = null;
-  let bestUpdatedMs = 0;
-  for (const name of entries) {
-    if (!name.endsWith(".json") || name === "_schema.json") continue;
-    try {
-      const raw = await import_node_fs.promises.readFile(import_node_path.default.join(dir, name), "utf8");
-      const t = JSON.parse(raw);
-      if (t.askerChannel !== "slack") continue;
-      if (t.asker !== email) continue;
-      if (t.slackUserId && t.slackUserId !== slackUserId) continue;
-      const updatedMs = Date.parse(t.updatedAt ?? "");
-      if (!Number.isFinite(updatedMs) || updatedMs < cutoffMs) continue;
-      if (updatedMs > bestUpdatedMs) {
-        bestUpdatedMs = updatedMs;
-        bestId = name.replace(/\.json$/, "");
-      }
-    } catch {
-    }
-  }
-  return bestId;
-}
 var queue = [];
 var activeWorkers = 0;
 var stopping = false;
@@ -24625,6 +24879,9 @@ async function handleMessageIm(event) {
   const slackUserId = event.user;
   const channelId = event.channel;
   const text = event.text.trim();
+  const threadTs = event.thread_ts ?? event.ts;
+  const key = threadKey(channelId, threadTs);
+  const isThreadReply = event.thread_ts != null;
   const gate = await userPassesTrustGates(slackUserId);
   if (!gate.ok) {
     console.error(
@@ -24632,51 +24889,59 @@ async function handleMessageIm(event) {
     );
     return;
   }
-  const session = sessions[slackUserId];
-  const nowMs = Date.now();
+  const session = sessions[key];
   if (session?.state === "pending_email") {
     const match = text.match(EMAIL_RE);
     if (!match) {
-      await postSlack(channelId, SLACK_REPLY_BAD_EMAIL);
+      await postSlack(channelId, SLACK_REPLY_BAD_EMAIL, threadTs);
       return;
     }
     const email = match[0].toLowerCase();
     await startSessionAndDeliver({
+      key,
       slackUserId,
       channelId,
+      threadTs,
       email,
       firstMessage: session.original_message
     });
     return;
   }
-  if (session?.state === "active" && nowMs - session.last_seen_ms < SESSION_REUSE_MS) {
-    await deliverTurn({ slackUserId, message: text });
+  if (session?.state === "active") {
+    await deliverTurn({ key, message: text });
     return;
   }
+  const existingTicketId = isThreadReply ? findTicketForThread(channelId, threadTs) : null;
   if (!gate.email) {
-    sessions[slackUserId] = {
+    sessions[key] = {
       state: "pending_email",
       channel_id: channelId,
+      thread_ts: threadTs,
       original_message: text
     };
     await persistAll();
-    await postSlack(channelId, SLACK_REPLY_PROMPT_EMAIL);
+    await postSlack(channelId, SLACK_REPLY_PROMPT_EMAIL, threadTs);
     return;
   }
   await startSessionAndDeliver({
+    key,
     slackUserId,
     channelId,
+    threadTs,
     email: gate.email,
-    firstMessage: text
+    firstMessage: text,
+    resumeTicketId: existingTicketId
   });
 }
 async function startSessionAndDeliver({
+  key,
   slackUserId,
   channelId,
+  threadTs,
   email,
-  firstMessage
+  firstMessage,
+  resumeTicketId
 }) {
-  const resumeId = await findRecentSlackTicketForEmail(email, slackUserId);
   let started;
   try {
     started = await chatStart({
@@ -24685,12 +24950,13 @@ async function startSessionAndDeliver({
         kind: "slack",
         workspace_id: WORKSPACE_ID,
         channel_id: channelId,
-        user_id: slackUserId
+        user_id: slackUserId,
+        thread_ts: threadTs
       },
-      resumeTicketId: resumeId
+      resumeTicketId
     });
   } catch (err) {
-    if (resumeId && /\b400\b/.test(String(err.message))) {
+    if (resumeTicketId && /\b400\b/.test(String(err.message))) {
       console.error(
         `[slack-listen] resume rejected (${err.message}); starting fresh ticket`
       );
@@ -24700,46 +24966,48 @@ async function startSessionAndDeliver({
           kind: "slack",
           workspace_id: WORKSPACE_ID,
           channel_id: channelId,
-          user_id: slackUserId
+          user_id: slackUserId,
+          thread_ts: threadTs
         }
       });
     } else {
       throw err;
     }
   }
-  sessions[slackUserId] = {
+  sessions[key] = {
     state: "active",
     session_id: started.session_id,
     ticket_id: started.ticket_id,
     channel_id: channelId,
-    last_seen_ms: Date.now(),
+    thread_ts: threadTs,
     email
   };
   if (!delivery[started.ticket_id]) {
     delivery[started.ticket_id] = {
       last_delivered_msg_id: null,
-      channel_id: channelId
+      channel_id: channelId,
+      thread_ts: threadTs
     };
   } else {
     delivery[started.ticket_id].channel_id = channelId;
+    delivery[started.ticket_id].thread_ts = threadTs;
   }
   await persistAll();
-  await deliverTurn({ slackUserId, message: firstMessage });
+  await deliverTurn({ key, message: firstMessage });
 }
-async function deliverTurn({ slackUserId, message }) {
-  const sess = sessions[slackUserId];
+async function deliverTurn({ key, message }) {
+  const sess = sessions[key];
   if (!sess || sess.state !== "active") {
-    console.error(`[slack-listen] deliverTurn called without active session for ${slackUserId}`);
+    console.error(`[slack-listen] deliverTurn called without active session for ${key}`);
     return;
   }
-  const reply = await runTurnWithRetry({ slackUserId, message });
+  const reply = await runTurnWithRetry({ key, message });
   if (reply == null) return;
-  sessions[slackUserId].last_seen_ms = Date.now();
   await persistAll();
-  await postSlack(sess.channel_id, reply);
+  await postSlack(sess.channel_id, reply, sess.thread_ts);
 }
-async function runTurnWithRetry({ slackUserId, message }) {
-  const sess = sessions[slackUserId];
+async function runTurnWithRetry({ key, message }) {
+  const sess = sessions[key];
   let res = await chatTurn({ sessionId: sess.session_id, message });
   if (res.status === 404) {
     console.error(
@@ -24753,7 +25021,13 @@ async function runTurnWithRetry({ slackUserId, message }) {
           kind: "slack",
           workspace_id: WORKSPACE_ID,
           channel_id: sess.channel_id,
-          user_id: slackUserId
+          // We don't have the originating slack user_id at this point
+          // — the session row tracks the thread, not the user. The
+          // intake server only writes this field to disk on the very
+          // first turn (when the ticket is created), so passing a
+          // placeholder on resume is safe.
+          user_id: BOT_USER_ID,
+          thread_ts: sess.thread_ts
         },
         resumeTicketId: sess.ticket_id
       });
@@ -24761,7 +25035,7 @@ async function runTurnWithRetry({ slackUserId, message }) {
       console.error(`[slack-listen] resume after 404 failed: ${err.message}`);
       return null;
     }
-    sessions[slackUserId].session_id = restarted.session_id;
+    sessions[key].session_id = restarted.session_id;
     await persistAll();
     res = await chatTurn({
       sessionId: restarted.session_id,
@@ -24800,7 +25074,6 @@ async function drainTicket(ticketId, entry) {
   }
   const candidates = names.filter((n) => n.startsWith("msg-") && n.endsWith(".json") && !n.includes(".server.")).sort();
   let high = entry.last_delivered_msg_id ?? "";
-  let updated = false;
   for (const name of candidates) {
     let msg;
     try {
@@ -24812,10 +25085,9 @@ async function drainTicket(ticketId, entry) {
     const id = msg.id ?? "";
     if (id <= high) continue;
     try {
-      await postSlack(entry.channel_id, msg.body ?? "");
+      await postSlack(entry.channel_id, msg.body ?? "", entry.thread_ts);
       high = id;
       entry.last_delivered_msg_id = id;
-      updated = true;
       await persistAll();
     } catch (err) {
       console.error(
@@ -24823,8 +25095,6 @@ async function drainTicket(ticketId, entry) {
       );
       break;
     }
-  }
-  if (updated) {
   }
 }
 function heartbeat() {

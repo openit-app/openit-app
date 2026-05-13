@@ -189,6 +189,10 @@ On success, reply:
 > whatever. The bot answers from your knowledge base if it can,
 > escalates to you here if it can't.
 >
+> Each new DM (top-level message) starts a fresh ticket; replies
+> inside a thread continue the existing one. That's how people
+> "start a new chat" — just send another DM.
+>
 > Heads up: the bot is live in **<workspace>** now — anyone in the
 > workspace can DM it as long as OpenIT is running on this machine.
 
