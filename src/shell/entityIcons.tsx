@@ -16,7 +16,6 @@ export type EntityKind =
   | "people"
   | "knowledge"
   | "knowledge-base"
-  | "knowledge"
   | "files"
   | "filestores"
   | "library"

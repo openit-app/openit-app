@@ -66,14 +66,14 @@ export async function resolvePathToSource(
   }
 
   // traces/<ticketId>/ (folder) -> agent-trace-list
-  const traceFolderMatch = rel.match(/^\.openit\/traces\/([^/]+)$/);
+  const traceFolderMatch = rel.match(/^traces\/([^/]+)$/);
   if (traceFolderMatch) {
     return resolveTraceFolder(path, repo, traceFolderMatch[1]);
   }
 
   // traces/<ticketId>/<isoStamp>.json -> agent-trace
   const traceMatch = rel.match(
-    /^\.openit\/traces\/([^/]+)\/([^/]+)\.json$/,
+    /^traces\/([^/]+)\/([^/]+)\.json$/,
   );
   if (traceMatch) {
     return resolveTraceFile(path, repo, traceMatch[1]);

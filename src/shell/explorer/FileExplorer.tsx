@@ -350,7 +350,7 @@ export function FileExplorer({
                     rel === "reports" ||
                     // Per-ticket traces folder → agent-trace-list
                     // view (every turn stacked with separators).
-                    rel.match(/^\.openit\/traces\/[^/]+$/)
+                    rel.match(/^traces\/[^/]+$/)
                   ) {
                     onSelect(n.path);
                   }
