@@ -220,75 +220,27 @@ pub(super) fn build_chat_prompt(
         );
     }
     prompt.push_str(
-        "\nIMPORTANT: Do NOT write any conversation turn files (no \
-         msg-*.json under databases/conversations/). The server \
-         already wrote the asker's turn before invoking you, and the \
-         server will write your agent reply turn after you finish \
-         using your stdout as the body. If you write a turn yourself \
-         it WILL appear duplicated in the admin UI.\n\n\
-         Also do NOT Edit the ticket's `status` field — the server \
-         sets it based on the marker you emit (see below), so an \
-         agent-side Edit will race against the server and may be \
-         clobbered.\n\n\
-         Your job: (1) read the ticket + conversation history for \
-         context, (2) run `Bash node .claude/scripts/kb-search.mjs \
-         \"<query>\"` to search the local knowledge base when the \
-         user is asking a new question — pass a compact query that \
-         captures it, (3) decide one of exactly three outcomes — \
-         `answered` (KB had a relevant article and you replied from \
-         it; ticket → open), `escalated` (KB had no relevant match, \
-         or the question needs a human; ticket → escalated), or \
-         `resolved` (the asker has explicitly confirmed the case is \
-         done — \"thanks that worked\" / \"all good\" / \"works now\" \
-         — and a prior agent or admin turn provided the answer; \
-         ticket → resolved, terminal), (4) output your reply to the \
-         user, then (5) end with a status marker on its own line: \
-         `<<STATUS:answered>>`, `<<STATUS:escalated>>`, or \
-         `<<STATUS:resolved>>`.\n\n\
-         The marker reflects your *turn outcome*, not just the case \
-         lifecycle. Multiple `answered` turns in a row is normal for \
-         ongoing back-and-forth. Use `resolved` only when you're \
-         confident the asker is closing the loop — when in doubt, \
-         emit `answered`; the admin can always close manually, and \
-         the asker can reopen by sending another message.\n\n\
-         CRITICAL: do NOT ask the user a follow-up question. There \
-         is no \"clarifying\" outcome. If you can't answer from the \
-         KB on the information you already have, escalate — the \
-         admin will ask the asker any follow-ups themselves. Asking \
-         the user another question instead of escalating leaves the \
-         ticket stuck and frustrates the user.\n\n\
-         Your reply IS what the asker sees — a real person, usually \
-         a non-technical employee asking for help. There is no \
-         separate channel for your thinking, status, or working \
-         notes. Every word you write reaches them.\n\n\
-         Two filters before sending. (1) Audience: would this word \
-         make sense to someone who has never seen the helpdesk's \
-         plumbing? If it's vocabulary from your side of the system — \
-         the names of internal tools, fields, statuses, queues, \
-         scoring, escalation paths — translate it into the asker's \
-         terms or drop it. (2) Purpose: is this sentence telling them \
-         something useful about their problem, or describing what you \
-         did to reach the answer? If it's the second, cut it. They \
-         asked for help, not for a tour of how you work.\n\n\
-         Format: one short paragraph, plain text. No markdown (no \
-         `**bold**`, no `*italics*`, no `# headings`, no `- bullet \
-         lists`, no fenced code, no tables). Chat and Slack render \
-         raw text, so markdown shows through as literal characters. \
-         If you need steps, write `1. `, `2. ` inside normal \
-         sentences.\n\n\
-         A real failure mode to anchor what NOT to do — this reply \
-         actually went out: \"The KB doesn't have anything relevant \
-         on Amplitude — the only match is a VPN article with a very \
-         low score. I'll escalate this to a human admin.\\n\\nHey \
-         Sankalp, thanks for reaching out. I don't have a knowledge \
-         base article for Amplitude login issues, so I'm escalating \
-         this to the admin team so someone can help you directly. \
-         They'll follow up shortly.\" — both filters failed: the \
-         first paragraph narrates the lookup and decision, and the \
-         second leaks internal vocabulary to do what could have been \
-         one warm sentence: \"Hey Sankalp — I don't have a ready \
-         answer for this one, so I've passed it on to your IT team. \
-         Someone will follow up here shortly.\"\n\n\
+        "\nRuntime contract (the persona above owns voice and the \
+         per-turn job; this section is the server's contract on top):\n\n\
+         Do NOT write any conversation turn files (no msg-*.json \
+         under databases/conversations/). The server wrote the \
+         asker's turn before invoking you and will write your reply \
+         turn after, using your stdout as the body — a turn you \
+         write yourself will appear duplicated in the admin UI.\n\n\
+         Do NOT Edit the ticket's `status` field. The server sets \
+         status from the marker you emit (below); an agent-side \
+         Edit races against the server and may be clobbered.\n\n\
+         End your output with a status marker on its own line: \
+         `<<STATUS:answered>>` (you replied from a saved article), \
+         `<<STATUS:escalated>>` (no usable answer — hand off), or \
+         `<<STATUS:resolved>>` (the asker has explicitly confirmed \
+         the case is done — \"thanks that worked\" / \"all good\" — \
+         and a prior agent or admin turn provided the answer). The \
+         marker reflects this turn's outcome, not the whole case; \
+         multiple `answered` turns in a row is normal for ongoing \
+         back-and-forth. When in doubt, emit `answered` — the admin \
+         can close manually, and the asker can reopen by sending \
+         another message.\n\n\
          The server strips the marker line before writing the turn. \
          Missing or malformed marker → defaults to escalated, so the \
          admin still sees the ticket.",
