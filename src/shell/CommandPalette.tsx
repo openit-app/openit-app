@@ -109,7 +109,8 @@ export function CommandPalette({
       // ── Run (featured commands) ──
       { id: "run-salesforce-gmail", label: "/salesforce-gmail", hint: "Bridge Salesforce and Gmail", group: "Run", run: () => injectIntoChat("/salesforce-gmail") },
       { id: "run-backup", label: "/backup", hint: "Export data to Google Drive", group: "Run", run: () => injectIntoChat("/backup") },
-      { id: "run-onboard-offboard", label: "/onboard-offboard", hint: "Grant or revoke access", group: "Run", run: () => injectIntoChat("/onboard-offboard") },
+      { id: "run-onboard", label: "/onboard", hint: "Grant access for a new employee", group: "Run", run: () => injectIntoChat("/onboard") },
+      { id: "run-offboard", label: "/offboard", hint: "Revoke access for a departing employee", group: "Run", run: () => injectIntoChat("/offboard") },
       { id: "run-salesforce-data-quality", label: "/salesforce-data-quality", hint: "Find and fix dirty data", group: "Run", run: () => injectIntoChat("/salesforce-data-quality") },
       { id: "run-slack-to-kb", label: "/slack-to-kb", hint: "Mine Slack into KB articles", group: "Run", run: () => injectIntoChat("/slack-to-kb") },
       { id: "run-patient-inquiry", label: "/patient-inquiry", hint: "Patient inquiry agent", group: "Run", run: () => injectIntoChat("/patient-inquiry") },

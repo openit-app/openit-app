@@ -137,7 +137,7 @@ export function routeFile(
     return { subdir: ".claude/scripts", filename, substituteSlug: false };
   }
   // Seed skills are admin-facing commands (salesforce-gmail, backup,
-  // onboard-offboard, etc.) that must be available on every fresh
+  // onboard, offboard, etc.) that must be available on every fresh
   // install — not gated behind `/load-sample-data`. Route them to
   // `filestores/skills/` so they appear in the Commands tile. The
   // sync loop applies a write-once gate (same as agents) so re-syncs

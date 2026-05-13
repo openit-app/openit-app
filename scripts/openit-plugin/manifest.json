@@ -1,5 +1,5 @@
 {
-  "version": "2026-05-11-004",
+  "version": "2026-05-12-001",
   "files": [
     { "path": "CLAUDE.md" },
     { "path": "skills/ai-intake.md" },
@@ -56,13 +56,16 @@
     { "path": "seed/skills/hello-world.md" },
     { "path": "seed/skills/salesforce-gmail.md" },
     { "path": "seed/skills/backup.md" },
-    { "path": "seed/skills/onboard-offboard.md" },
+    { "path": "seed/skills/onboard.md" },
+    { "path": "seed/skills/offboard.md" },
     { "path": "seed/skills/salesforce-data-quality.md" },
     { "path": "seed/skills/slack-to-kb.md" },
     { "path": "seed/skills/drive-search.md" },
     { "path": "seed/skills/asset-tracking.md" },
     { "path": "seed/skills/pipeline-outreach.md" },
     { "path": "seed/skills/patient-inquiry.md" },
-    { "path": "seed/scripts/hello-world.mjs" }
+    { "path": "seed/scripts/hello-world.mjs" },
+    { "path": "seed/scripts/say-hello.mjs" },
+    { "path": "seed/scripts/list-people.mjs" }
   ]
 }

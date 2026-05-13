@@ -19,7 +19,8 @@ const FEATURED_COMMANDS: string[] = [
   "cleanup",                 // Remove sample data
   "salesforce-gmail",        // Salesforce + email disconnect
   "backup",                  // Manual backups
-  "onboard-offboard",        // Onboarding/offboarding access management
+  "onboard",                 // Onboarding new employees
+  "offboard",                // Offboarding departing employees
   "salesforce-data-quality",  // Data quality / cleanup in Salesforce
   "slack-to-kb",             // Knowledge trapped in Slack
   "patient-inquiry",          // Patient inquiry handling (Salesforce Cases)

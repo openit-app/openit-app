@@ -58,7 +58,7 @@ When the admin says someone is leaving, cross-reference their assigned assets:
 1. Show all devices assigned to the person
 2. Ask what to do with each: "Return to IT", "Transfer to [someone]", "Decommission"
 3. Update the Monday board accordingly
-4. Offer to also run the `/onboard-offboard` skill for access revocation
+4. Offer to also run the `/offboard` skill for access revocation
 
 ## Reporting
 
