@@ -220,8 +220,8 @@ pub(super) fn build_chat_prompt(
         );
     }
     prompt.push_str(
-        "\nRuntime contract (the persona above owns voice and the \
-         per-turn job; this section is the server's contract on top):\n\n\
+        "\nRuntime contract — system invariants that apply to every \
+         agent, regardless of the persona above:\n\n\
          Do NOT write any conversation turn files (no msg-*.json \
          under databases/conversations/). The server wrote the \
          asker's turn before invoking you and will write your reply \
@@ -230,6 +230,17 @@ pub(super) fn build_chat_prompt(
          Do NOT Edit the ticket's `status` field. The server sets \
          status from the marker you emit (below); an agent-side \
          Edit races against the server and may be clobbered.\n\n\
+         Do NOT ask the asker a follow-up question. The system has \
+         no \"waiting on the asker\" state — a turn that asks for \
+         more info leaves the ticket stuck. If you can't answer \
+         from the information you already have, hand off; the human \
+         teammate will ask any follow-ups themselves.\n\n\
+         Plain text only. The chat surface and the Slack ingest both \
+         render raw text, so markdown shows through as literal \
+         characters: no `**bold**`, no `*italics*`, no `# headings`, \
+         no `- bullet lists`, no fenced code blocks, no tables. If \
+         you need to enumerate steps, write `1. `, `2. ` inside \
+         normal sentences.\n\n\
          End your output with a status marker on its own line: \
          `<<STATUS:answered>>` (you replied from a saved article), \
          `<<STATUS:escalated>>` (no usable answer — hand off), or \
