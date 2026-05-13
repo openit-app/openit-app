@@ -1,15 +1,17 @@
 ---
 name: asset-tracking
-description: Query and manage device/asset inventory in Monday.com — who owns what, who has extras, trigger offboarding.
+description: Query and manage device/asset inventory — who owns what, who has extras, trigger offboarding.
 ---
-
-## Prerequisites
-
-- **Monday.com MCP** — connect from the Tools station (MCP tab). This is where the asset inventory board lives.
 
 ## What this skill does
 
-You help the admin query and manage their IT asset inventory stored in Monday.com. Common tasks: look up who owns a device, find people with multiple assets, flag unassigned equipment, and tie into the offboarding flow when someone leaves.
+You help the admin query and manage their IT asset inventory. Common tasks: look up who owns a device, find people with multiple assets, flag unassigned equipment, and tie into the offboarding flow when someone leaves.
+
+## Where assets live
+
+Assets are stored as JSON files in `databases/assets/`. Each file is one device or piece of equipment. Check `databases/assets/_schema.json` for the field structure.
+
+If the admin has also connected an external system (Monday.com MCP, Airtable, or a spreadsheet), query that too — but the local vault is always the source of truth.
 
 ## How to interact
 
@@ -23,7 +25,7 @@ The admin asks about assets in plain language:
 
 ### Query flow:
 
-1. Use the Monday.com MCP to read the asset board
+1. Read files in `databases/assets/` using Glob + Read
 2. Filter and search based on the admin's question
 3. Present results as a clean table: device name, type, serial, assigned to, status
 4. Offer follow-up actions
@@ -31,34 +33,37 @@ The admin asks about assets in plain language:
 ## Common queries
 
 **Look up by person:**
-"Show me everything assigned to [name]" → Query the Monday board for items where the assigned person matches.
+"Show me everything assigned to [name]" → Read all asset files, filter where assignee matches.
 
 **Look up by device:**
-"Who has [device/serial]?" → Search items by name or serial number column.
+"Who has [device/serial]?" → Search files by name or serial field.
 
 **Find anomalies:**
-"Who has more than one laptop?" → Group by assigned person, count devices per person, filter where count > 1.
+"Who has more than one laptop?" → Group by assignee, count per person, filter where count > 1.
 
 **Unassigned inventory:**
-"What devices don't have an owner?" → Filter for items where the person column is empty.
+"What devices don't have an owner?" → Filter for files where assignee is empty or null.
 
 **Recent changes:**
-"What devices were assigned this month?" → Filter by last modified date.
+"What devices were assigned this month?" → Filter by last modified or date field.
 
 ## Actions
 
 **Assign a device:**
-Update the person column on the Monday board item. Log: "Assigned MacBook Pro (SN: C02X...) to Jane Smith."
+Update the assignee field in the asset JSON file. Log the change in a ticket.
 
 **Mark as returned:**
-Clear the person column and update the status to "Returned" or "Available". Log the change.
+Clear the assignee and set status to "available". Log the change.
+
+**Add a new device:**
+Create a new JSON file in `databases/assets/` with the device details.
 
 **Trigger offboarding:**
 When the admin says someone is leaving, cross-reference their assigned assets:
 1. Show all devices assigned to the person
 2. Ask what to do with each: "Return to IT", "Transfer to [someone]", "Decommission"
-3. Update the Monday board accordingly
-4. Offer to also run the `/offboard` skill for access revocation
+3. Update the asset files accordingly
+4. Offer to also run `/offboard` for access revocation
 
 ## Reporting
 
@@ -68,7 +73,7 @@ The admin may also want summary reports:
 - "What's our device-to-employee ratio?"
 - "Show me the asset inventory by department"
 
-Query the Monday board and compute the stats. Present as a summary with the table below it.
+Read all asset files and compute the stats. Present as a summary with the table below it.
 
 ## Tone
 
