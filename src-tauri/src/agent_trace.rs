@@ -387,7 +387,6 @@ mod tests {
         persist_trace(tmp.path(), &doc).await.unwrap();
         let written = tmp
             .path()
-            .join(".openit")
             .join("traces")
             .join("ticket-x")
             .join("2026-04-27T18-07-08Z.json");
