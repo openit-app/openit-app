@@ -1,5 +1,5 @@
 {
-  "version": "2026-05-13-009",
+  "version": "2026-05-13-010",
   "files": [
     { "path": "CLAUDE.md" },
     { "path": "commands/ai-intake.md" },
