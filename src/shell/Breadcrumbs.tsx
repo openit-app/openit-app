@@ -19,7 +19,7 @@ const TOP_LEVEL_FOLDERS: Record<string, { label: string; listPath: string }> = {
   databases:         { label: "Databases",   listPath: "databases" },
   agents:            { label: "Agents",      listPath: "agents" },
   workflows:         { label: "Workflows",   listPath: "workflows" },
-  "knowledge-bases": { label: "Knowledge",   listPath: "knowledge-bases" },
+  "knowledge": { label: "Knowledge",   listPath: "knowledge" },
   reports:           { label: "Reports",     listPath: "reports" },
 };
 
@@ -166,13 +166,13 @@ export function breadcrumbSegments(
 
     case "agent-trace-list":
       return [
-        { label: "Traces", navigateTo: ".openit/agent-traces" },
+        { label: "Traces", navigateTo: "traces" },
         { label: source.subject || source.ticketId, navigateTo: null },
       ];
 
     case "agent-trace":
       return [
-        { label: "Traces", navigateTo: ".openit/agent-traces" },
+        { label: "Traces", navigateTo: "traces" },
         { label: source.subject || source.ticketId, navigateTo: null },
       ];
 
@@ -205,7 +205,7 @@ export function breadcrumbSegments(
         { label: "Scripts", navigateTo: "filestores/scripts" },
         { label: `Run: ${source.script.split("/").pop() ?? source.script}`, navigateTo: null },
       ];
-    case "knowledge-bases-list":
+    case "knowledge-list":
       return [{ label: "Knowledge", navigateTo: null }];
 
     default:
@@ -228,7 +228,7 @@ function filePathSegments(absPath: string, repo: string): BreadcrumbSegment[] {
   const skillMatch = rel.match(/^\.claude\/skills\/([^/]+)\/SKILL\.md$/);
   if (skillMatch) {
     return [
-      { label: "Commands", navigateTo: "filestores/skills" },
+      { label: "Commands", navigateTo: "filestores/commands" },
       { label: skillMatch[1], navigateTo: null },
     ];
   }

@@ -110,9 +110,9 @@ Write 3 sample people as JSON files:
 }
 ```
 
-### 4. Knowledge base articles (`knowledge-bases/`)
+### 4. Knowledge base articles (`knowledge/`)
 
-**`knowledge-bases/how-to-reset-slack-password.md`**
+**`knowledge/how-to-reset-slack-password.md`**
 ```markdown
 # How to reset your Slack password
 
@@ -125,7 +125,7 @@ Write 3 sample people as JSON files:
 If you're having trouble, contact IT.
 ```
 
-**`knowledge-bases/how-to-request-figma-access.md`**
+**`knowledge/how-to-request-figma-access.md`**
 ```markdown
 # How to request Figma access
 
@@ -138,7 +138,56 @@ Figma seats are managed by the Design team.
 Note: Figma viewer access is free. Editor seats require manager approval.
 ```
 
-### 5. Reports (`reports/`)
+### 5. Sample scripts (`filestores/scripts/`)
+
+Write 2 small runnable scripts so the Scripts tile demonstrates the pattern. These are intentionally trivial — the admin reads, edits, or deletes them.
+
+**`filestores/scripts/say-hello.mjs`**
+```javascript
+#!/usr/bin/env node
+// say-hello.mjs — the simplest possible script.
+const today = new Date().toISOString().slice(0, 10);
+console.log(`Hello from OpenIT — today is ${today}.`);
+```
+
+**`filestores/scripts/list-people.mjs`**
+```javascript
+#!/usr/bin/env node
+// list-people.mjs — walk the People directory and print a roster.
+import { readdir, readFile } from "node:fs/promises";
+import { join } from "node:path";
+
+const PEOPLE_DIR = join(process.cwd(), "databases", "people");
+
+async function main() {
+  let entries;
+  try {
+    entries = await readdir(PEOPLE_DIR);
+  } catch {
+    console.error(`No people dir at ${PEOPLE_DIR}.`);
+    process.exit(1);
+  }
+  const people = [];
+  for (const name of entries) {
+    if (!name.endsWith(".json") || name === "_schema.json") continue;
+    try {
+      const p = JSON.parse(await readFile(join(PEOPLE_DIR, name), "utf8"));
+      if (p?.name) people.push(p);
+    } catch { /* skip malformed */ }
+  }
+  console.log(`${people.length} people on file:`);
+  for (const p of people) {
+    console.log(`  - ${p.name} (${p.role ?? "—"}) — ${p.email ?? "no email"}`);
+  }
+}
+
+main().catch((err) => {
+  console.error("list-people failed:", err);
+  process.exit(1);
+});
+```
+
+### 6. Reports (`reports/`)
 
 **`reports/sample-weekly-overview.md`**
 ```markdown
@@ -163,13 +212,13 @@ Note: Figma viewer access is free. Editor seats require manager approval.
 - Agent auto-resolved 3 tickets using existing KB articles
 ```
 
-### 6. Done
+### 7. Done
 
 After writing all files, tell the admin:
 
-> Done — I populated the workspace with sample people, access logs, assets, knowledge base articles, and a report.
+> Done — I populated the workspace with sample people, access logs, assets, knowledge base articles, a couple of runnable scripts, and a report.
 >
-> The tiles in the left panel should now show updated counts. Click through them to see what each one holds.
+> The tiles in the left panel should now show updated counts. Click through them to see what each one holds — the Scripts tile has runnable examples you can click to execute.
 
 Do not create any sample tickets or conversations — those were already created during the tour.
 

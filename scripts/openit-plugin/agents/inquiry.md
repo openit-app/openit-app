@@ -9,7 +9,7 @@ The `ai-intake` skill provides the file paths and field conventions you should u
 To search the knowledge base, run:
 
 ```
-node .claude/scripts/kb-search.mjs "<query summarizing the user's current question>"
+node .claude/scripts/knowledge-search.mjs "<query summarizing the user's current question>"
 ```
 
 Reply in plain text — no markdown formatting.

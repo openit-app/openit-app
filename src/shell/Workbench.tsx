@@ -134,8 +134,8 @@ export function Workbench({
             }
             return;
           }
-          // Commands (filestores/skills) — count both .claude/skills dirs + custom skills
-          if (t.rel === "filestores/skills") {
+          // Commands (filestores/commands) — count both .claude/skills dirs + custom skills
+          if (t.rel === "filestores/commands") {
             let slashCount = 0;
             let customCount = 0;
             try {
@@ -144,12 +144,12 @@ export function Workbench({
               slashCount = directChildren(slashItems, slashRoot).filter((n) => n.is_dir).length;
             } catch { /* .claude/skills/ may not exist */ }
             try {
-              const customRoot = `${repo}/filestores/skills`;
+              const customRoot = `${repo}/filestores/commands`;
               const customItems = await fsList(customRoot);
               customCount = directChildren(customItems, customRoot).filter(
                 (n) => !n.is_dir && n.name.endsWith(".md"),
               ).length;
-            } catch { /* filestores/skills/ may not exist */ }
+            } catch { /* filestores/commands/ may not exist */ }
             next[t.rel] = slashCount + customCount;
             return;
           }
@@ -197,7 +197,7 @@ export function Workbench({
       }
 
       // Imperative tile highlight via .openit/highlight.json.
-      // Claude writes {"tiles":["knowledge-bases"],"ts":<ms>} when
+      // Claude writes {"tiles":["knowledge"],"ts":<ms>} when
       // it wants a tile to flash (e.g. during the getting-started
       // tour). We deduplicate by timestamp like flash.json.
       try {
@@ -375,8 +375,8 @@ export function Workbench({
   // synthetics like "tools" or parent views like "databases").
   // Only the 5 primitives (top-level containers) and system entities
   // are non-deletable. Everything inside them is fair game.
-  const PRIMITIVES = new Set(["databases", "filestores", "knowledge-bases", "reports", "agents"]);
-  const SYSTEM = new Set(["tools", ".openit/agent-traces"]);
+  const PRIMITIVES = new Set(["databases", "filestores", "knowledge", "reports", "agents"]);
+  const SYSTEM = new Set(["tools", "traces"]);
   const isDeletable = (rel: string) => {
     return !PRIMITIVES.has(rel) && !SYSTEM.has(rel);
   };

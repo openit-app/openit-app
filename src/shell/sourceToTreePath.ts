@@ -43,8 +43,8 @@ export function sourceToTreePath(
     case "filestores-list":
       return `${repo}/filestores`;
 
-    case "knowledge-bases-list":
-      return `${repo}/knowledge-bases`;
+    case "knowledge-list":
+      return `${repo}/knowledge`;
 
     case "attachments-folder":
       return `${repo}/filestores/attachments`;
@@ -55,7 +55,7 @@ export function sourceToTreePath(
     //   - agent / workflow / datastore-row / datastore-schema: row-level
     //     detail views; the underlying file path isn't carried on the
     //   - agent-trace / agent-trace-list: live under the hidden
-    //     `.openit/agent-traces/` directory which the explorer never
+    //     `traces/` directory which the explorer never
     //     surfaces.
     //   - datastore-row / datastore-schema: row-level detail views; the
     //     underlying file path isn't carried on the source.

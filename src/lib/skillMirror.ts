@@ -1,10 +1,10 @@
 // Mirror driver — keeps `.claude/skills/<name>/SKILL.md` and
 // `.claude/scripts/<name>.<ext>` in sync with the source-of-truth copies
-// under `filestores/skills/` and `filestores/scripts/`. (PIN-5829.)
+// under `filestores/commands/` and `filestores/scripts/`. (PIN-5829.)
 //
 // **Source of truth is the filestore copy.** Admins author skills /
 // scripts via `/conversation-to-automation` or by editing files under
-// `filestores/skills/` or `filestores/scripts/` directly. Those land in
+// `filestores/commands/` or `filestores/scripts/` directly. Those land in
 // the cloud filestore, sync across devices, and are visible in the
 // cloud dashboard alongside library docs.
 //
@@ -16,7 +16,7 @@
 // docs spell this out for admins.
 //
 // Loop prevention: the mirror only fires for paths under
-// `filestores/skills/` or `filestores/scripts/`. The `.claude/` writes
+// `filestores/commands/` or `filestores/scripts/`. The `.claude/` writes
 // it produces are explicitly NOT in scope, so writing them won't
 // re-trigger the mirror via the fs-watcher.
 //
@@ -27,7 +27,7 @@ import { invoke } from "@tauri-apps/api/core";
 import { fsDelete, fsRead } from "./api";
 import { onFsChanged } from "./fsWatcher";
 
-const SKILLS_PREFIX = "filestores/skills/";
+const SKILLS_PREFIX = "filestores/commands/";
 const SCRIPTS_PREFIX = "filestores/scripts/";
 const DEBOUNCE_MS = 500;
 
@@ -189,7 +189,7 @@ async function flush(): Promise<void> {
 /// Start the mirror driver for `repo`. Idempotent — calling again with
 /// a new repo tears down the previous subscription. Safe to call before
 /// any source files exist; the driver just sits quiet until something
-/// under `filestores/skills/` or `filestores/scripts/` changes.
+/// under `filestores/commands/` or `filestores/scripts/` changes.
 export async function startSkillMirrorDriver(repo: string): Promise<void> {
   await stopSkillMirrorDriver();
   activeRepo = repo;

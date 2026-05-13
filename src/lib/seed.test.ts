@@ -65,16 +65,16 @@ describe("seedRoute", () => {
     });
   });
 
-  it("routes seed/knowledge/* → knowledge-bases", () => {
+  it("routes seed/knowledge/* → knowledge", () => {
     expect(seedRoute("seed/knowledge/article.md")).toEqual({
-      subdir: "knowledge-bases",
+      subdir: "knowledge",
       filename: "article.md",
     });
   });
 
-  it("routes seed/skills/* → filestores/skills (PIN-5829)", () => {
-    expect(seedRoute("seed/skills/hello-world.md")).toEqual({
-      subdir: "filestores/skills",
+  it("routes seed/commands/* → filestores/commands (PIN-5829)", () => {
+    expect(seedRoute("seed/commands/hello-world.md")).toEqual({
+      subdir: "filestores/commands",
       filename: "hello-world.md",
     });
   });

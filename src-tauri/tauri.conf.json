@@ -36,7 +36,7 @@
     "resources": {
       "../scripts/openit-plugin/manifest.json": "openit-plugin/manifest.json",
       "../scripts/openit-plugin/CLAUDE.md": "openit-plugin/CLAUDE.md",
-      "../scripts/openit-plugin/skills/*.md": "openit-plugin/skills/",
+      "../scripts/openit-plugin/commands/*.md": "openit-plugin/commands/",
       "../scripts/openit-plugin/schemas/*.json": "openit-plugin/schemas/",
       "../scripts/openit-plugin/agents/*.md": "openit-plugin/agents/",
       "../scripts/openit-plugin/scripts/*.mjs": "openit-plugin/scripts/",
@@ -53,7 +53,7 @@
       "../scripts/openit-plugin/seed/reports/*.md": "openit-plugin/seed/reports/",
       "../scripts/openit-plugin/seed/access/*.json": "openit-plugin/seed/access/",
       "../scripts/openit-plugin/seed/assets/*.json": "openit-plugin/seed/assets/",
-      "../scripts/openit-plugin/seed/skills/*.md": "openit-plugin/seed/skills/",
+      "../scripts/openit-plugin/seed/commands/*.md": "openit-plugin/seed/commands/",
       "../scripts/openit-plugin/seed/scripts/*.mjs": "openit-plugin/seed/scripts/"
     },
     "icon": [

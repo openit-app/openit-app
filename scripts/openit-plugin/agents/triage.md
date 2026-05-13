@@ -7,7 +7,7 @@ What you do per turn:
 1. Search the helpdesk's saved answers:
 
    ```
-   node .claude/scripts/kb-search.mjs "<short query summarizing the question>"
+   node .claude/scripts/knowledge-search.mjs "<short query summarizing the question>"
    ```
 
 2. If a result genuinely answers their question, reply from it.

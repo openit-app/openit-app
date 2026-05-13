@@ -3,7 +3,7 @@
 //
 // Usage:
 //   node .claude/scripts/sync-resolve-conflict.mjs \
-//        --prefix <knowledge-bases/<name> | filestores/<name> | datastore | agent | workflow | legacy short name> \
+//        --prefix <knowledge/<name> | filestores/<name> | datastore | agent | workflow | legacy short name> \
 //        --key <manifestKey>
 //
 // What it does:
@@ -39,7 +39,7 @@
 //   accordingly.
 //
 // Prefix → manifest file:
-//   - `knowledge-bases/<name>`     → `.openit/kb-state.json` (nested)
+//   - `knowledge/<name>`     → `.openit/kb-state.json` (nested)
 //   - `filestores/<name>`          → `.openit/fs-state.json` (nested)
 //   - `datastore`                  → `.openit/datastore-state.json` (flat)
 //   - `agent`                      → `.openit/agent-state.json` (flat)
@@ -75,7 +75,7 @@ const FORCE_PUSH_MTIME_SENTINEL = 1;
 /// Map an adapter prefix to the entity-state filename. Returns null
 /// when the prefix shape is unrecognised.
 function manifestFileFor(prefix) {
-  if (prefix.startsWith("knowledge-bases/")) return ".openit/kb-state.json";
+  if (prefix.startsWith("knowledge/")) return ".openit/kb-state.json";
   if (prefix.startsWith("filestores/")) return ".openit/fs-state.json";
   if (prefix === "datastore") return ".openit/datastore-state.json";
   if (prefix === "agent") return ".openit/agent-state.json";
@@ -105,10 +105,10 @@ function isNestedManifest(manifest) {
 /// adapter prefix. Returns `{ bucket, bucketKey }` or null. `bucketKey`
 /// is the collectionId we use to write back.
 function findBucket(manifest, prefix) {
-  // KB: `knowledge-bases/<displayName>` → look up by canonical
+  // KB: `knowledge/<displayName>` → look up by canonical
   // `openit-<displayName>` collection name.
-  if (prefix.startsWith("knowledge-bases/")) {
-    const displayName = prefix.slice("knowledge-bases/".length);
+  if (prefix.startsWith("knowledge/")) {
+    const displayName = prefix.slice("knowledge/".length);
     const expected = `openit-${displayName}`;
     for (const [id, bucket] of Object.entries(manifest)) {
       if (bucket?.collection_name === expected) {
@@ -155,7 +155,7 @@ async function main() {
 
   if (args.help) {
     process.stdout.write(
-      "Usage: sync-resolve-conflict.mjs --prefix <knowledge-bases/<name>|filestores/<name>|datastore|agent|workflow> --key <manifestKey>\n",
+      "Usage: sync-resolve-conflict.mjs --prefix <knowledge/<name>|filestores/<name>|datastore|agent|workflow> --key <manifestKey>\n",
     );
     process.exit(0);
   }
@@ -166,7 +166,7 @@ async function main() {
   if (!file) {
     fail(
       "invalid_prefix",
-      `Unknown prefix: ${args.prefix}. Valid: knowledge-bases/<name>, filestores/<name>, datastore, agent, workflow.`,
+      `Unknown prefix: ${args.prefix}. Valid: knowledge/<name>, filestores/<name>, datastore, agent, workflow.`,
     );
   }
 

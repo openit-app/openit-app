@@ -487,7 +487,7 @@ export function Viewer({
       setContent("");
       return;
     }
-    if (source.kind === "knowledge-bases-list") {
+    if (source.kind === "knowledge-list") {
       setMode("rendered");
       setContent("");
       return;
@@ -622,9 +622,9 @@ export function Viewer({
   // can trickle custom icon/tone/label into the viewer header, title,
   // and child-list card views.
   const ENTITY_TO_REL: Record<string, string> = {
-    knowledge: "knowledge-bases", "knowledge-base": "knowledge-bases",
+    knowledge: "knowledge", "knowledge-base": "knowledge",
     reports: "reports", library: "filestores/library",
-    scripts: "filestores/scripts", skills: "filestores/skills",
+    scripts: "filestores/scripts", skills: "filestores/commands",
     agents: "agents", workflows: "workflows",
     attachments: "filestores/attachments",
   };
@@ -638,9 +638,9 @@ export function Viewer({
       case "assets-list": return "databases/assets";
       case "conversations-list": return "databases/tickets";
       case "tools": return "tools";
-      case "commands-station": return "filestores/skills";
+      case "commands-station": return "filestores/commands";
       case "scripts-station": return "filestores/scripts";
-      case "traces-list": return ".openit/agent-traces";
+      case "traces-list": return "traces";
       case "databases-list": return "databases";
       case "filestores-list": return "filestores";
       default: return null;
@@ -683,7 +683,7 @@ export function Viewer({
       case "databases-list":     return "Databases";
       case "filestores-list":    return "Filestores";
       case "attachments-folder": return "Attachments";
-      case "knowledge-bases-list": return "Knowledge";
+      case "knowledge-list": return "Knowledge";
       case "agent-trace":
         return source.subject || source.ticketId;
       case "agent-trace-list":
@@ -713,7 +713,7 @@ export function Viewer({
   // Is this a command/skill file that can be deleted?
   const isCommandFile =
     source.kind === "file" &&
-    (source.path.includes("/filestores/skills/") ||
+    (source.path.includes("/filestores/commands/") ||
       source.path.includes("/.claude/skills/"));
   const showRowTabs = source.kind === "datastore-row";
   const showAgentTabs = source.kind === "agent";
@@ -1635,14 +1635,14 @@ export function Viewer({
     // library) — same layout as databases-list. Click attachments →
     // attachments-folder welcome stub. Click library → entity-folder
     // file view.
-    if (source.kind === "knowledge-bases-list") {
+    if (source.kind === "knowledge-list") {
       return (
         <div className="viewer-summary">
           {folderUploadError && (
             <p className="viewer-edit-error">{folderUploadError}</p>
           )}
           <EntityCardGrid
-            kind="knowledge-bases"
+            kind="knowledge"
             cards={source.collections.map((c) => ({
               key: c.path,
               title: c.name,
@@ -2102,8 +2102,8 @@ export function Viewer({
             ? "attachments"
             : (source.entity as EntityKind);
         break;
-      case "knowledge-bases-list":
-        headerKind = "knowledge-bases";
+      case "knowledge-list":
+        headerKind = "knowledge";
         break;
       case "filestores-list":
         headerKind = "filestores";
@@ -2490,7 +2490,7 @@ export function Viewer({
               try {
                 await entityDeleteFile(repo, toRepoRelative(repo, dir), filename);
                 // Navigate back to commands list
-                if (onOpenPath) void onOpenPath(`${repo}/filestores/skills`);
+                if (onOpenPath) void onOpenPath(`${repo}/filestores/commands`);
               } catch (err) {
                 console.error("[command-delete] failed:", err);
               }

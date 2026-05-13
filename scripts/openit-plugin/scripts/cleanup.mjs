@@ -16,7 +16,7 @@ const targets = [
   { dir: "databases/people", pattern: /^sample-person-.*\.json$/ },
   { dir: "databases/access", pattern: /^sample-.*\.json$/ },
   { dir: "databases/assets", pattern: /^sample-.*\.json$/ },
-  { dir: "knowledge-bases", pattern: /^sample-.*\.md$/ },
+  { dir: "knowledge", pattern: /^sample-.*\.md$/ },
   { dir: "reports", pattern: /^sample-.*\.md$/ },
 ];
 

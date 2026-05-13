@@ -4,8 +4,8 @@ use std::time::SystemTime;
 
 use super::types::KbLocalFile;
 
-// Flat KB directory: all articles live directly in `knowledge-bases/`.
-pub(crate) const KB_DIR: &str = "knowledge-bases";
+// Flat KB directory: all articles live directly in `knowledge/`.
+pub(crate) const KB_DIR: &str = "knowledge";
 
 // Filestore default directory.
 pub(crate) const FS_DIR: &str = "filestores/library";
@@ -22,9 +22,9 @@ pub(crate) fn ensure_dir(p: &Path) -> Result<(), String> {
     fs::create_dir_all(p).map_err(|e| e.to_string())
 }
 
-/// Resolve `<repo>/knowledge-bases/<filename>`. The `subdir` parameter
+/// Resolve `<repo>/knowledge/<filename>`. The `subdir` parameter
 /// is accepted for API backwards compatibility but ignored — all KB
-/// files live in the flat `knowledge-bases/` directory.
+/// files live in the flat `knowledge/` directory.
 pub(crate) fn kb_path_with_optional_subdir(
     repo: &str,
     filename: &str,
@@ -33,7 +33,7 @@ pub(crate) fn kb_path_with_optional_subdir(
     safe_kb_path(repo, filename)
 }
 
-/// Resolve a `<repo>/knowledge-bases/<filename>` path and assert it stays
+/// Resolve a `<repo>/knowledge/<filename>` path and assert it stays
 /// inside the KB directory. Guards against `..` segments, absolute paths, or
 /// nested separators sneaking in via server responses or future drag sources.
 /// `filename` must be a single path component (no directory parts).
@@ -338,8 +338,8 @@ mod tests {
     #[test]
     fn safe_kb_path_accepts_plain_filename() {
         let p = safe_kb_path("/tmp/repo", "notes.md").unwrap();
-        assert!(p.ends_with("knowledge-bases/notes.md"));
-        assert!(!p.ends_with("knowledge-bases/default/notes.md"));
+        assert!(p.ends_with("knowledge/notes.md"));
+        assert!(!p.ends_with("knowledge/default/notes.md"));
     }
 
     #[test]
@@ -365,13 +365,12 @@ mod tests {
 
     #[test]
     fn kb_path_with_optional_subdir_always_uses_flat_dir() {
-        // subdir is ignored — all KB files go to knowledge-bases/
+        // subdir is ignored — all KB files go to knowledge/
         let p = kb_path_with_optional_subdir("/tmp/repo", "notes.md", None).unwrap();
-        assert!(p.ends_with("knowledge-bases/notes.md"));
-        let p2 =
-            kb_path_with_optional_subdir("/tmp/repo", "notes.md", Some("knowledge-bases/runbooks"))
-                .unwrap();
-        assert!(p2.ends_with("knowledge-bases/notes.md"));
+        assert!(p.ends_with("knowledge/notes.md"));
+        let p2 = kb_path_with_optional_subdir("/tmp/repo", "notes.md", Some("knowledge/runbooks"))
+            .unwrap();
+        assert!(p2.ends_with("knowledge/notes.md"));
     }
 
     #[test]
@@ -379,7 +378,7 @@ mod tests {
         assert!(kb_path_with_optional_subdir(
             "/tmp/repo",
             "sub/dir/file.md",
-            Some("knowledge-bases/runbooks")
+            Some("knowledge/runbooks")
         )
         .is_err());
         assert!(kb_path_with_optional_subdir("/tmp/repo", "", None).is_err());

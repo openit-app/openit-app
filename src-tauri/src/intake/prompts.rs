@@ -172,7 +172,7 @@ pub(super) fn build_chat_prompt(
         "Operational context: You are running inside a chat-intake \
          turn. Use the `ai-intake` skill at `.claude/skills/ai-intake/SKILL.md` \
          for the file paths and field conventions. Use \
-         `Bash node .claude/scripts/kb-search.mjs \"<query>\"` to find \
+         `Bash node .claude/scripts/knowledge-search.mjs \"<query>\"` to find \
          relevant knowledge-base articles.\n\n",
     );
     prompt.push_str(&format!(

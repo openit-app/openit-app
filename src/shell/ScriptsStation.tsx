@@ -10,9 +10,9 @@ type ScriptEntry = {
 };
 
 /**
- * ScriptsStation — flat list of scripts with a visible Run button
- * on each row. Merges system (.claude/scripts/) and custom
- * (filestores/scripts/) into one deduplicated list.
+ * ScriptsStation — flat list of user-created scripts from
+ * `filestores/scripts/` with a visible Run button on each row.
+ * System scripts under `.claude/scripts/` are plumbing and stay hidden.
  */
 export function ScriptsStation({
   repo,
@@ -28,29 +28,17 @@ export function ScriptsStation({
   const [scripts, setScripts] = useState<ScriptEntry[]>([]);
   const [showNewInput, setShowNewInput] = useState(false);
   const [newName, setNewName] = useState("");
+  const [search, setSearch] = useState("");
+
+  const q = search.toLowerCase();
+  const visible = q
+    ? scripts.filter((s) => s.name.toLowerCase().includes(q) || s.description.toLowerCase().includes(q))
+    : scripts;
 
   useEffect(() => {
     let cancelled = false;
     (async () => {
       const entries: ScriptEntry[] = [];
-
-      // System scripts from .claude/scripts/
-      try {
-        const root = `${repo}/.claude/scripts`;
-        const nodes = await fsList(root);
-        const prefix = `${root}/`;
-        const files = nodes.filter((n) => {
-          if (n.is_dir) return false;
-          const tail = n.path.startsWith(prefix) ? n.path.slice(prefix.length) : "";
-          if (!tail || tail.includes("/")) return false;
-          return n.name.endsWith(".mjs") || n.name.endsWith(".js") || n.name.endsWith(".cjs");
-        });
-        for (const f of files) {
-          entries.push({ name: f.name, description: extractComment(await fsRead(f.path).catch(() => "")), path: f.path });
-        }
-      } catch { /* .claude/scripts/ doesn't exist */ }
-
-      // Custom scripts from filestores/scripts/
       try {
         const root = `${repo}/filestores/scripts`;
         const nodes = await fsList(root);
@@ -66,17 +54,8 @@ export function ScriptsStation({
         }
       } catch { /* filestores/scripts/ doesn't exist */ }
 
-      // Deduplicate by name, keep first (system wins)
-      const seen = new Set<string>();
-      const deduped: ScriptEntry[] = [];
-      for (const e of entries) {
-        if (!seen.has(e.name)) {
-          seen.add(e.name);
-          deduped.push(e);
-        }
-      }
-      deduped.sort((a, b) => a.name.localeCompare(b.name));
-      if (!cancelled) setScripts(deduped);
+      entries.sort((a, b) => a.name.localeCompare(b.name));
+      if (!cancelled) setScripts(entries);
     })();
     return () => { cancelled = true; };
   }, [repo, fsTick]);
@@ -139,6 +118,14 @@ main().catch((e) => {
         </Button>
       </div>
 
+      <input
+        className={styles.search}
+        type="text"
+        placeholder="Search scripts…"
+        value={search}
+        onChange={(e) => setSearch(e.target.value)}
+      />
+
       {showNewInput && (
         <div style={{ display: "flex", gap: 8, alignItems: "center", marginBottom: 4 }}>
           <input
@@ -159,11 +146,11 @@ main().catch((e) => {
         </div>
       )}
 
-      {scripts.length === 0 ? (
-        <div className={styles.empty}>No scripts found.</div>
+      {visible.length === 0 ? (
+        <div className={styles.empty}>{q ? "No matching scripts." : "No scripts found."}</div>
       ) : (
         <div className={styles.grid}>
-          {scripts.map((s) => (
+          {visible.map((s) => (
             <div
               key={s.name}
               className={styles.card}
