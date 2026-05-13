@@ -24980,6 +24980,7 @@ async function startSessionAndDeliver({
     ticket_id: started.ticket_id,
     channel_id: channelId,
     thread_ts: threadTs,
+    slack_user_id: slackUserId,
     email
   };
   if (!delivery[started.ticket_id]) {
@@ -25021,12 +25022,7 @@ async function runTurnWithRetry({ key, message }) {
           kind: "slack",
           workspace_id: WORKSPACE_ID,
           channel_id: sess.channel_id,
-          // We don't have the originating slack user_id at this point
-          // — the session row tracks the thread, not the user. The
-          // intake server only writes this field to disk on the very
-          // first turn (when the ticket is created), so passing a
-          // placeholder on resume is safe.
-          user_id: BOT_USER_ID,
+          user_id: sess.slack_user_id,
           thread_ts: sess.thread_ts
         },
         resumeTicketId: sess.ticket_id

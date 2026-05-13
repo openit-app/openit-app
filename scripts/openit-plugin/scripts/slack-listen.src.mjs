@@ -100,11 +100,13 @@ function mustEnv(k) {
 //     ticket turn.
 //
 //   { state: "active", session_id, ticket_id, channel_id, thread_ts,
-//     email }
+//     slack_user_id, email }
 //     A live session scoped to a single thread (one ticket). All
 //     in-thread messages route here until the user starts a new
 //     top-level DM (which creates a new thread → new session →
-//     new ticket).
+//     new ticket). `slack_user_id` is retained so that a 404-resume
+//     can replay the originating user's identity to the intake
+//     server instead of falling back to a placeholder.
 //
 // delivery[ticket_id] = { last_delivered_msg_id, channel_id, thread_ts }
 //   Per-ticket egress watermark + Slack address. The thread anchor
@@ -521,6 +523,7 @@ async function startSessionAndDeliver({
     ticket_id: started.ticket_id,
     channel_id: channelId,
     thread_ts: threadTs,
+    slack_user_id: slackUserId,
     email,
   };
   if (!delivery[started.ticket_id]) {
@@ -568,12 +571,7 @@ async function runTurnWithRetry({ key, message }) {
           kind: "slack",
           workspace_id: WORKSPACE_ID,
           channel_id: sess.channel_id,
-          // We don't have the originating slack user_id at this point
-          // — the session row tracks the thread, not the user. The
-          // intake server only writes this field to disk on the very
-          // first turn (when the ticket is created), so passing a
-          // placeholder on resume is safe.
-          user_id: BOT_USER_ID,
+          user_id: sess.slack_user_id,
           thread_ts: sess.thread_ts,
         },
         resumeTicketId: sess.ticket_id,
