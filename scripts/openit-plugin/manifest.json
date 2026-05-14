@@ -1,5 +1,5 @@
 {
-  "version": "2026-05-13-010",
+  "version": "2026-05-14-001",
   "files": [
     { "path": "CLAUDE.md" },
     { "path": "commands/ai-intake.md" },
@@ -19,6 +19,7 @@
     { "path": "scripts/knowledge-search.mjs" },
     { "path": "scripts/report-overview.mjs" },
     { "path": "scripts/cleanup.mjs" },
+    { "path": "scripts/load-sample-data.mjs" },
     { "path": "scripts/slack-copy-manifest.mjs" },
     { "path": "scripts/slack-manifest.yml" },
     { "path": "scripts/slack-listen.bundle.cjs" },
