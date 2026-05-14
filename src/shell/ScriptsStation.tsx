@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { fsList, fsRead, scriptRun, entityWriteFile } from "../lib/api";
+import { isDirectChild } from "../lib/paths";
 import { Button } from "../ui";
 import styles from "./ToolsPanel.module.css";
 
@@ -42,14 +43,8 @@ export function ScriptsStation({
       try {
         const root = `${repo}/filestores/scripts`;
         const nodes = await fsList(root);
-        // Normalize separators so `startsWith` works on Windows
-        // (path returned from Tauri uses backslashes).
-        const prefix = `${root.replace(/\\/g, "/")}/`;
         const files = nodes.filter((n) => {
-          if (n.is_dir) return false;
-          const p = n.path.replace(/\\/g, "/");
-          const tail = p.startsWith(prefix) ? p.slice(prefix.length) : "";
-          if (!tail || tail.includes("/")) return false;
+          if (n.is_dir || !isDirectChild(root, n.path)) return false;
           return n.name.endsWith(".mjs") || n.name.endsWith(".js") || n.name.endsWith(".cjs") || n.name.endsWith(".py");
         });
         for (const f of files) {

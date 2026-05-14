@@ -11,6 +11,7 @@
 // (`agents`, `tools`, `traces`).
 
 import { fsRead, fsList, entityWriteFile, type FileNode } from "./api";
+import { isDirectChild } from "./paths";
 import type { ToneKey } from "../shell/entityIcons";
 
 // ── Types ────────────────────────────────────────────────────────────
@@ -205,16 +206,7 @@ function capitalize(s: string): string {
 }
 
 function directChildDirs(items: FileNode[], rootAbs: string): FileNode[] {
-  // Normalize separators — see comment in Workbench.directChildren.
-  const root = rootAbs.replace(/\\/g, "/");
-  const prefix = `${root}/`;
-  return items.filter((n) => {
-    if (!n.is_dir) return false;
-    const p = n.path.replace(/\\/g, "/");
-    if (!p.startsWith(prefix)) return false;
-    const tail = p.slice(prefix.length);
-    return tail.length > 0 && !tail.includes("/");
-  });
+  return items.filter((n) => n.is_dir && isDirectChild(rootAbs, n.path));
 }
 
 export async function discoverTiles(repo: string): Promise<DiscoveredTile[]> {

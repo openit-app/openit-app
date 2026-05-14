@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { fsList, fsRead, entityWriteFile } from "../lib/api";
+import { isDirectChild } from "../lib/paths";
 import { writeToActiveSession } from "./activeSession";
 import { Button } from "../ui";
 import styles from "./ToolsPanel.module.css";
@@ -58,15 +59,7 @@ export function CommandsStation({
       try {
         const root = `${repo}/.claude/skills`;
         const nodes = await fsList(root);
-        // Normalize path separators so `startsWith` works on Windows
-        // (where node.path comes back with backslashes).
-        const prefix = `${root.replace(/\\/g, "/")}/`;
-        const dirs = nodes.filter((n) => {
-          if (!n.is_dir) return false;
-          const p = n.path.replace(/\\/g, "/");
-          const tail = p.startsWith(prefix) ? p.slice(prefix.length) : "";
-          return tail.length > 0 && !tail.includes("/");
-        });
+        const dirs = nodes.filter((n) => n.is_dir && isDirectChild(root, n.path));
         await Promise.all(
           dirs.map(async (d) => {
             const skillMdPath = `${d.path}/SKILL.md`;
