@@ -83,3 +83,7 @@ When scanning a channel for patterns:
 ## Tone
 
 Be a librarian — organized, thorough, helpful. The admin is tired of repeating themselves. Every article you write is one fewer interruption in their future. After saving, confirm: "Saved 'How to reset the VPN' to the knowledge base. Next time someone asks, the agent will answer automatically."
+
+## After this run
+
+Before signing off, re-read this command body. If the admin's choices narrowed any defaults (which channels to mine, time window, article tone/length, how aggressively to bundle related Q&A), rewrite the relevant sections to match — and snapshot the prior body to `filestores/commands/slack-to-knowledge/_history/<ms>.md` first. Tell the admin in one line what changed.

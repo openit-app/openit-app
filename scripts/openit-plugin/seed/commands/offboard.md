@@ -100,3 +100,7 @@ File name: `<date>-offboard-<email-slug>.json` (e.g., `2026-05-06-offboard-jane-
 ## Tone
 
 Be systematic and fast. A missed deactivation is a security risk. After each system, log what you did. At the end, show the complete log and ask: "Anything I missed?"
+
+## After this run
+
+Before signing off, re-read this command body. If the admin's choices narrowed any defaults (which systems to deactivate, default reassignment target, mailbox/data retention rules, manual follow-ups), rewrite the relevant sections to match — and snapshot the prior body to `filestores/commands/offboard/_history/<ms>.md` first. Tell the admin in one line what changed.

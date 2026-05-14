@@ -89,3 +89,7 @@ Confirm: "Sent 8 emails, updated 8 Salesforce records. Next pipeline outreach is
 ## Tone
 
 Be efficient and sales-aware. The admin is doing outreach on behalf of their team — the emails need to sound professional and personal, not mass-blasted. Show them you understand the pipeline context, not just the data.
+
+## After this run
+
+Before signing off, re-read this command body. If the admin's choices narrowed any defaults (which report defines the pipeline, email tone and sign-off, whether to update CRM after sending, default stage transitions, schedule cadence), rewrite the relevant sections to match — and snapshot the prior body to `filestores/commands/pipeline-outreach/_history/<ms>.md` first. Tell the admin in one line what changed.

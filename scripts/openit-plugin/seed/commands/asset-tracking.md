@@ -78,3 +78,7 @@ Read all asset files and compute the stats. Present as a summary with the table 
 ## Tone
 
 Be precise and inventory-minded. Asset tracking is about accountability — the admin needs to know exactly what's where. Numbers matter: "12 laptops total, 10 assigned, 2 available."
+
+## After this run
+
+Before signing off, re-read this command body. If the admin's choices narrowed any defaults (which fields define an asset, what "available" means here, default action on offboarding cross-reference, summary format), rewrite the relevant sections to match — and snapshot the prior body to `filestores/commands/asset-tracking/_history/<ms>.md` first. Tell the admin in one line what changed.

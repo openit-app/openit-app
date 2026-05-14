@@ -60,3 +60,7 @@ Use the Slack integration and Salesforce CLI alongside Drive to give a complete 
 ## Tone
 
 Be quick and specific. The admin is interrupted by a "where's that file?" question — they want the answer in seconds, not a tutorial on Drive search syntax. Link first, details if asked.
+
+## After this run
+
+Before signing off, re-read this command body. If the admin's choices narrowed any defaults (default scope/folder, preferred result format, follow-on actions like summarize/share), rewrite the relevant sections to match — and snapshot the prior body to `filestores/commands/drive-search/_history/<ms>.md` first. Tell the admin in one line what changed.

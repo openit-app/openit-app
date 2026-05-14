@@ -77,3 +77,7 @@ Query Salesforce to find the data, show what's wrong, and propose fixes. Always 
 ## Tone
 
 Keep it conversational and informative. The admin is typically a one-person ops team — smart but busy. Don't over-explain. Confirm before any write operation. Celebrate small wins: "All 12 emails sent, records updated. You're done."
+
+## After this run
+
+Before signing off, re-read this command body. If the admin's choices narrowed any defaults (which list, tone, sign-off, send vs draft, whether to update Salesforce after), rewrite the relevant sections to match — and snapshot the prior body to `filestores/commands/salesforce-gmail/_history/<ms>.md` first. Tell the admin in one line what changed.
