@@ -315,6 +315,13 @@ export async function confirmDelete(message: string, _title: string): Promise<bo
 /// trash button on library/KB/reports/attachments-ticket cards. The
 /// fs watcher refreshes the listing on its own — we just surface
 /// errors so the user knows when a delete didn't take.
+///
+/// Returns `true` only when the file was actually removed. `false`
+/// covers both "user cancelled the confirm" and "delete API threw".
+/// Callers that hold side-state contingent on the delete (e.g. an
+/// optimistic-hide set in EntityFolderViewer) must use the return
+/// value to decide whether to commit that state — without it, a
+/// cancel leaves the card hidden even though nothing was deleted.
 export async function deleteFileInSubdir(
   repo: string,
   subdir: string,
@@ -322,12 +329,12 @@ export async function deleteFileInSubdir(
   setError: (msg: string | null) => void,
   onToast?: (msg: string) => void,
   onRefresh?: () => void,
-): Promise<void> {
+): Promise<boolean> {
   const ok = await confirmDelete(
     `Delete "${filename}"?\n\nThis cannot be undone.`,
     "Delete file?",
   );
-  if (!ok) return;
+  if (!ok) return false;
   onToast?.(`Deleting ${filename}…`);
   setError(null);
   try {
@@ -335,11 +342,13 @@ export async function deleteFileInSubdir(
     await entityDeleteFile(repo, rel, filename);
     onToast?.(`Deleted ${filename}`);
     onRefresh?.();
+    return true;
   } catch (err) {
     const reason = err instanceof Error ? err.message : String(err);
     console.error(`[folder-delete] failed for ${filename}:`, err);
     onToast?.(`Failed to delete ${filename}: ${reason}`);
     setError(`Failed to delete ${filename}: ${reason}`);
+    return false;
   }
 }
 

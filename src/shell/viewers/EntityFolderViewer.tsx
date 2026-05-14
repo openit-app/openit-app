@@ -101,24 +101,21 @@ export function EntityFolderBody({
       onClick: () => onOpenPath && void onOpenPath(f.path),
       onDelete: repo
         ? async () => {
-            setHiddenPaths((prev) => new Set(prev).add(f.path));
-            try {
-              await deleteFileInSubdir(
-                repo,
-                source.path,
-                f.name,
-                setFolderUploadError,
-                showToast,
-                onFsChange,
-              );
-            } catch {
-              // Restore the card if the delete failed so it doesn't
-              // disappear silently — the toast surfaces the reason.
-              setHiddenPaths((prev) => {
-                const next = new Set(prev);
-                next.delete(f.path);
-                return next;
-              });
+            const deleted = await deleteFileInSubdir(
+              repo,
+              source.path,
+              f.name,
+              setFolderUploadError,
+              showToast,
+              onFsChange,
+            );
+            // Optimistic hide only after the file is actually gone.
+            // `source.files` is a snapshot, so it'd still include the
+            // deleted file until the fs watcher fires a refresh; this
+            // bridges that gap. If the user cancelled or the delete
+            // failed, `deleted` is false and the card stays put.
+            if (deleted) {
+              setHiddenPaths((prev) => new Set(prev).add(f.path));
             }
           }
         : undefined,
