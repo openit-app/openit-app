@@ -77,16 +77,19 @@ pub fn tools_is_installed(binary: String) -> bool {
         // binary lives under %LOCALAPPDATA%\Microsoft\WinGet\Packages\
         // <PackageId>\<...>\<name>.exe. Walk a few hops deep to catch
         // common layouts without an open-ended traversal.
+        //
+        // Scope deliberately narrow: only the WinGet/Programs trees
+        // under LOCALAPPDATA. We intentionally do NOT recurse into
+        // %ProgramFiles%/%ProgramFiles(x86)% — those trees can contain
+        // thousands of subdirs and the listing is called per-tool, so
+        // a depth-3 walk × 14 tools = a multi-second hang on first
+        // load. Tools installed via traditional Setup.exe/MSI almost
+        // always register themselves on PATH, which is already
+        // covered by the `which::which` probe at the top of this fn.
         let mut deep_roots: Vec<PathBuf> = Vec::new();
         if let Ok(local_app_data) = std::env::var("LOCALAPPDATA") {
             deep_roots.push(PathBuf::from(&local_app_data).join("Microsoft\\WinGet\\Packages"));
             deep_roots.push(PathBuf::from(&local_app_data).join("Programs"));
-        }
-        if let Ok(program_files) = std::env::var("ProgramFiles") {
-            deep_roots.push(PathBuf::from(program_files));
-        }
-        if let Ok(program_files_x86) = std::env::var("ProgramFiles(x86)") {
-            deep_roots.push(PathBuf::from(program_files_x86));
         }
         for root in &deep_roots {
             if find_binary_within(root, &candidates, 3) {

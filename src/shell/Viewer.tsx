@@ -920,7 +920,10 @@ export function Viewer({
 
     // For command files (.claude/skills/<name>/SKILL.md), renaming
     // means renaming the parent folder, not the SKILL.md file.
-    const skillFolderMatch = renamingPath.match(/^(.+)\/\.claude\/skills\/([^/]+)\/SKILL\.md$/);
+    // Normalize separators so the regex matches Windows backslash
+    // paths — the other two call sites (getTitle, rename-draft
+    // seeding) already do this; this one was missed.
+    const skillFolderMatch = fsNorm(renamingPath).match(/^(.+)\/\.claude\/skills\/([^/]+)\/SKILL\.md$/);
     if (skillFolderMatch) {
       const repoRoot = skillFolderMatch[1];
       const oldFolderName = skillFolderMatch[2];
