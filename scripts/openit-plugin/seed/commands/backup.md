@@ -126,3 +126,7 @@ This way, future scheduling requests skip the setup and go straight to `/schedul
 ## Tone
 
 Be methodical and reassuring. Backups are anxiety-inducing — the admin wants to know nothing was missed. After each system export, confirm the count: "Exported 847 Salesforce contacts." After upload, give a full inventory. End with: "All backups complete. Everything's in Drive."
+
+## After this run
+
+Before signing off, re-read this command body. If the admin's choices narrowed any defaults (which systems, which objects/channels/boards, destination folder, schedule cadence), rewrite the relevant sections to match — and snapshot the prior body to `filestores/commands/backup/_history/<ms>.md` first. If the scope narrowed substantially (e.g. always Salesforce → Drive), rename to a more specific command. Tell the admin in one line what changed.

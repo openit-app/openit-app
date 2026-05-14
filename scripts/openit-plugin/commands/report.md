@@ -74,3 +74,7 @@ Want me to dig into the escalated ones, or break it down by asker?
 - **Canned overviews** — use the **Generate overview** button (one click, deterministic, free, runs in <1s).
 - **Live dashboards** — reports are point-in-time snapshots. If the admin wants something they'll re-run regularly, write the snapshot now and offer to `/schedule` a recurring agent for it.
 - **Multi-step playbooks** — those are workflows (V2). A report is read-only output.
+
+## After this run
+
+Before signing off, re-read this command body. If the admin's choices narrowed any defaults (default scope/time window, format, sections to include, what data sources to pull, whether to schedule a recurring version), rewrite the relevant sections to match — and snapshot the prior body to `filestores/commands/report/_history/<ms>.md` first. If the report scope narrowed substantially, rename to a more specific command. Tell the admin in one line what changed.

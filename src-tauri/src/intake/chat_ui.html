@@ -230,6 +230,226 @@ header {
   line-height: 1.3;
 }
 
+/* --- Tabs (Compose / My tickets) --- */
+.tabs {
+  display: flex;
+  gap: 4px;
+  padding: 0 20px;
+  border-bottom: 1px solid var(--border);
+  background: var(--surface);
+}
+.tab {
+  background: transparent;
+  border: 0;
+  padding: 12px 16px;
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--text-muted);
+  cursor: pointer;
+  border-bottom: 2px solid transparent;
+  margin-bottom: -1px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-family: inherit;
+}
+.tab:hover { color: var(--text); }
+.tab.is-active {
+  color: var(--text);
+  border-bottom-color: var(--accent);
+}
+.tab-count {
+  display: inline-block;
+  font-size: 11px;
+  padding: 1px 7px;
+  border-radius: 8px;
+  background: var(--accent-faint);
+  color: var(--accent);
+  font-weight: 600;
+  min-width: 16px;
+  text-align: center;
+}
+
+/* Pane: each tab points at one. flex column so its children stack and
+   the scrollable child (chat or tickets-list) fills the gap. */
+.pane {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+.pane[hidden] { display: none; }
+
+/* --- Tickets list (cards) --- */
+.tickets-list {
+  flex: 1;
+  overflow-y: auto;
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.tickets-list[hidden] { display: none; }
+.tickets-empty {
+  text-align: center;
+  color: var(--text-muted);
+  font-size: 14px;
+  padding: 60px 20px;
+}
+.ticket-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 14px 16px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  transition: border-color 0.15s ease, background 0.15s ease;
+}
+.ticket-card:hover {
+  border-color: var(--accent);
+  background: var(--accent-faint);
+}
+.ticket-card-body {
+  flex: 1;
+  min-width: 0;
+}
+.ticket-card-subject {
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  margin-bottom: 4px;
+}
+.ticket-card-meta {
+  font-size: 12px;
+  color: var(--text-muted);
+}
+.ticket-status {
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  padding: 3px 8px;
+  border-radius: 6px;
+  background: var(--accent-faint);
+  color: var(--accent);
+  white-space: nowrap;
+}
+.ticket-status-resolved,
+.ticket-status-closed { background: #e8e8e8; color: #555; }
+.ticket-status-escalated { background: #fff3e0; color: #b85c00; }
+.ticket-status-agent-responding { background: #e3f2fd; color: #1565c0; }
+.ticket-card-chevron {
+  color: var(--text-faint);
+  font-size: 20px;
+  line-height: 1;
+  flex-shrink: 0;
+}
+
+/* --- Conversation view (a single past ticket's thread) --- */
+.tickets-conv {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+.tickets-conv[hidden] { display: none; }
+.tickets-conv-back {
+  background: transparent;
+  border: 0;
+  text-align: left;
+  padding: 10px 20px;
+  font-size: 13px;
+  color: var(--text-muted);
+  cursor: pointer;
+  border-bottom: 1px solid var(--border);
+  font-family: inherit;
+}
+.tickets-conv-back:hover { color: var(--text); }
+.tickets-conv-header {
+  padding: 14px 20px;
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+.tickets-conv-subject {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--text);
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.tickets-conv-thread {
+  flex: 1;
+  overflow-y: auto;
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.tickets-conv-msg {
+  font-size: 14px;
+  line-height: 1.5;
+  padding: 10px 14px;
+  border-radius: 12px;
+  max-width: 80%;
+  word-wrap: break-word;
+}
+.tickets-conv-msg.role-asker {
+  background: var(--accent);
+  color: white;
+  align-self: flex-end;
+  border-bottom-right-radius: 4px;
+}
+.tickets-conv-msg.role-agent,
+.tickets-conv-msg.role-admin {
+  background: var(--surface);
+  color: var(--text);
+  align-self: flex-start;
+  border: 1px solid var(--border);
+  border-bottom-left-radius: 4px;
+}
+.tickets-conv-msg-sender {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-muted);
+  margin-bottom: 4px;
+}
+.tickets-conv-reply {
+  display: flex;
+  gap: 8px;
+  padding: 12px 20px;
+  border-top: 1px solid var(--border);
+  background: var(--surface);
+  align-items: flex-end;
+}
+.tickets-conv-reply textarea {
+  flex: 1;
+  min-height: 44px;
+  max-height: 200px;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  font: inherit;
+  font-size: 14px;
+  resize: vertical;
+  box-sizing: border-box;
+  background: var(--bg-canvas);
+}
+.tickets-conv-reply textarea:focus {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-faint);
+}
+
 /* --- Chat --- */
 #chat {
   flex: 1;
@@ -622,29 +842,54 @@ button:disabled { opacity: 0.5; cursor: not-allowed; }
   </div>
 </div>
 
-<!-- Chat surface — hidden until the gate is satisfied -->
-<div class="status-banner" id="banner" hidden></div>
-<div id="chat" hidden>
-  <div class="welcome-state" id="welcomeState">
-    <div class="welcome-icon">
-      <svg viewBox="0 0 24 24"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
-    </div>
-    <h3>How can we help?</h3>
-    <p>Type your question below. Our AI will check the knowledge base first — if it can't help, a human from IT will follow up.</p>
-    <div class="welcome-starters" id="starters">
-      <button type="button" class="welcome-starter" data-msg="I can't connect to the VPN">VPN issues</button>
-      <button type="button" class="welcome-starter" data-msg="I need to reset my password">Password reset</button>
-      <button type="button" class="welcome-starter" data-msg="I need access to a tool or system">Access request</button>
+<!-- Tabs — visible once the gate is dismissed. "New ticket" is the
+     default compose surface; "My tickets" lists the asker's previous
+     tickets and lets them open one to continue the thread. -->
+<nav class="tabs" id="tabs" hidden>
+  <button type="button" class="tab is-active" data-pane="compose" id="tabCompose">New ticket</button>
+  <button type="button" class="tab" data-pane="tickets" id="tabTickets">My tickets</button>
+</nav>
+
+<!-- Pane: compose new ticket (the original chat surface). -->
+<div class="pane" id="paneCompose" hidden>
+  <div class="status-banner" id="banner" hidden></div>
+  <div id="chat">
+    <div class="welcome-state" id="welcomeState">
+      <div class="welcome-icon">
+        <svg viewBox="0 0 24 24"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+      </div>
+      <h3>How can we help?</h3>
+      <p>Type your question below. Our AI will check the knowledge base first — if it can't help, a human from IT will follow up.</p>
+      <div class="welcome-starters" id="starters">
+        <button type="button" class="welcome-starter" data-msg="I can't connect to the VPN">VPN issues</button>
+        <button type="button" class="welcome-starter" data-msg="I need to reset my password">Password reset</button>
+        <button type="button" class="welcome-starter" data-msg="I need access to a tool or system">Access request</button>
+      </div>
     </div>
   </div>
+  <div class="compose-chips" id="chips" hidden></div>
+  <form id="form" hidden>
+    <button type="button" class="attach-btn" id="attachBtn" title="Attach a file">📎</button>
+    <input id="fileInput" type="file" multiple hidden>
+    <input id="msg" type="text" placeholder="Describe your issue…" autocomplete="off">
+    <button type="submit" id="send">Send</button>
+  </form>
 </div>
-<div class="compose-chips" id="chips" hidden></div>
-<form id="form" hidden>
-  <button type="button" class="attach-btn" id="attachBtn" title="Attach a file">📎</button>
-  <input id="fileInput" type="file" multiple hidden>
-  <input id="msg" type="text" placeholder="Describe your issue…" autocomplete="off">
-  <button type="submit" id="send">Send</button>
-</form>
+
+<!-- Pane: my tickets — list of past ticket cards, plus a conversation
+     view that takes over the pane when a card is clicked. -->
+<div class="pane" id="paneTickets" hidden>
+  <div class="tickets-list" id="ticketsList"></div>
+  <div class="tickets-conv" id="ticketsConv" hidden>
+    <button type="button" class="tickets-conv-back" id="ticketsConvBack">← Back to my tickets</button>
+    <div class="tickets-conv-header" id="ticketsConvHeader"></div>
+    <div class="tickets-conv-thread" id="ticketsConvThread"></div>
+    <form class="tickets-conv-reply" id="ticketsConvReply">
+      <textarea id="ticketsConvReplyInput" placeholder="Add a message…" required></textarea>
+      <button type="submit">Send</button>
+    </form>
+  </div>
+</div>
 
 <!-- Full-page drop target — shown while files are being dragged over the window -->
 <div class="drop-overlay" id="dropOverlay" hidden>
@@ -678,6 +923,26 @@ const attachBtn = document.getElementById('attachBtn');
 const newChatBtn = document.getElementById('newChatBtn');
 const welcomeState = document.getElementById('welcomeState');
 const dropOverlay = document.getElementById('dropOverlay');
+const tabs = document.getElementById('tabs');
+const tabCompose = document.getElementById('tabCompose');
+const tabTickets = document.getElementById('tabTickets');
+const paneCompose = document.getElementById('paneCompose');
+const paneTickets = document.getElementById('paneTickets');
+const ticketsList = document.getElementById('ticketsList');
+const ticketsConv = document.getElementById('ticketsConv');
+const ticketsConvBack = document.getElementById('ticketsConvBack');
+const ticketsConvHeader = document.getElementById('ticketsConvHeader');
+const ticketsConvThread = document.getElementById('ticketsConvThread');
+const ticketsConvReply = document.getElementById('ticketsConvReply');
+const ticketsConvReplyInput = document.getElementById('ticketsConvReplyInput');
+
+// Email the history view is currently bound to. Set inside start()
+// once the gate has been submitted; used by the reply form so each
+// thread posts back as the same asker.
+let historyEmail = null;
+// The id of the past ticket currently open in the conversation view.
+// Null when the tickets pane is showing the cards list.
+let currentConvTicketId = null;
 
 // Pending attachments awaiting Send. Each entry tracks its upload
 // state so the chip renders accurately and the submit handler only
@@ -925,6 +1190,247 @@ function applyRememberedEmail() {
   }
 }
 
+// --- Tabs + "My tickets" pane ---
+//
+// Two top-level panes after the gate: "New ticket" (compose) and
+// "My tickets" (cards list → conversation view). The compose pane is
+// the original chat surface, untouched. The tickets pane has its own
+// internal navigation: list view (default) → conversation view (when
+// a card is clicked) → back to list view.
+
+tabs.addEventListener('click', (e) => {
+  const btn = e.target.closest('.tab');
+  if (!btn || !btn.dataset.pane) return;
+  showPane(btn.dataset.pane);
+});
+
+function showPane(name) {
+  const isCompose = name === 'compose';
+  paneCompose.hidden = !isCompose;
+  paneTickets.hidden = isCompose;
+  tabCompose.classList.toggle('is-active', isCompose);
+  tabTickets.classList.toggle('is-active', !isCompose);
+  if (!isCompose) {
+    // Switching INTO tickets always starts at the list — clean
+    // navigation, no remembered conv state. Refresh to catch any
+    // admin replies that landed while the user was composing.
+    showTicketsList();
+    if (historyEmail) loadHistory(historyEmail);
+  }
+}
+
+function showTicketsList() {
+  ticketsList.hidden = false;
+  ticketsConv.hidden = true;
+  currentConvTicketId = null;
+}
+
+function showTicketsConv(ticket) {
+  currentConvTicketId = ticket.id;
+  ticketsList.hidden = true;
+  ticketsConv.hidden = false;
+  renderConvHeader(ticket);
+  renderConvThread(ticket.messages || []);
+  ticketsConvReplyInput.value = '';
+  ticketsConvReplyInput.focus();
+}
+
+ticketsConvBack.addEventListener('click', () => {
+  showTicketsList();
+});
+
+ticketsConvReply.addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const msg = ticketsConvReplyInput.value.trim();
+  if (!msg || !historyEmail || !currentConvTicketId) return;
+  const submit = ticketsConvReply.querySelector('button[type=submit]');
+  submit.disabled = true;
+  try {
+    const r = await fetch('/history/reply', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        email: historyEmail,
+        ticket_id: currentConvTicketId,
+        message: msg,
+      }),
+    });
+    if (!r.ok) {
+      console.warn('history reply failed', await r.text());
+      return;
+    }
+    ticketsConvReplyInput.value = '';
+    // Re-fetch so the just-posted asker turn and any status flip
+    // (resolved/closed → open) are reflected in the thread + list.
+    await refreshConvFromServer();
+  } catch (err) {
+    console.warn('history reply error', err);
+  } finally {
+    submit.disabled = false;
+  }
+});
+
+async function refreshConvFromServer() {
+  if (!historyEmail || !currentConvTicketId) return;
+  try {
+    const r = await fetch('/history?email=' + encodeURIComponent(historyEmail));
+    if (!r.ok) return;
+    const j = await r.json();
+    const all = j.tickets || [];
+    // Re-render the cards list (even though it's currently hidden
+    // behind the conv view). Each card's click handler closes over
+    // the ticket object at render time, so without this the user's
+    // "back → tap same card" path would re-enter the conv view with
+    // a stale `messages` array — making the reply they just sent
+    // appear to vanish.
+    renderTicketsList(all);
+    const t = all.find((x) => x.id === currentConvTicketId);
+    if (!t) return;
+    renderConvHeader(t);
+    renderConvThread(t.messages || []);
+  } catch (e) {
+    /* swallow */
+  }
+}
+
+async function loadHistory(email) {
+  try {
+    const r = await fetch('/history?email=' + encodeURIComponent(email));
+    if (!r.ok) return;
+    const j = await r.json();
+    renderTicketsList(j.tickets || []);
+  } catch (e) {
+    console.warn('history fetch failed', e);
+  }
+}
+
+function renderTicketsList(tickets) {
+  ticketsList.innerHTML = '';
+  updateTicketsBadge(tickets.length);
+  if (!tickets.length) {
+    const empty = document.createElement('div');
+    empty.className = 'tickets-empty';
+    empty.textContent = "You haven't submitted any tickets yet.";
+    ticketsList.appendChild(empty);
+    return;
+  }
+  for (const t of tickets) {
+    ticketsList.appendChild(renderTicketCard(t));
+  }
+}
+
+function updateTicketsBadge(count) {
+  const existing = tabTickets.querySelector('.tab-count');
+  if (count > 0) {
+    if (existing) {
+      existing.textContent = String(count);
+    } else {
+      const span = document.createElement('span');
+      span.className = 'tab-count';
+      span.textContent = String(count);
+      tabTickets.appendChild(span);
+    }
+  } else if (existing) {
+    existing.remove();
+  }
+}
+
+function renderTicketCard(t) {
+  const card = document.createElement('div');
+  card.className = 'ticket-card';
+  card.addEventListener('click', () => showTicketsConv(t));
+
+  const body = document.createElement('div');
+  body.className = 'ticket-card-body';
+
+  const subj = document.createElement('div');
+  subj.className = 'ticket-card-subject';
+  subj.textContent = t.subject || '(no subject)';
+  body.appendChild(subj);
+
+  const meta = document.createElement('div');
+  meta.className = 'ticket-card-meta';
+  const msgCount = (t.messages || []).length;
+  meta.textContent =
+    formatRelative(t.updatedAt) +
+    ' · ' +
+    msgCount +
+    ' message' +
+    (msgCount === 1 ? '' : 's');
+  body.appendChild(meta);
+
+  card.appendChild(body);
+
+  card.appendChild(renderStatusBadge(t.status));
+
+  const chev = document.createElement('span');
+  chev.className = 'ticket-card-chevron';
+  chev.textContent = '›';
+  card.appendChild(chev);
+
+  return card;
+}
+
+function renderStatusBadge(rawStatus) {
+  const s = rawStatus || 'open';
+  const statusKey = s.toLowerCase().replace(/[^a-z-]/g, '-');
+  const el = document.createElement('span');
+  el.className = 'ticket-status ticket-status-' + statusKey;
+  el.textContent = s.replace(/-/g, ' ');
+  return el;
+}
+
+function renderConvHeader(t) {
+  ticketsConvHeader.innerHTML = '';
+  const subj = document.createElement('div');
+  subj.className = 'tickets-conv-subject';
+  subj.textContent = t.subject || '(no subject)';
+  ticketsConvHeader.appendChild(subj);
+  ticketsConvHeader.appendChild(renderStatusBadge(t.status));
+}
+
+function renderConvThread(messages) {
+  ticketsConvThread.innerHTML = '';
+  for (const m of messages) {
+    ticketsConvThread.appendChild(renderConvMsg(m));
+  }
+  // Scroll to the newest message.
+  ticketsConvThread.scrollTop = ticketsConvThread.scrollHeight;
+}
+
+function renderConvMsg(m) {
+  const div = document.createElement('div');
+  // Match the backend's `unwrap_or("agent")` default: a turn without
+  // a clear role renders on the agent side, not the asker. Misattributing
+  // to "asker" would place a fabricated message on the right with a blue
+  // bubble, implying the user wrote something they didn't.
+  const role = (m.role || 'agent').toLowerCase();
+  div.className = 'tickets-conv-msg role-' + role;
+  if (role === 'admin' || role === 'agent') {
+    const sender = document.createElement('div');
+    sender.className = 'tickets-conv-msg-sender';
+    sender.textContent = role === 'admin' ? 'IT Team' : 'Agent';
+    div.appendChild(sender);
+  }
+  const body = document.createElement('div');
+  body.textContent = m.body || '';
+  div.appendChild(body);
+  return div;
+}
+
+function formatRelative(ts) {
+  if (!ts) return '';
+  const t = Date.parse(ts);
+  if (Number.isNaN(t)) return '';
+  const diff = Date.now() - t;
+  const min = 60_000, hr = 60 * min, day = 24 * hr;
+  if (diff < min) return 'just now';
+  if (diff < hr) return Math.floor(diff / min) + 'm ago';
+  if (diff < day) return Math.floor(diff / hr) + 'h ago';
+  if (diff < 7 * day) return Math.floor(diff / day) + 'd ago';
+  return new Date(t).toLocaleDateString();
+}
+
 async function start(email) {
   const r = await fetch('/chat/start', {
     method: 'POST',
@@ -939,15 +1445,20 @@ async function start(email) {
   sessionId = j.session_id;
   ticketId = j.ticket_id;
   userEmail = email;
+  historyEmail = email;
   // Persist for next visit.
   setCookie(EMAIL_COOKIE, email, EMAIL_COOKIE_DAYS);
-  // Hide the gate, show the chat surface.
+  // Hide the gate, show tabs + compose pane (default).
   gate.hidden = true;
-  chat.hidden = false;
+  tabs.hidden = false;
+  showPane('compose');
   form.hidden = false;
   banner.hidden = false;
   input.focus();
   startPolling();
+  // Quietly populate the tickets list so the badge count and pane are
+  // ready the moment the asker clicks the "My tickets" tab.
+  loadHistory(email);
 }
 
 applyRememberedEmail();
@@ -967,14 +1478,23 @@ newChatBtn.addEventListener('click', () => {
   // Clear chat bubbles and restore welcome state
   chat.querySelectorAll('.bubble, .typing').forEach((el) => el.remove());
   if (welcomeState) welcomeState.hidden = false;
-  // Reset UI to gate
-  chat.hidden = true;
+  // Reset UI to gate: tabs + both panes hidden until /chat/start.
+  tabs.hidden = true;
+  paneCompose.hidden = true;
+  paneTickets.hidden = true;
   form.hidden = true;
   banner.hidden = true;
   banner.textContent = '';
   banner.classList.remove('escalated');
   chipsBar.hidden = true;
   chipsBar.innerHTML = '';
+  // Clear history state — start() will reload after the asker
+  // reconfirms their email on the gate.
+  historyEmail = null;
+  currentConvTicketId = null;
+  ticketsList.innerHTML = '';
+  ticketsConv.hidden = true;
+  updateTicketsBadge(0);
   gate.hidden = false;
   // If we have a remembered email, the gate will auto-fill — just show it
   applyRememberedEmail();

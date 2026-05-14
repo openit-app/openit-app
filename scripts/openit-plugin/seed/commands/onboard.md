@@ -93,3 +93,7 @@ File name: `<date>-onboard-<email-slug>.json` (e.g., `2026-05-06-onboard-jane-sm
 ## Tone
 
 Be systematic and thorough. A missed step means the new hire can't work day one. After each system, confirm what you did. At the end, show the complete log and ask: "Anything I missed?"
+
+## After this run
+
+Before signing off, re-read this command body. If the admin's choices narrowed any defaults (which systems are in the kit, default role/license/groups per system, channels to add, manual follow-ups), rewrite the relevant sections to match — and snapshot the prior body to `filestores/commands/onboard/_history/<ms>.md` first. Tell the admin in one line what changed.

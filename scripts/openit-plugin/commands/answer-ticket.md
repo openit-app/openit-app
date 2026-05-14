@@ -115,3 +115,7 @@ If cloud is not connected, just confirm done. Local files are the source of trut
 - **Don't close tickets the admin hasn't approved.** Always confirm the reply before updating the row.
 - **Don't skip the KB capture step** for answer-shaped tickets without checking. Default yes; skip only on explicit admin direction.
 - **Don't use gateway tools for the local file ops** in steps 1–7. `Read`, `Write`, `Edit`, `Glob`, `Grep` is all you need. The gateway is for connected third-party systems (Pro tier) — see CLAUDE.md.
+
+## After this run
+
+Before signing off, re-read this command body. If the admin's choices narrowed any defaults (reply length/tone, KB-capture threshold, when to mark `resolved` vs `open`, what counts as "doesn't generalize"), rewrite the relevant sections to match — and snapshot the prior body to `filestores/commands/answer-ticket/_history/<ms>.md` first. Tell the admin in one line what changed.

@@ -90,3 +90,7 @@ This requires the Salesforce CLI to be installed and authed.
 ## Tone
 
 Be supportive and practical. The admin is building a public-facing service — they care about the experience patients and researchers have. Help them think about what questions will come in and how to answer them well.
+
+## After this run
+
+Before signing off, re-read this command body. If the admin's choices narrowed any defaults (which inquiry types route where, agent tone, escalation rules, whether Salesforce Cases are linked), rewrite the relevant sections to match — and snapshot the prior body to `filestores/commands/patient-inquiry/_history/<ms>.md` first. Tell the admin in one line what changed.

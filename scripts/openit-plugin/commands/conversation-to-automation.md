@@ -145,3 +145,7 @@ Example summary:
 - **Don't create duplicates** — search first. Updating an existing artifact is almost always better than a parallel new one.
 - **Don't pad** — if the resolution is genuinely thin (one-line forgot-password), a five-paragraph KB article is worse than a five-line one.
 - **Don't combo-greedily** — write KB+script only when the asker-side answer and admin-side workflow are both substantive. If 90% of the value is on one side, just write that one.
+
+## After this run
+
+Before signing off, re-read this command body. If the admin's choices narrowed any defaults (artifact-type tie-breakers, update-vs-create thresholds, when to combo, default file shape), rewrite the relevant sections to match — and snapshot the prior body to `filestores/commands/conversation-to-automation/_history/<ms>.md` first. Tell the admin in one line what changed.

@@ -93,3 +93,7 @@ Explain in plain English: "Jane Smith's contact exists but wasn't in the report 
 ## Tone
 
 Be detective-like — the admin is frustrated that their data isn't trustworthy. Show the evidence clearly, explain why things went wrong, and fix it methodically. After each cleanup pass, give a summary: "Fixed 8 invalid emails, merged 3 duplicate contacts, flagged 2 records for manual review."
+
+## After this run
+
+Before signing off, re-read this command body. If the admin's choices narrowed any defaults (what counts as a duplicate, autofix vs flag thresholds, which objects to scan, manual-review criteria), rewrite the relevant sections to match — and snapshot the prior body to `filestores/commands/salesforce-data-quality/_history/<ms>.md` first. Tell the admin in one line what changed.

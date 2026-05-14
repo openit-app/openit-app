@@ -34,14 +34,20 @@ jobs:
           node-version: "22"
           cache: npm
       - name: Install Rust toolchain
-        uses: dtolnay/rust-toolchain@stable
-        with:
-          components: rustfmt, clippy
+        run: |
+          rustup toolchain install stable --component rustfmt --component clippy --profile minimal --no-self-update
+          rustup default stable
+        working-directory: .
       - uses: Swatinem/rust-cache@v2
         with:
           workspaces: src-tauri
       - run: npm ci
         working-directory: .
-      - run: cargo fmt -- --check
-      - run: cargo clippy -- -D warnings
-      - run: cargo test
+      # Invoke cargo through `rustup run` to bypass PATH entirely.
+      # The macos-latest image ships a system `cargo` that's actually
+      # a rustup-init shim, which wins PATH ordering on the new image
+      # and dies with "unexpected argument 'fmt'". `rustup run stable
+      # cargo X` always picks the correct toolchain's binary.
+      - run: rustup run stable cargo fmt -- --check
+      - run: rustup run stable cargo clippy -- -D warnings
+      - run: rustup run stable cargo test

@@ -321,6 +321,11 @@ fn build_router(repo: PathBuf, local_port: u16) -> Router {
         .route("/chat/poll", get(chat_poll))
         .route("/chat/upload", post(chat_upload))
         .route("/chat/file", get(chat_file))
+        // History: a returning asker looking up their own past tickets.
+        // No login (v1 will be replaced by PF-hosted intake behind auth);
+        // identity is just the asker's email, same as /chat/start.
+        .route("/history", get(history_lookup))
+        .route("/history/reply", post(history_reply))
         // Share: one-click Cloudflare tunnel for employees.
         .route("/share/start", post(share_start))
         .route("/share/stop", post(share_stop))
@@ -970,6 +975,392 @@ async fn chat_poll(
         status,
     })
     .into_response()
+}
+
+// ---------------------------------------------------------------------------
+// /history — returning asker looks up their own past tickets.
+// /history/reply — returning asker appends a new message to a past ticket
+// (reopens it if the ticket was in a terminal state).
+//
+// v1 has no auth: identity is whatever email the caller supplies, matched
+// case-insensitively against the ticket's `asker` field. Anyone who knows
+// a coworker's email can read their tickets. Accepted tradeoff — v2 moves
+// this surface behind PF login.
+// ---------------------------------------------------------------------------
+
+#[derive(Deserialize)]
+struct HistoryQuery {
+    email: String,
+}
+
+#[derive(Serialize)]
+struct HistoryResp {
+    tickets: Vec<HistoryTicket>,
+}
+
+#[derive(Serialize)]
+struct HistoryTicket {
+    id: String,
+    subject: String,
+    status: String,
+    #[serde(rename = "createdAt")]
+    created_at: String,
+    #[serde(rename = "updatedAt")]
+    updated_at: String,
+    messages: Vec<HistoryMessage>,
+}
+
+#[derive(Serialize)]
+struct HistoryMessage {
+    role: String,
+    sender: String,
+    body: String,
+    timestamp: String,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    attachments: Vec<String>,
+}
+
+async fn history_lookup(
+    State(state): State<ServerState>,
+    headers: HeaderMap,
+    Query(q): Query<HistoryQuery>,
+) -> Response {
+    if !origin_is_localhost(&headers) {
+        return (StatusCode::FORBIDDEN, "cross-origin not allowed").into_response();
+    }
+    let email_lc = q.email.trim().to_lowercase();
+    if email_lc.is_empty() || !email_lc.contains('@') {
+        return (StatusCode::BAD_REQUEST, "a valid email is required").into_response();
+    }
+
+    let tickets_dir = state.repo.join("databases").join("tickets");
+    let mut tickets: Vec<HistoryTicket> = Vec::new();
+
+    if let Ok(mut entries) = tokio::fs::read_dir(&tickets_dir).await {
+        while let Ok(Some(entry)) = entries.next_entry().await {
+            let path = entry.path();
+            if path.extension().and_then(|s| s.to_str()) != Some("json") {
+                continue;
+            }
+            // Skip conflict shadows (cloud-mode artifact).
+            if path
+                .file_name()
+                .and_then(|s| s.to_str())
+                .map(|n| n.contains(".server."))
+                .unwrap_or(false)
+            {
+                continue;
+            }
+            let Ok(raw) = tokio::fs::read_to_string(&path).await else {
+                continue;
+            };
+            let Ok(parsed) = serde_json::from_str::<serde_json::Value>(&raw) else {
+                continue;
+            };
+            let asker_lc = parsed
+                .get("asker")
+                .and_then(|v| v.as_str())
+                .unwrap_or("")
+                .to_lowercase();
+            if asker_lc != email_lc {
+                continue;
+            }
+            let Some(id) = path.file_stem().and_then(|s| s.to_str()) else {
+                continue;
+            };
+            if id.is_empty() {
+                continue;
+            }
+            let messages = load_conversation(&state.repo, id).await;
+            tickets.push(HistoryTicket {
+                id: id.to_string(),
+                subject: parsed
+                    .get("subject")
+                    .and_then(|v| v.as_str())
+                    .unwrap_or("")
+                    .to_string(),
+                status: parsed
+                    .get("status")
+                    .and_then(|v| v.as_str())
+                    .unwrap_or("open")
+                    .to_string(),
+                created_at: parsed
+                    .get("createdAt")
+                    .and_then(|v| v.as_str())
+                    .unwrap_or("")
+                    .to_string(),
+                updated_at: parsed
+                    .get("updatedAt")
+                    .and_then(|v| v.as_str())
+                    .unwrap_or("")
+                    .to_string(),
+                messages,
+            });
+        }
+    }
+
+    // Newest first.
+    tickets.sort_by(|a, b| b.updated_at.cmp(&a.updated_at));
+
+    Json(HistoryResp { tickets }).into_response()
+}
+
+/// Read every conversation turn for a ticket, sorted oldest → newest.
+/// Same filtering rules as /chat/poll (skip non-JSON, skip `.server.`
+/// conflict shadows). Best-effort: a corrupt file is skipped, not fatal.
+async fn load_conversation(repo: &Path, ticket_id: &str) -> Vec<HistoryMessage> {
+    let dir = repo.join("databases").join("conversations").join(ticket_id);
+    let mut messages: Vec<HistoryMessage> = Vec::new();
+    let Ok(mut entries) = tokio::fs::read_dir(&dir).await else {
+        return messages;
+    };
+    while let Ok(Some(entry)) = entries.next_entry().await {
+        let path = entry.path();
+        if path.extension().and_then(|s| s.to_str()) != Some("json") {
+            continue;
+        }
+        if path
+            .file_name()
+            .and_then(|s| s.to_str())
+            .map(|n| n.contains(".server."))
+            .unwrap_or(false)
+        {
+            continue;
+        }
+        let Ok(raw) = tokio::fs::read_to_string(&path).await else {
+            continue;
+        };
+        let Ok(parsed) = serde_json::from_str::<serde_json::Value>(&raw) else {
+            continue;
+        };
+        let attachments = parsed
+            .get("attachments")
+            .and_then(|v| v.as_array())
+            .map(|arr| {
+                arr.iter()
+                    .filter_map(|v| v.as_str().map(|s| s.to_string()))
+                    .collect::<Vec<_>>()
+            })
+            .unwrap_or_default();
+        messages.push(HistoryMessage {
+            // Default matches /chat/poll: a malformed turn missing
+            // its `role` (or carrying `"role": ""`) should render on
+            // the agent side, not as the asker (which would imply the
+            // asker wrote something they didn't). `.filter(non-empty)`
+            // collapses both `None` and `Some("")` into the fallback.
+            role: parsed
+                .get("role")
+                .and_then(|v| v.as_str())
+                .filter(|s| !s.is_empty())
+                .unwrap_or("agent")
+                .to_string(),
+            sender: parsed
+                .get("sender")
+                .and_then(|v| v.as_str())
+                .unwrap_or("")
+                .to_string(),
+            body: parsed
+                .get("body")
+                .and_then(|v| v.as_str())
+                .unwrap_or("")
+                .to_string(),
+            timestamp: parsed
+                .get("timestamp")
+                .and_then(|v| v.as_str())
+                .unwrap_or("")
+                .to_string(),
+            attachments,
+        });
+    }
+    messages.sort_by(|a, b| a.timestamp.cmp(&b.timestamp));
+    messages
+}
+
+#[derive(Deserialize)]
+struct HistoryReplyReq {
+    email: String,
+    ticket_id: String,
+    message: String,
+}
+
+#[derive(Serialize)]
+struct HistoryReplyResp {
+    status: String,
+}
+
+async fn history_reply(
+    State(state): State<ServerState>,
+    headers: HeaderMap,
+    Json(req): Json<HistoryReplyReq>,
+) -> Response {
+    if !origin_is_localhost(&headers) {
+        return (StatusCode::FORBIDDEN, "cross-origin not allowed").into_response();
+    }
+    let email = req.email.trim().to_string();
+    let email_lc = email.to_lowercase();
+    if email.is_empty() || !email.contains('@') {
+        return (StatusCode::BAD_REQUEST, "a valid email is required").into_response();
+    }
+    let message = req.message.trim().to_string();
+    if message.is_empty() {
+        return (StatusCode::BAD_REQUEST, "message is required").into_response();
+    }
+    let ticket_id = req.ticket_id.trim();
+    // Same path-traversal guard as `validate_resume_ticket_id`. Ticket
+    // ids are server-generated tokens; slashes / `..` / null bytes are
+    // never legitimate.
+    if ticket_id.is_empty()
+        || ticket_id.contains('/')
+        || ticket_id.contains('\\')
+        || ticket_id.contains("..")
+        || ticket_id.contains('\0')
+    {
+        return (StatusCode::BAD_REQUEST, "invalid ticket id").into_response();
+    }
+
+    // Verify the ticket exists AND the requester's email matches its
+    // `asker`. Both failure modes return 404 so we don't disclose ticket
+    // existence to someone holding a stranger's id.
+    let ticket_path = state
+        .repo
+        .join("databases")
+        .join("tickets")
+        .join(format!("{}.json", ticket_id));
+    let Ok(raw) = tokio::fs::read_to_string(&ticket_path).await else {
+        return (StatusCode::NOT_FOUND, "ticket not found").into_response();
+    };
+    let Ok(parsed) = serde_json::from_str::<serde_json::Value>(&raw) else {
+        return (StatusCode::NOT_FOUND, "ticket not found").into_response();
+    };
+    let asker_lc = parsed
+        .get("asker")
+        .and_then(|v| v.as_str())
+        .unwrap_or("")
+        .to_lowercase();
+    if asker_lc != email_lc {
+        return (StatusCode::NOT_FOUND, "ticket not found").into_response();
+    }
+
+    // Append the asker's message. Filename + body shape mirrors
+    // `ensure_responding_stub` so the desktop viewer and /chat/poll
+    // treat this turn identically to one written by the chat path.
+    let conv_dir = state
+        .repo
+        .join("databases")
+        .join("conversations")
+        .join(ticket_id);
+    if let Err(e) = tokio::fs::create_dir_all(&conv_dir).await {
+        return (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            format!("mkdir conv: {}", e),
+        )
+            .into_response();
+    }
+    let now = now_iso();
+    let now_ms = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|d| d.as_millis())
+        .unwrap_or(0);
+    let rand4: String = Uuid::new_v4()
+        .simple()
+        .to_string()
+        .chars()
+        .take(4)
+        .collect();
+    let msg_id = format!("msg-{}-{}", now_ms, rand4);
+    let msg = serde_json::json!({
+        "id": msg_id,
+        "ticketId": ticket_id,
+        "role": "asker",
+        "sender": email,
+        "timestamp": now,
+        "body": message,
+    });
+    let Ok(msg_json) = serde_json::to_string_pretty(&msg) else {
+        return (StatusCode::INTERNAL_SERVER_ERROR, "serialize").into_response();
+    };
+    let msg_path = conv_dir.join(format!("{}.json", msg_id));
+    if let Err(e) = tokio::fs::write(&msg_path, msg_json).await {
+        return (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            format!("write asker turn: {}", e),
+        )
+            .into_response();
+    }
+
+    // Reopen if terminal; otherwise leave status untouched. We
+    // intentionally do NOT flip to `agent-responding` — this path is
+    // asynchronous (the asker came back hours/days later), so we don't
+    // want to imply the agent is actively typing. The admin will see
+    // the new asker turn on a re-opened ticket and decide whether to
+    // re-trigger the agent or reply directly.
+    //
+    // Re-read the ticket immediately before the write rather than
+    // reusing the snapshot we loaded for asker validation up top. An
+    // admin could have edited assignee / priority / notes during the
+    // milliseconds we spent appending the conversation turn, and
+    // writing back the stale `parsed` would silently clobber those
+    // edits. We still only touch `status` + `updatedAt`; everything
+    // else is preserved from the freshly-read state.
+    let fresh_raw = match tokio::fs::read_to_string(&ticket_path).await {
+        Ok(s) => s,
+        Err(e) => {
+            return (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                format!("read ticket: {}", e),
+            )
+                .into_response();
+        }
+    };
+    let mut fresh: serde_json::Value = match serde_json::from_str(&fresh_raw) {
+        Ok(v) => v,
+        Err(e) => {
+            return (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                format!("parse ticket: {}", e),
+            )
+                .into_response();
+        }
+    };
+    let current_status = fresh
+        .get("status")
+        .and_then(|v| v.as_str())
+        .unwrap_or("")
+        .to_string();
+    let new_status = if current_status == "resolved" || current_status == "closed" {
+        "open".to_string()
+    } else {
+        current_status.clone()
+    };
+    if let Some(obj) = fresh.as_object_mut() {
+        obj.insert(
+            "status".to_string(),
+            serde_json::Value::String(new_status.clone()),
+        );
+        obj.insert("updatedAt".to_string(), serde_json::Value::String(now));
+    }
+    let json = match serde_json::to_string_pretty(&fresh) {
+        Ok(s) => s,
+        Err(e) => {
+            return (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                format!("serialize ticket: {}", e),
+            )
+                .into_response();
+        }
+    };
+    if let Err(e) = tokio::fs::write(&ticket_path, json).await {
+        // The asker's message already landed on disk; surface the
+        // failure so the client doesn't show a `status` that disagrees
+        // with what's actually on disk.
+        return (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            format!("write ticket: {}", e),
+        )
+            .into_response();
+    }
+
+    Json(HistoryReplyResp { status: new_status }).into_response()
 }
 
 // ---------------------------------------------------------------------------
