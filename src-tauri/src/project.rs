@@ -72,25 +72,21 @@ pub fn project_bootstrap(vault_path: Option<String>) -> Result<BootstrapResult, 
         // the layout.
         for dir in &[
             "agents",
-            "workflows",
             "databases",
             "databases/tickets",
             "databases/people",
             "databases/conversations",
             "databases/access",
             "databases/assets",
-            // Filestore split into two purpose-specific collections.
+            // Filestore split into purpose-specific collections.
             // `attachments` is operational (per-ticket file uploads from
             // the chat intake); `library` is curated (admin's go-to
-            // runbooks/scripts). Both share the existing filestore sync
-            // engine when cloud is connected.
+            // runbooks). `commands` holds the admin-facing slash
+            // commands; `scripts` holds runnable automations. All four
+            // share the filestore sync engine when cloud is connected.
             "filestores",
             "filestores/attachments",
             "filestores/library",
-            // Skills and scripts (PIN-5829) — admin-curated artifacts
-            // captured by /conversation-to-automation. Auto-created so
-            // the file tree + station tiles render the empty folders
-            // before anything's been captured yet.
             "filestores/commands",
             "filestores/scripts",
             // Flat KB directory: all articles live directly in
@@ -99,9 +95,15 @@ pub fn project_bootstrap(vault_path: Option<String>) -> Result<BootstrapResult, 
             // On-demand markdown reports — populated by the
             // "Generate overview" button in the explorer (which shells
             // out to .claude/scripts/report-overview.mjs) and by the
-            // /report skill. Always create so the sidebar entry isn't
+            // /report command. Always create so the sidebar entry isn't
             // empty on a fresh project.
             "reports",
+            // Audit logs of agent turns (per-ticket folders with one
+            // JSON per turn). Promoted out of `.openit/agent-traces/`
+            // in the 2026-05 restructure so admins can browse them
+            // alongside the other primitives. The intake server writes
+            // these; admins don't.
+            "traces",
         ] {
             fs::create_dir_all(path.join(dir))
                 .map_err(|e| format!("create_dir failed for {}: {}", dir, e))?;
@@ -122,6 +124,14 @@ pub fn project_bootstrap(vault_path: Option<String>) -> Result<BootstrapResult, 
     // Same idempotent guard for `reports/` so projects bootstrapped
     // before the reports feature shipped get the dir on next open.
     let _ = fs::create_dir_all(path.join("reports"));
+
+    // Remove the legacy empty `workflows/` directory that was created
+    // on first launch in versions <1.2.1. The 2026-05 restructure
+    // dropped workflows from the agreed vault layout but the
+    // first-launch bootstrap list kept creating it. `remove_dir` only
+    // succeeds when the directory is empty, so any admin who has
+    // started putting their own content there is safe.
+    let _ = fs::remove_dir(path.join("workflows"));
 
     // First-launch `.openit/config.json` with defaults. Gives admins a
     // discoverable surface to tune without reading docs — file is in
