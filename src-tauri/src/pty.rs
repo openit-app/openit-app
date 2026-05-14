@@ -559,8 +559,12 @@ mod tests {
     fn install_candidates_include_windows_paths_when_home_is_set() {
         let home = PathBuf::from("C:\\fake-home");
         let cs = claude_install_candidates_for(Some(&home));
-        assert!(cs.iter().any(|p| p == &home.join(".local\\bin\\claude.exe")));
-        assert!(cs.iter().any(|p| p == &home.join(".claude\\local\\claude.exe")));
+        assert!(cs
+            .iter()
+            .any(|p| p == &home.join(".local\\bin\\claude.exe")));
+        assert!(cs
+            .iter()
+            .any(|p| p == &home.join(".claude\\local\\claude.exe")));
         assert!(cs
             .iter()
             .any(|p| p == &home.join("AppData\\Local\\Programs\\claude-code\\claude.exe")));
