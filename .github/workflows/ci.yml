@@ -33,9 +33,12 @@ jobs:
         with:
           node-version: "22"
           cache: npm
-      - uses: dtolnay/rust-toolchain@stable
-        with:
-          components: rustfmt, clippy
+      - name: Install Rust toolchain
+        run: |
+          rustup toolchain install stable --component rustfmt --component clippy --profile minimal --no-self-update
+          rustup default stable
+          echo "$HOME/.cargo/bin" >> "$GITHUB_PATH"
+        working-directory: .
       - uses: Swatinem/rust-cache@v2
         with:
           workspaces: src-tauri
