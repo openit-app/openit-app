@@ -23,6 +23,7 @@ import {
   resolveFilestoresList,
   resolveAttachmentsFolder,
 } from "./resolvers/filestoreResolvers";
+import { relUnderRepo } from "../../lib/paths";
 
 /**
  * Given an absolute file path, determine if it's an entity file
@@ -44,16 +45,14 @@ export async function resolvePathToSource(
 
   // Handle both path separators — Windows yields backslashes, Unix yields
   // forward slashes, and the two sides (repo and path) may even disagree.
-  // Normalize both before deriving the rel-path. Without this, clicking a
-  // folder in the file explorer on Windows resolved as a generic file view
-  // and surfaced "Access is denied. (os error 5)" as the viewer tried to
-  // read the directory as a file.
-  const repoFs = repo.replace(/\\/g, "/");
-  const pathFs = path.replace(/\\/g, "/");
-  const rel = pathFs.startsWith(repoFs + "/")
-    ? pathFs.slice(repoFs.length + 1)
-    : null;
-  if (!rel) return { kind: "file", path };
+  // Without normalization, clicking a folder in the file explorer on Windows
+  // resolved as a generic file view and surfaced "Access is denied. (os
+  // error 5)" as the viewer tried to read the directory as a file.
+  const rel = relUnderRepo(repo, path);
+  // Treat the repo root itself as a "file" fallback — caller already has
+  // dedicated viewers for it elsewhere; the empty rel here would short-
+  // circuit every match below.
+  if (rel === null || rel === "") return { kind: "file", path };
 
   // `tools` is a synthetic entity -- no on-disk directory at all (so it
   // doesn't show up in the file explorer). The Workbench station calls
