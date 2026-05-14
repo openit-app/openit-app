@@ -11,6 +11,7 @@ import {
 import { fsWatchStart, fsWatchStop, onFsChanged } from "../lib/fsWatcher";
 // Auto-commit disabled in local-first mode.
 import { startSkillMirrorDriver, stopSkillMirrorDriver } from "../lib/skillMirror";
+import { relUnderRepo, fsNorm } from "../lib/paths";
 import { ChatPane } from "./ChatPane";
 import { ChatShellHeader } from "./ChatShellHeader";
 import { PaneDragHandle } from "./PaneDragHandle";
@@ -129,8 +130,7 @@ function sourceLabel(s: ViewerSource, repo: string): string | null {
   if (!s) return null;
   switch (s.kind) {
     case "file": {
-      const rel = s.path.startsWith(repo) ? s.path.slice(repo.length + 1) : s.path;
-      return rel;
+      return relUnderRepo(repo, s.path) ?? fsNorm(s.path);
     }
     case "datastore-table":
       return `database collection: ${s.collection.name}`;

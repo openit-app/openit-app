@@ -6,7 +6,9 @@ use std::thread;
 #[cfg(not(target_os = "windows"))]
 use std::time::Duration;
 
-use anyhow::{anyhow, Result};
+#[cfg(not(target_os = "windows"))]
+use anyhow::anyhow;
+use anyhow::Result;
 use parking_lot::Mutex;
 use portable_pty::{native_pty_system, CommandBuilder, MasterPty, PtySize};
 use serde::{Deserialize, Serialize};
@@ -433,14 +435,25 @@ fn claude_install_candidates_for(home: Option<&Path>) -> Vec<PathBuf> {
 /// Build a PATH that includes the install dirs the native installer uses, so
 /// child processes spawned from a GUI-launched app can find `claude` even
 /// before the user restarts their terminal. Returns `None` if PATH is fine
-/// as-is or unreadable. Exposed for any module that spawns subprocesses
-/// expected to find `claude` and its peers.
+/// as-is, unreadable, or the platform doesn't need augmentation.
+///
+/// On Windows this is a no-op: the Claude installer writes to well-known
+/// per-user/system locations that we probe directly in
+/// [`claude_install_candidates_for`], and the system PATH separator differs
+/// from Unix. Subprocesses on Windows inherit PATH unchanged.
+#[cfg(not(target_os = "windows"))]
 pub(crate) fn augmented_path() -> Option<String> {
     let home = home_dir()?;
     let current = std::env::var("PATH").unwrap_or_default();
     augmented_path_for(&home, &current, |p| p.is_dir())
 }
 
+#[cfg(target_os = "windows")]
+pub(crate) fn augmented_path() -> Option<String> {
+    None
+}
+
+#[cfg(not(target_os = "windows"))]
 fn augmented_path_for(
     home: &Path,
     current_path: &str,
@@ -475,7 +488,9 @@ fn augmented_path_for(
     }
 }
 
-/// Resolve which binary to spawn. Preference: explicit override → `claude` on PATH or known install dir → user's $SHELL → /bin/bash.
+/// Resolve which binary to spawn. Preference: explicit override → `claude` on
+/// PATH or known install dir → user's $SHELL → bash → platform default shell
+/// (cmd.exe on Windows via %COMSPEC%, /bin/bash on Unix).
 fn resolve_command(override_cmd: Option<&str>) -> Result<String> {
     if let Some(c) = override_cmd {
         return Ok(c.to_string());
@@ -491,7 +506,20 @@ fn resolve_command(override_cmd: Option<&str>) -> Result<String> {
     if which::which("bash").is_ok() {
         return Ok("bash".to_string());
     }
-    Err(anyhow!("no shell or claude binary found on PATH"))
+    #[cfg(target_os = "windows")]
+    {
+        // %COMSPEC% is always set by Windows and points at cmd.exe.
+        if let Ok(comspec) = std::env::var("COMSPEC") {
+            if !comspec.is_empty() {
+                return Ok(comspec);
+            }
+        }
+        return Ok("cmd.exe".to_string());
+    }
+    #[cfg(not(target_os = "windows"))]
+    {
+        Err(anyhow!("no shell or claude binary found on PATH"))
+    }
 }
 
 #[cfg(test)]
@@ -511,6 +539,7 @@ mod tests {
         assert!(!resolved.is_empty());
     }
 
+    #[cfg(not(target_os = "windows"))]
     #[test]
     fn install_candidates_include_local_bin_when_home_is_set() {
         let home = PathBuf::from("/tmp/fake-home");
@@ -525,10 +554,27 @@ mod tests {
             .any(|p| p == &PathBuf::from("/opt/homebrew/bin/claude")));
     }
 
+    #[cfg(target_os = "windows")]
+    #[test]
+    fn install_candidates_include_windows_paths_when_home_is_set() {
+        let home = PathBuf::from("C:\\fake-home");
+        let cs = claude_install_candidates_for(Some(&home));
+        assert!(cs
+            .iter()
+            .any(|p| p == &home.join(".local\\bin\\claude.exe")));
+        assert!(cs
+            .iter()
+            .any(|p| p == &home.join(".claude\\local\\claude.exe")));
+        assert!(cs
+            .iter()
+            .any(|p| p == &home.join("AppData\\Local\\Programs\\claude-code\\claude.exe")));
+    }
+
+    #[cfg(not(target_os = "windows"))]
     #[test]
     fn install_candidates_omit_home_when_unset() {
         let cs = claude_install_candidates_for(None);
-        // Only the absolute fallbacks remain.
+        // Only the absolute Unix fallbacks remain.
         assert_eq!(cs.len(), 2);
         assert!(cs.iter().all(|p| p.is_absolute()));
     }
@@ -552,6 +598,7 @@ mod tests {
         assert!(found.is_none());
     }
 
+    #[cfg(not(target_os = "windows"))]
     #[test]
     fn augmented_path_prepends_only_existing_dirs() {
         let home = PathBuf::from("/tmp/fake-home");
@@ -564,6 +611,7 @@ mod tests {
         assert!(s.ends_with(":/usr/bin:/bin"));
     }
 
+    #[cfg(not(target_os = "windows"))]
     #[test]
     fn augmented_path_is_idempotent() {
         let home = PathBuf::from("/tmp/fake-home");
@@ -575,12 +623,21 @@ mod tests {
         assert!(augmented.is_none());
     }
 
+    #[cfg(not(target_os = "windows"))]
     #[test]
     fn augmented_path_returns_none_when_no_dirs_exist() {
         let home = PathBuf::from("/tmp/fake-home");
         let current = "/usr/bin";
         let augmented = augmented_path_for(&home, current, |_| false);
         assert!(augmented.is_none());
+    }
+
+    #[cfg(target_os = "windows")]
+    #[test]
+    fn augmented_path_is_noop_on_windows() {
+        // On Windows the function is a no-op; the install paths are surfaced
+        // by `claude_install_candidates_for` instead.
+        assert!(augmented_path().is_none());
     }
 
     /// Drive the real PTY backend (without the Tauri event layer) to prove the
@@ -598,6 +655,14 @@ mod tests {
             })
             .unwrap();
 
+        #[cfg(target_os = "windows")]
+        let mut cmd = {
+            let mut c = CommandBuilder::new("cmd.exe");
+            c.arg("/C");
+            c.arg("echo");
+            c
+        };
+        #[cfg(not(target_os = "windows"))]
         let mut cmd = CommandBuilder::new("/bin/echo");
         cmd.arg("hello-from-pty");
         let mut child = pair.slave.spawn_command(cmd).unwrap();

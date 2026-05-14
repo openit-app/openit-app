@@ -2,8 +2,16 @@ import type { FileNode } from "../../lib/api";
 import type { DataCollection, MemoryItem } from "../../lib/localTypes";
 
 export function relPath(repo: string, absPath: string): string {
-  const prefix = `${repo}/`;
-  return absPath.startsWith(prefix) ? absPath.slice(prefix.length) : absPath;
+  // Accept either path separator (Windows yields `\`, mac/Linux `/`) and
+  // always return a forward-slash relative path so callers can use the
+  // same regex patterns regardless of platform.
+  if (absPath.startsWith(repo)) {
+    const tail = absPath.slice(repo.length);
+    if (tail.startsWith("/") || tail.startsWith("\\")) {
+      return tail.slice(1).replace(/\\/g, "/");
+    }
+  }
+  return absPath.replace(/\\/g, "/");
 }
 
 /**

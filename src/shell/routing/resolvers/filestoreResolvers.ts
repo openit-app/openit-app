@@ -1,5 +1,6 @@
 import { fsRead, fsList } from "../../../lib/api";
 import type { ViewerSource } from "../../viewerTypes";
+import { isDirectChild } from "../../../lib/paths";
 
 /**
  * `filestores/attachments/<ticketId>/` -- entity-folder of the
@@ -17,13 +18,9 @@ export async function resolveAttachmentsTicket(
       description: string;
       path: string;
     }[] = [];
-    const childPrefix = `${path}/`;
     for (const n of nodes) {
       if (n.is_dir) continue;
-      const remainder = n.path.startsWith(childPrefix)
-        ? n.path.slice(childPrefix.length)
-        : "";
-      if (!remainder || remainder.includes("/")) continue;
+      if (!isDirectChild(path, n.path)) continue;
       if (n.name.includes(".server.")) continue;
       files.push({ name: n.name, displayName: n.name, description: "", path: n.path });
     }
@@ -73,17 +70,13 @@ export async function resolveEntityFolder(
       path: string;
       size: number | null;
     }[] = [];
-    const childPrefix = `${path}/`;
     // V3 agents: each agent is a single .md file in agents/.
     // Display name = filename without extension. Description =
     // first non-empty, non-heading line from the markdown.
     if (rel === "agents") {
       for (const n of nodes) {
         if (n.is_dir) continue;
-        const remainder = n.path.startsWith(childPrefix)
-          ? n.path.slice(childPrefix.length)
-          : "";
-        if (!remainder || remainder.includes("/")) continue;
+        if (!isDirectChild(path, n.path)) continue;
         if (!n.name.endsWith(".md")) continue;
         if (n.name.includes(".server.")) continue;
         const displayName = n.name.replace(/\.md$/, "");
@@ -114,8 +107,7 @@ export async function resolveEntityFolder(
       // children of the entity dir so nested files (e.g. anything a
       // future sync engine drops into a sub-folder) don't pollute
       // this list with descendants.
-      const remainder = n.path.startsWith(childPrefix) ? n.path.slice(childPrefix.length) : "";
-      if (!remainder || remainder.includes("/")) continue;
+      if (!isDirectChild(path, n.path)) continue;
       // Skip conflict-shadow files written by the sync engine -- they
       // would duplicate every entry under "<name>.server.json" /
       // "<name>.server.md" and aren't meant for direct viewing.
@@ -284,11 +276,9 @@ export async function resolveFilestoresList(
   // actually on disk.
   try {
     const subdirs = await fsList(path);
-    const childPrefix = `${path}/`;
     for (const sd of subdirs) {
       if (!sd.is_dir) continue;
-      const tail = sd.path.startsWith(childPrefix) ? sd.path.slice(childPrefix.length) : "";
-      if (!tail || tail.includes("/")) continue;
+      if (!isDirectChild(path, sd.path)) continue;
       const collName = sd.name;
       const isAttachments = collName === "attachments";
       const builtin = builtinDescriptions[collName];
@@ -298,10 +288,8 @@ export async function resolveFilestoresList(
       let itemCount = 0;
       try {
         const inner = await fsList(sd.path);
-        const innerPrefix = `${sd.path}/`;
         for (const n of inner) {
-          const innerTail = n.path.startsWith(innerPrefix) ? n.path.slice(innerPrefix.length) : "";
-          if (!innerTail || innerTail.includes("/")) continue;
+          if (!isDirectChild(sd.path, n.path)) continue;
           if (isAttachments) {
             if (n.is_dir) itemCount += 1;
           } else {
@@ -347,19 +335,15 @@ export async function resolveAttachmentsFolder(
   try {
     const subdirs = await fsList(path);
     const tickets: { ticketId: string; path: string; fileCount: number }[] = [];
-    const childPrefix = `${path}/`;
     for (const sd of subdirs) {
       if (!sd.is_dir) continue;
-      const tail = sd.path.startsWith(childPrefix) ? sd.path.slice(childPrefix.length) : "";
-      if (!tail || tail.includes("/")) continue;
+      if (!isDirectChild(path, sd.path)) continue;
       let fileCount = 0;
       try {
         const inner = await fsList(sd.path);
-        const innerPrefix = `${sd.path}/`;
         for (const f of inner) {
           if (f.is_dir) continue;
-          const innerTail = f.path.startsWith(innerPrefix) ? f.path.slice(innerPrefix.length) : "";
-          if (!innerTail || innerTail.includes("/")) continue;
+          if (!isDirectChild(sd.path, f.path)) continue;
           fileCount += 1;
         }
       } catch {

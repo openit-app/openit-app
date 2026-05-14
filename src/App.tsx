@@ -21,6 +21,7 @@ import {
   type DockKind,
   type SkillState,
   injectIntoChat,
+  skillStateClear,
   skillStateRead,
 } from "./lib/skillState";
 import { onFsChanged } from "./lib/fsWatcher";
@@ -30,6 +31,7 @@ import { StatusChips } from "./shell/StatusBar";
 import { useUpdateChecker } from "./lib/updater";
 import { syncSkillsToDisk, readSyncedPluginVersion } from "./lib/skillsSync";
 import { seedIfEmpty } from "./lib/seed";
+import { basename, fsNorm } from "./lib/paths";
 import { invoke } from "@tauri-apps/api/core";
 import "./App.css";
 
@@ -274,7 +276,9 @@ function App() {
       .catch(() => {});
     let unlistenFn: (() => void) | null = null;
     onFsChanged((paths) => {
-      if (paths.some((p) => p.endsWith("/.openit/flash.json"))) {
+      // Normalize separators so the substring match works on Windows
+      // (the fs watcher returns native paths, with `\` on win32).
+      if (paths.some((p) => fsNorm(p).endsWith("/.openit/flash.json"))) {
         consume();
       }
     })
@@ -307,10 +311,29 @@ function App() {
           if (mounted) setDock(s?.dock ?? null);
         })
         .catch((e) => console.warn("[app] dock state read failed:", e));
-    refresh();
+    // On app startup, clear any persisted paste-state. A bot/app-token-
+    // paste dock value only makes sense while the Claude session that
+    // wrote it is alive and waiting for a token. After a restart, that
+    // session is gone — the persisted value would spuriously surface a
+    // paste button before the user re-invokes /connect-slack. Reading
+    // first so we only clear when there's actually stale paste-state
+    // (avoids a write on every launch).
+    skillStateRead(repo, ACTIVE_DOCK_SKILL)
+      .then((s) => {
+        if (!mounted) return;
+        if (s?.dock === "bot-token-paste" || s?.dock === "app-token-paste") {
+          skillStateClear(repo, ACTIVE_DOCK_SKILL).catch((e) =>
+            console.warn("[app] stale dock clear failed:", e),
+          );
+          setDock(null);
+        } else {
+          setDock(s?.dock ?? null);
+        }
+      })
+      .catch((e) => console.warn("[app] dock startup read failed:", e));
     let unlistenFn: (() => void) | null = null;
     onFsChanged((paths) => {
-      if (paths.some((p) => p.includes("/.openit/skill-state/"))) {
+      if (paths.some((p) => fsNorm(p).includes("/.openit/skill-state/"))) {
         refresh();
       }
     })
@@ -377,7 +400,10 @@ function App() {
     // status pill from "connected" back to the unconnected pill.
     let unlistenFn: (() => void) | null = null;
     onFsChanged((paths) => {
-      if (paths.some((p) => p.endsWith("/.openit/slack.json") || p.includes("/.openit/skill-state/connect-slack"))) {
+      if (paths.some((p) => {
+        const n = fsNorm(p);
+        return n.endsWith("/.openit/slack.json") || n.includes("/.openit/skill-state/connect-slack");
+      })) {
         refreshConfig();
         // Reset the auto-start latch so the next reconnect (if any)
         // is allowed to bring the listener back up.
@@ -496,7 +522,7 @@ function App() {
             const s = await stateLoad();
             if (s.last_repo && !s.last_repo.includes("/Documents/OpenIT/")) {
               // Migrate: register the legacy repo as a workspace
-              const name = s.last_repo.split("/").filter(Boolean).pop() ?? "Personal";
+              const name = basename(s.last_repo) || "Personal";
               await createWorkspace(s.last_repo, name);
               await openVault(s.last_repo);
               return;

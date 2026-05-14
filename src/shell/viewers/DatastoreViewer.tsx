@@ -63,15 +63,16 @@ export function DatastoreTableBody({
       }}
       onRowDelete={
         repo
-          ? (key) =>
-              deleteFileInSubdir(
+          ? async (key) => {
+              await deleteFileInSubdir(
                 repo,
                 `databases/${collection.name}`,
                 `${key}.json`,
                 setFolderUploadError,
                 showToast,
                 onFsChange,
-              )
+              );
+            }
           : undefined
       }
     />
@@ -159,15 +160,16 @@ export function GenericRecordCardsBody({
         if (onOpenPath) void onOpenPath(filePath);
       },
       onDelete: repo
-        ? () =>
-            deleteFileInSubdir(
+        ? async () => {
+            await deleteFileInSubdir(
               repo,
               `databases/${collection.name}`,
               `${(it.key || it.id)}.json`,
               setFolderUploadError,
               showToast,
               onFsChange,
-            )
+            );
+          }
         : undefined,
     };
   });

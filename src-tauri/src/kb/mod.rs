@@ -300,12 +300,15 @@ pub fn entity_write_file(
     filename: String,
     content: String,
 ) -> Result<(), String> {
-    if !subdir.is_empty() {
-        validate_subdir(&subdir)?;
-    }
     validate_filename(&filename)?;
-    let dir = Path::new(&repo).join(&subdir);
-    ensure_dir(&dir)?;
+    let dir = if subdir.is_empty() {
+        Path::new(&repo).to_path_buf()
+    } else {
+        validate_subdir(&subdir)?;
+        let d = Path::new(&repo).join(&subdir);
+        ensure_dir(&d)?;
+        d
+    };
     let path = dir.join(&filename);
     fs::write(&path, content).map_err(|e| e.to_string())
 }

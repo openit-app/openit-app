@@ -53,15 +53,16 @@ export function PeopleListBody({
           }}
           onRowDelete={
             repo
-              ? (key) =>
-                  deleteFileInSubdir(
+              ? async (key) => {
+                  await deleteFileInSubdir(
                     repo,
                     `databases/${collection.name}`,
                     `${key}.json`,
                     setFolderUploadError,
                     showToast,
                     onFsChange,
-                  )
+                  );
+                }
               : undefined
           }
         />
@@ -189,15 +190,16 @@ export function AccessListBody({
           }}
           onRowDelete={
             repo
-              ? (key) =>
-                  deleteFileInSubdir(
+              ? async (key) => {
+                  await deleteFileInSubdir(
                     repo,
                     `databases/${collection.name}`,
                     `${key}.json`,
                     setFolderUploadError,
                     showToast,
                     onFsChange,
-                  )
+                  );
+                }
               : undefined
           }
         />
@@ -324,15 +326,16 @@ export function AssetsListBody({
           }}
           onRowDelete={
             repo
-              ? (key) =>
-                  deleteFileInSubdir(
+              ? async (key) => {
+                  await deleteFileInSubdir(
                     repo,
                     `databases/${collection.name}`,
                     `${key}.json`,
                     setFolderUploadError,
                     showToast,
                     onFsChange,
-                  )
+                  );
+                }
               : undefined
           }
         />

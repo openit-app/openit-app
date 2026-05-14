@@ -1,4 +1,5 @@
 import type { ViewerSource } from "./viewerTypes";
+import { relUnderRepo, fsNorm, basename } from "../lib/paths";
 
 /** One segment of the breadcrumb trail. `navigateTo` is a repo-relative
  *  path that will be dispatched as `openit:navigate`. Null for the last
@@ -203,7 +204,7 @@ export function breadcrumbSegments(
     case "script-output":
       return [
         { label: "Scripts", navigateTo: "filestores/scripts" },
-        { label: `Run: ${source.script.split("/").pop() ?? source.script}`, navigateTo: null },
+        { label: `Run: ${basename(source.script) || source.script}`, navigateTo: null },
       ];
     case "knowledge-list":
       return [{ label: "Knowledge", navigateTo: null }];
@@ -219,8 +220,8 @@ export function breadcrumbSegments(
  *  from the filename through intermediate directories to the top-level
  *  entity folder (if one matches). */
 function filePathSegments(absPath: string, repo: string): BreadcrumbSegment[] {
-  const rel = absPath.startsWith(repo + "/") ? absPath.slice(repo.length + 1) : null;
-  if (!rel) return [{ label: absPath.split("/").pop() ?? absPath, navigateTo: null }];
+  const rel = relUnderRepo(repo, absPath);
+  if (!rel) return [{ label: fsNorm(absPath).split("/").pop() ?? absPath, navigateTo: null }];
 
   const parts = rel.split("/");
 

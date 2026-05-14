@@ -205,11 +205,14 @@ function capitalize(s: string): string {
 }
 
 function directChildDirs(items: FileNode[], rootAbs: string): FileNode[] {
-  const prefix = `${rootAbs}/`;
+  // Normalize separators — see comment in Workbench.directChildren.
+  const root = rootAbs.replace(/\\/g, "/");
+  const prefix = `${root}/`;
   return items.filter((n) => {
     if (!n.is_dir) return false;
-    if (!n.path.startsWith(prefix)) return false;
-    const tail = n.path.slice(prefix.length);
+    const p = n.path.replace(/\\/g, "/");
+    if (!p.startsWith(prefix)) return false;
+    const tail = p.slice(prefix.length);
     return tail.length > 0 && !tail.includes("/");
   });
 }
@@ -260,11 +263,13 @@ export async function discoverTiles(repo: string): Promise<DiscoveredTile[]> {
   } catch { /* databases/ may not exist */ }
 
   // Discover filestore collections
+  const fsSeen = new Set<string>();
   try {
     const fsItems = await fsList(`${repo}/filestores`);
     const fsDirs = directChildDirs(fsItems, `${repo}/filestores`);
     for (const dir of fsDirs) {
       const known = KNOWN_FS_DEFAULTS[dir.name];
+      fsSeen.add(dir.name);
       tiles.push({
         rel: `filestores/${dir.name}`,
         label: known?.label ?? capitalize(dir.name),
@@ -275,6 +280,20 @@ export async function discoverTiles(repo: string): Promise<DiscoveredTile[]> {
       });
     }
   } catch { /* filestores/ may not exist */ }
+
+  // Always synthesize the Commands tile (filestores/commands) so it appears
+  // in a fresh vault even before the folder is materialized — it's a core
+  // workstation tile pinned to `main` in the default config.
+  if (!fsSeen.has("commands")) {
+    const known = KNOWN_FS_DEFAULTS.commands;
+    tiles.push({
+      rel: "filestores/commands",
+      label: known.label,
+      defaultIcon: known.icon,
+      defaultTone: known.tone,
+      countMode: "files",
+    });
+  }
 
   // System tiles
   tiles.push(...SYSTEM_TILES);

@@ -11,6 +11,7 @@
 // small/medium volumes — a few file reads + JSON parses per scan.
 
 import { fsList, fsRead, type FileNode } from "./api";
+import { relUnderRepo, fsNorm } from "./paths";
 
 export type TicketSummary = {
   // Absolute path to the row file on disk.
@@ -81,7 +82,7 @@ async function readIfStatus(
   if (obj.status !== statusFilter) return null;
   return {
     path: absPath,
-    relPath: absPath.startsWith(`${repo}/`) ? absPath.slice(repo.length + 1) : absPath,
+    relPath: relUnderRepo(repo, absPath) ?? fsNorm(absPath),
     subject: typeof obj.subject === "string" ? obj.subject : "",
     asker: typeof obj.asker === "string" ? obj.asker : "",
   };

@@ -42,10 +42,23 @@ export async function skillStateRead(
   return invoke("skill_state_read", { repo, skill });
 }
 
+/// Delete the on-disk skill-state file for `skill`. Idempotent: if the
+/// file isn't there, this is a no-op. Used on app startup to clear
+/// stale paste-state from a prior Claude session — the chat that was
+/// asking for a token is gone, so the persisted dock value can't
+/// belong to anyone the user can still answer.
+export async function skillStateClear(
+  repo: string,
+  skill: string,
+): Promise<void> {
+  return invoke("skill_state_clear", { repo, skill });
+}
+
 
 /// Inject a slash command (or any line of text) into the active
-/// Claude PTY. Trailing carriage return commits the line. No-op
-/// (with a console warning) when no Claude session is active.
+/// Claude PTY and commit it. `writeToActiveSession` does the
+/// body / Enter split internally so a Windows TUI doesn't absorb
+/// the terminating `\r` as a newline-in-input.
 export async function injectIntoChat(text: string): Promise<boolean> {
   const trimmed = text.endsWith("\n") || text.endsWith("\r") ? text : `${text}\r`;
   return writeToActiveSession(trimmed);

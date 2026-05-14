@@ -299,9 +299,29 @@ function EntityCardItem({
           className="entity-card-delete"
           title={`Delete ${c.title}`}
           aria-label={`Delete ${c.title}`}
+          // Pointer flow: fire on mousedown, not click. The button's
+          // `:active` rule does a translateY(1px) — between mousedown
+          // and mouseup the button moves out from under the cursor,
+          // mouseup lands on the card behind it, and click never fires
+          // on the trash button itself. mousedown is the actual commit
+          // signal we want for pointer activations.
+          onMouseDown={(e) => {
+            e.stopPropagation();
+            e.preventDefault();
+            void c.onDelete?.();
+          }}
+          // Keyboard flow: Enter/Space activation dispatches a click
+          // *without* a preceding mousedown — those clicks have
+          // `event.detail === 0`. Invoke onDelete here so keyboard
+          // users aren't locked out. Pointer-originated clicks
+          // (detail >= 1) are already handled above and we just eat
+          // them to keep the card behind from receiving the click.
           onClick={(e) => {
             e.stopPropagation();
-            void c.onDelete?.();
+            e.preventDefault();
+            if (e.detail === 0) {
+              void c.onDelete?.();
+            }
           }}
         >
           <TrashIcon />

@@ -83,7 +83,7 @@ When a tool reports unauthenticated or missing, tell the admin which Tools tile 
 
 ## File conventions
 
-- **Ticket** lives at `databases/tickets/ticket-<id>.json`. Status flow: `open` → `resolved` → `closed`. Fields documented in `_schema.json`.
+- **Ticket** lives at `databases/tickets/<ticketId>.json`, where `<ticketId>` is the intake server's generated id (ISO-timestamp + 4-hex random, e.g. `2026-05-12T20-21-13Z-20aa.json`). Search with `Glob "databases/tickets/*.json"` — do NOT assume a `ticket-` prefix. Status flow: `open` → `resolved` → `closed`. Fields documented in `_schema.json`.
 - **Person** lives at `databases/people/<sanitized-email>.json`. Sanitize by lowercasing and replacing `@` and `.` with `-` (so `Bob@Example.com` becomes `bob-example-com.json`). If a row with that email already exists, **merge** new fields into it rather than overwriting.
 - **Conversation turn** lives at `databases/conversations/<ticketId>/msg-<unix-ms>-<rand>.json`. Fields: `id`, `ticketId`, `role` (`asker`, `agent`, or `admin`), `sender`, `timestamp` (ISO-8601 UTC), `body`. The intake server writes asker turns on inbound; you only write these for agent or admin turns you generate yourself.
 - **Knowledge article** lives at `knowledge/<slug>.md`. Search with `Glob "knowledge/**/*.md"` or `node .claude/scripts/knowledge-search.mjs "<query>"`.

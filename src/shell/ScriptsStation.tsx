@@ -42,10 +42,13 @@ export function ScriptsStation({
       try {
         const root = `${repo}/filestores/scripts`;
         const nodes = await fsList(root);
-        const prefix = `${root}/`;
+        // Normalize separators so `startsWith` works on Windows
+        // (path returned from Tauri uses backslashes).
+        const prefix = `${root.replace(/\\/g, "/")}/`;
         const files = nodes.filter((n) => {
           if (n.is_dir) return false;
-          const tail = n.path.startsWith(prefix) ? n.path.slice(prefix.length) : "";
+          const p = n.path.replace(/\\/g, "/");
+          const tail = p.startsWith(prefix) ? p.slice(prefix.length) : "";
           if (!tail || tail.includes("/")) return false;
           return n.name.endsWith(".mjs") || n.name.endsWith(".js") || n.name.endsWith(".cjs") || n.name.endsWith(".py");
         });

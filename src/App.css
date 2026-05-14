@@ -4991,7 +4991,10 @@ input.viewer-title.viewer-title-rename {
   z-index: 10;
 }
 
-.entity-card-wrapper:hover .entity-card-delete {
+.entity-card-wrapper:hover .entity-card-delete,
+.entity-card-wrapper:focus-within .entity-card-delete,
+.entity-card-delete:hover,
+.entity-card-delete:focus {
   opacity: 1;
   pointer-events: auto;
 }
@@ -5010,7 +5013,10 @@ input.viewer-title.viewer-title-rename {
   z-index: 10;
 }
 
-.entity-card-wrapper:hover .entity-card-add-claude {
+.entity-card-wrapper:hover .entity-card-add-claude,
+.entity-card-wrapper:focus-within .entity-card-add-claude,
+.entity-card-add-claude:hover,
+.entity-card-add-claude:focus {
   opacity: 1;
   pointer-events: auto;
 }
@@ -5025,7 +5031,10 @@ input.viewer-title.viewer-title-rename {
   z-index: 10;
 }
 
-.entity-card-wrapper:hover .entity-card-run {
+.entity-card-wrapper:hover .entity-card-run,
+.entity-card-wrapper:focus-within .entity-card-run,
+.entity-card-run:hover,
+.entity-card-run:focus {
   opacity: 1;
   pointer-events: auto;
 }

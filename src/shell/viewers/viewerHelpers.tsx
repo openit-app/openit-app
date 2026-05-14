@@ -6,6 +6,7 @@ import { ask } from "@tauri-apps/plugin-dialog";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import { entityWriteFileBytes, entityDeleteFile, entityListLocal } from "../../lib/api";
 import { writeToActiveSession } from "../activeSession";
+import { relUnderRepo } from "../../lib/paths";
 
 /// Pasting a slash command into the active Claude PTY uses bracketed-
 /// paste sequences so the terminal treats it as a single atomic input,
@@ -182,10 +183,11 @@ export function mimeForPath(path: string): string {
 /// otherwise return the path as-is and let the validator complain
 /// with a useful message.
 export function toRepoRelative(repo: string, path: string): string {
-  const r = repo.endsWith("/") ? repo : `${repo}/`;
-  if (path.startsWith(r)) return path.slice(r.length);
-  if (path === repo) return "";
-  return path;
+  // Delegate separator-handling to the shared helper so Windows paths
+  // with backslashes don't slip through as absolute (and trip the
+  // Rust-side validate_subdir guard).
+  const rel = relUnderRepo(repo, path);
+  return rel ?? path;
 }
 
 /// Filenames that survive Finder (narrow no-break space, colons,
@@ -296,14 +298,16 @@ export async function uploadFilesToSubdir(
 /// Race a Tauri `ask()` dialog against a timeout. If the dialog hangs
 /// (e.g. due to macOS permission or focus issue), the timeout fires and
 /// we treat it as confirmed — the user already clicked the trash icon.
-export async function confirmDelete(message: string, title: string): Promise<boolean> {
+export async function confirmDelete(message: string, _title: string): Promise<boolean> {
+  // Browser-native modal: synchronous, always rendered by the webview
+  // itself (no native-Z-order quirks like the Tauri dialog plugin
+  // ran into on Windows). The plugin path stayed dark for some
+  // installs — a click on the trash icon did nothing visible — so the
+  // simpler approach wins.
   try {
-    return await Promise.race([
-      ask(message, { title, kind: "warning" }),
-      new Promise<boolean>((resolve) => setTimeout(() => resolve(true), 2000)),
-    ]);
+    return window.confirm(message);
   } catch {
-    return true; // dialog failed, user intent was clear from the click
+    return true;
   }
 }
 
@@ -311,6 +315,13 @@ export async function confirmDelete(message: string, title: string): Promise<boo
 /// trash button on library/KB/reports/attachments-ticket cards. The
 /// fs watcher refreshes the listing on its own — we just surface
 /// errors so the user knows when a delete didn't take.
+///
+/// Returns `true` only when the file was actually removed. `false`
+/// covers both "user cancelled the confirm" and "delete API threw".
+/// Callers that hold side-state contingent on the delete (e.g. an
+/// optimistic-hide set in EntityFolderViewer) must use the return
+/// value to decide whether to commit that state — without it, a
+/// cancel leaves the card hidden even though nothing was deleted.
 export async function deleteFileInSubdir(
   repo: string,
   subdir: string,
@@ -318,21 +329,26 @@ export async function deleteFileInSubdir(
   setError: (msg: string | null) => void,
   onToast?: (msg: string) => void,
   onRefresh?: () => void,
-): Promise<void> {
+): Promise<boolean> {
   const ok = await confirmDelete(
     `Delete "${filename}"?\n\nThis cannot be undone.`,
     "Delete file?",
   );
-  if (!ok) return;
+  if (!ok) return false;
+  onToast?.(`Deleting ${filename}…`);
   setError(null);
   try {
-    await entityDeleteFile(repo, toRepoRelative(repo, subdir), filename);
+    const rel = toRepoRelative(repo, subdir);
+    await entityDeleteFile(repo, rel, filename);
     onToast?.(`Deleted ${filename}`);
     onRefresh?.();
+    return true;
   } catch (err) {
     const reason = err instanceof Error ? err.message : String(err);
     console.error(`[folder-delete] failed for ${filename}:`, err);
+    onToast?.(`Failed to delete ${filename}: ${reason}`);
     setError(`Failed to delete ${filename}: ${reason}`);
+    return false;
   }
 }
 

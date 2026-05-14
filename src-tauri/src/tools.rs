@@ -32,9 +32,111 @@ pub fn tools_is_installed(binary: String) -> bool {
     // PATH (/usr/bin:/bin:/usr/sbin:/sbin) that doesn't include
     // Homebrew paths. Probe the standard Homebrew directories directly
     // so `op`, `gh`, etc. are detected even when not on the process PATH.
-    for dir in &["/opt/homebrew/bin", "/usr/local/bin"] {
-        if PathBuf::from(dir).join(&binary).exists() {
-            return true;
+    #[cfg(not(target_os = "windows"))]
+    {
+        for dir in &["/opt/homebrew/bin", "/usr/local/bin"] {
+            if PathBuf::from(dir).join(&binary).exists() {
+                return true;
+            }
+        }
+    }
+    // On Windows, freshly-installed tools may not be on the running
+    // process's PATH (PATH is captured at spawn). Probe the standard
+    // install + shim locations directly so newly-installed tools are
+    // detected without an app restart.
+    #[cfg(target_os = "windows")]
+    {
+        let exe = if binary.ends_with(".exe") {
+            binary.clone()
+        } else {
+            format!("{}.exe", binary)
+        };
+        let cmd = if binary.ends_with(".cmd") {
+            binary.clone()
+        } else {
+            format!("{}.cmd", binary)
+        };
+        let candidates = [binary.as_str(), exe.as_str(), cmd.as_str()];
+
+        // 1. Flat dirs to check directly.
+        let mut flat: Vec<PathBuf> = Vec::new();
+        if let Ok(local_app_data) = std::env::var("LOCALAPPDATA") {
+            flat.push(PathBuf::from(&local_app_data).join("Microsoft\\WinGet\\Links"));
+            flat.push(PathBuf::from(&local_app_data).join("Microsoft\\WindowsApps"));
+        }
+        for root in &flat {
+            for c in &candidates {
+                if root.join(c).exists() {
+                    return true;
+                }
+            }
+        }
+
+        // 2. Recursive search of one-level-down package dirs. WinGet
+        // doesn't always materialize a shim in Links\; the actual
+        // binary lives under %LOCALAPPDATA%\Microsoft\WinGet\Packages\
+        // <PackageId>\<...>\<name>.exe. Walk a few hops deep to catch
+        // common layouts without an open-ended traversal.
+        //
+        // Scope deliberately narrow: only the WinGet/Programs trees
+        // under LOCALAPPDATA. We intentionally do NOT recurse into
+        // %ProgramFiles%/%ProgramFiles(x86)% — those trees can contain
+        // thousands of subdirs and the listing is called per-tool, so
+        // a depth-3 walk × 14 tools = a multi-second hang on first
+        // load. Tools installed via traditional Setup.exe/MSI almost
+        // always register themselves on PATH, which is already
+        // covered by the `which::which` probe at the top of this fn.
+        let mut deep_roots: Vec<PathBuf> = Vec::new();
+        if let Ok(local_app_data) = std::env::var("LOCALAPPDATA") {
+            deep_roots.push(PathBuf::from(&local_app_data).join("Microsoft\\WinGet\\Packages"));
+            deep_roots.push(PathBuf::from(&local_app_data).join("Programs"));
+        }
+        for root in &deep_roots {
+            if find_binary_within(root, &candidates, 3) {
+                return true;
+            }
+        }
+    }
+    false
+}
+
+/// Best-effort recursive probe used by `tools_is_installed` on Windows.
+/// Walks at most `max_depth` levels under `root` looking for any of
+/// `names` as a file. Skips obvious noise dirs to keep it fast.
+#[cfg(target_os = "windows")]
+fn find_binary_within(root: &std::path::Path, names: &[&str], max_depth: usize) -> bool {
+    if max_depth == 0 || !root.is_dir() {
+        return false;
+    }
+    let entries = match std::fs::read_dir(root) {
+        Ok(e) => e,
+        Err(_) => return false,
+    };
+    for entry in entries.flatten() {
+        let path = entry.path();
+        let file_type = match entry.file_type() {
+            Ok(t) => t,
+            Err(_) => continue,
+        };
+        if file_type.is_file() {
+            if let Some(name) = path.file_name().and_then(|s| s.to_str()) {
+                if names.iter().any(|n| n.eq_ignore_ascii_case(name)) {
+                    return true;
+                }
+            }
+        } else if file_type.is_dir() {
+            // Skip the usual cache / metadata dirs that bloat the walk.
+            if let Some(name) = path.file_name().and_then(|s| s.to_str()) {
+                if matches!(
+                    name,
+                    "node_modules" | ".git" | "$Recycle.Bin" | "WindowsApps"
+                ) {
+                    continue;
+                }
+            }
+            if find_binary_within(&path, names, max_depth - 1) {
+                return true;
+            }
         }
     }
     false

@@ -13,6 +13,21 @@ import "@fontsource-variable/source-serif-4/standard-italic.css";
 import App from "./App";
 import { ToastProvider } from "./Toast";
 
+// Mark the host OS on <html> so layout that differs by platform
+// (currently: TitleRail clearance — traffic lights on macOS, native
+// min/max/close on the right on Windows) can branch in pure CSS.
+{
+  const ua = navigator.userAgent;
+  const os = ua.includes("Windows")
+    ? "windows"
+    : ua.includes("Mac")
+      ? "macos"
+      : ua.includes("Linux")
+        ? "linux"
+        : "other";
+  document.documentElement.setAttribute("data-os", os);
+}
+
 ReactDOM.createRoot(document.getElementById("root") as HTMLElement).render(
   <React.StrictMode>
     <ToastProvider>
