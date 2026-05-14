@@ -165,28 +165,20 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           TAG: ${{ github.ref_name }}
         run: |
+          set -euo pipefail
           VERSION="${TAG#v}"
           BASE="https://github.com/${{ github.repository }}/releases/download/${TAG}"
 
-          curl -sL "${BASE}/OpenIT_aarch64.app.tar.gz" -o /tmp/aarch64.tar.gz
-          curl -sL "${BASE}/OpenIT_x64.app.tar.gz" -o /tmp/x64.tar.gz
-          # -f: fail on HTTP errors so we don't end up signing a 404 HTML page.
-          curl -fsSL "${BASE}/OpenIT_${VERSION}_x64-setup.nsis.zip" -o /tmp/win64.zip || rm -f /tmp/win64.zip
+          # All three updater archives are required. -fsSL fails the step
+          # on any HTTP error (404/5xx) so we never sign a 404 HTML page or
+          # publish a latest.json that points at a missing asset.
+          curl -fsSL "${BASE}/OpenIT_aarch64.app.tar.gz"            -o /tmp/aarch64.tar.gz
+          curl -fsSL "${BASE}/OpenIT_x64.app.tar.gz"                -o /tmp/x64.tar.gz
+          curl -fsSL "${BASE}/OpenIT_${VERSION}_x64-setup.nsis.zip" -o /tmp/win64.zip
 
           AARCH64_SIG=$(npx tauri signer sign /tmp/aarch64.tar.gz 2>&1 | grep -A1 "Public signature:" | tail -1)
-          X64_SIG=$(npx tauri signer sign /tmp/x64.tar.gz 2>&1 | grep -A1 "Public signature:" | tail -1)
-
-          WIN64_BLOCK=""
-          if [ -f /tmp/win64.zip ] && [ -s /tmp/win64.zip ]; then
-            WIN64_SIG=$(npx tauri signer sign /tmp/win64.zip 2>&1 | grep -A1 "Public signature:" | tail -1)
-            WIN64_BLOCK=$(cat <<WINEOF
-              ,"windows-x86_64": {
-                "signature": "${WIN64_SIG}",
-                "url": "${BASE}/OpenIT_${VERSION}_x64-setup.nsis.zip"
-              }
-          WINEOF
-            )
-          fi
+          X64_SIG=$(npx tauri signer sign /tmp/x64.tar.gz         2>&1 | grep -A1 "Public signature:" | tail -1)
+          WIN64_SIG=$(npx tauri signer sign /tmp/win64.zip        2>&1 | grep -A1 "Public signature:" | tail -1)
 
           PUB_DATE=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
 
@@ -203,13 +195,38 @@ jobs:
               "darwin-x86_64": {
                 "signature": "${X64_SIG}",
                 "url": "${BASE}/OpenIT_x64.app.tar.gz"
-              }${WIN64_BLOCK}
+              },
+              "windows-x86_64": {
+                "signature": "${WIN64_SIG}",
+                "url": "${BASE}/OpenIT_${VERSION}_x64-setup.nsis.zip"
+              }
             }
           }
           EOF
 
           python3 -m json.tool /tmp/latest.json > /dev/null
           gh release upload "${TAG}" /tmp/latest.json --clobber
+
+      # Belt-and-suspenders: HEAD every URL in the freshly-uploaded
+      # latest.json. Catches future regressions where a workflow change
+      # silently drops an artifact or renames it under our feet.
+      - name: Verify latest.json URLs resolve
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          urls=$(python3 -c "import json; d=json.load(open('/tmp/latest.json')); [print(p['url']) for p in d['platforms'].values()]")
+          fail=0
+          while IFS= read -r u; do
+            code=$(curl -sL -o /dev/null -w "%{http_code}" -I "$u")
+            if [ "$code" != "200" ]; then
+              echo "::error::latest.json url returned HTTP $code: $u"
+              fail=1
+            else
+              echo "ok $u"
+            fi
+          done <<< "$urls"
+          [ "$fail" -eq 0 ] || exit 1
 
   # ── Always rebuild landing — no dependencies on build success ──
   rebuild-landing:
