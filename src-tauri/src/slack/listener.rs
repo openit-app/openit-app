@@ -102,9 +102,19 @@ pub(super) fn spawn_supervisor_task(
                 exit = child.wait() => {
                     handle_exit(exit, &exit_err_handle);
                     if let Some(tx) = ready_tx.take() {
-                        let _ = tx.send(Err(
-                            "listener exited before reporting ready (check stderr)".into()
-                        ));
+                        // Surface the last `[slack-listen]` stderr line in
+                        // the connect failure so the user immediately sees
+                        // the real cause (invalid_auth / missing scope /
+                        // typo'd token) instead of a bare "check stderr"
+                        // that asks them to dig into the supervisor logs.
+                        let last = err_handle
+                            .lock()
+                            .clone()
+                            .unwrap_or_else(|| "no stderr captured".to_string());
+                        let _ = tx.send(Err(format!(
+                            "listener exited before reporting ready — {}",
+                            last
+                        )));
                     }
                     break;
                 }

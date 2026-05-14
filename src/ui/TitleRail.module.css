@@ -8,7 +8,13 @@
    them feel cramped — the user reads "control + control + control +
    chip + chip + chip" as one cluster. We give the chips ~24px of
    breathing room past the traffic clearance so they read as their
-   own group on the left side of the rail. */
+   own group on the left side of the rail.
+
+   On Windows the native window controls live on the *right*, not
+   overlaid on the left of our rail, so the left clearance is dead
+   space. `[data-os="windows"]` on <html> (set in main.tsx) collapses
+   it; the right side gets a matching clearance instead so the chips
+   on the right don't end up under the min/max/close cluster. */
 
 .rail {
   flex: 0 0 auto;
@@ -24,6 +30,12 @@
   user-select: none;
   position: relative;
   z-index: var(--z-sticky);
+}
+
+:global([data-os="windows"]) .rail {
+  /* Native window controls live on the right on Windows — flip the
+     clearance to match, drop the macOS traffic-light offset. */
+  padding: 0 calc(var(--layout-traffic-clear) + var(--space-6)) 0 var(--space-4);
 }
 
 .left {
