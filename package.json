@@ -1,7 +1,7 @@
 {
   "name": "openit-app",
   "private": true,
-  "version": "1.2.0",
+  "version": "1.2.1",
   "type": "module",
   "repository": "https://github.com/openit-app/openit-app",
   "homepage": "https://openit-app.github.io/openit-app",
