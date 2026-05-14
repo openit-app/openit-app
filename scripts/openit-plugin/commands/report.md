@@ -24,7 +24,7 @@ Everything is local files — use the built-in tools:
 - **Tickets** — `Glob "databases/tickets/*.json"`, `Read` each that matches the scope.
 - **Conversations** — for each relevant ticket, `databases/conversations/<ticketId>/msg-*.json`. Skip `*.server.*` (sync conflict shadows).
 - **People** — `databases/people/*.json` for asker lookups.
-- **KB** — `Glob "knowledge-bases/**/*.md"` if the report is about KB coverage / cited articles.
+- **KB** — `Glob "knowledge/**/*.md"` if the report is about KB coverage / cited articles.
 
 For a report scoped to a date range, filter by `createdAt` (for "tickets opened in window") or `updatedAt` (for "tickets touched in window"). Both are ISO-8601 strings — `Date.parse()`-comparable.
 

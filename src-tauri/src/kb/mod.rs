@@ -52,7 +52,7 @@ pub fn kb_write_file(repo: String, filename: String, content: String) -> Result<
     fs::write(&path, content).map_err(|e| e.to_string())
 }
 
-/// Write raw bytes to `<repo>/knowledge-bases/<filename>`. Used by the
+/// Write raw bytes to `<repo>/knowledge/<filename>`. Used by the
 /// drag-from-desktop handler so binary files (PDFs, images) round-trip
 /// correctly.
 #[tauri::command]
@@ -104,7 +104,7 @@ pub async fn kb_list_remote(
     cloud::list_remote(&collection_id, &skills_base_url, &access_token).await
 }
 
-/// Multipart upload of a file from `<repo>/knowledge-bases/<filename>`
+/// Multipart upload of a file from `<repo>/knowledge/<filename>`
 /// to the skills file storage endpoint.
 #[tauri::command]
 pub async fn kb_upload_file(
@@ -126,7 +126,7 @@ pub async fn kb_upload_file(
     .await
 }
 
-/// Fetch a download URL and save the body into `<repo>/knowledge-bases/<filename>`.
+/// Fetch a download URL and save the body into `<repo>/knowledge/<filename>`.
 #[tauri::command]
 pub async fn kb_download_to_local(
     repo: String,
@@ -291,8 +291,8 @@ pub fn entity_list_local(repo: String, subdir: String) -> Result<Vec<KbLocalFile
 
 /// Write a string (typically JSON) to `<repo>/<subdir>/<filename>`.
 /// Creates the subdirectory if it doesn't exist. An empty `subdir`
-/// writes directly to the repo root (used for top-level files like
-/// `CLAUDE.md`).
+/// targets the repo root — used by plugin sync for files like
+/// `CLAUDE.md` that live alongside the top-level vault folders.
 #[tauri::command]
 pub fn entity_write_file(
     repo: String,

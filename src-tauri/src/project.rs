@@ -91,11 +91,11 @@ pub fn project_bootstrap(vault_path: Option<String>) -> Result<BootstrapResult, 
             // captured by /conversation-to-automation. Auto-created so
             // the file tree + station tiles render the empty folders
             // before anything's been captured yet.
-            "filestores/skills",
+            "filestores/commands",
             "filestores/scripts",
             // Flat KB directory: all articles live directly in
-            // `knowledge-bases/`.
-            "knowledge-bases",
+            // `knowledge/`.
+            "knowledge",
             // On-demand markdown reports — populated by the
             // "Generate overview" button in the explorer (which shells
             // out to .claude/scripts/report-overview.mjs) and by the
@@ -115,9 +115,10 @@ pub fn project_bootstrap(vault_path: Option<String>) -> Result<BootstrapResult, 
     // first-use.
     let _ = fs::create_dir_all(path.join("filestores").join("attachments"));
     let _ = fs::create_dir_all(path.join("filestores").join("library"));
-    let _ = fs::create_dir_all(path.join("filestores").join("skills"));
+    let _ = fs::create_dir_all(path.join("filestores").join("commands"));
     let _ = fs::create_dir_all(path.join("filestores").join("scripts"));
-    let _ = fs::create_dir_all(path.join("knowledge-bases"));
+    let _ = fs::create_dir_all(path.join("knowledge"));
+    let _ = fs::create_dir_all(path.join("traces"));
     // Same idempotent guard for `reports/` so projects bootstrapped
     // before the reports feature shipped get the dir on next open.
     let _ = fs::create_dir_all(path.join("reports"));
@@ -178,26 +179,72 @@ pub fn project_bootstrap(vault_path: Option<String>) -> Result<BootstrapResult, 
         let _ = fs::remove_dir(&legacy_filestore);
     }
 
-    // Legacy migration: singular `knowledge-base/` → flat `knowledge-bases/`.
-    let legacy_kb = path.join("knowledge-base");
-    if legacy_kb.is_dir() {
-        let kb_dir = path.join("knowledge-bases");
-        if let Ok(entries) = fs::read_dir(&legacy_kb) {
+    // Legacy migration: singular `knowledge-base/` and plural
+    // `knowledge-bases/` both fold into the canonical flat
+    // `knowledge/`. The plural form was used during the 2026-05
+    // restructure before the rename; covering both means any vault
+    // touched during that window heals on next open.
+    for legacy_name in ["knowledge-base", "knowledge-bases"] {
+        let legacy_kb = path.join(legacy_name);
+        if legacy_kb.is_dir() {
+            let kb_dir = path.join("knowledge");
+            if let Ok(entries) = fs::read_dir(&legacy_kb) {
+                for entry in entries.flatten() {
+                    let from = entry.path();
+                    let name = entry.file_name();
+                    let to = unique_legacy_dest(&kb_dir, &name);
+                    let _ = fs::rename(&from, &to);
+                }
+            }
+            let _ = fs::remove_dir(&legacy_kb);
+        }
+    }
+
+    // Legacy migration: `filestores/skills/` → `filestores/commands/`.
+    // "Skills" was Claude-Code-internal terminology that leaked into
+    // the admin-facing layout; the renamed slot is `commands/`. Move
+    // any user-edited command bodies over so they keep working under
+    // the new path (the write-once gate in skillsSync preserves them
+    // after this).
+    let legacy_skills = path.join("filestores").join("skills");
+    if legacy_skills.is_dir() {
+        let commands_dir = path.join("filestores").join("commands");
+        let _ = fs::create_dir_all(&commands_dir);
+        if let Ok(entries) = fs::read_dir(&legacy_skills) {
             for entry in entries.flatten() {
                 let from = entry.path();
                 let name = entry.file_name();
-                let to = unique_legacy_dest(&kb_dir, &name);
+                let to = unique_legacy_dest(&commands_dir, &name);
                 let _ = fs::rename(&from, &to);
             }
         }
-        let _ = fs::remove_dir(&legacy_kb);
+        let _ = fs::remove_dir(&legacy_skills);
     }
 
-    // Flatten migration: move articles from `knowledge-bases/default/`
-    // (and any other collection subdirs) up into `knowledge-bases/`.
+    // Legacy migration: `.openit/agent-traces/` → top-level `traces/`.
+    // The 2026-05 restructure promoted trace storage out of the
+    // hidden runtime dir so admins (and CC) can browse audit logs
+    // alongside the other primitives.
+    let legacy_traces = path.join(".openit").join("agent-traces");
+    if legacy_traces.is_dir() {
+        let traces_dir = path.join("traces");
+        let _ = fs::create_dir_all(&traces_dir);
+        if let Ok(entries) = fs::read_dir(&legacy_traces) {
+            for entry in entries.flatten() {
+                let from = entry.path();
+                let name = entry.file_name();
+                let to = unique_legacy_dest(&traces_dir, &name);
+                let _ = fs::rename(&from, &to);
+            }
+        }
+        let _ = fs::remove_dir(&legacy_traces);
+    }
+
+    // Flatten migration: move articles from `knowledge/default/`
+    // (and any other collection subdirs) up into `knowledge/`.
     // Projects created before the flat-KB change may have articles
     // nested in subdirectories; this hoists them on next open.
-    let kb_dir = path.join("knowledge-bases");
+    let kb_dir = path.join("knowledge");
     if kb_dir.is_dir() {
         if let Ok(entries) = fs::read_dir(&kb_dir) {
             for entry in entries.flatten() {
@@ -205,7 +252,7 @@ pub fn project_bootstrap(vault_path: Option<String>) -> Result<BootstrapResult, 
                 if !sub.is_dir() {
                     continue;
                 }
-                // Move every file from the subdirectory up into knowledge-bases/
+                // Move every file from the subdirectory up into knowledge/
                 if let Ok(children) = fs::read_dir(&sub) {
                     for child in children.flatten() {
                         let from = child.path();

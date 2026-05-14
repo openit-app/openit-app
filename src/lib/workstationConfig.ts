@@ -6,9 +6,9 @@
 // overrides merge with defaults.
 //
 // The `rel` field on each tile is the repo-relative path that doubles as
-// the tile's identity (e.g. `databases/people`, `filestores/skills`,
-// `knowledge-bases`). System primitives use their canonical paths too
-// (`agents`, `tools`, `.openit/agent-traces`).
+// the tile's identity (e.g. `databases/people`, `filestores/commands`,
+// `knowledge`). System primitives use their canonical paths too
+// (`agents`, `tools`, `traces`).
 
 import { fsRead, fsList, entityWriteFile, type FileNode } from "./api";
 import type { ToneKey } from "../shell/entityIcons";
@@ -39,20 +39,28 @@ export interface WorkstationConfig {
 
 export const DEFAULT_WORKSTATION_CONFIG: WorkstationConfig = {
   main: [
-    { rel: "knowledge-bases" },
-    { rel: "filestores/skills" },
+    { rel: "knowledge" },
+    { rel: "filestores/commands" },
   ],
+  // Tiles are shortcuts to surfaces the admin uses day-to-day, not a
+  // mirror of the disk tree. Sub-stores get their own tiles (People,
+  // Access, Assets, ...); the primitive folders that contain them
+  // (`databases/`, `filestores/`, the legacy `knowledge-bases` name)
+  // are intentionally NOT in the default pool — they're folder
+  // categories, not features the admin clicks on. Power users can
+  // still pin a primitive via `.openit/workstation.json` if they
+  // want.
   more: [
-    { rel: "reports" },
     { rel: "databases/people" },
     { rel: "databases/access" },
     { rel: "databases/assets" },
-    { rel: "agents" },
     { rel: "filestores/scripts" },
+    { rel: "filestores/library" },
+    { rel: "filestores/attachments" },
+    { rel: "agents" },
     { rel: "tools" },
-    { rel: "databases" },
-    { rel: "filestores" },
-    { rel: ".openit/agent-traces" },
+    { rel: "traces" },
+    { rel: "reports" },
   ],
 };
 
@@ -82,16 +90,56 @@ export async function saveWorkstationConfig(
   );
 }
 
+/// Map legacy tile rels to their renamed counterparts. Used when
+/// loading a workstation config that was saved before the 2026-05
+/// layout rename so existing vaults keep their pinned tiles instead
+/// of going empty after the disk migration moves files to the new
+/// paths.
+const LEGACY_REL_REWRITES: Record<string, string> = {
+  "filestores/skills": "filestores/commands",
+  "knowledge-bases": "knowledge",
+  ".openit/agent-traces": "traces",
+};
+
+function rewriteLegacyRel(tile: TileConfig): TileConfig {
+  const replacement = LEGACY_REL_REWRITES[tile.rel];
+  return replacement ? { ...tile, rel: replacement } : tile;
+}
+
+/// Drop tile entries whose rel matches a primitive container folder.
+/// The 2026-05 tile-UX change dropped these from the default set —
+/// tiles are daily-access shortcuts, not folder mirrors. Vaults that
+/// pinned them before the change had them auto-discovered in `more`;
+/// after the change those tiles render with no data and confuse the
+/// admin. Strip on load instead of forcing a manual edit.
+const DROPPED_PRIMITIVE_RELS = new Set([
+  "databases",
+  "filestores",
+]);
+
 function parseWorkstationConfig(raw: unknown): WorkstationConfig {
   if (!raw || typeof raw !== "object") {
     return structuredClone(DEFAULT_WORKSTATION_CONFIG);
   }
   const r = raw as Record<string, unknown>;
-  const main = Array.isArray(r.main)
-    ? r.main.filter(isTileConfig)
+  const cleanup = (arr: unknown): TileConfig[] =>
+    Array.isArray(arr)
+      ? arr
+          .filter(isTileConfig)
+          .map(rewriteLegacyRel)
+          .filter((t) => !DROPPED_PRIMITIVE_RELS.has(t.rel))
+      : [];
+
+  // If `main` becomes empty after cleanup (e.g. the saved tiles all
+  // pointed at legacy primitives), fall back to the default main set
+  // so the admin doesn't see an empty workstation hero.
+  const cleanedMain = cleanup(r.main);
+  const main = cleanedMain.length > 0
+    ? cleanedMain
     : structuredClone(DEFAULT_WORKSTATION_CONFIG.main);
+
   const more = Array.isArray(r.more)
-    ? r.more.filter(isTileConfig)
+    ? cleanup(r.more)
     : structuredClone(DEFAULT_WORKSTATION_CONFIG.more);
   return { main, more };
 }
@@ -120,13 +168,19 @@ export interface DiscoveredTile {
   openRel?: string;
 }
 
-/** Well-known tiles that exist regardless of filesystem state. */
+/// Well-known tiles that exist regardless of filesystem state.
+///
+/// The primitive container folders (`databases/`, `filestores/`,
+/// `knowledge/`) are intentionally NOT listed here. Tiles are
+/// shortcuts to surfaces the admin uses day-to-day; primitive
+/// folders are organizational categories the admin browses via the
+/// file explorer, not features they click on. Their sub-stores
+/// (People, Access, Scripts, Commands, ...) are surfaced as their
+/// own tiles instead, discovered below.
 const SYSTEM_TILES: DiscoveredTile[] = [
-  { rel: "agents",               label: "Agents",      defaultIcon: "agents",      defaultTone: "accent",  countMode: "files" },
-  { rel: "tools",                label: "Tools",       defaultIcon: "tools",       defaultTone: "accent",  countMode: "custom" },
-  { rel: ".openit/agent-traces", label: "Traces",      defaultIcon: "traces",      defaultTone: "neutral", countMode: "dirs" },
-  { rel: "databases",            label: "Databases",   defaultIcon: "database",    defaultTone: "link",    countMode: "dirs" },
-  { rel: "filestores",           label: "Filestores",  defaultIcon: "folder",      defaultTone: "neutral", countMode: "dirs" },
+  { rel: "agents", label: "Agents", defaultIcon: "agents", defaultTone: "accent",  countMode: "files" },
+  { rel: "tools",  label: "Tools",  defaultIcon: "tools",  defaultTone: "accent",  countMode: "custom" },
+  { rel: "traces", label: "Traces", defaultIcon: "traces", defaultTone: "neutral", countMode: "dirs" },
 ];
 
 /** Well-known database collections with custom defaults. */
@@ -139,7 +193,7 @@ const KNOWN_DB_DEFAULTS: Record<string, { label: string; icon: string; tone: Ton
 
 /** Well-known filestore collections with custom defaults. */
 const KNOWN_FS_DEFAULTS: Record<string, { label: string; icon: string; tone: ToneKey; openRel?: string }> = {
-  skills:      { label: "Commands",    icon: "commands",    tone: "accent" },
+  commands:    { label: "Commands",    icon: "commands",    tone: "accent" },
   scripts:     { label: "Scripts",     icon: "scripts",     tone: "link" },
   library:     { label: "Library",     icon: "folder",      tone: "neutral" },
   attachments: { label: "Attachments", icon: "attachments", tone: "neutral" },
@@ -168,9 +222,9 @@ export async function discoverTiles(repo: string): Promise<DiscoveredTile[]> {
 
   // Knowledge bases — only if the folder exists on disk
   try {
-    await fsList(`${repo}/knowledge-bases`);
+    await fsList(`${repo}/knowledge`);
     tiles.push({
-      rel: "knowledge-bases",
+      rel: "knowledge",
       label: "Knowledge",
       defaultIcon: "knowledge",
       defaultTone: "ochre",
@@ -227,13 +281,13 @@ export async function discoverTiles(repo: string): Promise<DiscoveredTile[]> {
     }
   } catch { /* filestores/ may not exist */ }
 
-  // Always synthesize the Commands tile (filestores/skills) so it appears
+  // Always synthesize the Commands tile (filestores/commands) so it appears
   // in a fresh vault even before the folder is materialized — it's a core
   // workstation tile pinned to `main` in the default config.
-  if (!fsSeen.has("skills")) {
-    const known = KNOWN_FS_DEFAULTS.skills;
+  if (!fsSeen.has("commands")) {
+    const known = KNOWN_FS_DEFAULTS.commands;
     tiles.push({
-      rel: "filestores/skills",
+      rel: "filestores/commands",
       label: known.label,
       defaultIcon: known.icon,
       defaultTone: known.tone,

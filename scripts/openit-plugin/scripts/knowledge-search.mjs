@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// kb-search.mjs — search the local knowledge base for articles relevant
+// knowledge-search.mjs — search the local knowledge base for articles relevant
 // to a query. Stable interface for the triage agent: takes a query
 // string, returns the top matches as JSON.
 //
@@ -11,10 +11,10 @@
 //     the agent's logic doesn't change.
 //
 // Usage:
-//   node .claude/scripts/kb-search.mjs "vpn password reset"
+//   node .claude/scripts/knowledge-search.mjs "vpn password reset"
 //
 // Output (single JSON line on stdout):
-//   { "matches": [{ "path": "knowledge-bases/foo.md", "score": 0.74,
+//   { "matches": [{ "path": "knowledge/foo.md", "score": 0.74,
 //                   "snippet": "first ~200 chars of the article" }, …] }
 //
 // Exit codes:
@@ -27,7 +27,7 @@ import { readdir, readFile } from "node:fs/promises";
 import path from "node:path";
 import process from "node:process";
 
-const KB_DIR = "knowledge-bases";
+const KB_DIR = "knowledge";
 const TOP_N = 5;
 const SNIPPET_LEN = 200;
 const STOPWORDS = new Set([
@@ -103,14 +103,14 @@ async function main() {
   const args = process.argv.slice(2);
   if (args.length === 0 || args.includes("-h") || args.includes("--help")) {
     process.stdout.write(
-      'Usage: node .claude/scripts/kb-search.mjs "<query>"\n',
+      'Usage: node .claude/scripts/knowledge-search.mjs "<query>"\n',
     );
     process.exit(args.length === 0 ? 1 : 0);
   }
   const query = args.join(" ");
   const queryTokens = Array.from(new Set(tokenize(query)));
 
-  // Flat search: all articles live directly in `knowledge-bases/`.
+  // Flat search: all articles live directly in `knowledge/`.
   // If the dir doesn't exist yet we bail with an empty result so
   // the caller cleanly branches to "escalate".
   let entries;

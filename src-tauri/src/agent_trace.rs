@@ -13,7 +13,7 @@
 //!      to a human-readable summary ("Reading the ticket",
 //!      "Searching the knowledge base for \"login reset\"").
 //!   3. `persist_trace` writes the full per-turn trace to
-//!      `.openit/agent-traces/<ticketId>/<turnIso>.json` so the
+//!      `traces/<ticketId>/<turnIso>.json` so the
 //!      admin can audit what the agent did, after the fact, even if
 //!      they weren't watching live.
 //!
@@ -88,7 +88,7 @@ pub fn verb_for_tool(tool: &str, input: &Value) -> Option<String> {
         }
         "Glob" => {
             let pattern = input.get("pattern").and_then(|v| v.as_str()).unwrap_or("");
-            if pattern.contains("knowledge-bases") {
+            if pattern.contains("knowledge/") {
                 Some("Listing knowledge-base articles".to_string())
             } else if pattern.contains("databases/conversations") {
                 Some("Listing the conversation thread".to_string())
@@ -113,7 +113,7 @@ pub fn verb_for_tool(tool: &str, input: &Value) -> Option<String> {
                 // files (server does it), but if a turn does anyway
                 // we still want it logged with a recognizable verb.
                 Some("Writing a conversation turn (server will dedupe)".to_string())
-            } else if path.contains("knowledge-bases/") {
+            } else if path.contains("knowledge/") {
                 Some(format!(
                     "Writing the knowledge-base article {}",
                     short_basename(path)
@@ -146,7 +146,7 @@ fn verb_for_read_path(path: &str) -> String {
         "Reading the ticket".to_string()
     } else if path.contains("databases/conversations/") {
         "Reading the conversation history".to_string()
-    } else if path.contains("knowledge-bases/") {
+    } else if path.contains("knowledge/") {
         format!("Reading the article \"{}\"", short_basename(path))
     } else if path.contains("agents/") {
         format!("Reading the agent {}", short_basename(path))
@@ -160,9 +160,9 @@ fn verb_for_read_path(path: &str) -> String {
 }
 
 fn verb_for_bash(cmd: &str) -> String {
-    // The skill's only sanctioned shell-out is the kb-search script.
+    // The skill's only sanctioned shell-out is the knowledge-search script.
     // Surface that case specially with the query for nicer banner copy.
-    if cmd.contains(".claude/scripts/kb-search.mjs") {
+    if cmd.contains(".claude/scripts/knowledge-search.mjs") {
         // Pull the first quoted token after the script name.
         if let Some(q) = extract_quoted_argument(cmd) {
             return format!("Searching the knowledge base for \"{}\"", q);
@@ -194,8 +194,8 @@ fn short_basename(path: &str) -> String {
 }
 
 /// Best-effort extraction of the first quoted argument from a shell
-/// command string. Used to pull the kb-search query out of `node ...
-/// kb-search.mjs "login reset"`. Handles double quotes only; any
+/// command string. Used to pull the knowledge-search query out of `node ...
+/// knowledge-search.mjs "login reset"`. Handles double quotes only; any
 /// shell-escaping nuance falls through to the un-quoted fallback in
 /// `verb_for_bash`.
 fn extract_quoted_argument(cmd: &str) -> Option<String> {
@@ -221,19 +221,16 @@ fn extract_quoted_argument(cmd: &str) -> Option<String> {
 }
 
 /// Persist a per-turn trace to disk. Path:
-///   `<repo>/.openit/agent-traces/<ticketId>/<startedAt-fs-safe>.json`
+///   `<repo>/traces/<ticketId>/<startedAt-fs-safe>.json`
 /// where `startedAt-fs-safe` is the start timestamp with `:`
 /// replaced by `-` so the path is portable to Windows. Errors
 /// are non-fatal — the agent's reply already landed; an audit-log
 /// write failure shouldn't bubble up to the chat surface.
 pub async fn persist_trace(repo: &Path, doc: &TraceDoc) -> Result<(), String> {
-    let dir = repo
-        .join(".openit")
-        .join("agent-traces")
-        .join(&doc.ticket_id);
+    let dir = repo.join("traces").join(&doc.ticket_id);
     fs::create_dir_all(&dir)
         .await
-        .map_err(|e| format!("mkdir agent-traces: {}", e))?;
+        .map_err(|e| format!("mkdir traces: {}", e))?;
     let safe_started = doc.started_at.replace(':', "-");
     let path = dir.join(format!("{}.json", safe_started));
     let json = serde_json::to_string_pretty(doc).map_err(|e| format!("serialize trace: {}", e))?;
@@ -257,20 +254,17 @@ pub async fn agent_trace_latest(
     repo: String,
     ticket_id: String,
 ) -> Result<Option<TraceDoc>, String> {
-    let dir = Path::new(&repo)
-        .join(".openit")
-        .join("agent-traces")
-        .join(&ticket_id);
+    let dir = Path::new(&repo).join("traces").join(&ticket_id);
     let mut read_dir = match fs::read_dir(&dir).await {
         Ok(rd) => rd,
         Err(e) if e.kind() == std::io::ErrorKind::NotFound => return Ok(None),
-        Err(e) => return Err(format!("read agent-traces dir: {}", e)),
+        Err(e) => return Err(format!("read traces dir: {}", e)),
     };
     let mut latest: Option<(String, std::path::PathBuf)> = None;
     while let Some(entry) = read_dir
         .next_entry()
         .await
-        .map_err(|e| format!("walk agent-traces dir: {}", e))?
+        .map_err(|e| format!("walk traces dir: {}", e))?
     {
         let name = entry.file_name().to_string_lossy().to_string();
         if !name.ends_with(".json") {
@@ -313,7 +307,7 @@ mod tests {
     fn verb_for_read_kb_article() {
         let v = verb_for_tool(
             "Read",
-            &json!({ "file_path": "knowledge-bases/how-to-reset-password.md" }),
+            &json!({ "file_path": "knowledge/how-to-reset-password.md" }),
         );
         assert_eq!(
             v.as_deref(),
@@ -325,7 +319,7 @@ mod tests {
     fn verb_for_kb_search_with_query() {
         let v = verb_for_tool(
             "Bash",
-            &json!({ "command": "node .claude/scripts/kb-search.mjs \"login reset\"" }),
+            &json!({ "command": "node .claude/scripts/knowledge-search.mjs \"login reset\"" }),
         );
         assert_eq!(
             v.as_deref(),
@@ -337,7 +331,7 @@ mod tests {
     fn verb_for_kb_search_without_quoted_arg() {
         let v = verb_for_tool(
             "Bash",
-            &json!({ "command": "node .claude/scripts/kb-search.mjs login" }),
+            &json!({ "command": "node .claude/scripts/knowledge-search.mjs login" }),
         );
         assert_eq!(v.as_deref(), Some("Searching the knowledge base"));
     }
@@ -363,7 +357,7 @@ mod tests {
 
     #[test]
     fn short_basename_strips_dir_and_ext() {
-        assert_eq!(short_basename("knowledge-bases/foo-bar.md"), "foo-bar");
+        assert_eq!(short_basename("knowledge/foo-bar.md"), "foo-bar");
         assert_eq!(short_basename("plain-file"), "plain-file");
         assert_eq!(
             short_basename("/abs/path/with.many.dots.json"),
@@ -393,8 +387,7 @@ mod tests {
         persist_trace(tmp.path(), &doc).await.unwrap();
         let written = tmp
             .path()
-            .join(".openit")
-            .join("agent-traces")
+            .join("traces")
             .join("ticket-x")
             .join("2026-04-27T18-07-08Z.json");
         assert!(written.is_file());

@@ -91,6 +91,13 @@ enum TransportMeta {
         /// for outbound replies.
         channel_id: String,
         user_id: String,
+        /// Slack thread anchor — the `ts` of the top-level DM that
+        /// kicked off this ticket. The listener replies in this
+        /// thread, and a later in-thread reply from the asker is the
+        /// signal to resume this ticket. Optional so older callers
+        /// (and the chat transport) don't need to know about it.
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        thread_ts: Option<String>,
     },
 }
 
@@ -334,7 +341,7 @@ struct SlackSendIntroBody {
 }
 
 const DEFAULT_INTRO_TEXT: &str =
-    "Hi! I'm the OpenIT triage bot. Try asking me a question — e.g. \"how do I reset my Mac password?\" — and I'll either answer from your knowledge base or escalate to your IT team.";
+    "Hi! I'm the OpenIT triage bot. DM me a question — e.g. \"how do I reset my Mac password?\" — and I'll either answer from your knowledge base or escalate to your IT team.\n\nEach new DM starts a fresh ticket. To continue a conversation, reply inside the same thread; to start a new one, just send a new top-level DM.";
 
 async fn skill_slack_send_intro(Json(body): Json<SlackSendIntroBody>) -> Response {
     // Bot token lives in a process-global Arc that `slack.rs`
@@ -1278,16 +1285,16 @@ async fn spawn_claude_chat(
     let claude_path = crate::pty::locate_claude()
         .ok_or_else(|| "Claude CLI not found on PATH. Install claude (see https://docs.anthropic.com/claude/docs/claude-code) and ensure it's reachable from this app.".to_string())?;
     // `--permission-mode bypassPermissions` so the headless run can
-    // Write/Edit ticket+conversation files and Bash the kb-search
+    // Write/Edit ticket+conversation files and Bash the knowledge-search
     // script without prompting. Safe in this context — scope is the
     // user's own repo, the skill is OpenIT-bundled, and the only
-    // shell command is the local kb-search.mjs.
+    // shell command is the local knowledge-search.mjs.
     //
     // `--verbose --output-format stream-json` makes claude emit one
     // JSON event per line: a `system/init`, then per-step
     // `assistant`/`user`/`tool_*` messages, ending with a `result`.
     // We parse those into a normalized timeline so the audit log
-    // (`.openit/agent-traces/`) and the eventual live banner can
+    // (`traces/`) and the eventual live banner can
     // surface friendly verbs ("Reading the ticket", "Searching the
     // knowledge base for …") without re-parsing claude's wire format
     // on the frontend.
@@ -1736,6 +1743,7 @@ async fn ensure_responding_stub(
             workspace_id,
             channel_id,
             user_id,
+            thread_ts,
         } = transport
         {
             if let Some(obj) = row.as_object_mut() {
@@ -1751,6 +1759,12 @@ async fn ensure_responding_stub(
                     "slackUserId".to_string(),
                     serde_json::Value::String(user_id.clone()),
                 );
+                if let Some(ts) = thread_ts {
+                    obj.insert(
+                        "slackThreadTs".to_string(),
+                        serde_json::Value::String(ts.clone()),
+                    );
+                }
             }
         }
         let json =

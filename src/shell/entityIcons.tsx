@@ -16,7 +16,6 @@ export type EntityKind =
   | "people"
   | "knowledge"
   | "knowledge-base"
-  | "knowledge-bases"
   | "files"
   | "filestores"
   | "library"
@@ -368,7 +367,6 @@ export const ENTITY_META: Record<EntityKind, EntityMetaEntry> = {
   people:            { icon: PersonIcon,      tone: "sage",    label: "People" },
   knowledge:         { icon: KnowledgeIcon,   tone: "ochre",   label: "Knowledge" },
   "knowledge-base":  { icon: KnowledgeIcon,   tone: "ochre",   label: "Knowledge" },
-  "knowledge-bases": { icon: KnowledgeIcon,   tone: "ochre",   label: "Knowledge" },
   files:             { icon: FilesIcon,       tone: "neutral", label: "Filestores" },
   filestores:        { icon: FilesIcon,       tone: "neutral", label: "Filestores" },
   library:           { icon: FilesIcon,       tone: "neutral", label: "Library" },

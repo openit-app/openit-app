@@ -22,7 +22,7 @@ The intake server (Rust) has already done these writes before invoking you, on e
 - **Asker turn** at `databases/conversations/<ticketId>/msg-<unix-ms>-<rand>.json` — for the user's most recent message.
 - **People row** at `databases/people/<sanitized-email>.json` — idempotent.
 
-The server will ALSO write your agent reply turn after you finish, taking your stdout as the body and hardcoding `sender: "triage"`. **Do not write any msg-*.json files yourself** — they'll appear duplicated in the admin UI. The ticket file is the only thing you Edit, and only its non-status fields (`tags`, `kbArticleRefs`); status flows from the stdout marker the server reads at the end of your run.
+The server will ALSO write your agent reply turn after you finish, taking your stdout as the body and hardcoding `sender: "triage"`. **Do not write any msg-*.json files yourself** — they'll appear duplicated in the admin UI. The ticket file is the only thing you Edit, and only its non-status fields (`tags`, `knowledgeArticleRefs`); status flows from the stdout marker the server reads at the end of your run.
 
 ## Your steps
 
@@ -34,13 +34,13 @@ The server will ALSO write your agent reply turn after you finish, taking your s
 ### 2. Search the knowledge base
 
 ```bash
-node .claude/scripts/kb-search.mjs "<query summarizing the user's current question>"
+node .claude/scripts/knowledge-search.mjs "<query summarizing the user's current question>"
 ```
 
 Output:
 
 ```json
-{ "matches": [{ "path": "knowledge-bases/foo.md", "score": 0.83, "snippet": "..." }, …] }
+{ "matches": [{ "path": "knowledge/foo.md", "score": 0.83, "snippet": "..." }, …] }
 ```
 
 If `matches` is non-empty, `Read` the top match. If it plausibly addresses the user's question, **use it** — answer the user from the article (you can quote it, summarize it, or paraphrase steps). Don't be perfectionist about score; word-overlap scoring is noisy and a moderate match is often the right answer.
@@ -64,7 +64,7 @@ This `Edit` doesn't race with the server's status write, so it's safe to do here
 
 Decide exactly one of three outcomes for this turn:
 
-- **`answered`** — KB had a relevant article, you answered from it. The server flips the ticket to `open` (conversation alive; the asker may or may not follow up, but the agent is idle until they do). (You may also Edit `kbArticleRefs` to append cited filenames; like `tags`, that field doesn't race.)
+- **`answered`** — KB had a relevant article, you answered from it. The server flips the ticket to `open` (conversation alive; the asker may or may not follow up, but the agent is idle until they do). (You may also Edit `knowledgeArticleRefs` to append cited filenames; like `tags`, that field doesn't race.)
 - **`escalated`** — KB miss, KB articles aren't relevant, or the question needs human judgment. The server flips the ticket to `escalated` and the admin gets the escalation banner. Reply text: something like *"Thanks — I don't have an answer for that one. I've escalated this to the team; someone will follow up here when they're ready."* Keep it short and human.
 - **`resolved`** — the asker has explicitly confirmed the case is done. The server flips the ticket to `resolved` (terminal). Use this **only** when:
   1. A previous agent or admin turn provided an answer or fix,

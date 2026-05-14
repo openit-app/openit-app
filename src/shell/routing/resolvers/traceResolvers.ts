@@ -4,7 +4,7 @@ import type { TraceDoc } from "../../viewerTypes";
 import { isDirectChild } from "../../../lib/paths";
 
 /**
- * .openit/agent-traces/ parent -- list all ticket trace folders
+ * traces/ parent -- list all ticket trace folders
  */
 export async function resolveTracesList(
   path: string,
@@ -42,7 +42,7 @@ export async function resolveTracesList(
 }
 
 /**
- * .openit/agent-traces/<ticketId>/ (folder) -- agent-trace-list:
+ * traces/<ticketId>/ (folder) -- agent-trace-list:
  * every per-turn trace for this ticket, oldest-first, stacked
  * with separators in the viewer.
  */
@@ -84,7 +84,7 @@ export async function resolveTraceFolder(
 }
 
 /**
- * .openit/agent-traces/<ticketId>/<isoStamp>.json -- agent-trace
+ * traces/<ticketId>/<isoStamp>.json -- agent-trace
  * Lets admins click a per-turn trace file in the file explorer
  * and land on the same timeline visualization the activity-banner
  * click-through uses. Subject is best-effort: read the ticket

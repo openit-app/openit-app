@@ -17,7 +17,7 @@ Then run the cleanup script:
 node .claude/scripts/cleanup.mjs
 ```
 
-The script deletes all files matching `sample-*` patterns across tickets, people, access, assets, knowledge-bases, reports, and conversations. It prints a JSON result with the count of deleted files.
+The script deletes all files matching `sample-*` patterns across tickets, people, access, assets, knowledge, reports, and conversations. It prints a JSON result with the count of deleted files.
 
 ## What it does NOT delete
 

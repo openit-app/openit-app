@@ -335,7 +335,7 @@ export async function kbStateSave(
 // ---------------------------------------------------------------------------
 
 /// Generic entity_list_local wrapper. Pass the subdir relative to repo
-/// (e.g. "filestores/library", "filestores/docs-123", "knowledge-bases").
+/// (e.g. "filestores/library", "filestores/docs-123", "knowledge").
 /// Returns local files in that directory only.
 export async function entityListLocal(
   repo: string,
@@ -423,7 +423,7 @@ export async function scriptRun(
 import type { TraceDoc } from "../shell/viewerTypes";
 
 /// Latest persisted agent-trace doc for a ticket, or null if none yet.
-/// Backed by `.openit/agent-traces/<ticketId>/<startedAt>.json` —
+/// Backed by `traces/<ticketId>/<startedAt>.json` —
 /// filenames are ISO timestamps so the lex-max sort = most recent.
 export async function agentTraceLatest(
   repo: string,

@@ -1,7 +1,7 @@
 import type { DataCollection, MemoryItem, Agent, Workflow } from "../lib/localTypes";
 
 /// Mirrors `agent_trace::TraceEvent` on the Rust side. Persisted at
-/// `.openit/agent-traces/<ticketId>/<startedAt>.json` per turn; the
+/// `traces/<ticketId>/<startedAt>.json` per turn; the
 /// agent-activity banner click-through opens the latest one in the
 /// viewer.
 export type TraceEvent = {
@@ -174,7 +174,7 @@ export type ViewerSource =
   // Per-turn agent trace (the verbs + timestamps the agent emitted
   // running this chat turn). Opened by clicking the agent-activity
   // banner; resolves to the most recent trace file under
-  // `.openit/agent-traces/<ticketId>/`. `doc` may be null on the
+  // `traces/<ticketId>/`. `doc` may be null on the
   // very first click before any turn has finished — the viewer shows
   // a "composing first reply" placeholder, and the fs-watcher tick
   // re-resolves the source once the file lands.
@@ -185,7 +185,7 @@ export type ViewerSource =
       doc: TraceDoc | null;
     }
   // All traces for a single ticket, oldest-first. Surfaced when the
-  // admin clicks `.openit/agent-traces/<ticketId>/` in the file
+  // admin clicks `traces/<ticketId>/` in the file
   // explorer — the viewer renders each turn's trace stacked with a
   // separator. Each entry carries the source filename so the header
   // can show "turn 3 (2026-04-28T20:09:43Z)".
@@ -204,7 +204,7 @@ export type ViewerSource =
       // Top-level entity folders that render a card list. `library`
       // is the curated filestore collection (`filestores/library/`);
       // `knowledge` / `knowledge-base` covers the flat
-      // `knowledge-bases/` directory; the operational
+      // `knowledge/` directory; the operational
       // `filestores/attachments/` collection has its own ticketid-
       // grouped renderer and isn't part of this set. `reports`
       // carries on-demand generated markdown reports — sorted
@@ -255,7 +255,7 @@ export type ViewerSource =
   // attachments folder in the explorer.
   | { kind: "attachments-folder"; tickets: { ticketId: string; path: string; fileCount: number }[] }
   // Legacy type kept for compat — no longer produced by the resolver.
-  | { kind: "knowledge-bases-list"; collections: { name: string; path: string; itemCount: number; description: string; isBuiltin: boolean }[] }
+  | { kind: "knowledge-list"; collections: { name: string; path: string; itemCount: number; description: string; isBuiltin: boolean }[] }
   // Tools — the tools catalog. Backed by `which` detection rather
   // than a real on-disk directory; the resolver matches the synthetic
   // path `<repo>/tools` and routes here. The viewer renders <ToolsPanel>
