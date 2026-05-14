@@ -923,10 +923,9 @@ export function Viewer({
     // Normalize separators so the regex matches Windows backslash
     // paths — the other two call sites (getTitle, rename-draft
     // seeding) already do this; this one was missed.
-    const skillFolderMatch = fsNorm(renamingPath).match(/^(.+)\/\.claude\/skills\/([^/]+)\/SKILL\.md$/);
+    const skillFolderMatch = fsNorm(renamingPath).match(/^.+\/\.claude\/skills\/([^/]+)\/SKILL\.md$/);
     if (skillFolderMatch) {
-      const repoRoot = skillFolderMatch[1];
-      const oldFolderName = skillFolderMatch[2];
+      const oldFolderName = skillFolderMatch[1];
       const next = renameDraft.trim().toLowerCase().replace(/\s+/g, "-").replace(/[^a-z0-9-]/g, "");
       if (!next || next === oldFolderName) {
         setRenamingPath(null);
@@ -940,7 +939,12 @@ export function Viewer({
         setRenamingPath(null);
         setRenameDraft("");
         setRenameError(null);
-        if (onOpenPath) await onOpenPath(`${repoRoot}/.claude/skills/${next}/SKILL.md`);
+        // Use the in-scope `repo` (native separators) rather than the
+        // regex-captured root, which would be the forward-slash form
+        // after `fsNorm`. The file explorer's selection-highlight
+        // compares paths byte-for-byte against native-separator paths,
+        // so an all-forward-slash navigation target would silently miss.
+        if (onOpenPath) await onOpenPath(`${repo}/.claude/skills/${next}/SKILL.md`);
       } catch (err) {
         const reason = err instanceof Error ? err.message : String(err);
         console.error(`[rename] command folder ${oldFolderName} → ${next}:`, err);
