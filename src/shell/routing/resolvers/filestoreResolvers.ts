@@ -246,15 +246,16 @@ export async function resolveFilestoresList(
         "Curated reference docs admins keep handy -- runbooks, scripts, recurring PDFs. Drag files in to add. Cloud-synced when connected.",
       itemNoun: "file",
     },
-    // PIN-5829: skills + scripts are admin-curated artifacts captured
-    // by /conversation-to-automation. Both are built-in like
-    // attachments + library; they sync as their own cloud
-    // filestore collections.
-    skills: {
+    // Commands + scripts are admin-curated artifacts captured by
+    // /conversation-to-automation. Both are built-in like attachments
+    // + library; they sync as their own cloud filestore collections.
+    // Keyed by the on-disk folder name (`commands`, not the legacy
+    // `skills`) so the pre-seeded card and the disk-walked card
+    // collapse to one entry instead of rendering twice.
+    commands: {
       description:
         "Commands you run via /name in the chat. Click a command to view or edit its definition.",
       itemNoun: "command",
-      displayName: "commands",
     },
     scripts: {
       description:
