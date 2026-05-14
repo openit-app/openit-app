@@ -127,6 +127,23 @@ jobs:
           releaseDraft: false
           prerelease: false
           includeUpdaterJson: false
+      # tauri-action with includeUpdaterJson: false skips uploading the
+      # NSIS updater archive (`*.nsis.zip` + `.sig`). The in-app updater
+      # needs that archive — `latest.json` points at it — so upload it
+      # explicitly from the bundle output directory.
+      - name: Upload NSIS updater archive
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ github.ref_name }}
+        run: |
+          $bundle = "src-tauri/target/release/bundle/nsis"
+          $zips = Get-ChildItem -Path $bundle -Filter "*.nsis.zip*" -ErrorAction Stop
+          if (-not $zips) { throw "no .nsis.zip artifacts in $bundle" }
+          foreach ($f in $zips) {
+            Write-Host "uploading $($f.FullName)"
+            gh release upload $env:TAG $f.FullName --clobber --repo $env:GITHUB_REPOSITORY
+          }
 
   # ── Build latest.json after all builds complete ──
   finalize:
@@ -153,7 +170,8 @@ jobs:
 
           curl -sL "${BASE}/OpenIT_aarch64.app.tar.gz" -o /tmp/aarch64.tar.gz
           curl -sL "${BASE}/OpenIT_x64.app.tar.gz" -o /tmp/x64.tar.gz
-          curl -sL "${BASE}/OpenIT_${VERSION}_x64-setup.nsis.zip" -o /tmp/win64.zip || true
+          # -f: fail on HTTP errors so we don't end up signing a 404 HTML page.
+          curl -fsSL "${BASE}/OpenIT_${VERSION}_x64-setup.nsis.zip" -o /tmp/win64.zip || rm -f /tmp/win64.zip
 
           AARCH64_SIG=$(npx tauri signer sign /tmp/aarch64.tar.gz 2>&1 | grep -A1 "Public signature:" | tail -1)
           X64_SIG=$(npx tauri signer sign /tmp/x64.tar.gz 2>&1 | grep -A1 "Public signature:" | tail -1)
