@@ -939,12 +939,16 @@ export function Viewer({
         setRenamingPath(null);
         setRenameDraft("");
         setRenameError(null);
-        // Use the in-scope `repo` (native separators) rather than the
-        // regex-captured root, which would be the forward-slash form
-        // after `fsNorm`. The file explorer's selection-highlight
-        // compares paths byte-for-byte against native-separator paths,
-        // so an all-forward-slash navigation target would silently miss.
-        if (onOpenPath) await onOpenPath(`${repo}/.claude/skills/${next}/SKILL.md`);
+        // Build the navigation path using the same separator that
+        // `repo` already uses (backslash on Windows, forward slash
+        // elsewhere). The file explorer's selection-highlight does a
+        // byte-for-byte comparison against native-separator paths from
+        // the file listing, so a mixed-separator target silently misses.
+        const sep = repo.includes("\\") ? "\\" : "/";
+        if (onOpenPath)
+          await onOpenPath(
+            `${repo}${sep}.claude${sep}skills${sep}${next}${sep}SKILL.md`,
+          );
       } catch (err) {
         const reason = err instanceof Error ? err.message : String(err);
         console.error(`[rename] command folder ${oldFolderName} → ${next}:`, err);
