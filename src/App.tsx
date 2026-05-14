@@ -30,7 +30,7 @@ import { StatusChips } from "./shell/StatusBar";
 import { useUpdateChecker } from "./lib/updater";
 import { syncSkillsToDisk, readSyncedPluginVersion } from "./lib/skillsSync";
 import { seedIfEmpty } from "./lib/seed";
-import { basename } from "./lib/paths";
+import { basename, fsNorm } from "./lib/paths";
 import { invoke } from "@tauri-apps/api/core";
 import "./App.css";
 
@@ -275,7 +275,9 @@ function App() {
       .catch(() => {});
     let unlistenFn: (() => void) | null = null;
     onFsChanged((paths) => {
-      if (paths.some((p) => p.endsWith("/.openit/flash.json"))) {
+      // Normalize separators so the substring match works on Windows
+      // (the fs watcher returns native paths, with `\` on win32).
+      if (paths.some((p) => fsNorm(p).endsWith("/.openit/flash.json"))) {
         consume();
       }
     })
@@ -311,7 +313,7 @@ function App() {
     refresh();
     let unlistenFn: (() => void) | null = null;
     onFsChanged((paths) => {
-      if (paths.some((p) => p.includes("/.openit/skill-state/"))) {
+      if (paths.some((p) => fsNorm(p).includes("/.openit/skill-state/"))) {
         refresh();
       }
     })
@@ -378,7 +380,10 @@ function App() {
     // status pill from "connected" back to the unconnected pill.
     let unlistenFn: (() => void) | null = null;
     onFsChanged((paths) => {
-      if (paths.some((p) => p.endsWith("/.openit/slack.json") || p.includes("/.openit/skill-state/connect-slack"))) {
+      if (paths.some((p) => {
+        const n = fsNorm(p);
+        return n.endsWith("/.openit/slack.json") || n.includes("/.openit/skill-state/connect-slack");
+      })) {
         refreshConfig();
         // Reset the auto-start latch so the next reconnect (if any)
         // is allowed to bring the listener back up.
