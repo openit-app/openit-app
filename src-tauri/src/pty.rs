@@ -93,7 +93,7 @@ pub fn pty_spawn<R: Runtime>(
         cmd.arg("--allowedTools");
         cmd.arg("Bash Read");
         cmd.arg("--permission-mode");
-        cmd.arg("acceptEdits");
+        cmd.arg("auto");
         cmd.arg("--append-system-prompt");
         cmd.arg("The user is viewing this app inside OpenIT (an IT admin IDE). The file or entity they currently have open in the center pane is written to .openit/active-context.txt — read it when the user refers to something ambiguously (e.g. \"this file\", \"why is it showing like this\", \"run this\").");
     }

@@ -81,6 +81,28 @@ for (const [target, destBase] of Object.entries(TARGETS)) {
   }
 }
 
+// If every target folder under `.claude/seed/` is missing the
+// bundled plugin sync hasn't populated it yet (typically: the app
+// hasn't relaunched since the manifest bumped). Exit non-zero with
+// a clear message so Claude doesn't silently report success on a
+// no-op.
+if (
+  wrote === 0 &&
+  skipped === 0 &&
+  missingTargets.length === Object.keys(TARGETS).length
+) {
+  console.error(
+    JSON.stringify({
+      ok: false,
+      error: "no-seed",
+      seedRoot: SEED_ROOT,
+      message:
+        "Bundled seed data is not on disk yet (.claude/seed/ is empty). Restart the OpenIT app so the plugin sync runs, then re-run /load-sample-data.",
+    }),
+  );
+  process.exit(1);
+}
+
 const result = { ok: true, wrote, skipped };
 if (missingTargets.length > 0) result.missingTargets = missingTargets;
 console.log(JSON.stringify(result));
