@@ -176,6 +176,10 @@ Describe the goal here.
 ## Notes
 
 - Add any tips, edge cases, or context here.
+
+## After this run
+
+Before signing off, re-read this command body. If the admin's choices narrowed any defaults this run, rewrite the relevant sections to match — and snapshot the prior body to \`filestores/commands/${slug}/_history/<ms>.md\` first. Tell the admin in one line what changed.
 `;
     await entityWriteFile(repo, "filestores/commands", `${slug}.md`, boilerplate);
     setShowNewInput(false);
