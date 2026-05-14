@@ -101,19 +101,53 @@ pub(super) fn spawn_supervisor_task(
 
                 exit = child.wait() => {
                     handle_exit(exit, &exit_err_handle);
+                    // Drain any stderr the child wrote right before
+                    // exit but that the reader hasn't surfaced yet.
+                    // On Windows in particular, fast failures (bad
+                    // env, auth rejection at WSS handshake, fatal
+                    // import error) can resolve `child.wait()` before
+                    // the BufReader has caught up — without this
+                    // drain we report "no stderr captured" instead of
+                    // the real cause. Bounded by a small wall clock
+                    // so a wedged stderr can't block the failure
+                    // path forever.
+                    let drain_deadline =
+                        tokio::time::Instant::now() + Duration::from_millis(500);
+                    loop {
+                        let remaining = drain_deadline
+                            .saturating_duration_since(tokio::time::Instant::now());
+                        if remaining.is_zero() {
+                            break;
+                        }
+                        match tokio::time::timeout(remaining, reader.next_line()).await {
+                            Ok(Ok(Some(text))) => process_stderr_line(
+                                &text,
+                                &hb_handle,
+                                &err_handle,
+                                &mut ready_tx,
+                            ),
+                            // EOF or read error — nothing more to drain.
+                            Ok(Ok(None)) | Ok(Err(_)) => break,
+                            // Deadline hit before another line arrived.
+                            Err(_) => break,
+                        }
+                    }
                     if let Some(tx) = ready_tx.take() {
-                        // Surface the last `[slack-listen]` stderr line in
-                        // the connect failure so the user immediately sees
-                        // the real cause (invalid_auth / missing scope /
-                        // typo'd token) instead of a bare "check stderr"
-                        // that asks them to dig into the supervisor logs.
-                        let last = err_handle
-                            .lock()
-                            .clone()
-                            .unwrap_or_else(|| "no stderr captured".to_string());
+                        // Surface the last `[slack-listen]` stderr line
+                        // in the connect failure so the user immediately
+                        // sees the real cause (invalid_auth / missing
+                        // scope / typo'd token) instead of a bare "check
+                        // stderr" that asks them to dig into log files.
+                        // Fall back to the exit-status snapshot if
+                        // stderr really did come back empty.
+                        let stderr_msg = err_handle.lock().clone();
+                        let exit_msg = exit_err_handle.lock().clone();
+                        let cause = stderr_msg
+                            .or(exit_msg)
+                            .unwrap_or_else(|| "no diagnostic captured".to_string());
                         let _ = tx.send(Err(format!(
                             "listener exited before reporting ready — {}",
-                            last
+                            cause
                         )));
                     }
                     break;
