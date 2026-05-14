@@ -1400,7 +1400,11 @@ function renderConvThread(messages) {
 
 function renderConvMsg(m) {
   const div = document.createElement('div');
-  const role = (m.role || 'asker').toLowerCase();
+  // Match the backend's `unwrap_or("agent")` default: a turn without
+  // a clear role renders on the agent side, not the asker. Misattributing
+  // to "asker" would place a fabricated message on the right with a blue
+  // bubble, implying the user wrote something they didn't.
+  const role = (m.role || 'agent').toLowerCase();
   div.className = 'tickets-conv-msg role-' + role;
   if (role === 'admin' || role === 'agent') {
     const sender = document.createElement('div');

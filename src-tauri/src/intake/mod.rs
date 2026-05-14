@@ -1144,13 +1144,14 @@ async fn load_conversation(repo: &Path, ticket_id: &str) -> Vec<HistoryMessage> 
             .unwrap_or_default();
         messages.push(HistoryMessage {
             // Default matches /chat/poll: a malformed turn missing
-            // its `role` should render on the agent side, not as the
-            // asker (which would imply the asker wrote something they
-            // didn't, and which the frontend's `m.role || 'asker'`
-            // fallback would otherwise produce).
+            // its `role` (or carrying `"role": ""`) should render on
+            // the agent side, not as the asker (which would imply the
+            // asker wrote something they didn't). `.filter(non-empty)`
+            // collapses both `None` and `Some("")` into the fallback.
             role: parsed
                 .get("role")
                 .and_then(|v| v.as_str())
+                .filter(|s| !s.is_empty())
                 .unwrap_or("agent")
                 .to_string(),
             sender: parsed
