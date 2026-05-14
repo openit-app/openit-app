@@ -323,24 +323,21 @@ export async function deleteFileInSubdir(
   onToast?: (msg: string) => void,
   onRefresh?: () => void,
 ): Promise<void> {
-  // Toast the moment the handler is entered so we have proof the click
-  // reached us — separate from the actual delete result. Without this
-  // the user has no signal that anything is happening.
+  const ok = await confirmDelete(
+    `Delete "${filename}"?\n\nThis cannot be undone.`,
+    "Delete file?",
+  );
+  if (!ok) return;
   onToast?.(`Deleting ${filename}…`);
   setError(null);
   try {
     const rel = toRepoRelative(repo, subdir);
-    console.debug(`[folder-delete] entityDeleteFile(repo, ${JSON.stringify(rel)}, ${JSON.stringify(filename)})`);
     await entityDeleteFile(repo, rel, filename);
-    console.debug(`[folder-delete] success: ${rel}/${filename}`);
     onToast?.(`Deleted ${filename}`);
     onRefresh?.();
   } catch (err) {
     const reason = err instanceof Error ? err.message : String(err);
     console.error(`[folder-delete] failed for ${filename}:`, err);
-    // Surface the actual error to the user — both as a toast and as
-    // the inline error banner. Silent failures are exactly what's been
-    // confusing us about this flow.
     onToast?.(`Failed to delete ${filename}: ${reason}`);
     setError(`Failed to delete ${filename}: ${reason}`);
   }
