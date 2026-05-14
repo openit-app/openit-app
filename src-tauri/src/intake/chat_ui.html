@@ -1277,7 +1277,13 @@ async function refreshConvFromServer() {
     if (!r.ok) return;
     const j = await r.json();
     const all = j.tickets || [];
-    updateTicketsBadge(all.length);
+    // Re-render the cards list (even though it's currently hidden
+    // behind the conv view). Each card's click handler closes over
+    // the ticket object at render time, so without this the user's
+    // "back → tap same card" path would re-enter the conv view with
+    // a stale `messages` array — making the reply they just sent
+    // appear to vanish.
+    renderTicketsList(all);
     const t = all.find((x) => x.id === currentConvTicketId);
     if (!t) return;
     renderConvHeader(t);

@@ -1223,7 +1223,7 @@ async fn history_reply(
     let Ok(raw) = tokio::fs::read_to_string(&ticket_path).await else {
         return (StatusCode::NOT_FOUND, "ticket not found").into_response();
     };
-    let Ok(mut parsed) = serde_json::from_str::<serde_json::Value>(&raw) else {
+    let Ok(parsed) = serde_json::from_str::<serde_json::Value>(&raw) else {
         return (StatusCode::NOT_FOUND, "ticket not found").into_response();
     };
     let asker_lc = parsed
@@ -1282,13 +1282,41 @@ async fn history_reply(
             .into_response();
     }
 
-    // Reopen if terminal; otherwise leave status untouched.
-    // We intentionally do NOT flip to `agent-responding` — this path
-    // is asynchronous (the asker came back hours/days later), so we
-    // don't want to imply the agent is actively typing. The admin
-    // will see the new asker turn on a re-opened ticket and decide
-    // whether to re-trigger the agent or reply directly.
-    let current_status = parsed
+    // Reopen if terminal; otherwise leave status untouched. We
+    // intentionally do NOT flip to `agent-responding` — this path is
+    // asynchronous (the asker came back hours/days later), so we don't
+    // want to imply the agent is actively typing. The admin will see
+    // the new asker turn on a re-opened ticket and decide whether to
+    // re-trigger the agent or reply directly.
+    //
+    // Re-read the ticket immediately before the write rather than
+    // reusing the snapshot we loaded for asker validation up top. An
+    // admin could have edited assignee / priority / notes during the
+    // milliseconds we spent appending the conversation turn, and
+    // writing back the stale `parsed` would silently clobber those
+    // edits. We still only touch `status` + `updatedAt`; everything
+    // else is preserved from the freshly-read state.
+    let fresh_raw = match tokio::fs::read_to_string(&ticket_path).await {
+        Ok(s) => s,
+        Err(e) => {
+            return (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                format!("read ticket: {}", e),
+            )
+                .into_response();
+        }
+    };
+    let mut fresh: serde_json::Value = match serde_json::from_str(&fresh_raw) {
+        Ok(v) => v,
+        Err(e) => {
+            return (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                format!("parse ticket: {}", e),
+            )
+                .into_response();
+        }
+    };
+    let current_status = fresh
         .get("status")
         .and_then(|v| v.as_str())
         .unwrap_or("")
@@ -1298,15 +1326,32 @@ async fn history_reply(
     } else {
         current_status.clone()
     };
-    if let Some(obj) = parsed.as_object_mut() {
+    if let Some(obj) = fresh.as_object_mut() {
         obj.insert(
             "status".to_string(),
             serde_json::Value::String(new_status.clone()),
         );
         obj.insert("updatedAt".to_string(), serde_json::Value::String(now));
     }
-    if let Ok(json) = serde_json::to_string_pretty(&parsed) {
-        let _ = tokio::fs::write(&ticket_path, json).await;
+    let json = match serde_json::to_string_pretty(&fresh) {
+        Ok(s) => s,
+        Err(e) => {
+            return (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                format!("serialize ticket: {}", e),
+            )
+                .into_response();
+        }
+    };
+    if let Err(e) = tokio::fs::write(&ticket_path, json).await {
+        // The asker's message already landed on disk; surface the
+        // failure so the client doesn't show a `status` that disagrees
+        // with what's actually on disk.
+        return (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            format!("write ticket: {}", e),
+        )
+            .into_response();
     }
 
     Json(HistoryReplyResp { status: new_status }).into_response()
