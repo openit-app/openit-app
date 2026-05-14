@@ -23,6 +23,7 @@ import {
   fileStatusBadge,
   isKbSupported,
 } from "./helpers";
+import { fsNorm } from "../../lib/paths";
 import { ContextMenu, type ContextMenuState } from "./ContextMenu";
 import { useTreeState } from "./useTreeState";
 
@@ -291,11 +292,18 @@ export function FileExplorer({
           const isCollapsedRow = collapsed.has(n.path);
           const colorClass = repo ? fileColorClass(n, repo, conflictPaths) : "";
           const badge = repo ? fileStatusBadge(n, repo, conflictPaths) : null;
+          // Normalize both sides before comparing — `n.path` always uses
+          // the host OS separator (from Tauri's `fs_list`), but callers
+          // pass `selectedPath` from a variety of sources (rename
+          // navigation, programmatic open, ViewerSource paths) and any
+          // mixed-separator value would silently miss the highlight.
+          const isSelected =
+            selectedPath != null && fsNorm(n.path) === fsNorm(selectedPath);
           return (
             <li
               key={n.path}
-              ref={n.path === selectedPath ? selectedRowRef : undefined}
-              className={`tree-item ${n.is_dir ? "dir" : "file"} ${colorClass}${dropTargetPath === n.path ? " drop-target" : ""}${n.path === selectedPath ? " selected" : ""}`}
+              ref={isSelected ? selectedRowRef : undefined}
+              className={`tree-item ${n.is_dir ? "dir" : "file"} ${colorClass}${dropTargetPath === n.path ? " drop-target" : ""}${isSelected ? " selected" : ""}`}
               style={{ paddingLeft: 8 + depth * 12 }}
               onContextMenu={(e) => {
                 e.preventDefault();
