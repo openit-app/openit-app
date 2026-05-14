@@ -127,23 +127,12 @@ jobs:
           releaseDraft: false
           prerelease: false
           includeUpdaterJson: false
-      # tauri-action with includeUpdaterJson: false skips uploading the
-      # NSIS updater archive (`*.nsis.zip` + `.sig`). The in-app updater
-      # needs that archive — `latest.json` points at it — so upload it
-      # explicitly from the bundle output directory.
-      - name: Upload NSIS updater archive
-        shell: pwsh
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          TAG: ${{ github.ref_name }}
-        run: |
-          $bundle = "src-tauri/target/release/bundle/nsis"
-          $zips = Get-ChildItem -Path $bundle -Filter "*.nsis.zip*" -ErrorAction Stop
-          if (-not $zips) { throw "no .nsis.zip artifacts in $bundle" }
-          foreach ($f in $zips) {
-            Write-Host "uploading $($f.FullName)"
-            gh release upload $env:TAG $f.FullName --clobber --repo $env:GITHUB_REPOSITORY
-          }
+      # Tauri 2's NSIS bundler produces `*.exe` + `*.exe.sig` (not the
+      # older v1 `.nsis.zip` format). tauri-action uploads both, so no
+      # extra upload step is needed here — the in-app updater downloads
+      # the `.exe` directly and verifies it against the sig embedded in
+      # latest.json. createUpdaterArtifacts is still required in
+      # tauri.conf.json to make the bundler emit the `.exe.sig`.
 
   # ── Build latest.json after all builds complete ──
   finalize:
@@ -169,16 +158,20 @@ jobs:
           VERSION="${TAG#v}"
           BASE="https://github.com/${{ github.repository }}/releases/download/${TAG}"
 
-          # All three updater archives are required. -fsSL fails the step
-          # on any HTTP error (404/5xx) so we never sign a 404 HTML page or
-          # publish a latest.json that points at a missing asset.
+          # macOS: updater archive is `.app.tar.gz` (tar of the bundled .app).
+          # Windows: updater downloads the NSIS installer `.exe` directly —
+          # Tauri 2 dropped the v1 `.nsis.zip` wrapper. The pre-existing
+          # `.exe.sig` produced by the bundler is the authoritative signature,
+          # but the latest.json schema embeds the signature inline, so we
+          # re-sign here (deterministic against the same private key).
+          # -fsSL fails immediately on HTTP errors so we never sign a 404 page.
           curl -fsSL "${BASE}/OpenIT_aarch64.app.tar.gz"            -o /tmp/aarch64.tar.gz
           curl -fsSL "${BASE}/OpenIT_x64.app.tar.gz"                -o /tmp/x64.tar.gz
-          curl -fsSL "${BASE}/OpenIT_${VERSION}_x64-setup.nsis.zip" -o /tmp/win64.zip
+          curl -fsSL "${BASE}/OpenIT_${VERSION}_x64-setup.exe"      -o /tmp/win64-setup.exe
 
-          AARCH64_SIG=$(npx tauri signer sign /tmp/aarch64.tar.gz 2>&1 | grep -A1 "Public signature:" | tail -1)
-          X64_SIG=$(npx tauri signer sign /tmp/x64.tar.gz         2>&1 | grep -A1 "Public signature:" | tail -1)
-          WIN64_SIG=$(npx tauri signer sign /tmp/win64.zip        2>&1 | grep -A1 "Public signature:" | tail -1)
+          AARCH64_SIG=$(npx tauri signer sign /tmp/aarch64.tar.gz   2>&1 | grep -A1 "Public signature:" | tail -1)
+          X64_SIG=$(npx tauri signer sign /tmp/x64.tar.gz           2>&1 | grep -A1 "Public signature:" | tail -1)
+          WIN64_SIG=$(npx tauri signer sign /tmp/win64-setup.exe    2>&1 | grep -A1 "Public signature:" | tail -1)
 
           PUB_DATE=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
 
@@ -198,7 +191,7 @@ jobs:
               },
               "windows-x86_64": {
                 "signature": "${WIN64_SIG}",
-                "url": "${BASE}/OpenIT_${VERSION}_x64-setup.nsis.zip"
+                "url": "${BASE}/OpenIT_${VERSION}_x64-setup.exe"
               }
             }
           }
