@@ -126,6 +126,38 @@ describe("routeFile", () => {
     });
   });
 
+  describe("seed/", () => {
+    it("routes seed/commands/<name>.md to filestores/commands/<name>.md", () => {
+      expect(routeFile("seed/commands/backup.md", slug)).toEqual({
+        subdir: "filestores/commands",
+        filename: "backup.md",
+        substituteSlug: false,
+      });
+    });
+
+    it("routes seed/<target>/<file> to .claude/seed/<target>/<file>", () => {
+      expect(routeFile("seed/tickets/sample-ticket-1.json", slug)).toEqual({
+        subdir: ".claude/seed/tickets",
+        filename: "sample-ticket-1.json",
+        substituteSlug: false,
+      });
+    });
+
+    it("preserves nested seed/conversations/<ticketId>/<file> structure", () => {
+      expect(
+        routeFile("seed/conversations/sample-ticket-1/msg-aa01.json", slug),
+      ).toEqual({
+        subdir: ".claude/seed/conversations/sample-ticket-1",
+        filename: "msg-aa01.json",
+        substituteSlug: false,
+      });
+    });
+
+    it("ignores top-level seed/* files with no subtarget", () => {
+      expect(routeFile("seed/orphan.json", slug)).toBeNull();
+    });
+  });
+
   describe("default path preservation", () => {
     it("keeps unrecognized layouts under repo root", () => {
       expect(routeFile("misc/notes.md", slug)).toEqual({

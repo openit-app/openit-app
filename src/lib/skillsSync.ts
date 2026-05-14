@@ -83,11 +83,15 @@ export async function fetchSkillFile(
 ///   - `schemas/<col>._schema.json`         → `databases/<col>/_schema.json`
 ///   - `agents/<name>.template.json`        → `agents/<name>.json`
 ///   - `scripts/<file>`                     → `.claude/scripts/<file>`
-///   - `seed/<target>/...`                  → null (handled by seedIfEmpty;
-///                                              writing seed during the main
-///                                              plugin sync would clobber
-///                                              user-touched rows on every
-///                                              bundle bump)
+///   - `seed/commands/<name>.md`            → `filestores/commands/<name>.md`
+///                                              (write-once; admin edits in
+///                                              place)
+///   - `seed/<target>/...`                  → `.claude/seed/<target>/...`
+///                                              (staged on disk so
+///                                              `load-sample-data.mjs` can
+///                                              copy from a known location;
+///                                              never written directly into
+///                                              the vault by the plugin sync)
 ///   - anything else                        → preserve original layout
 ///
 /// `substituteSlug` is no longer set by any current rule (the slug
@@ -153,11 +157,22 @@ export function routeFile(
     const filename = filePath.replace("seed/commands/", "");
     return { subdir: "filestores/commands", filename, substituteSlug: false };
   }
-  // All other seed files (tickets, people, conversations, etc.) are
-  // optional sample data, written only when the user runs
-  // `/load-sample-data` via `seedIfEmpty` (src/lib/seed.ts).
+  // Optional sample data (tickets, people, conversations, etc.) lands
+  // under `.claude/seed/<target>/` on disk so `load-sample-data.mjs`
+  // can copy it into the vault on demand. Preserves the seed/ subtree
+  // shape (e.g. seed/conversations/<ticketId>/<file> → .claude/seed/
+  // conversations/<ticketId>/<file>). `src/lib/seed.ts::seedIfEmpty`
+  // independently reads from the bundled manifest, so it keeps working
+  // for the `openit://create-samples` CTA without depending on disk.
   if (filePath.startsWith("seed/")) {
-    return null;
+    const rel = filePath.replace("seed/", "");
+    const lastSlash = rel.lastIndexOf("/");
+    if (lastSlash < 0) return null;
+    return {
+      subdir: `.claude/seed/${rel.slice(0, lastSlash)}`,
+      filename: rel.slice(lastSlash + 1),
+      substituteSlug: false,
+    };
   }
   // Default: preserve manifest layout under repo root.
   const parts = filePath.split("/");
