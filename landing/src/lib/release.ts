@@ -12,23 +12,50 @@ export interface ReleaseInfo {
   winExeUrl: string | null;
   winMsiUrl: string | null;
   releaseUrl: string | null;
+  totalDownloads: number;
 }
 
 export async function getLatestRelease(): Promise<ReleaseInfo> {
   try {
-    const res = await fetch(`https://api.github.com/repos/${REPO}/releases/latest`, {
-      headers: { Accept: "application/vnd.github+json" },
-    });
-    if (!res.ok) {
+    // Sum download_count across the latest release AND any prior releases so the
+    // tally doesn't reset when we cut a new version.
+    const [latestRes, allRes] = await Promise.all([
+      fetch(`https://api.github.com/repos/${REPO}/releases/latest`, {
+        headers: { Accept: "application/vnd.github+json" },
+      }),
+      fetch(`https://api.github.com/repos/${REPO}/releases?per_page=100`, {
+        headers: { Accept: "application/vnd.github+json" },
+      }),
+    ]);
+    if (!latestRes.ok) {
       return pending();
     }
-    const data = (await res.json()) as {
+    const data = (await latestRes.json()) as {
       tag_name: string;
       html_url: string;
-      assets: Array<{ name: string; browser_download_url: string }>;
+      assets: Array<{ name: string; browser_download_url: string; download_count: number }>;
     };
+    const allReleases = allRes.ok
+      ? ((await allRes.json()) as Array<{
+          assets: Array<{ name: string; download_count: number }>;
+        }>)
+      : [{ assets: data.assets }];
+
     const findAsset = (suffix: string) =>
       data.assets.find((a) => a.name.endsWith(suffix))?.browser_download_url ?? null;
+
+    const isInstaller = (name: string) =>
+      name.endsWith(".dmg") || name.endsWith(".exe") || name.endsWith(".msi");
+
+    const totalDownloads = allReleases.reduce(
+      (sum, rel) =>
+        sum +
+        rel.assets
+          .filter((a) => isInstaller(a.name))
+          .reduce((s, a) => s + (a.download_count ?? 0), 0),
+      0,
+    );
+
     return {
       available: true,
       version: data.tag_name.replace(/^v/, ""),
@@ -37,6 +64,7 @@ export async function getLatestRelease(): Promise<ReleaseInfo> {
       winExeUrl: findAsset("-setup.exe"),
       winMsiUrl: findAsset("_en-US.msi"),
       releaseUrl: data.html_url,
+      totalDownloads,
     };
   } catch {
     return pending();
@@ -52,5 +80,6 @@ function pending(): ReleaseInfo {
     winExeUrl: null,
     winMsiUrl: null,
     releaseUrl: null,
+    totalDownloads: 0,
   };
 }

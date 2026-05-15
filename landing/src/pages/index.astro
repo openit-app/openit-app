@@ -62,6 +62,11 @@ const nativeAccess: { k: string; v: string }[] = [
           <svg class="h-4 w-4 transition group-hover:translate-x-0.5 group-hover:-translate-y-0.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" xmlns="http://www.w3.org/2000/svg"><path d="M7 7h10v10"/><path d="M7 17 17 7"/></svg>
         </a>
       </div>
+      {release.available && (
+        <p class="mt-4 font-mono-tag text-[11px] text-ink/40">
+          {release.totalDownloads > 0 && <>{release.totalDownloads.toLocaleString()} downloads · </>}v{release.version}
+        </p>
+      )}
 
       {/* Architecture block */}
       <div class="mt-24 grid gap-px overflow-hidden rounded-3xl border border-ink/15 bg-ink/15 md:mt-32 md:grid-cols-2">
@@ -327,6 +332,11 @@ const nativeAccess: { k: string; v: string }[] = [
             <span class="font-medium">View on GitHub</span>
           </a>
         </div>
+        {release.available && (
+          <p class="mt-4 font-mono-tag text-[11px] text-cream/60">
+            {release.totalDownloads > 0 && <>{release.totalDownloads.toLocaleString()} downloads · </>}v{release.version}
+          </p>
+        )}
       </div>
     </section>
 
