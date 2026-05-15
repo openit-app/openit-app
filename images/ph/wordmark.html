@@ -1,0 +1,642 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>OpenIT · Wordmark specification</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=Fraunces:ital,wght@1,400;1,500;1,600&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --cream:           hsl(40 33% 96%);
+      --cream-deep:      hsl(38 28% 92%);
+      --cream-tint:      hsl(38 32% 98%);
+      --ink:             hsl(30 14% 10%);
+      --ink-soft:        hsl(30 12% 22%);
+      --ink-mute:        hsl(30 10% 45%);
+      --rule:            hsl(30 14% 86%);
+      --terracotta:      hsl(14 62% 50%);
+      --terracotta-soft: hsl(18 80% 60%);
+
+      --page-pad: 64px;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body {
+      background: var(--cream);
+      color: var(--ink);
+      font-family: "Inter", system-ui, sans-serif;
+      -webkit-font-smoothing: antialiased;
+      -moz-osx-font-smoothing: grayscale;
+    }
+
+    /* ───────── page chrome ───────── */
+    .page {
+      max-width: 1080px;
+      margin: 0 auto;
+      padding: 96px var(--page-pad) 128px;
+    }
+
+    .eyebrow {
+      display: inline-flex; align-items: center; gap: 10px;
+      font-family: "JetBrains Mono", monospace;
+      font-size: 11px;
+      letter-spacing: 0.18em;
+      text-transform: uppercase;
+      color: var(--terracotta);
+      font-weight: 600;
+    }
+    .eyebrow::before {
+      content: ""; width: 8px; height: 8px; border-radius: 50%;
+      background: var(--terracotta);
+    }
+
+    h1.title {
+      font-weight: 800;
+      letter-spacing: -0.03em;
+      font-size: 64px;
+      line-height: 1;
+      margin: 22px 0 14px;
+    }
+    h1.title em {
+      color: var(--terracotta);
+      font-family: "Fraunces", serif;
+      font-style: italic;
+      font-weight: 500;
+      letter-spacing: -0.035em;
+    }
+    p.lede {
+      font-size: 19px;
+      line-height: 1.55;
+      color: var(--ink-soft);
+      max-width: 640px;
+      font-weight: 400;
+    }
+    p.lede em {
+      color: var(--terracotta);
+      font-family: "Fraunces", serif;
+      font-style: italic;
+      font-weight: 500;
+    }
+
+    h2 {
+      font-size: 13px;
+      font-family: "JetBrains Mono", monospace;
+      font-weight: 600;
+      letter-spacing: 0.18em;
+      text-transform: uppercase;
+      color: var(--ink-mute);
+      margin-bottom: 24px;
+    }
+    h2 .num {
+      display: inline-block;
+      background: var(--ink);
+      color: var(--cream);
+      padding: 2px 8px;
+      border-radius: 4px;
+      margin-right: 10px;
+    }
+
+    section {
+      margin-top: 88px;
+      padding-top: 40px;
+      border-top: 1px solid var(--rule);
+    }
+
+    /* ───────── the wordmark itself ───────── */
+    /* The single source of truth — every other rendering on this page
+       inherits from .wm and only changes size, color, or background. */
+    .wm {
+      display: inline-flex;
+      align-items: baseline;
+      gap: 2px;
+      font-family: "Inter", sans-serif;
+      font-weight: 800;
+      letter-spacing: -0.02em;
+      color: var(--ink);
+      line-height: 1;
+    }
+    .wm .it {
+      color: var(--terracotta);
+      font-family: "Fraunces", serif;
+      font-style: italic;
+      font-weight: 500;
+      /* Fraunces italic optically wants a touch tighter than Inter */
+      letter-spacing: -0.03em;
+    }
+
+    /* ───────── hero block ───────── */
+    .hero-block {
+      margin-top: 64px;
+      padding: 96px 64px;
+      background: var(--cream-tint);
+      border: 1px solid var(--rule);
+      border-radius: 24px;
+      position: relative;
+      overflow: hidden;
+      text-align: center;
+    }
+    .hero-block::before {
+      content: "";
+      position: absolute;
+      top: -120px; right: -120px;
+      width: 300px; height: 300px;
+      border-radius: 50%;
+      background: var(--terracotta-soft);
+      filter: blur(80px);
+      opacity: .22;
+    }
+    .hero-block .wm-hero {
+      font-size: 240px;
+      position: relative; z-index: 1;
+    }
+    .hero-block .caption {
+      margin-top: 56px;
+      font-family: "JetBrains Mono", monospace;
+      font-size: 11px;
+      letter-spacing: 0.18em;
+      text-transform: uppercase;
+      color: var(--ink-mute);
+      position: relative; z-index: 1;
+    }
+
+    /* ───────── anatomy ───────── */
+    .anatomy {
+      display: grid;
+      grid-template-columns: 1.1fr 0.9fr;
+      gap: 56px;
+      align-items: center;
+    }
+    .anatomy-stage {
+      padding: 60px;
+      background: var(--cream-tint);
+      border: 1px solid var(--rule);
+      border-radius: 18px;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      position: relative;
+    }
+    .anatomy-stage .wm-anatomy {
+      font-size: 160px;
+      position: relative;
+    }
+    /* labelled callouts pointing at parts of the wordmark */
+    .anatomy-stage .pin {
+      position: absolute;
+      display: flex; align-items: center; gap: 8px;
+      font-family: "JetBrains Mono", monospace;
+      font-size: 10px;
+      letter-spacing: 0.14em;
+      text-transform: uppercase;
+      color: var(--ink-mute);
+    }
+    .pin .dot { width: 6px; height: 6px; border-radius: 50%; background: var(--terracotta); }
+    .pin.tl { top: 36px; left: 36px; }
+    .pin.tr { top: 36px; right: 36px; }
+    .pin.bl { bottom: 36px; left: 36px; }
+    .pin.br { bottom: 36px; right: 36px; }
+
+    .spec-list {
+      display: flex; flex-direction: column;
+      gap: 22px;
+    }
+    .spec {
+      display: grid;
+      grid-template-columns: 110px 1fr;
+      gap: 18px;
+      padding-bottom: 18px;
+      border-bottom: 1px dashed var(--rule);
+    }
+    .spec:last-child { border-bottom: 0; padding-bottom: 0; }
+    .spec dt {
+      font-family: "JetBrains Mono", monospace;
+      font-size: 11px;
+      letter-spacing: 0.14em;
+      text-transform: uppercase;
+      color: var(--ink-mute);
+      padding-top: 2px;
+    }
+    .spec dd { font-size: 15px; line-height: 1.5; color: var(--ink); }
+    .spec dd .mono {
+      font-family: "JetBrains Mono", monospace;
+      font-size: 13px;
+      background: var(--cream-deep);
+      padding: 1px 6px;
+      border-radius: 4px;
+    }
+    .spec dd em {
+      color: var(--terracotta);
+      font-family: "Fraunces", serif;
+      font-style: italic;
+      font-weight: 500;
+    }
+
+    /* ───────── scale ladder ───────── */
+    .scale-grid {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 0;
+      background: var(--cream-tint);
+      border: 1px solid var(--rule);
+      border-radius: 18px;
+      overflow: hidden;
+    }
+    .scale-row {
+      display: grid;
+      grid-template-columns: 140px 1fr;
+      align-items: center;
+      padding: 28px 32px;
+      border-top: 1px solid var(--rule);
+      border-right: 1px solid var(--rule);
+    }
+    .scale-row:nth-child(-n+2) { border-top: 0; }
+    .scale-row:nth-child(2n)   { border-right: 0; }
+    .scale-row .label {
+      font-family: "JetBrains Mono", monospace;
+      font-size: 11px;
+      letter-spacing: 0.14em;
+      text-transform: uppercase;
+      color: var(--ink-mute);
+    }
+    .scale-row .label .px {
+      display: block;
+      color: var(--ink);
+      font-size: 14px;
+      margin-top: 4px;
+      letter-spacing: 0;
+    }
+
+    /* ───────── colour variants ───────── */
+    .colour-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 18px;
+    }
+    .colour-card {
+      border-radius: 18px;
+      padding: 64px 28px 24px;
+      border: 1px solid var(--rule);
+      position: relative;
+      display: flex; flex-direction: column;
+      align-items: center;
+      justify-content: space-between;
+      min-height: 240px;
+    }
+    .colour-card .wm-card { font-size: 56px; }
+    .colour-card .meta {
+      margin-top: 36px;
+      text-align: center;
+      font-family: "JetBrains Mono", monospace;
+      font-size: 10px;
+      letter-spacing: 0.14em;
+      text-transform: uppercase;
+      color: var(--ink-mute);
+    }
+    .colour-card .meta strong { display: block; color: var(--ink); font-size: 12px; margin-bottom: 6px; }
+
+    .card-cream { background: var(--cream); }
+    .card-cream .wm-card { color: var(--ink); }
+    .card-cream .wm-card .it { color: var(--terracotta); }
+
+    .card-ink   { background: var(--ink); border-color: var(--ink); }
+    .card-ink .wm-card { color: var(--cream); }
+    .card-ink .wm-card .it { color: var(--terracotta-soft); }
+    .card-ink .meta { color: rgba(244,237,224,.55); }
+    .card-ink .meta strong { color: var(--cream); }
+
+    .card-terracotta { background: var(--terracotta); border-color: var(--terracotta); }
+    .card-terracotta .wm-card { color: var(--cream); }
+    .card-terracotta .wm-card .it { color: var(--ink); }
+    .card-terracotta .meta { color: rgba(255,255,255,.6); }
+    .card-terracotta .meta strong { color: white; }
+
+    /* a 4th row of single-tone fallbacks for one-colour print / stamping */
+    .mono-grid {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 18px;
+      margin-top: 18px;
+    }
+    .mono-card {
+      border-radius: 18px;
+      padding: 56px 28px 24px;
+      border: 1px solid var(--rule);
+      display: flex; flex-direction: column;
+      align-items: center;
+      justify-content: space-between;
+      min-height: 200px;
+    }
+    .mono-card .wm-card { font-size: 56px; }
+    .mono-card .meta {
+      margin-top: 28px;
+      text-align: center;
+      font-family: "JetBrains Mono", monospace;
+      font-size: 10px;
+      letter-spacing: 0.14em;
+      text-transform: uppercase;
+      color: var(--ink-mute);
+    }
+    .mono-card .meta strong { display: block; color: var(--ink); font-size: 12px; margin-bottom: 6px; }
+    .card-mono-ink { background: var(--cream-tint); }
+    .card-mono-ink .wm-card,
+    .card-mono-ink .wm-card .it { color: var(--ink); }
+    .card-mono-white { background: var(--ink); border-color: var(--ink); }
+    .card-mono-white .wm-card,
+    .card-mono-white .wm-card .it { color: var(--cream); }
+    .card-mono-white .meta { color: rgba(244,237,224,.55); }
+    .card-mono-white .meta strong { color: var(--cream); }
+
+    /* ───────── clear-space diagram ───────── */
+    .clearspace-stage {
+      background: var(--cream-tint);
+      border: 1px solid var(--rule);
+      border-radius: 18px;
+      padding: 80px;
+      display: flex; justify-content: center;
+      position: relative;
+    }
+    .clearspace-frame {
+      position: relative;
+      padding: 64px;
+      border: 1px dashed var(--terracotta);
+      border-radius: 8px;
+    }
+    .clearspace-frame .wm-clear { font-size: 96px; }
+    /* The "x" measure markers — equal to the cap height of "O" (~67% of font-size) */
+    .x-marker {
+      position: absolute;
+      font-family: "JetBrains Mono", monospace;
+      font-size: 11px;
+      color: var(--terracotta);
+      font-weight: 600;
+      letter-spacing: 0.1em;
+    }
+    .x-marker.top    { top: 28px;    left: 50%; transform: translateX(-50%); }
+    .x-marker.bottom { bottom: 28px; left: 50%; transform: translateX(-50%); }
+    .x-marker.left   { left: 28px;   top: 50%;  transform: translateY(-50%); }
+    .x-marker.right  { right: 28px;  top: 50%;  transform: translateY(-50%); }
+    .clearspace-note {
+      margin-top: 24px;
+      font-size: 14px;
+      color: var(--ink-soft);
+      line-height: 1.55;
+      max-width: 640px;
+    }
+    .clearspace-note .mono {
+      font-family: "JetBrains Mono", monospace;
+      font-size: 12px;
+      background: var(--cream-deep);
+      padding: 1px 6px;
+      border-radius: 4px;
+    }
+
+    /* ───────── do / don't ───────── */
+    .rules-grid {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 18px;
+    }
+    .rule-card {
+      border: 1px solid var(--rule);
+      border-radius: 18px;
+      padding: 36px 32px 28px;
+      background: var(--cream-tint);
+      position: relative;
+    }
+    .rule-card .badge {
+      position: absolute;
+      top: 20px; right: 20px;
+      font-family: "JetBrains Mono", monospace;
+      font-size: 10px;
+      font-weight: 600;
+      letter-spacing: 0.16em;
+      text-transform: uppercase;
+      padding: 4px 10px;
+      border-radius: 999px;
+    }
+    .rule-card.do  .badge { background: rgba(46,124,76,.12); color: hsl(140 45% 30%); }
+    .rule-card.dont .badge { background: rgba(196,55,55,.12); color: hsl(0 55% 40%); }
+    .rule-card .wm-rule { font-size: 56px; margin: 20px 0 16px; display: block; }
+    .rule-card .copy {
+      font-size: 13px;
+      line-height: 1.55;
+      color: var(--ink-soft);
+    }
+    .rule-card.dont .wm-rule { opacity: .9; }
+    /* bad styling variants — only applied inside .dont demos */
+    .demo-allcaps  .wm-rule { text-transform: uppercase; }
+    .demo-italicall .wm-rule { font-style: italic; }
+    .demo-italicall .wm-rule .it { font-style: italic; }
+    .demo-noital   .wm-rule .it { font-style: normal; font-family: "Inter", sans-serif; font-weight: 800; letter-spacing: -0.02em; }
+    .demo-space    .wm-rule { gap: 14px; }
+    .demo-hyphen   .wm-rule::before { content: "Open-"; }
+    .demo-hyphen   .wm-rule .open { display: none; }
+    .demo-wrongcolor .wm-rule .it { color: hsl(200 70% 45%); }
+    .demo-toolight .wm-rule { font-weight: 500; }
+
+    /* ───────── footer ───────── */
+    footer {
+      margin-top: 96px;
+      padding-top: 32px;
+      border-top: 1px solid var(--rule);
+      display: flex; justify-content: space-between;
+      align-items: baseline;
+      font-family: "JetBrains Mono", monospace;
+      font-size: 11px;
+      letter-spacing: 0.16em;
+      text-transform: uppercase;
+      color: var(--ink-mute);
+    }
+    footer .wm-footer { font-size: 22px; letter-spacing: -0.02em; text-transform: none; }
+  </style>
+</head>
+<body>
+  <div class="page">
+
+    <!-- ───────── intro ───────── -->
+    <span class="eyebrow">brand · wordmark · 01</span>
+    <h1 class="title">The OpenIT <em>wordmark</em>.</h1>
+    <p class="lede">
+      One mark, two voices. <em>Open</em> in Inter Black for the
+      engineering side — confident, precise, technical. <em>IT</em> in
+      Fraunces italic for the human side — editorial, warm, considered.
+      They sit on a shared baseline with a 2-pixel breath between them,
+      and the colour shift from ink to terracotta carries all the
+      personality this wordmark needs.
+    </p>
+
+    <!-- ───────── hero ───────── -->
+    <div class="hero-block">
+      <span class="wm wm-hero">Open<span class="it">IT</span></span>
+      <div class="caption">primary lockup · 240 px · ink + terracotta on cream</div>
+    </div>
+
+    <!-- ───────── anatomy ───────── -->
+    <section>
+      <h2><span class="num">01</span>Anatomy</h2>
+      <div class="anatomy">
+        <div class="anatomy-stage">
+          <span class="pin tl"><span class="dot"></span>Inter 800</span>
+          <span class="pin tr"><span class="dot"></span>Fraunces italic 500</span>
+          <span class="pin bl"><span class="dot"></span>ink &#x2192; <span style="color:var(--terracotta)">terracotta</span></span>
+          <span class="pin br"><span class="dot"></span>gap: 2 px @ 22 px</span>
+          <span class="wm wm-anatomy">Open<span class="it">IT</span></span>
+        </div>
+
+        <dl class="spec-list">
+          <div class="spec">
+            <dt>Open</dt>
+            <dd>
+              <span class="mono">Inter</span> · weight <span class="mono">800</span> · upright · tracking <span class="mono">-0.02em</span> · colour <span class="mono">ink hsl(30 14% 10%)</span>
+            </dd>
+          </div>
+          <div class="spec">
+            <dt>IT</dt>
+            <dd>
+              <em>Fraunces</em> · weight <span class="mono">500</span> · italic · tracking <span class="mono">-0.03em</span> · colour <span class="mono">terracotta hsl(14 62% 50%)</span>
+            </dd>
+          </div>
+          <div class="spec">
+            <dt>Gap</dt>
+            <dd>
+              <span class="mono">2 px</span> at the canonical 22 px size — scales proportionally with the wordmark. Baselines match exactly; no optical offset.
+            </dd>
+          </div>
+          <div class="spec">
+            <dt>Sizing</dt>
+            <dd>
+              Both halves share the same <span class="mono">font-size</span>. Fraunces optically reads ~5% smaller than Inter at the same size, which is intentional — it gives <em>IT</em> the editorial whisper we want.
+            </dd>
+          </div>
+          <div class="spec">
+            <dt>Format</dt>
+            <dd>
+              Live text only. Do not convert to outlines, do not letter-space manually, do not bake into a raster file for UI use. Ship the two webfonts.
+            </dd>
+          </div>
+        </dl>
+      </div>
+    </section>
+
+    <!-- ───────── scale ───────── -->
+    <section>
+      <h2><span class="num">02</span>Scale</h2>
+      <div class="scale-grid">
+        <div class="scale-row"><div class="label">display<span class="px">128 px</span></div><span class="wm" style="font-size:128px">Open<span class="it">IT</span></span></div>
+        <div class="scale-row"><div class="label">marketing<span class="px">72 px</span></div><span class="wm" style="font-size:72px">Open<span class="it">IT</span></span></div>
+        <div class="scale-row"><div class="label">section<span class="px">48 px</span></div><span class="wm" style="font-size:48px">Open<span class="it">IT</span></span></div>
+        <div class="scale-row"><div class="label">app header<span class="px">22 px</span></div><span class="wm" style="font-size:22px">Open<span class="it">IT</span></span></div>
+        <div class="scale-row"><div class="label">inline<span class="px">16 px</span></div><span class="wm" style="font-size:16px">Open<span class="it">IT</span></span></div>
+        <div class="scale-row"><div class="label">caption · min<span class="px">12 px</span></div><span class="wm" style="font-size:12px">Open<span class="it">IT</span></span></div>
+      </div>
+    </section>
+
+    <!-- ───────── colour ───────── -->
+    <section>
+      <h2><span class="num">03</span>Colour variants</h2>
+      <div class="colour-grid">
+        <div class="colour-card card-cream">
+          <span class="wm wm-card">Open<span class="it">IT</span></span>
+          <div class="meta">
+            <strong>Primary · on cream</strong>
+            ink + terracotta · default
+          </div>
+        </div>
+        <div class="colour-card card-ink">
+          <span class="wm wm-card">Open<span class="it">IT</span></span>
+          <div class="meta">
+            <strong>Dark · on ink</strong>
+            cream + terracotta-soft · video, modals, dark theme
+          </div>
+        </div>
+        <div class="colour-card card-terracotta">
+          <span class="wm wm-card">Open<span class="it">IT</span></span>
+          <div class="meta">
+            <strong>Reverse · on terracotta</strong>
+            cream + ink · stickers, swag
+          </div>
+        </div>
+      </div>
+
+      <div class="mono-grid">
+        <div class="mono-card card-mono-ink">
+          <span class="wm wm-card">Open<span class="it">IT</span></span>
+          <div class="meta">
+            <strong>Monochrome ink</strong>
+            single-colour print · stamping · favicons
+          </div>
+        </div>
+        <div class="mono-card card-mono-white">
+          <span class="wm wm-card">Open<span class="it">IT</span></span>
+          <div class="meta">
+            <strong>Monochrome cream</strong>
+            knockout on ink · dark prints
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ───────── clear space ───────── -->
+    <section>
+      <h2><span class="num">04</span>Clear space</h2>
+      <div class="clearspace-stage">
+        <div class="clearspace-frame">
+          <span class="wm wm-clear">Open<span class="it">IT</span></span>
+          <span class="x-marker top">↕ 1×</span>
+          <span class="x-marker bottom">↕ 1×</span>
+          <span class="x-marker left">↔ 1×</span>
+          <span class="x-marker right">↔ 1×</span>
+        </div>
+      </div>
+      <p class="clearspace-note">
+        Reserve clear space equal to one <span class="mono">"O"</span>
+        cap-height on every side of the lockup. Nothing — type, icons,
+        edges, photos, gradients — enters this zone.
+      </p>
+    </section>
+
+    <!-- ───────── do / don't ───────── -->
+    <section>
+      <h2><span class="num">05</span>Don't</h2>
+      <div class="rules-grid">
+        <div class="rule-card dont demo-allcaps">
+          <span class="badge">don't</span>
+          <span class="wm wm-rule">Open<span class="it">IT</span></span>
+          <p class="copy">Don't set the wordmark in all caps. The Open/IT contrast comes from the case and font shift, not from shouting.</p>
+        </div>
+        <div class="rule-card dont demo-italicall">
+          <span class="badge">don't</span>
+          <span class="wm wm-rule">Open<span class="it">IT</span></span>
+          <p class="copy">Don't italicise the whole lockup. Only the "IT" half is italic — that's the entire concept.</p>
+        </div>
+        <div class="rule-card dont demo-noital">
+          <span class="badge">don't</span>
+          <span class="wm wm-rule">Open<span class="it">IT</span></span>
+          <p class="copy">Don't set "IT" upright in Inter to match "Open". The Fraunces italic is what makes the wordmark.</p>
+        </div>
+        <div class="rule-card dont demo-space">
+          <span class="badge">don't</span>
+          <span class="wm wm-rule">Open<span class="it">IT</span></span>
+          <p class="copy">Don't add a wide gap between "Open" and "IT". The two halves are one word, breathing across a 2-pixel seam.</p>
+        </div>
+        <div class="rule-card dont demo-wrongcolor">
+          <span class="badge">don't</span>
+          <span class="wm wm-rule">Open<span class="it">IT</span></span>
+          <p class="copy">Don't recolour "IT". Terracotta is the only accent — never blue, green, neon, or system-default link.</p>
+        </div>
+        <div class="rule-card dont demo-toolight">
+          <span class="badge">don't</span>
+          <span class="wm wm-rule">Open<span class="it">IT</span></span>
+          <p class="copy">Don't weaken the weight. "Open" is always Inter 800. Anything lighter loses the engineering voice.</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- ───────── footer ───────── -->
+    <footer>
+      <span class="wm wm-footer">Open<span class="it">IT</span></span>
+      <span>brand · wordmark spec · v1</span>
+    </footer>
+  </div>
+</body>
+</html>
