@@ -1,0 +1,189 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>OpenIT — Product Hunt 3/3 · Local-first IDE</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=Fraunces:ital,wght@1,400;1,500;1,600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --cream:           hsl(40 33% 96%);
+      --cream-deep:      hsl(38 28% 92%);
+      --ink:             hsl(30 14% 10%);
+      --terracotta:      hsl(14 62% 50%);
+      --terracotta-soft: hsl(18 80% 60%);
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body { background: #2a2521; font-family: "Inter", system-ui, sans-serif; -webkit-font-smoothing: antialiased; }
+
+    .frame {
+      width: 1270px;
+      height: 760px;
+      background: var(--cream);
+      color: var(--ink);
+      position: relative;
+      overflow: hidden;
+      display: grid;
+      grid-template-rows: 1fr 68px;
+    }
+    .frame::after {
+      content: "";
+      position: absolute; inset: 0;
+      background-image: radial-gradient(rgba(30,20,15,.04) 1px, transparent 1px);
+      background-size: 4px 4px;
+      pointer-events: none;
+      z-index: 0;
+    }
+    .glow {
+      position: absolute;
+      top: -140px; left: -140px;
+      width: 380px; height: 380px;
+      border-radius: 50%;
+      background: var(--terracotta-soft);
+      filter: blur(80px);
+      opacity: .35;
+      z-index: 0;
+      pointer-events: none;
+    }
+
+    .main {
+      position: relative;
+      z-index: 1;
+      display: grid;
+      grid-template-columns: 500px 1fr;
+      align-items: stretch;
+    }
+    .left {
+      padding: 0 30px 0 64px;
+      display: flex; flex-direction: column;
+      justify-content: center;
+      gap: 28px;
+    }
+
+    h1.display {
+      font-weight: 800;
+      letter-spacing: -0.025em;
+      line-height: 0.96;
+      color: var(--ink);
+      display: flex; flex-direction: column;
+      align-items: flex-start;
+      gap: 2px;
+    }
+    h1.display .line { display: block; white-space: nowrap; }
+    h1.display .line-1 { font-size: 60px; }
+    h1.display .line-2 { font-size: 48px; }
+    h1.display .line-3 { font-size: 56px; }
+    h1.display .accent {
+      color: var(--terracotta);
+      font-family: "Fraunces", serif;
+      font-style: italic; font-weight: 500;
+      letter-spacing: -0.03em;
+    }
+
+    .subline {
+      display: flex; flex-direction: column;
+      align-items: flex-start;
+      gap: 8px;
+    }
+    .subline .lead {
+      font-size: 22px; font-weight: 500;
+      letter-spacing: -0.02em;
+      color: rgba(30,20,15,.55);
+      line-height: 1;
+    }
+    .subline .punch {
+      font-family: "Fraunces", serif;
+      font-style: italic; font-weight: 500;
+      letter-spacing: -0.025em;
+      color: var(--terracotta);
+      font-size: 30px;
+      line-height: 1.05;
+    }
+
+    .right { position: relative; padding: 36px 0; }
+    .shot-wrap {
+      position: absolute;
+      top: 36px; bottom: 36px;
+      left: 0; right: 0;
+      border-radius: 18px 0 0 18px;
+      overflow: hidden;
+      box-shadow:
+        0 1px 0 0 rgba(0,0,0,.06),
+        0 36px 70px -22px rgba(30,20,15,.4),
+        0 70px 140px -30px rgba(30,20,15,.28);
+      border: 1px solid rgba(30,20,15,.08);
+      border-right: 0;
+    }
+    .shot-wrap img {
+      display: block; width: 100%; height: 100%;
+      object-fit: cover;
+      /* anchor left so the full OpenIT primitives sidebar (the "explorer panel")
+         is visible alongside the Tools list — sells the IDE-with-extensions feel */
+      object-position: left top;
+    }
+
+    .footer-bar {
+      position: relative; z-index: 1;
+      padding: 0 64px;
+      display: flex; align-items: center;
+      justify-content: space-between;
+      border-top: 1px solid rgba(30,20,15,.1);
+      background: rgba(255,255,255,0.35);
+    }
+    .wordmark {
+      display: inline-flex; align-items: baseline; gap: 2px;
+      font-family: "Inter", sans-serif;
+      letter-spacing: -0.02em;
+      font-weight: 800;
+      font-size: 22px;
+      color: var(--ink);
+    }
+    .wordmark .it {
+      color: var(--terracotta);
+      font-family: "Fraunces", serif;
+      font-style: italic;
+      font-weight: 500;
+    }
+    .meta {
+      display: flex; align-items: center; gap: 18px;
+      font-family: "JetBrains Mono", ui-monospace, monospace;
+      font-size: 11px;
+      letter-spacing: 0.16em;
+      text-transform: uppercase;
+      color: rgba(30,20,15,.55);
+    }
+    .meta .divider { width: 1px; height: 14px; background: rgba(30,20,15,.2); }
+  </style>
+</head>
+<body>
+  <div class="frame">
+    <div class="glow"></div>
+
+    <div class="main">
+      <div class="left">
+        <h1 class="display">
+          <span class="line line-1">Local-first.</span>
+          <span class="line line-2">Lives on your disk.</span>
+          <span class="line line-3"><span class="accent">An IDE for IT.</span></span>
+        </h1>
+      </div>
+
+      <div class="right">
+        <div class="shot-wrap">
+          <img src="./shot-tools.png" alt="OpenIT Tools store — local CLIs and MCP servers, IDE-like layout" />
+        </div>
+      </div>
+    </div>
+
+    <div class="footer-bar">
+      <span class="wordmark">Open<span class="it">IT</span></span>
+      <div class="meta">
+        <span>macOS · Windows</span>
+        <span class="divider"></span>
+        <span>Apache 2.0</span>
+      </div>
+    </div>
+  </div>
+</body>
+</html>

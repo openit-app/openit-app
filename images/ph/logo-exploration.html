@@ -1,0 +1,351 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>OpenIT — Logo exploration</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=Fraunces:ital,wght@0,400;0,500;0,600;0,700;1,400;1,500;1,600&family=JetBrains+Mono:wght@400;500;600;700&family=Press+Start+2P&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --cream:           hsl(40 33% 96%);
+      --cream-deep:      hsl(38 28% 92%);
+      --ink:             hsl(30 14% 10%);
+      --terracotta:      hsl(14 62% 50%);
+      --terracotta-soft: hsl(18 80% 60%);
+      --claude:          #D97757;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      background: var(--cream);
+      color: var(--ink);
+      font-family: "Inter", system-ui, sans-serif;
+      -webkit-font-smoothing: antialiased;
+      padding: 64px 56px 96px;
+    }
+    h1 {
+      font-weight: 800;
+      letter-spacing: -0.025em;
+      font-size: 40px;
+      max-width: 18ch;
+    }
+    h1 .accent {
+      font-family: "Fraunces", serif; font-style: italic; font-weight: 500;
+      color: var(--terracotta); letter-spacing: -0.03em;
+    }
+    .lede {
+      margin-top: 14px;
+      max-width: 64ch;
+      font-size: 16.5px;
+      line-height: 1.55;
+      color: rgba(30,20,15,.7);
+    }
+
+    .mono-tag {
+      font-family: "JetBrains Mono", monospace;
+      letter-spacing: 0.14em; text-transform: uppercase; font-size: 11px;
+      color: rgba(30,20,15,.55);
+    }
+
+    .grid {
+      margin-top: 56px;
+      display: grid; grid-template-columns: repeat(2, 1fr);
+      gap: 24px;
+    }
+    .card {
+      background: var(--cream);
+      border: 1px solid rgba(30,20,15,.1);
+      border-radius: 20px;
+      padding: 32px;
+      display: flex; flex-direction: column; gap: 18px;
+      min-height: 320px;
+    }
+    .card.dark { background: var(--ink); border-color: rgba(255,255,255,.1); color: var(--cream); }
+    .card.dark .mono-tag { color: rgba(255,255,255,.55); }
+    .card.dark .note { color: rgba(255,255,255,.65); }
+
+    .head {
+      display: flex; justify-content: space-between; align-items: center;
+    }
+    .name { font-weight: 700; font-size: 17px; letter-spacing: -0.01em; }
+    .preview {
+      flex: 1;
+      display: flex; flex-direction: column;
+      align-items: flex-start; justify-content: center;
+      gap: 20px;
+      padding: 20px 0;
+    }
+    .preview.center { align-items: center; }
+    .row-tags {
+      display: flex; gap: 8px; flex-wrap: wrap;
+    }
+    .tag {
+      padding: 4px 9px; border-radius: 999px;
+      font-family: "JetBrains Mono", monospace; font-size: 10px;
+      letter-spacing: 0.08em; text-transform: uppercase;
+      background: rgba(30,20,15,.06); color: rgba(30,20,15,.65);
+    }
+    .tag.pro  { background: rgba(40, 160, 80, .12); color: #2d8f48; }
+    .tag.con  { background: rgba(206, 96, 56, .12); color: var(--terracotta); }
+    .note {
+      font-size: 13.5px; line-height: 1.45;
+      color: rgba(30,20,15,.65);
+      max-width: 44ch;
+    }
+
+    /* ─────── Logo specimens ─────── */
+
+    /* Common large display */
+    .lg { font-size: 56px; line-height: 1; }
+    .md { font-size: 28px; line-height: 1; }
+    .sm { font-size: 16px; line-height: 1; }
+
+    /* 01 — Current wordmark */
+    .l-current {
+      font-family: "Inter", sans-serif;
+      font-weight: 800; letter-spacing: -0.02em;
+    }
+    .l-current .it {
+      font-family: "Fraunces", serif; font-style: italic; font-weight: 500;
+      color: var(--terracotta); margin-left: 2px;
+    }
+    .dark .l-current .it { color: var(--terracotta-soft); }
+
+    /* 02 — Pixel "OPEN" + italic "IT" */
+    .l-pixel {
+      display: inline-flex; align-items: baseline; gap: 6px;
+    }
+    .l-pixel .open {
+      font-family: "Press Start 2P", monospace;
+      color: var(--ink);
+      text-shadow: 2px 2px 0 rgba(30,20,15,.12);
+    }
+    .dark .l-pixel .open { color: var(--cream); text-shadow: 2px 2px 0 rgba(255,255,255,.08); }
+    .l-pixel .it {
+      font-family: "Fraunces", serif; font-style: italic; font-weight: 500;
+      color: var(--terracotta); letter-spacing: -0.02em;
+    }
+    .dark .l-pixel .it { color: var(--terracotta-soft); }
+    .l-pixel.lg .open { font-size: 32px; }
+    .l-pixel.lg .it   { font-size: 56px; }
+    .l-pixel.md .open { font-size: 16px; }
+    .l-pixel.md .it   { font-size: 28px; }
+    .l-pixel.sm .open { font-size: 9px; }
+    .l-pixel.sm .it   { font-size: 16px; }
+
+    /* 03 — Mono lowercase CLI tool */
+    .l-mono {
+      font-family: "JetBrains Mono", monospace;
+      font-weight: 600;
+      color: var(--ink);
+      letter-spacing: -0.02em;
+    }
+    .dark .l-mono { color: var(--cream); }
+    .l-mono .dot { color: var(--terracotta); }
+    .dark .l-mono .dot { color: var(--terracotta-soft); }
+
+    /* 04 — Mascot + wordmark lockup */
+    .l-mascot { display: inline-flex; align-items: center; gap: 14px; }
+    .l-mascot.md { gap: 10px; }
+    .l-mascot.sm { gap: 6px; }
+    .l-mascot .mark {
+      flex-shrink: 0;
+    }
+    .l-mascot.lg .mark  { width: 64px; }
+    .l-mascot.md .mark  { width: 32px; }
+    .l-mascot.sm .mark  { width: 18px; }
+    .l-mascot .wm {
+      font-family: "Inter", sans-serif; font-weight: 800; letter-spacing: -0.02em;
+      color: var(--ink);
+    }
+    .dark .l-mascot .wm { color: var(--cream); }
+    .l-mascot .wm .it {
+      font-family: "Fraunces", serif; font-style: italic; font-weight: 500;
+      color: var(--terracotta); margin-left: 2px;
+    }
+    .dark .l-mascot .wm .it { color: var(--terracotta-soft); }
+
+    /* 05 — Full editorial / all-italic */
+    .l-editorial {
+      font-family: "Fraunces", serif; font-style: italic; font-weight: 500;
+      letter-spacing: -0.02em; color: var(--ink);
+    }
+    .dark .l-editorial { color: var(--cream); }
+    .l-editorial .it { color: var(--terracotta); }
+    .dark .l-editorial .it { color: var(--terracotta-soft); }
+
+    /* 06 — Bracketed / code-style */
+    .l-bracket {
+      font-family: "JetBrains Mono", monospace;
+      font-weight: 600;
+      color: var(--ink); letter-spacing: -0.01em;
+    }
+    .dark .l-bracket { color: var(--cream); }
+    .l-bracket .br { color: rgba(30,20,15,.35); }
+    .dark .l-bracket .br { color: rgba(255,255,255,.4); }
+    .l-bracket .name-it { color: var(--terracotta); }
+    .dark .l-bracket .name-it { color: var(--terracotta-soft); }
+    .l-bracket .slash { color: rgba(30,20,15,.4); }
+    .dark .l-bracket .slash { color: rgba(255,255,255,.4); }
+  </style>
+</head>
+<body>
+
+  <span class="mono-tag">OpenIT · Logo exploration · v1</span>
+  <h1 style="margin-top:16px;">Six directions for the <span class="accent">OpenIT</span> mark.</h1>
+  <p class="lede">Each option is shown at three sizes (display, app-shell, favicon-ish) on both light and dark surfaces. Below each, a short note on what it's saying and a pro/con. Pick the one that fits — or mix two.</p>
+
+  <div class="grid">
+
+    <!-- 01 — Current -->
+    <div class="card">
+      <div class="head">
+        <span class="name">01 · The current wordmark</span>
+        <span class="mono-tag">Inter 800 + Fraunces italic</span>
+      </div>
+      <div class="preview">
+        <span class="l-current lg">Open<span class="it">IT</span></span>
+        <span class="l-current md">Open<span class="it">IT</span></span>
+        <span class="l-current sm">Open<span class="it">IT</span></span>
+      </div>
+      <div class="row-tags">
+        <span class="tag pro">Editorial</span>
+        <span class="tag pro">Echoes the headline pattern</span>
+        <span class="tag con">A bit generic — many products do this</span>
+      </div>
+      <p class="note">The pattern you have now. Neutral "Open" + accented italic "IT". Clean and editorial but doesn't lean into the technical / Claude-Code / pixel-mascot identity we've built around it.</p>
+    </div>
+
+    <!-- 02 — Pixel "OPEN" + italic "IT" -->
+    <div class="card">
+      <div class="head">
+        <span class="name">02 · Pixel "OPEN" + italic "IT"</span>
+        <span class="mono-tag">Press Start 2P + Fraunces italic</span>
+      </div>
+      <div class="preview">
+        <span class="l-pixel lg"><span class="open">OPEN</span><span class="it">IT</span></span>
+        <span class="l-pixel md"><span class="open">OPEN</span><span class="it">IT</span></span>
+        <span class="l-pixel sm"><span class="open">OPEN</span><span class="it">IT</span></span>
+      </div>
+      <div class="row-tags">
+        <span class="tag pro">Bridges retro CLI + editorial warm</span>
+        <span class="tag pro">Rhymes with "CLAUDE CODE" lockup</span>
+        <span class="tag con">Harder to read at small sizes</span>
+      </div>
+      <p class="note">Same idea as your <span class="l-pixel md" style="vertical-align:baseline;"><span class="open" style="font-size:11px;">CLAUDE</span></span>-style lockup, applied to the brand itself. "OPEN" stays small + pixel, "IT" is the loud italic finale.</p>
+    </div>
+
+    <!-- 03 — Mono CLI tool -->
+    <div class="card">
+      <div class="head">
+        <span class="name">03 · Mono lowercase CLI tool</span>
+        <span class="mono-tag">JetBrains Mono 600</span>
+      </div>
+      <div class="preview">
+        <span class="l-mono" style="font-size:48px;">openit<span class="dot">_</span></span>
+        <span class="l-mono" style="font-size:24px;">openit<span class="dot">_</span></span>
+        <span class="l-mono" style="font-size:14px;">openit<span class="dot">_</span></span>
+      </div>
+      <div class="row-tags">
+        <span class="tag pro">Feels like a CLI tool you trust — like <code>git</code>, <code>ssh</code>, <code>kubectl</code></span>
+        <span class="tag pro">Reads as developer-first</span>
+        <span class="tag con">Loses the editorial italic warmth</span>
+      </div>
+      <p class="note">Lowercase, mono, with a terracotta cursor at the end. Says "I'm a humble Unix tool, not a SaaS product." Closest in spirit to Ghostty / fly / brew.</p>
+    </div>
+
+    <!-- 04 — Mascot + wordmark -->
+    <div class="card">
+      <div class="head">
+        <span class="name">04 · Mascot + wordmark</span>
+        <span class="mono-tag">Pixel mark + Inter / Fraunces</span>
+      </div>
+      <div class="preview">
+        <span class="l-mascot lg">
+          <svg class="mark" viewBox="0 0 110 70" shape-rendering="crispEdges">
+            <g fill="#D97757" stroke="rgba(30,20,15,.18)" stroke-width="0.6">
+              <rect x="20" y="0"  width="10" height="10"/><rect x="30" y="0"  width="10" height="10"/><rect x="40" y="0"  width="10" height="10"/><rect x="50" y="0"  width="10" height="10"/><rect x="60" y="0"  width="10" height="10"/><rect x="70" y="0"  width="10" height="10"/><rect x="80" y="0"  width="10" height="10"/>
+              <rect x="20" y="10" width="10" height="10"/><rect x="30" y="10" width="10" height="10"/><rect x="50" y="10" width="10" height="10"/><rect x="60" y="10" width="10" height="10"/><rect x="80" y="10" width="10" height="10"/>
+              <rect x="10" y="20" width="80" height="10"/><rect x="10" y="30" width="80" height="10"/>
+              <rect x="20" y="40" width="10" height="20"/><rect x="40" y="40" width="10" height="20"/><rect x="60" y="40" width="10" height="20"/><rect x="80" y="40" width="10" height="20"/>
+            </g>
+          </svg>
+          <span class="wm" style="font-size:48px;">Open<span class="it">IT</span></span>
+        </span>
+        <span class="l-mascot md">
+          <svg class="mark" viewBox="0 0 110 70" shape-rendering="crispEdges">
+            <g fill="#D97757"><rect x="20" y="0" width="10" height="10"/><rect x="30" y="0" width="10" height="10"/><rect x="40" y="0" width="10" height="10"/><rect x="50" y="0" width="10" height="10"/><rect x="60" y="0" width="10" height="10"/><rect x="70" y="0" width="10" height="10"/><rect x="80" y="0" width="10" height="10"/><rect x="20" y="10" width="10" height="10"/><rect x="30" y="10" width="10" height="10"/><rect x="50" y="10" width="10" height="10"/><rect x="60" y="10" width="10" height="10"/><rect x="80" y="10" width="10" height="10"/><rect x="10" y="20" width="80" height="10"/><rect x="10" y="30" width="80" height="10"/><rect x="20" y="40" width="10" height="20"/><rect x="40" y="40" width="10" height="20"/><rect x="60" y="40" width="10" height="20"/><rect x="80" y="40" width="10" height="20"/></g>
+          </svg>
+          <span class="wm" style="font-size:24px;">Open<span class="it">IT</span></span>
+        </span>
+        <span class="l-mascot sm">
+          <svg class="mark" viewBox="0 0 110 70" shape-rendering="crispEdges">
+            <g fill="#D97757"><rect x="20" y="0" width="10" height="10"/><rect x="30" y="0" width="10" height="10"/><rect x="40" y="0" width="10" height="10"/><rect x="50" y="0" width="10" height="10"/><rect x="60" y="0" width="10" height="10"/><rect x="70" y="0" width="10" height="10"/><rect x="80" y="0" width="10" height="10"/><rect x="20" y="10" width="10" height="10"/><rect x="30" y="10" width="10" height="10"/><rect x="50" y="10" width="10" height="10"/><rect x="60" y="10" width="10" height="10"/><rect x="80" y="10" width="10" height="10"/><rect x="10" y="20" width="80" height="10"/><rect x="10" y="30" width="80" height="10"/><rect x="20" y="40" width="10" height="20"/><rect x="40" y="40" width="10" height="20"/><rect x="60" y="40" width="10" height="20"/><rect x="80" y="40" width="10" height="20"/></g>
+          </svg>
+          <span class="wm" style="font-size:14px;">Open<span class="it">IT</span></span>
+        </span>
+      </div>
+      <div class="row-tags">
+        <span class="tag pro">Has a real iconic mark</span>
+        <span class="tag pro">Mascot doubles as favicon / app-icon</span>
+        <span class="tag con">Reuses the Claude Code mascot — needs differentiation</span>
+      </div>
+      <p class="note">The mark + wordmark approach (like Anthropic, Vercel, Linear). The mascot becomes the iconic shape; the wordmark is supporting. <strong>Caveat:</strong> we'd need to make this mascot visually distinct from Claude's — different color, different shape, etc.</p>
+    </div>
+
+    <!-- 05 — All editorial / all Fraunces italic -->
+    <div class="card dark">
+      <div class="head">
+        <span class="name">05 · All Fraunces italic</span>
+        <span class="mono-tag">Fraunces italic 500</span>
+      </div>
+      <div class="preview">
+        <span class="l-editorial" style="font-size:56px;">Open<span class="it">IT</span></span>
+        <span class="l-editorial" style="font-size:28px;">Open<span class="it">IT</span></span>
+        <span class="l-editorial" style="font-size:16px;">Open<span class="it">IT</span></span>
+      </div>
+      <div class="row-tags">
+        <span class="tag pro">Magazine / editorial confidence</span>
+        <span class="tag pro">Reads as a single word, not a hybrid</span>
+        <span class="tag con">Loses the contrast that makes "IT" pop</span>
+      </div>
+      <p class="note">Fully editorial. Like a literary masthead. The whole thing is in Fraunces italic — "Open" in ink, "IT" in terracotta. Looks like the cover of a thoughtful magazine. Probably too soft for a tech product, but striking.</p>
+    </div>
+
+    <!-- 06 — Bracketed code-style -->
+    <div class="card">
+      <div class="head">
+        <span class="name">06 · Bracketed code-style</span>
+        <span class="mono-tag">JetBrains Mono 600</span>
+      </div>
+      <div class="preview">
+        <div class="l-bracket" style="font-size:40px;"><span class="br">&lt;</span>open<span class="name-it">it</span><span class="br">/&gt;</span></div>
+        <div class="l-bracket" style="font-size:20px;"><span class="br">&lt;</span>open<span class="name-it">it</span><span class="br">/&gt;</span></div>
+        <div class="l-bracket" style="font-size:13px;"><span class="br">&lt;</span>open<span class="name-it">it</span><span class="br">/&gt;</span></div>
+      </div>
+      <div class="row-tags">
+        <span class="tag pro">Unmistakably technical / open</span>
+        <span class="tag pro">Reads as XML-ish / JSX-ish</span>
+        <span class="tag con">May feel too "web framework" not "IT tool"</span>
+      </div>
+      <p class="note">Self-closing tag style. The brackets are dim, "open" is neutral, "it" is terracotta. Says "I'm just code." Possibly too dev-framework-coded for an IT helpdesk audience, but very distinctive.</p>
+    </div>
+
+  </div>
+
+  <!-- Recommendation -->
+  <div style="margin-top:64px; padding:32px 36px; background:var(--ink); color:var(--cream); border-radius:20px; max-width:880px;">
+    <span class="mono-tag" style="color:rgba(255,255,255,.55)">Recommendation</span>
+    <h2 style="font-weight:800; letter-spacing:-0.025em; font-size:32px; margin-top:14px; line-height:1.1;">
+      Keep <span class="serif-italic" style="font-family:'Fraunces',serif;font-style:italic;font-weight:500;color:var(--terracotta-soft);">option 01</span> as the primary wordmark — but adopt <span class="serif-italic" style="font-family:'Fraunces',serif;font-style:italic;font-weight:500;color:var(--terracotta-soft);">option 04</span>'s mark as the icon.
+    </h2>
+    <p style="margin-top:16px; max-width:60ch; line-height:1.55; color:rgba(255,255,255,.78);">
+      Two-piece system: the existing <span class="l-current md" style="color:var(--cream); vertical-align:middle;">Open<span class="it" style="color:var(--terracotta-soft);">IT</span></span> wordmark stays as your primary brand-name treatment everywhere typography appears, but we design a <strong>distinct pixel mark</strong> (not the Claude mascot — something OpenIT-specific) to be the favicon / app icon / social avatar. That gives us a recognizable shape without trampling on Claude's identity, and preserves the editorial wordmark you've built equity in.
+    </p>
+    <p style="margin-top:16px; max-width:60ch; line-height:1.55; color:rgba(255,255,255,.78);">
+      If you want to go bolder for the launch and lean fully into the CLI / pixel ethos, <span class="serif-italic" style="font-family:'Fraunces',serif;font-style:italic;font-weight:500;color:var(--terracotta-soft);">option 03</span> (mono <code style="font-family:'JetBrains Mono',monospace;background:rgba(255,255,255,.1);padding:1px 6px;border-radius:4px;color:var(--cream);">openit_</code>) is the strongest second pick — it lands like a serious dev tool, not a SaaS product.
+    </p>
+  </div>
+
+</body>
+</html>

@@ -1,0 +1,259 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>OpenIT — Product Hunt 2/3 · Self-learning</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=Fraunces:ital,wght@1,400;1,500;1,600&family=JetBrains+Mono:wght@400;500&family=Press+Start+2P&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --cream:           hsl(40 33% 96%);
+      --cream-deep:      hsl(38 28% 92%);
+      --ink:             hsl(30 14% 10%);
+      --terracotta:      hsl(14 62% 50%);
+      --terracotta-soft: hsl(18 80% 60%);
+      --claude:          #D97757;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body { background: #2a2521; font-family: "Inter", system-ui, sans-serif; -webkit-font-smoothing: antialiased; }
+
+    .frame {
+      width: 1270px;
+      height: 760px;
+      background: var(--cream);
+      color: var(--ink);
+      position: relative;
+      overflow: hidden;
+      display: grid;
+      grid-template-rows: 1fr 68px;
+    }
+    .frame::after {
+      content: "";
+      position: absolute; inset: 0;
+      background-image: radial-gradient(rgba(30,20,15,.04) 1px, transparent 1px);
+      background-size: 4px 4px;
+      pointer-events: none;
+      z-index: 0;
+    }
+    .glow {
+      position: absolute;
+      top: -140px; left: -140px;
+      width: 380px; height: 380px;
+      border-radius: 50%;
+      background: var(--terracotta-soft);
+      filter: blur(80px);
+      opacity: .35;
+      z-index: 0;
+      pointer-events: none;
+    }
+
+    .main {
+      position: relative;
+      z-index: 1;
+      display: grid;
+      grid-template-columns: 500px 1fr;
+      align-items: stretch;
+    }
+    .left {
+      padding: 0 30px 0 64px;
+      display: flex; flex-direction: column;
+      justify-content: center;
+      gap: 28px;
+    }
+
+    h1.display {
+      font-weight: 800;
+      letter-spacing: -0.025em;
+      line-height: 1;
+      color: var(--ink);
+      display: flex; flex-direction: column;
+      align-items: flex-start;
+      gap: 10px;
+    }
+    h1.display .line { display: block; white-space: nowrap; }
+    h1.display .line-1 { font-size: 46px; line-height: 1; }
+    h1.display .line-3 { font-size: 56px; line-height: 1; }
+    h1.display .accent {
+      color: var(--terracotta);
+      font-family: "Fraunces", serif;
+      font-style: italic; font-weight: 500;
+      letter-spacing: -0.03em;
+    }
+
+    /* Inline Claude Code lockup — sits on its own line within the headline,
+       mascot + Press Start 2P wordmark sized to match the surrounding cap height */
+    .claude-line {
+      display: inline-flex;
+      align-items: center;
+      gap: 14px;
+      line-height: 1;
+    }
+    .claude-line .mascot {
+      width: 46px; height: auto;
+      flex-shrink: 0;
+      image-rendering: pixelated;
+    }
+    .claude-line .claude-code {
+      display: inline-flex;
+      align-items: center;
+      gap: 10px;
+      font-family: "Press Start 2P", "Courier New", monospace;
+      font-size: 26px;
+      letter-spacing: 0.02em;
+      color: var(--claude);
+      text-shadow: 2px 2px 0 rgba(30,20,15,.18);
+      line-height: 1;
+    }
+
+    /* Subline lockup — lead + italic terracotta punch */
+    .subline {
+      display: flex; flex-direction: column;
+      align-items: flex-start;
+      gap: 8px;
+    }
+    .subline .lead {
+      font-size: 22px; font-weight: 500;
+      letter-spacing: -0.02em;
+      color: rgba(30,20,15,.55);
+      line-height: 1;
+    }
+    .subline .punch {
+      font-family: "Fraunces", serif;
+      font-style: italic; font-weight: 500;
+      letter-spacing: -0.025em;
+      color: var(--terracotta);
+      font-size: 30px;
+      line-height: 1.05;
+    }
+
+    .right { position: relative; padding: 36px 0; }
+    .shot-wrap {
+      position: absolute;
+      top: 36px; bottom: 36px;
+      left: 0; right: 0;
+      border-radius: 18px 0 0 18px;
+      overflow: hidden;
+      box-shadow:
+        0 1px 0 0 rgba(0,0,0,.06),
+        0 36px 70px -22px rgba(30,20,15,.4),
+        0 70px 140px -30px rgba(30,20,15,.28);
+      border: 1px solid rgba(30,20,15,.08);
+      border-right: 0;
+    }
+    .shot-wrap img {
+      display: block; width: 100%; height: 100%;
+      object-fit: cover;
+      /* shift left to crop the sidebar partially and feature the Commands list
+         plus Claude's active response on the right */
+      object-position: -160px top;
+    }
+
+    .footer-bar {
+      position: relative; z-index: 1;
+      padding: 0 64px;
+      display: flex; align-items: center;
+      justify-content: space-between;
+      border-top: 1px solid rgba(30,20,15,.1);
+      background: rgba(255,255,255,0.35);
+    }
+    .wordmark {
+      display: inline-flex; align-items: baseline; gap: 2px;
+      font-family: "Inter", sans-serif;
+      letter-spacing: -0.02em;
+      font-weight: 800;
+      font-size: 22px;
+      color: var(--ink);
+    }
+    .wordmark .it {
+      color: var(--terracotta);
+      font-family: "Fraunces", serif;
+      font-style: italic;
+      font-weight: 500;
+    }
+    .meta {
+      display: flex; align-items: center; gap: 18px;
+      font-family: "JetBrains Mono", ui-monospace, monospace;
+      font-size: 11px;
+      letter-spacing: 0.16em;
+      text-transform: uppercase;
+      color: rgba(30,20,15,.55);
+    }
+    .meta .divider { width: 1px; height: 14px; background: rgba(30,20,15,.2); }
+  </style>
+</head>
+<body>
+  <div class="frame">
+    <div class="glow"></div>
+
+    <div class="main">
+      <div class="left">
+        <h1 class="display">
+          <span class="line line-1">Solve a ticket once.</span>
+          <span class="line claude-line">
+            <!-- Same pixel mascot as slide 1 -->
+            <svg class="mascot" viewBox="0 0 110 70" xmlns="http://www.w3.org/2000/svg" shape-rendering="crispEdges" aria-label="Claude Code mascot">
+              <g fill="#D97757" stroke="rgba(30,20,15,.18)" stroke-width="0.6">
+                <rect x="20" y="0"  width="10" height="10"/>
+                <rect x="30" y="0"  width="10" height="10"/>
+                <rect x="40" y="0"  width="10" height="10"/>
+                <rect x="50" y="0"  width="10" height="10"/>
+                <rect x="60" y="0"  width="10" height="10"/>
+                <rect x="70" y="0"  width="10" height="10"/>
+                <rect x="80" y="0"  width="10" height="10"/>
+                <rect x="20" y="10" width="10" height="10"/>
+                <rect x="30" y="10" width="10" height="10"/>
+                <rect x="50" y="10" width="10" height="10"/>
+                <rect x="60" y="10" width="10" height="10"/>
+                <rect x="80" y="10" width="10" height="10"/>
+                <rect x="10" y="20" width="10" height="10"/>
+                <rect x="20" y="20" width="10" height="10"/>
+                <rect x="30" y="20" width="10" height="10"/>
+                <rect x="40" y="20" width="10" height="10"/>
+                <rect x="50" y="20" width="10" height="10"/>
+                <rect x="60" y="20" width="10" height="10"/>
+                <rect x="70" y="20" width="10" height="10"/>
+                <rect x="80" y="20" width="10" height="10"/>
+                <rect x="90" y="20" width="10" height="10"/>
+                <rect x="10" y="30" width="10" height="10"/>
+                <rect x="20" y="30" width="10" height="10"/>
+                <rect x="30" y="30" width="10" height="10"/>
+                <rect x="40" y="30" width="10" height="10"/>
+                <rect x="50" y="30" width="10" height="10"/>
+                <rect x="60" y="30" width="10" height="10"/>
+                <rect x="70" y="30" width="10" height="10"/>
+                <rect x="80" y="30" width="10" height="10"/>
+                <rect x="90" y="30" width="10" height="10"/>
+                <rect x="20" y="40" width="10" height="20"/>
+                <rect x="40" y="40" width="10" height="20"/>
+                <rect x="60" y="40" width="10" height="20"/>
+                <rect x="80" y="40" width="10" height="20"/>
+              </g>
+            </svg>
+            <span class="claude-code">
+              <span>CLAUDE</span>
+              <span>CODE</span>
+            </span>
+          </span>
+          <span class="line line-3"><span class="accent">handles the rest.</span></span>
+        </h1>
+      </div>
+
+      <div class="right">
+        <div class="shot-wrap">
+          <img src="./shot-commands.png" alt="OpenIT Commands store with Claude Code executing a saved command" />
+        </div>
+      </div>
+    </div>
+
+    <div class="footer-bar">
+      <span class="wordmark">Open<span class="it">IT</span></span>
+      <div class="meta">
+        <span>macOS · Windows</span>
+        <span class="divider"></span>
+        <span>Apache 2.0</span>
+      </div>
+    </div>
+  </div>
+</body>
+</html>

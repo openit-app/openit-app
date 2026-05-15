@@ -1,0 +1,1091 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>OpenIT · Brand & design language</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=Fraunces:ital,wght@1,300;1,400;1,500;1,600&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      /* Source of truth — keep in sync with landing/src/styles/global.css */
+      --cream:           hsl(40 33% 96%);   /* #F7F2E8 */
+      --cream-deep:      hsl(38 28% 92%);   /* #ECE5D7 */
+      --ink:             hsl(30 14% 10%);   /* #1D1813 */
+      --ink-soft:        hsl(30 12% 22%);   /* #3A332C */
+      --muted-fg:        hsl(30 8% 38%);    /* #645E58 */
+      --terracotta:      hsl(14 62% 50%);   /* #CE6038 */
+      --terracotta-soft: hsl(18 80% 60%);   /* #ED7F47 */
+      --destructive:     hsl(0 70% 45%);
+      --border-faint:    hsl(30 15% 82%);
+
+      --radius-pill: 999px;
+      --radius-lg:   18px;
+      --radius-md:   12px;
+      --radius-sm:    6px;
+
+      --space-1: 4px;
+      --space-2: 8px;
+      --space-3: 12px;
+      --space-4: 16px;
+      --space-5: 24px;
+      --space-6: 32px;
+      --space-7: 48px;
+      --space-8: 64px;
+      --space-9: 96px;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body {
+      background: var(--cream);
+      color: var(--ink);
+      font-family: "Inter", system-ui, sans-serif;
+      font-feature-settings: "ss01", "cv11";
+      -webkit-font-smoothing: antialiased;
+      line-height: 1.5;
+    }
+
+    /* Type primitives */
+    .display {
+      font-family: "Inter", system-ui, sans-serif;
+      font-weight: 800;
+      letter-spacing: -0.025em;
+      line-height: 0.92;
+    }
+    .serif-italic {
+      font-family: "Fraunces", "Times New Roman", serif;
+      font-style: italic;
+      font-weight: 500;
+      letter-spacing: -0.02em;
+    }
+    .mono-tag {
+      font-family: "JetBrains Mono", ui-monospace, monospace;
+      letter-spacing: 0.14em;
+      text-transform: uppercase;
+      font-size: 11px;
+      color: rgba(30,20,15,.65);
+    }
+    .mono { font-family: "JetBrains Mono", ui-monospace, monospace; }
+
+    /* Layout */
+    .page {
+      max-width: 1240px;
+      margin: 0 auto;
+      padding: 80px 56px 120px;
+    }
+    section { padding: 72px 0; border-top: 1px solid rgba(30,20,15,.08); }
+    section:first-of-type { border-top: 0; padding-top: 0; }
+
+    .section-head {
+      display: flex; align-items: center; gap: 14px;
+      margin-bottom: 32px;
+    }
+    .section-head .num { color: var(--terracotta); }
+    .section-head .rule { height: 1px; flex: 1; background: rgba(30,20,15,.15); }
+    .section-head .label { white-space: nowrap; }
+
+    h1.hero {
+      font-size: clamp(56px, 7vw, 92px);
+      max-width: 18ch;
+    }
+    h1.hero .it { color: var(--terracotta); }
+    h2.section-title {
+      font-size: clamp(36px, 4.4vw, 56px);
+      margin-bottom: 12px;
+    }
+    .lede {
+      font-size: 20px;
+      line-height: 1.5;
+      color: var(--ink-soft);
+      max-width: 60ch;
+      margin-bottom: 24px;
+    }
+    .small {
+      font-size: 13px;
+      color: var(--muted-fg);
+      max-width: 60ch;
+    }
+
+    /* Cards / surfaces */
+    .grid { display: grid; gap: 16px; }
+    .grid-2 { grid-template-columns: repeat(2, 1fr); }
+    .grid-3 { grid-template-columns: repeat(3, 1fr); }
+    .grid-4 { grid-template-columns: repeat(4, 1fr); }
+    .grid-6 { grid-template-columns: repeat(6, 1fr); }
+
+    .card {
+      background: var(--cream);
+      border: 1px solid rgba(30,20,15,.1);
+      border-radius: var(--radius-lg);
+      padding: 24px;
+    }
+    .card.deep { background: var(--cream-deep); }
+    .card.dark { background: var(--ink); color: var(--cream); border-color: rgba(255,255,255,.1); }
+
+    /* Header bar */
+    header.top {
+      display: flex; justify-content: space-between; align-items: center;
+      padding-bottom: 48px;
+      border-bottom: 1px solid rgba(30,20,15,.1);
+      margin-bottom: 64px;
+    }
+    .meta {
+      text-align: right;
+    }
+    .meta .row { display: flex; gap: 12px; align-items: center; justify-content: flex-end; }
+    .meta .row + .row { margin-top: 6px; }
+    .meta .label { color: var(--muted-fg); }
+    .meta strong { color: var(--ink); font-weight: 600; }
+
+    /* The wordmark */
+    .wordmark {
+      display: inline-flex; align-items: baseline;
+      font-family: "Inter", sans-serif;
+      letter-spacing: -0.02em;
+      font-weight: 800;
+      color: var(--ink);
+    }
+    .wordmark .it {
+      color: var(--terracotta);
+      font-family: "Fraunces", serif;
+      font-style: italic;
+      font-weight: 500;
+      margin-left: 2px;
+    }
+    .wordmark.s-lg { font-size: 56px; }
+    .wordmark.s-md { font-size: 32px; }
+    .wordmark.s-sm { font-size: 20px; }
+
+    /* App mark (icon) */
+    .app-icon {
+      width: 128px; height: 128px;
+      border-radius: 28px;
+      background: var(--ink);
+      color: var(--cream);
+      display: grid; place-items: center;
+      box-shadow: 0 10px 30px -12px rgba(30,20,15,.35);
+    }
+    .app-icon span {
+      font-family: "Fraunces", serif;
+      font-style: italic;
+      font-weight: 400;
+      font-size: 88px;
+      line-height: 1;
+      letter-spacing: -0.04em;
+    }
+    .app-icon.sm { width: 64px; height: 64px; border-radius: 14px; }
+    .app-icon.sm span { font-size: 44px; }
+
+    /* Color swatches */
+    .swatches { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; }
+    .swatch {
+      border: 1px solid rgba(30,20,15,.1);
+      border-radius: var(--radius-lg);
+      overflow: hidden;
+      background: var(--cream);
+    }
+    .swatch .chip {
+      height: 140px;
+      position: relative;
+      border-bottom: 1px solid rgba(0,0,0,.04);
+    }
+    .swatch .info { padding: 14px 16px 16px; }
+    .swatch .name { font-weight: 600; font-size: 15px; letter-spacing: -0.01em; }
+    .swatch .use { font-size: 12.5px; color: var(--muted-fg); margin-top: 4px; }
+    .swatch dl { margin-top: 10px; display: grid; grid-template-columns: auto 1fr; gap: 2px 10px; font-family: "JetBrains Mono", monospace; font-size: 11px; color: var(--ink-soft); }
+    .swatch dt { color: var(--muted-fg); }
+
+    .swatch .corner-tag {
+      position: absolute; top: 10px; right: 10px;
+      background: rgba(0,0,0,.55);
+      color: white;
+      padding: 3px 8px;
+      border-radius: 999px;
+      font-family: "JetBrains Mono", monospace;
+      font-size: 10px;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+    }
+    .swatch .corner-tag.dark-on-light { background: rgba(30,20,15,.08); color: var(--ink-soft); }
+
+    /* Type specimens */
+    .type-row { display: grid; grid-template-columns: 200px 1fr; gap: 32px; padding: 28px 0; border-top: 1px dashed rgba(30,20,15,.12); align-items: baseline; }
+    .type-row:first-child { border-top: 0; padding-top: 0; }
+    .type-row .label-col .name { font-weight: 600; font-size: 15px; }
+    .type-row .label-col .meta-line { margin-top: 6px; font-family: "JetBrains Mono", monospace; font-size: 11px; color: var(--muted-fg); letter-spacing: 0.04em; }
+    .type-row .label-col .use { margin-top: 10px; font-size: 12.5px; color: var(--muted-fg); max-width: 26ch; line-height: 1.45; }
+
+    /* UI primitives showcase */
+    .pill {
+      display: inline-flex; align-items: center; gap: 10px;
+      border: 1px solid rgba(30,20,15,.15);
+      background: var(--cream);
+      padding: 8px 16px;
+      border-radius: var(--radius-pill);
+      font-family: "JetBrains Mono", monospace;
+      font-size: 11px;
+      letter-spacing: 0.14em;
+      text-transform: uppercase;
+      color: rgba(30,20,15,.7);
+    }
+    .pill .dot {
+      width: 7px; height: 7px; border-radius: 50%;
+      background: var(--terracotta);
+      box-shadow: 0 0 0 4px rgba(206, 96, 56, .15);
+    }
+    .btn {
+      display: inline-flex; align-items: center; gap: 10px;
+      padding: 14px 22px;
+      border-radius: var(--radius-pill);
+      font-weight: 600;
+      font-size: 15px;
+      text-decoration: none;
+      transition: all 140ms ease;
+      border: 0;
+      cursor: pointer;
+    }
+    .btn.primary { background: var(--ink); color: var(--cream); }
+    .btn.primary:hover { background: var(--terracotta); }
+    .btn.ghost { background: transparent; color: var(--ink); border: 1px solid rgba(30,20,15,.2); }
+    .btn.ghost:hover { background: var(--ink); color: var(--cream); }
+
+    blockquote.editorial {
+      border-left: 2px solid var(--terracotta);
+      padding-left: 24px;
+      font-family: "Inter", sans-serif;
+      font-weight: 800;
+      letter-spacing: -0.025em;
+      font-size: 32px;
+      line-height: 1.1;
+      max-width: 24ch;
+    }
+
+    /* Section marker (§01) */
+    .marker {
+      display: flex; align-items: center; gap: 14px;
+      font-family: "JetBrains Mono", monospace;
+      font-size: 11px;
+      letter-spacing: 0.14em;
+      text-transform: uppercase;
+      color: rgba(30,20,15,.5);
+    }
+    .marker .num { color: var(--terracotta); }
+    .marker .rule { height: 1px; flex: 1; background: rgba(30,20,15,.15); }
+
+    /* Chat bubbles */
+    .chat { display: flex; flex-direction: column; gap: 10px; max-width: 360px; }
+    .bubble {
+      max-width: 85%;
+      padding: 12px 16px;
+      border-radius: 14px;
+      font-size: 14px;
+      line-height: 1.4;
+    }
+    .bubble .tag {
+      font-family: "JetBrains Mono", monospace;
+      font-size: 10px;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      opacity: .55;
+      margin-bottom: 4px;
+    }
+    .bubble.user { background: rgba(30,20,15,.06); color: var(--ink); }
+    .bubble.bot { align-self: flex-end; background: var(--terracotta); color: var(--cream); }
+    .bubble.bot .tag { opacity: .75; }
+
+    /* Terminal card */
+    .terminal {
+      background: var(--ink);
+      color: var(--cream);
+      border-radius: var(--radius-lg);
+      padding: 18px 22px 22px;
+      font-family: "JetBrains Mono", monospace;
+      font-size: 13px;
+      line-height: 1.6;
+    }
+    .terminal .bar { display: flex; gap: 6px; margin-bottom: 14px; }
+    .terminal .bar .d { width: 11px; height: 11px; border-radius: 50%; }
+    .terminal .r { background: #ff5f57; } .terminal .y { background: #febc2e; } .terminal .g { background: #28c840; }
+    .terminal .dim { color: rgba(255,255,255,.45); }
+    .terminal .tc  { color: var(--terracotta-soft); }
+    .terminal .ok  { color: #7cd992; }
+
+    /* Do / Don't */
+    .dod { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; }
+    .dod .col {
+      border-radius: var(--radius-lg);
+      padding: 24px 28px;
+      border: 1px solid;
+    }
+    .dod .do  { background: rgba(124, 217, 146, .08); border-color: rgba(40, 200, 64, .25); }
+    .dod .dont { background: rgba(206, 96, 56, .06); border-color: rgba(206, 96, 56, .35); }
+    .dod h4 {
+      font-family: "JetBrains Mono", monospace;
+      font-size: 11px;
+      letter-spacing: 0.16em;
+      text-transform: uppercase;
+      margin-bottom: 14px;
+    }
+    .dod .do h4 { color: #2d8f48; }
+    .dod .dont h4 { color: var(--terracotta); }
+    .dod ul { list-style: none; }
+    .dod li { padding: 6px 0; font-size: 14.5px; color: var(--ink-soft); line-height: 1.4; }
+    .dod li::before { content: "—"; margin-right: 10px; color: rgba(30,20,15,.3); }
+
+    /* Tokens table */
+    table.tokens {
+      width: 100%;
+      border-collapse: collapse;
+      font-family: "JetBrains Mono", monospace;
+      font-size: 12.5px;
+    }
+    table.tokens th, table.tokens td {
+      padding: 10px 14px;
+      border-bottom: 1px solid rgba(30,20,15,.08);
+      text-align: left;
+    }
+    table.tokens th { color: var(--muted-fg); font-weight: 500; letter-spacing: 0.08em; text-transform: uppercase; font-size: 10px; }
+    table.tokens td .preview {
+      display: inline-block;
+      width: 32px; height: 16px;
+      border-radius: 4px;
+      vertical-align: middle;
+      margin-right: 10px;
+      border: 1px solid rgba(0,0,0,.08);
+    }
+
+    /* Inline icons */
+    .ic {
+      width: 18px; height: 18px;
+      stroke: currentColor; fill: none;
+      stroke-width: 2;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+    }
+
+    /* Print — keeps the editorial layout intact when exported to PDF.
+       Page is wide (Tabloid-ish at 13.33in / 1280px) so the 1240px max-width
+       doesn't clip, and margins are zero so the cream background bleeds. */
+    @page {
+      size: 1280px 1800px;
+      margin: 0;
+    }
+    @media print {
+      html, body { background: var(--cream) !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+      .page { padding: 60px 48px 80px; max-width: 1280px; }
+      header.top, section, .card, .swatch, .dod .col, .type-row, .grid {
+        break-inside: avoid;
+        page-break-inside: avoid;
+      }
+      section { padding: 56px 0; }
+      h1.hero, h2.section-title { break-after: avoid; page-break-after: avoid; }
+    }
+  </style>
+</head>
+<body>
+  <div class="page">
+
+    <!-- ─── Header ─────────────────────────────── -->
+    <header class="top">
+      <div>
+        <span class="pill"><span class="dot"></span>OpenIT · Brand book v1</span>
+        <h1 class="display hero" style="margin-top:24px;">
+          Warm, editorial, <span class="serif-italic" style="color:var(--terracotta)">candid.</span><br/>
+          Built for IT, not for sales decks.
+        </h1>
+        <p class="lede" style="margin-top:24px;">
+          OpenIT is an open-source IT helpdesk that runs on Claude Code. This document is the
+          source of truth for our visual language — palette, mark, typography, and the
+          component patterns that make the product feel like ours.
+        </p>
+      </div>
+      <div class="meta">
+        <div class="row"><span class="label mono-tag">Version</span><strong>1.0 · 2026-05</strong></div>
+        <div class="row"><span class="label mono-tag">Repo</span><strong>openit-app/openit-app</strong></div>
+        <div class="row"><span class="label mono-tag">Site</span><strong>openit-app.github.io</strong></div>
+        <div class="row"><span class="label mono-tag">License</span><strong>Apache 2.0</strong></div>
+      </div>
+    </header>
+
+    <!-- ─── §01 Brand voice ─────────────────────────────── -->
+    <section>
+      <div class="section-head">
+        <span class="mono-tag num">§01</span>
+        <span class="mono-tag label">Brand essence</span>
+        <span class="rule"></span>
+      </div>
+      <h2 class="display section-title">
+        We sound like an <span class="serif-italic" style="color:var(--terracotta)">engineer</span> wrote it.<br/>
+        Because one did.
+      </h2>
+      <p class="lede">
+        OpenIT is honest, direct, and a little dry. We don't talk about "AI transformation" — we
+        talk about tickets, queues, scripts, and saving you time. The product is open source, so
+        the brand should feel like a craftsperson's tool, not enterprise software.
+      </p>
+
+      <div class="grid grid-3" style="margin-top:40px;">
+        <div class="card">
+          <div class="mono-tag" style="color:var(--terracotta)">Personality</div>
+          <h3 class="display" style="font-size:24px;margin-top:10px;">Editorial, not corporate</h3>
+          <p class="small" style="margin-top:8px;">Long, confident sentences. Real punctuation. We use em-dashes, not exclamation marks.</p>
+        </div>
+        <div class="card">
+          <div class="mono-tag" style="color:var(--terracotta)">Tone</div>
+          <h3 class="display" style="font-size:24px;margin-top:10px;">Warm, with a hard edge</h3>
+          <p class="small" style="margin-top:8px;">Cream paper feel, terracotta accents. Black ink underneath. Soft on the eye, certain in opinion.</p>
+        </div>
+        <div class="card">
+          <div class="mono-tag" style="color:var(--terracotta)">Voice samples</div>
+          <h3 class="display" style="font-size:24px;margin-top:10px;">"Claude Code is the operating system."</h3>
+          <p class="small" style="margin-top:8px;">"Answer once. Claude handles the next one." · "If you can run it in a terminal, Claude can use it."</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- ─── §02 The mark ─────────────────────────────── -->
+    <section>
+      <div class="section-head">
+        <span class="mono-tag num">§02</span>
+        <span class="mono-tag label">The mark</span>
+        <span class="rule"></span>
+      </div>
+      <h2 class="display section-title">Logo &amp; wordmark.</h2>
+      <p class="lede">
+        The mark is a serif <strong>O</strong> — Fraunces Italic, weight 400 — set in cream on ink.
+        The full wordmark pairs Inter Black "Open" with Fraunces Italic "IT" in terracotta.
+      </p>
+
+      <div class="grid grid-2" style="margin-top:40px; gap:32px;">
+
+        <!-- App icon block -->
+        <div class="card" style="display:flex; flex-direction:column; gap:24px;">
+          <div class="mono-tag">App icon · 1024 × 1024 · ink #1D1813</div>
+          <div style="display:flex; align-items:center; gap:28px;">
+            <div class="app-icon"><span>O</span></div>
+            <div class="app-icon sm"><span>O</span></div>
+          </div>
+          <p class="small">
+            Used as macOS / Windows app icon, favicon, and avatar. The "O" is Fraunces Italic 400
+            with the optical italic, centered visually (not geometrically).
+            Clear space = 12% of canvas on every side.
+          </p>
+        </div>
+
+        <!-- Wordmark block -->
+        <div class="card deep" style="display:flex; flex-direction:column; gap:24px;">
+          <div class="mono-tag">Wordmark · "Open" Inter 800 + "IT" Fraunces Italic 500 terracotta</div>
+          <div style="display:flex; flex-direction:column; gap:18px;">
+            <span class="wordmark s-lg">Open<span class="it">IT</span></span>
+            <span class="wordmark s-md">Open<span class="it">IT</span></span>
+            <span class="wordmark s-sm">Open<span class="it">IT</span></span>
+          </div>
+          <p class="small">
+            Always lowercase prefix "Open" + uppercase "IT" — never "Openit", never "OPENIT".
+            Minimum legible size = 16px. Letterspacing -0.02em. Don't track wider.
+          </p>
+        </div>
+
+        <!-- Dark wordmark -->
+        <div class="card dark" style="display:flex; flex-direction:column; gap:18px;">
+          <div class="mono-tag" style="color:rgba(255,255,255,.55)">On ink · cream + soft terracotta</div>
+          <span class="wordmark s-lg" style="color:var(--cream);">Open<span class="it" style="color:var(--terracotta-soft);">IT</span></span>
+          <p class="small" style="color:rgba(255,255,255,.65)">
+            On dark surfaces, lift the "IT" to the lighter terracotta (#ED7F47) so it doesn't muddy.
+          </p>
+        </div>
+
+        <!-- Lockup with badge -->
+        <div class="card" style="display:flex; flex-direction:column; gap:18px;">
+          <div class="mono-tag">Lockup with badge</div>
+          <div style="display:flex; align-items:center; gap:16px;">
+            <span class="wordmark s-md">Open<span class="it">IT</span></span>
+            <span class="pill"><span class="dot"></span>Open source · macOS &amp; Windows</span>
+          </div>
+          <div style="display:flex; align-items:center; gap:16px;">
+            <div class="app-icon sm"><span>O</span></div>
+            <div>
+              <div class="wordmark s-md" style="line-height:1;">Open<span class="it">IT</span></div>
+              <div class="mono-tag" style="margin-top:6px;">IT helpdesk · on Claude Code</div>
+            </div>
+          </div>
+          <p class="small">Use the badge lockup for hero sections; the icon+wordmark lockup for nav, footer, app shell.</p>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ─── §03 Color ─────────────────────────────── -->
+    <section>
+      <div class="section-head">
+        <span class="mono-tag num">§03</span>
+        <span class="mono-tag label">Color</span>
+        <span class="rule"></span>
+      </div>
+      <h2 class="display section-title">A warm, four-color system.</h2>
+      <p class="lede">
+        Cream is the page. Ink is the type. Terracotta is the only thing that calls out — used
+        for emphasis, links, the second half of a phrase, and the dot in every status pill.
+        Everything else is restraint.
+      </p>
+
+      <div class="swatches" style="margin-top:40px;">
+
+        <div class="swatch">
+          <div class="chip" style="background:var(--cream);">
+            <span class="corner-tag dark-on-light">Surface</span>
+          </div>
+          <div class="info">
+            <div class="name">Cream</div>
+            <div class="use">Base background. Cards on dark surfaces. Sidebar.</div>
+            <dl>
+              <dt>HSL</dt><dd>40 33% 96%</dd>
+              <dt>HEX</dt><dd>#F7F2E8</dd>
+              <dt>Token</dt><dd>--cream</dd>
+            </dl>
+          </div>
+        </div>
+
+        <div class="swatch">
+          <div class="chip" style="background:var(--cream-deep);">
+            <span class="corner-tag dark-on-light">Surface · alt</span>
+          </div>
+          <div class="info">
+            <div class="name">Cream Deep</div>
+            <div class="use">Alternating sections, card backs, recessed surfaces.</div>
+            <dl>
+              <dt>HSL</dt><dd>38 28% 92%</dd>
+              <dt>HEX</dt><dd>#ECE5D7</dd>
+              <dt>Token</dt><dd>--cream-deep</dd>
+            </dl>
+          </div>
+        </div>
+
+        <div class="swatch">
+          <div class="chip" style="background:var(--ink);">
+            <span class="corner-tag">Type · ink</span>
+          </div>
+          <div class="info">
+            <div class="name">Ink</div>
+            <div class="use">Primary text. Buttons. Terminal. Dark sections.</div>
+            <dl>
+              <dt>HSL</dt><dd>30 14% 10%</dd>
+              <dt>HEX</dt><dd>#1D1813</dd>
+              <dt>Token</dt><dd>--ink</dd>
+            </dl>
+          </div>
+        </div>
+
+        <div class="swatch">
+          <div class="chip" style="background:var(--terracotta);">
+            <span class="corner-tag">Accent</span>
+          </div>
+          <div class="info">
+            <div class="name">Terracotta</div>
+            <div class="use">The only accent. Links, emphasis, the italic phrase, status dots.</div>
+            <dl>
+              <dt>HSL</dt><dd>14 62% 50%</dd>
+              <dt>HEX</dt><dd>#CE6038</dd>
+              <dt>Token</dt><dd>--terracotta</dd>
+            </dl>
+          </div>
+        </div>
+
+        <div class="swatch">
+          <div class="chip" style="background:var(--terracotta-soft);">
+            <span class="corner-tag">Accent · soft</span>
+          </div>
+          <div class="info">
+            <div class="name">Terracotta Soft</div>
+            <div class="use">On-ink accent. Glow + hover variant.</div>
+            <dl>
+              <dt>HSL</dt><dd>18 80% 60%</dd>
+              <dt>HEX</dt><dd>#ED7F47</dd>
+              <dt>Token</dt><dd>--terracotta-soft</dd>
+            </dl>
+          </div>
+        </div>
+
+        <div class="swatch">
+          <div class="chip" style="background:var(--muted-fg);">
+            <span class="corner-tag">Type · muted</span>
+          </div>
+          <div class="info">
+            <div class="name">Muted Foreground</div>
+            <div class="use">Captions, meta, mono-tags on light surfaces.</div>
+            <dl>
+              <dt>HSL</dt><dd>30 8% 38%</dd>
+              <dt>HEX</dt><dd>#645E58</dd>
+              <dt>Token</dt><dd>--muted-fg</dd>
+            </dl>
+          </div>
+        </div>
+
+        <div class="swatch">
+          <div class="chip" style="background:var(--border-faint);">
+            <span class="corner-tag dark-on-light">Border</span>
+          </div>
+          <div class="info">
+            <div class="name">Border / Hairline</div>
+            <div class="use">1px section dividers, card edges. Often used at /10 or /15 opacity.</div>
+            <dl>
+              <dt>HSL</dt><dd>30 15% 82%</dd>
+              <dt>HEX</dt><dd>#D7CFC2</dd>
+              <dt>Token</dt><dd>--border</dd>
+            </dl>
+          </div>
+        </div>
+
+        <div class="swatch">
+          <div class="chip" style="background:var(--destructive);">
+            <span class="corner-tag">Destructive</span>
+          </div>
+          <div class="info">
+            <div class="name">Destructive</div>
+            <div class="use">Reserved. Only for true destructive actions — delete, revoke.</div>
+            <dl>
+              <dt>HSL</dt><dd>0 70% 45%</dd>
+              <dt>HEX</dt><dd>#C42B2B</dd>
+              <dt>Token</dt><dd>--destructive</dd>
+            </dl>
+          </div>
+        </div>
+
+      </div>
+
+      <h3 class="display" style="font-size:22px; margin-top:48px; margin-bottom:14px;">Pairing rules</h3>
+      <div class="grid grid-3">
+        <div class="card">
+          <div class="mono-tag">Light surface</div>
+          <p style="margin-top:10px; font-size:15px;">Ink type on Cream / Cream Deep.<br/>Terracotta only for the accent word + the dot in pills.</p>
+        </div>
+        <div class="card dark">
+          <div class="mono-tag" style="color:rgba(255,255,255,.55)">Dark surface</div>
+          <p style="margin-top:10px; font-size:15px; color:rgba(255,255,255,.85)">Cream type on Ink.<br/>Terracotta Soft for the accent (not the base terracotta).</p>
+        </div>
+        <div class="card deep">
+          <div class="mono-tag">Never</div>
+          <p style="margin-top:10px; font-size:15px;">No green, no blue, no purple, no gradient ramps. One accent. One.</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- ─── §04 Typography ─────────────────────────────── -->
+    <section>
+      <div class="section-head">
+        <span class="mono-tag num">§04</span>
+        <span class="mono-tag label">Typography</span>
+        <span class="rule"></span>
+      </div>
+      <h2 class="display section-title">Three faces. <span class="serif-italic" style="color:var(--terracotta)">Used carefully.</span></h2>
+      <p class="lede">
+        Inter does almost everything — display, body, UI. Fraunces Italic is the editorial
+        accent that lifts a single phrase per paragraph. JetBrains Mono is the typewriter
+        that handles tags, meta, and code.
+      </p>
+
+      <div style="margin-top:48px;">
+        <div class="type-row">
+          <div class="label-col">
+            <div class="name">Inter Display</div>
+            <div class="meta-line">Inter · 800 · -0.025em · 0.92lh</div>
+            <div class="use">Headlines, hero, section titles. Set tight — letterspacing -0.025em, line-height 0.92.</div>
+          </div>
+          <div class="display" style="font-size:72px;">
+            Configure in Claude Code.
+          </div>
+        </div>
+
+        <div class="type-row">
+          <div class="label-col">
+            <div class="name">Fraunces Italic</div>
+            <div class="meta-line">Fraunces · italic · 500 · -0.02em</div>
+            <div class="use">The editorial accent. One phrase per paragraph, ideally at the punchline. Never set whole sentences in it.</div>
+          </div>
+          <div style="font-size:60px;" class="serif-italic">
+            <span style="color:var(--terracotta);">— Not UI.</span>
+          </div>
+        </div>
+
+        <div class="type-row">
+          <div class="label-col">
+            <div class="name">Inter Body</div>
+            <div class="meta-line">Inter · 400 / 600 · 1.5lh</div>
+            <div class="use">Paragraphs, descriptions. 17–20px on marketing, 14–15px in product.</div>
+          </div>
+          <div>
+            <p style="font-size:22px; line-height:1.45; color:var(--ink-soft); max-width:34ch;">
+              Claude handles tickets, provisions access, and <span class="serif-italic" style="color:var(--terracotta);">learns how you work</span> — so you spend your day on the hard problems, not the queue.
+            </p>
+          </div>
+        </div>
+
+        <div class="type-row">
+          <div class="label-col">
+            <div class="name">JetBrains Mono — tag</div>
+            <div class="meta-line">JetBrains Mono · 500 · 0.14em · UPPERCASE</div>
+            <div class="use">Section markers, meta, kbd, badges. Always uppercase. Always tracked +14%.</div>
+          </div>
+          <div style="display:flex; flex-direction:column; gap:12px; align-items:flex-start;">
+            <span class="mono-tag">§01 · The thesis</span>
+            <span class="mono-tag" style="color:var(--terracotta);">For IT · Desktop App</span>
+            <span class="mono-tag">~/OpenIT/acme · claude</span>
+          </div>
+        </div>
+
+        <div class="type-row">
+          <div class="label-col">
+            <div class="name">JetBrains Mono — code</div>
+            <div class="meta-line">JetBrains Mono · 400 / 500 · 1.7lh · sentence-case</div>
+            <div class="use">Code blocks, terminal output, file paths. Used in plain sentence-case (not uppercase).</div>
+          </div>
+          <div class="terminal" style="width:100%; max-width:520px;">
+            <div class="bar"><span class="d r"></span><span class="d y"></span><span class="d g"></span></div>
+            <div><span class="dim">$</span> claude code</div>
+            <div><span class="tc">→</span> Claude Code v2.1 ready</div>
+            <div><span class="ok">✓</span> 33 skills loaded</div>
+          </div>
+        </div>
+      </div>
+
+      <h3 class="display" style="font-size:22px; margin-top:56px; margin-bottom:14px;">Type scale</h3>
+      <table class="tokens">
+        <thead><tr><th>Role</th><th>Family</th><th>Weight</th><th>Size</th><th>Line height</th><th>Tracking</th></tr></thead>
+        <tbody>
+          <tr><td>Hero / H1</td><td>Inter</td><td>800</td><td>72 – 92 px</td><td>0.92</td><td>-0.025em</td></tr>
+          <tr><td>Section / H2</td><td>Inter</td><td>800</td><td>48 – 64 px</td><td>0.95</td><td>-0.022em</td></tr>
+          <tr><td>Card / H3</td><td>Inter</td><td>700</td><td>24 – 32 px</td><td>1.1</td><td>-0.02em</td></tr>
+          <tr><td>Body large</td><td>Inter</td><td>400</td><td>20 – 22 px</td><td>1.45</td><td>0</td></tr>
+          <tr><td>Body</td><td>Inter</td><td>400</td><td>15 – 17 px</td><td>1.5</td><td>0</td></tr>
+          <tr><td>Caption</td><td>Inter</td><td>500</td><td>12 – 13 px</td><td>1.4</td><td>0</td></tr>
+          <tr><td>Mono tag</td><td>JetBrains Mono</td><td>500</td><td>10 – 11 px</td><td>1.4</td><td>0.14em · UPPER</td></tr>
+          <tr><td>Code</td><td>JetBrains Mono</td><td>400</td><td>13 – 14 px</td><td>1.7</td><td>0</td></tr>
+          <tr><td>Editorial accent</td><td>Fraunces</td><td>500 italic</td><td>matches host</td><td>matches host</td><td>-0.02em</td></tr>
+        </tbody>
+      </table>
+    </section>
+
+    <!-- ─── §05 Components ─────────────────────────────── -->
+    <section>
+      <div class="section-head">
+        <span class="mono-tag num">§05</span>
+        <span class="mono-tag label">Components</span>
+        <span class="rule"></span>
+      </div>
+      <h2 class="display section-title">UI primitives.</h2>
+      <p class="lede">
+        Eight patterns carry 90% of the surface area. They share two traits: full-radius pills
+        (999px), or rounded-18px cards. Nothing else.
+      </p>
+
+      <div class="grid grid-2" style="margin-top:40px; gap:24px;">
+
+        <!-- Pill -->
+        <div class="card">
+          <div class="mono-tag">01 · Status pill</div>
+          <div style="margin-top:18px; display:flex; gap:12px; flex-wrap:wrap;">
+            <span class="pill"><span class="dot"></span>Open source · macOS &amp; Windows</span>
+            <span class="pill"><span class="dot"></span>Self-learning IT</span>
+          </div>
+          <p class="small" style="margin-top:14px;">Border 1px hairline, monotag text, terracotta status dot with 4px halo. Always full-radius.</p>
+        </div>
+
+        <!-- Buttons -->
+        <div class="card">
+          <div class="mono-tag">02 · Buttons</div>
+          <div style="margin-top:18px; display:flex; gap:12px; flex-wrap:wrap;">
+            <button class="btn primary">
+              <svg class="ic" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" x2="12" y1="15" y2="3"/></svg>
+              Download
+            </button>
+            <button class="btn ghost">
+              <svg class="ic" viewBox="0 0 24 24"><path d="M15 22v-4a4.8 4.8 0 0 0-1-3.5c3 0 6-2 6-5.5.08-1.25-.27-2.48-1-3.5.28-1.15.28-2.35 0-3.5 0 0-1 0-3 1.5-2.64-.5-5.36-.5-8 0C6 2 5 2 5 2c-.3 1.15-.3 2.35 0 3.5A5.403 5.403 0 0 0 4 9c0 3.5 3 5.5 6 5.5-.39.49-.68 1.05-.85 1.65-.17.6-.22 1.23-.15 1.85v4"/></svg>
+              View on GitHub
+            </button>
+          </div>
+          <p class="small" style="margin-top:14px;">Primary = ink → terracotta hover. Ghost = transparent → ink hover. 14×22 padding, 15px text.</p>
+        </div>
+
+        <!-- Section marker -->
+        <div class="card">
+          <div class="mono-tag">03 · Section marker</div>
+          <div class="marker" style="margin-top:24px;">
+            <span class="num">§02</span>
+            <span class="rule"></span>
+            <span>Native access</span>
+          </div>
+          <p class="small" style="margin-top:14px;">Numbered chapters, terracotta digit, 1px ink/15 rule fills the gap. Used to break the page into editorial sections.</p>
+        </div>
+
+        <!-- Blockquote -->
+        <div class="card deep">
+          <div class="mono-tag">04 · Editorial blockquote</div>
+          <blockquote class="editorial" style="margin-top:20px;">
+            Claude Code is the operating system.
+          </blockquote>
+          <p class="small" style="margin-top:14px;">2px terracotta left border, 24px indent, Inter 800 at 32px. Used once per long-form section, max.</p>
+        </div>
+
+        <!-- Chat bubbles -->
+        <div class="card">
+          <div class="mono-tag">05 · Chat bubbles</div>
+          <div class="chat" style="margin-top:20px;">
+            <div class="bubble user">
+              <div class="tag">marcus · #it-help</div>
+              need access to the analytics dashboard please
+            </div>
+            <div class="bubble bot">
+              <div class="tag">openit · just now</div>
+              Granted — Looker viewer role added. Try refreshing.
+            </div>
+          </div>
+          <p class="small" style="margin-top:14px;">14px rounded, ink/06 for user, terracotta for bot. Always with monotag handle line.</p>
+        </div>
+
+        <!-- Terminal -->
+        <div class="card">
+          <div class="mono-tag">06 · Terminal card</div>
+          <div class="terminal" style="margin-top:20px;">
+            <div class="bar"><span class="d r"></span><span class="d y"></span><span class="d g"></span></div>
+            <div><span class="dim">~/OpenIT/acme $</span></div>
+            <div><span class="tc">→</span> claude code · ready</div>
+            <div><span class="dim">→</span> 5 skills loaded</div>
+            <div><span class="dim">→</span> vault: ~/OpenIT/acme</div>
+          </div>
+          <p class="small" style="margin-top:14px;">Ink background, JetBrains Mono 13px, terracotta-soft for arrows, dim cream for prompts.</p>
+        </div>
+
+        <!-- Key-value grid -->
+        <div class="card deep">
+          <div class="mono-tag">07 · Key-value grid</div>
+          <div class="grid grid-2" style="margin-top:20px; gap:1px; background:rgba(30,20,15,.15); border-radius:12px; overflow:hidden; padding:1px;">
+            <div style="background:var(--cream); padding:14px 16px;">
+              <div class="mono-tag" style="color:var(--terracotta);">CLI tools</div>
+              <div style="margin-top:6px; font-size:14px;">brew install gh, aws, gcloud…</div>
+            </div>
+            <div style="background:var(--cream); padding:14px 16px;">
+              <div class="mono-tag" style="color:var(--terracotta);">MCP servers</div>
+              <div style="margin-top:6px; font-size:14px;">One-click install</div>
+            </div>
+            <div style="background:var(--cream); padding:14px 16px;">
+              <div class="mono-tag" style="color:var(--terracotta);">Slack</div>
+              <div style="margin-top:6px; font-size:14px;">Local bot via Socket Mode</div>
+            </div>
+            <div style="background:var(--cream); padding:14px 16px;">
+              <div class="mono-tag" style="color:var(--terracotta);">Scripts</div>
+              <div style="margin-top:6px; font-size:14px;">TS, Python, Bash</div>
+            </div>
+          </div>
+          <p class="small" style="margin-top:14px;">Hairline grid built with 1px ink-15 gaps. Each cell: terracotta mono-tag key, ink value.</p>
+        </div>
+
+        <!-- Pull quote -->
+        <div class="card">
+          <div class="mono-tag">08 · Pull line</div>
+          <div class="display" style="font-size:36px; margin-top:18px; max-width:14ch;">
+            Answer once. <span class="serif-italic" style="color:var(--terracotta);">Claude handles the next one.</span>
+          </div>
+          <p class="small" style="margin-top:14px;">The signature pattern: a short statement in Inter 800, the punchline in Fraunces italic terracotta. Used everywhere.</p>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ─── §06 Iconography ─────────────────────────────── -->
+    <section>
+      <div class="section-head">
+        <span class="mono-tag num">§06</span>
+        <span class="mono-tag label">Iconography</span>
+        <span class="rule"></span>
+      </div>
+      <h2 class="display section-title">Lucide-style. <span class="serif-italic" style="color:var(--terracotta);">2px stroke.</span></h2>
+      <p class="lede">
+        We use <strong>Lucide</strong> as the system icon set — 24×24 canvas, 2px stroke, round
+        caps and joins. No filled icons. No two-tone. Inline SVG, never icon fonts.
+      </p>
+
+      <div class="card" style="margin-top:32px;">
+        <div class="grid grid-6" style="gap:20px;">
+          <!-- A row of representative icons rendered inline -->
+          <div style="display:flex; flex-direction:column; align-items:center; gap:8px;">
+            <svg class="ic" style="width:28px;height:28px;color:var(--ink);" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" x2="12" y1="15" y2="3"/></svg>
+            <span class="mono-tag" style="font-size:9px;">download</span>
+          </div>
+          <div style="display:flex; flex-direction:column; align-items:center; gap:8px;">
+            <svg class="ic" style="width:28px;height:28px;color:var(--ink);" viewBox="0 0 24 24"><path d="M15 22v-4a4.8 4.8 0 0 0-1-3.5c3 0 6-2 6-5.5.08-1.25-.27-2.48-1-3.5.28-1.15.28-2.35 0-3.5 0 0-1 0-3 1.5-2.64-.5-5.36-.5-8 0C6 2 5 2 5 2c-.3 1.15-.3 2.35 0 3.5A5.403 5.403 0 0 0 4 9c0 3.5 3 5.5 6 5.5-.39.49-.68 1.05-.85 1.65-.17.6-.22 1.23-.15 1.85v4"/></svg>
+            <span class="mono-tag" style="font-size:9px;">github</span>
+          </div>
+          <div style="display:flex; flex-direction:column; align-items:center; gap:8px;">
+            <svg class="ic" style="width:28px;height:28px;color:var(--ink);" viewBox="0 0 24 24"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+            <span class="mono-tag" style="font-size:9px;">chat</span>
+          </div>
+          <div style="display:flex; flex-direction:column; align-items:center; gap:8px;">
+            <svg class="ic" style="width:28px;height:28px;color:var(--ink);" viewBox="0 0 24 24"><path d="m4 17 6-6-6-6"/><path d="M12 19h8"/></svg>
+            <span class="mono-tag" style="font-size:9px;">terminal</span>
+          </div>
+          <div style="display:flex; flex-direction:column; align-items:center; gap:8px;">
+            <svg class="ic" style="width:28px;height:28px;color:var(--ink);" viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="3"/><path d="M8 12h8M8 8h8M8 16h5"/></svg>
+            <span class="mono-tag" style="font-size:9px;">vault</span>
+          </div>
+          <div style="display:flex; flex-direction:column; align-items:center; gap:8px;">
+            <svg class="ic" style="width:28px;height:28px;color:var(--ink);" viewBox="0 0 24 24"><path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"/></svg>
+            <span class="mono-tag" style="font-size:9px;">connect</span>
+          </div>
+        </div>
+        <p class="small" style="margin-top:20px;">Default size 16–20px in body, 24–32px in cards, 14px inside buttons. Match the text color of the parent.</p>
+      </div>
+    </section>
+
+    <!-- ─── §07 Layout / spacing ─────────────────────────────── -->
+    <section>
+      <div class="section-head">
+        <span class="mono-tag num">§07</span>
+        <span class="mono-tag label">Layout &amp; spacing</span>
+        <span class="rule"></span>
+      </div>
+      <h2 class="display section-title">Generous. <span class="serif-italic" style="color:var(--terracotta);">On purpose.</span></h2>
+      <p class="lede">
+        Marketing surfaces breathe — 80–120px vertical padding between sections, max content
+        width ~1240px. Product surfaces tighten — 16–24px. Alternate cream and cream-deep
+        sections to create rhythm. Never two cream-deep sections in a row.
+      </p>
+
+      <div class="grid grid-3" style="margin-top:32px;">
+        <div class="card">
+          <div class="mono-tag">Base unit</div>
+          <div class="display" style="font-size:48px; margin-top:10px;">4px</div>
+          <p class="small" style="margin-top:8px;">All spacing snaps to a 4px grid. Common stops: 8, 12, 16, 24, 32, 48, 64.</p>
+        </div>
+        <div class="card">
+          <div class="mono-tag">Radii</div>
+          <div style="display:flex; gap:14px; margin-top:14px; align-items:center;">
+            <div style="width:64px; height:64px; border-radius:6px; background:var(--cream-deep);"></div>
+            <div style="width:64px; height:64px; border-radius:12px; background:var(--cream-deep);"></div>
+            <div style="width:64px; height:64px; border-radius:18px; background:var(--cream-deep);"></div>
+            <div style="width:64px; height:64px; border-radius:999px; background:var(--cream-deep);"></div>
+          </div>
+          <p class="small" style="margin-top:12px;">6 · 12 · 18 · 999. Pills and surfaces — nothing in between.</p>
+        </div>
+        <div class="card">
+          <div class="mono-tag">Shadows</div>
+          <div style="display:flex; gap:16px; margin-top:14px;">
+            <div style="width:56px; height:56px; border-radius:12px; background:var(--cream); box-shadow:0 1px 0 0 rgba(0,0,0,.06);"></div>
+            <div style="width:56px; height:56px; border-radius:12px; background:var(--cream); box-shadow:0 10px 30px -12px rgba(30,20,15,.25);"></div>
+            <div style="width:56px; height:56px; border-radius:12px; background:var(--cream); box-shadow:0 30px 60px -20px rgba(30,20,15,.35), 0 60px 120px -30px rgba(30,20,15,.2);"></div>
+          </div>
+          <p class="small" style="margin-top:12px;">Hairline, soft, atmospheric. We don't use mid-level Material shadows.</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- ─── §08 Do / Don't ─────────────────────────────── -->
+    <section>
+      <div class="section-head">
+        <span class="mono-tag num">§08</span>
+        <span class="mono-tag label">Do &amp; Don't</span>
+        <span class="rule"></span>
+      </div>
+      <h2 class="display section-title">The non-negotiables.</h2>
+      <div class="dod" style="margin-top:32px;">
+        <div class="col do">
+          <h4>Do</h4>
+          <ul>
+            <li>Set headlines tight — letterspacing -0.025em, line-height 0.92.</li>
+            <li>Use Fraunces italic for one phrase per paragraph, ideally the punchline.</li>
+            <li>Pair "Open" Inter 800 with "IT" Fraunces italic 500 terracotta. Always.</li>
+            <li>Keep terracotta to ~5–8% of the page surface. It's an accent, not a fill.</li>
+            <li>Use full-radius pills (999px) for everything inline-status-like.</li>
+            <li>Alternate cream and cream-deep sections to break up long pages.</li>
+            <li>Use em-dashes — they're load-bearing in our voice.</li>
+            <li>Inline SVG, 2px stroke, round caps. Lucide is the system.</li>
+          </ul>
+        </div>
+        <div class="col dont">
+          <h4>Don't</h4>
+          <ul>
+            <li>Don't stretch the wordmark, recolor it, or set it in all-caps.</li>
+            <li>Don't add a second accent color. No blue, no green, no purple.</li>
+            <li>Don't use Fraunces for body or buttons — it's a one-phrase tool.</li>
+            <li>Don't use exclamation marks or emoji in product or marketing copy.</li>
+            <li>Don't use filled or two-tone icons, and never icon fonts.</li>
+            <li>Don't use gradients. The brand is paper + ink, not glass.</li>
+            <li>Don't say "AI" when you can say "Claude". Don't say "transformation" ever.</li>
+            <li>Don't put two cream-deep sections in a row.</li>
+          </ul>
+        </div>
+      </div>
+    </section>
+
+    <!-- ─── §09 Resources ─────────────────────────────── -->
+    <section>
+      <div class="section-head">
+        <span class="mono-tag num">§09</span>
+        <span class="mono-tag label">Resources</span>
+        <span class="rule"></span>
+      </div>
+      <h2 class="display section-title">Where to find things.</h2>
+
+      <div class="grid grid-2" style="margin-top:32px; gap:24px;">
+        <div class="card">
+          <div class="mono-tag">Fonts</div>
+          <ul style="list-style:none; margin-top:14px; display:flex; flex-direction:column; gap:8px;">
+            <li><span class="mono" style="font-size:13px;">Inter</span> — Google Fonts (weights 400, 500, 600, 700, 800, 900)</li>
+            <li><span class="mono" style="font-size:13px;">Fraunces</span> — Google Fonts (italic 400, 500, 600)</li>
+            <li><span class="mono" style="font-size:13px;">JetBrains Mono</span> — Google Fonts (400, 500, 600)</li>
+          </ul>
+        </div>
+        <div class="card">
+          <div class="mono-tag">CSS tokens (source)</div>
+          <p class="small" style="margin-top:10px;">All variables are defined in:</p>
+          <code class="mono" style="display:block; margin-top:8px; padding:10px 12px; background:var(--cream-deep); border-radius:8px; font-size:12.5px;">landing/src/styles/global.css</code>
+        </div>
+        <div class="card">
+          <div class="mono-tag">Logo files</div>
+          <ul style="list-style:none; margin-top:14px; display:flex; flex-direction:column; gap:8px;">
+            <li><span class="mono" style="font-size:13px;">src-tauri/icons/icon.png</span> — app icon (1024)</li>
+            <li><span class="mono" style="font-size:13px;">src-tauri/icons/</span> — full icon set (.ico, .icns, sizes)</li>
+            <li>Wordmark = live HTML, no SVG file (yet) — render with the CSS pattern in §02.</li>
+          </ul>
+        </div>
+        <div class="card">
+          <div class="mono-tag">PH gallery</div>
+          <ul style="list-style:none; margin-top:14px; display:flex; flex-direction:column; gap:8px;">
+            <li><span class="mono" style="font-size:13px;">images/ph/01-hero.png</span></li>
+            <li><span class="mono" style="font-size:13px;">images/ph/02-self-learning.png</span></li>
+            <li><span class="mono" style="font-size:13px;">images/ph/03-open-source.png</span></li>
+            <li class="small" style="margin-top:6px;">All 1270×760, exported from the matching <span class="mono">.html</span> via <span class="mono">export.mjs</span>.</li>
+          </ul>
+        </div>
+      </div>
+
+      <div class="card deep" style="margin-top:32px;">
+        <div class="mono-tag">Quick-copy: CSS variables</div>
+<pre class="mono" style="margin-top:14px; font-size:12.5px; line-height:1.7; white-space:pre-wrap;">
+:root {
+  --cream:           hsl(40 33% 96%);   /* #F7F2E8 */
+  --cream-deep:      hsl(38 28% 92%);   /* #ECE5D7 */
+  --ink:             hsl(30 14% 10%);   /* #1D1813 */
+  --muted-fg:        hsl(30  8% 38%);   /* #645E58 */
+  --terracotta:      hsl(14 62% 50%);   /* #CE6038 */
+  --terracotta-soft: hsl(18 80% 60%);   /* #ED7F47 */
+  --border:          hsl(30 15% 82%);   /* #D7CFC2 */
+  --destructive:     hsl( 0 70% 45%);   /* #C42B2B */
+
+  --radius-pill: 999px;
+  --radius-lg:   18px;
+  --radius-md:   12px;
+}
+</pre>
+      </div>
+    </section>
+
+    <!-- ─── Footer ─────────────────────────────── -->
+    <footer style="margin-top:80px; padding-top:32px; border-top:1px solid rgba(30,20,15,.1); display:flex; justify-content:space-between; align-items:center;">
+      <span class="wordmark s-sm">Open<span class="it">IT</span></span>
+      <span class="mono-tag">Brand book v1 · 2026-05 · Apache 2.0</span>
+    </footer>
+
+  </div>
+</body>
+</html>

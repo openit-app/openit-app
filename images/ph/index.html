@@ -1,0 +1,37 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>OpenIT · Product Hunt gallery preview</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&display=swap" rel="stylesheet">
+  <style>
+    :root { --cream: hsl(40 33% 96%); --ink: hsl(30 14% 10%); --terracotta: hsl(14 62% 50%); }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0; padding: 48px;
+      background: #f1ece4;
+      font-family: "Inter", system-ui, sans-serif;
+      color: var(--ink);
+    }
+    h1 { font-weight: 800; letter-spacing: -0.02em; font-size: 28px; margin: 0 0 8px; }
+    p.sub { margin: 0 0 32px; color: rgba(30,20,15,.65); font-size: 15px; }
+    .grid { display: grid; gap: 40px; max-width: 1400px; }
+    .card { background: white; padding: 16px; border-radius: 18px; box-shadow: 0 10px 40px -12px rgba(0,0,0,.15); }
+    .card h3 { margin: 0 0 12px; font-size: 13px; letter-spacing: 0.14em; text-transform: uppercase; color: rgba(30,20,15,.55); font-weight: 600; }
+    iframe { width: 1270px; height: 760px; border: 0; display: block; border-radius: 8px; }
+    .row { display: flex; gap: 12px; margin-top: 12px; }
+    .row a { text-decoration: none; font-size: 13px; padding: 8px 14px; border-radius: 999px; background: var(--ink); color: var(--cream); font-weight: 500; }
+    code { font-family: "JetBrains Mono", ui-monospace, monospace; background: rgba(30,20,15,.06); padding: 2px 6px; border-radius: 4px; font-size: 12px; }
+  </style>
+</head>
+<body>
+  <h1>OpenIT — Product Hunt gallery preview</h1>
+  <p class="sub">All three slides rendered at the exact PH gallery size (1270×760). To export, run <code>node export.mjs</code> in this folder or open each in Chrome, set viewport to 1270×760, and capture full-page screenshot.</p>
+
+  <div class="grid">
+    <div class="card"><h3>01 · Hero / social preview</h3><iframe src="01-hero.html"></iframe></div>
+    <div class="card"><h3>02 · Self-learning</h3><iframe src="02-self-learning.html"></iframe></div>
+    <div class="card"><h3>03 · Open source</h3><iframe src="03-open-source.html"></iframe></div>
+  </div>
+</body>
+</html>

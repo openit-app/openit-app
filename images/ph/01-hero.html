@@ -1,0 +1,313 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>OpenIT — Product Hunt 1/3 · Hero</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=Fraunces:ital,wght@1,400;1,500;1,600&family=JetBrains+Mono:wght@400;500&family=Press+Start+2P&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --cream:           hsl(40 33% 96%);
+      --cream-deep:      hsl(38 28% 92%);
+      --ink:             hsl(30 14% 10%);
+      --ink-soft:        hsl(30 12% 22%);
+      --terracotta:      hsl(14 62% 50%);
+      --terracotta-soft: hsl(18 80% 60%);
+      --claude:          #D97757;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body { background: #2a2521; font-family: "Inter", system-ui, sans-serif; -webkit-font-smoothing: antialiased; }
+
+    .frame {
+      width: 1270px;
+      height: 760px;
+      background: var(--cream);
+      color: var(--ink);
+      position: relative;
+      overflow: hidden;          /* important — lets the screenshot bleed past the right edge */
+      display: grid;
+      grid-template-rows: 1fr 68px;
+    }
+
+    /* subtle dot grain */
+    .frame::after {
+      content: "";
+      position: absolute; inset: 0;
+      background-image: radial-gradient(rgba(30,20,15,.04) 1px, transparent 1px);
+      background-size: 4px 4px;
+      pointer-events: none;
+      z-index: 0;
+    }
+
+    /* atmospheric terracotta glow — top-left only, no bottom-right artefact */
+    .glow {
+      position: absolute;
+      top: -140px; left: -140px;
+      width: 380px; height: 380px;
+      border-radius: 50%;
+      background: var(--terracotta-soft);
+      filter: blur(80px);
+      opacity: .35;
+      z-index: 0;
+      pointer-events: none;
+    }
+
+    .main {
+      position: relative;
+      z-index: 1;
+      display: grid;
+      grid-template-columns: 500px 1fr;   /* text fixed, screenshot takes the rest */
+      align-items: stretch;
+    }
+
+    .left {
+      padding: 0 30px 0 64px;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      gap: 28px;
+    }
+
+    /* Flush-left editorial headline with natural spacing.
+       Each line picks its own font size so the right edges *feel* balanced
+       without forcing true justification, which makes headlines look stretched. */
+    h1.display {
+      font-weight: 800;
+      letter-spacing: -0.025em;
+      line-height: 0.96;
+      color: var(--ink);
+      display: flex;
+      flex-direction: column;
+      align-items: flex-start;
+      gap: 2px;
+    }
+    h1.display .line {
+      display: block;
+      white-space: nowrap;
+    }
+    h1.display .line-1 { font-size: 52px; }
+    h1.display .line-2 { font-size: 52px; }
+    h1.display .line-3 { font-size: 56px; }
+
+    h1.display .accent {
+      color: var(--terracotta);
+      font-family: "Fraunces", serif;
+      font-style: italic;
+      font-weight: 500;
+      letter-spacing: -0.03em;
+    }
+    h1.display .strike {
+      position: relative;
+      display: inline-block;
+      color: rgba(30,20,15,.32);
+      font-weight: 700;
+    }
+    h1.display .strike::after {
+      content: "";
+      position: absolute;
+      left: -2%; right: 4%;
+      top: 54%;
+      height: 5px;
+      background: var(--terracotta);
+      transform: rotate(-2deg);
+      border-radius: 4px;
+    }
+
+    /* "Runs on" + mascot + CLAUDE CODE — stacked so the lockup never wraps */
+    .runs-on {
+      display: flex;
+      flex-direction: column;
+      align-items: flex-start;
+      gap: 12px;
+    }
+    .runs-on .lead {
+      font-size: 26px;
+      font-weight: 500;
+      letter-spacing: -0.02em;
+      color: rgba(30,20,15,.55);
+      font-family: "Inter", sans-serif;
+      line-height: 1;
+    }
+    .claude-lockup {
+      display: inline-flex;
+      align-items: center;
+      gap: 14px;
+    }
+    .runs-on .mascot {
+      width: 52px;
+      height: auto;
+      flex-shrink: 0;
+      image-rendering: pixelated;
+    }
+    /* Claude Code pixel/ASCII wordmark — Press Start 2P with the Claude orange.
+       Split into two spans so we control the gap between words manually
+       (Press Start 2P's native space character is ~1 full character wide). */
+    .claude-code {
+      display: inline-flex;
+      align-items: center;
+      gap: 10px;
+      font-family: "Press Start 2P", "Courier New", monospace;
+      font-size: 22px;
+      letter-spacing: 0.02em;
+      color: var(--claude);
+      text-shadow: 2px 2px 0 rgba(30,20,15,.18);
+      line-height: 1;
+    }
+
+    /* Right column: screenshot bleeds to the right edge of the canvas.
+       Vertically anchored with 36px top/bottom margins.
+       Only the left corners are rounded — the right side intentionally runs off the page. */
+    .right {
+      position: relative;
+      padding: 36px 0 36px 0;
+    }
+    .shot-wrap {
+      position: absolute;
+      top: 36px;
+      bottom: 36px;
+      left: 0;
+      right: 0;
+      border-radius: 18px 0 0 18px;
+      overflow: hidden;
+      box-shadow:
+        0 1px 0 0 rgba(0,0,0,.06),
+        0 36px 70px -22px rgba(30,20,15,.4),
+        0 70px 140px -30px rgba(30,20,15,.28);
+      border: 1px solid rgba(30,20,15,.08);
+      border-right: 0;
+    }
+    .shot-wrap img {
+      display: block;
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      object-position: left top;       /* anchor to left/top so the OpenIT sidebar stays sharp */
+    }
+
+    /* Footer bar — runs full width along the bottom */
+    .footer-bar {
+      position: relative;
+      z-index: 1;
+      padding: 0 64px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      border-top: 1px solid rgba(30,20,15,.1);
+      background: rgba(255,255,255,0.35);
+    }
+    .wordmark {
+      display: inline-flex; align-items: baseline; gap: 2px;
+      font-family: "Inter", sans-serif;
+      letter-spacing: -0.02em;
+      font-weight: 800;
+      font-size: 22px;
+      color: var(--ink);
+    }
+    .wordmark .it {
+      color: var(--terracotta);
+      font-family: "Fraunces", serif;
+      font-style: italic;
+      font-weight: 500;
+    }
+    .meta {
+      display: flex; align-items: center; gap: 18px;
+      font-family: "JetBrains Mono", ui-monospace, monospace;
+      font-size: 11px;
+      letter-spacing: 0.16em;
+      text-transform: uppercase;
+      color: rgba(30,20,15,.55);
+    }
+    .meta .divider {
+      width: 1px; height: 14px;
+      background: rgba(30,20,15,.2);
+    }
+  </style>
+</head>
+<body>
+  <div class="frame">
+    <div class="glow"></div>
+
+    <div class="main">
+      <div class="left">
+        <h1 class="display">
+          <span class="line line-1">The <span class="accent">open&#8209;source</span></span>
+          <span class="line line-2">alternative to</span>
+          <span class="line line-3"><span class="strike">ServiceNow.</span></span>
+        </h1>
+
+        <div class="runs-on">
+          <span class="lead">that runs on</span>
+          <div class="claude-lockup">
+          <!-- Claude Code pixel mascot — terracotta blocky creature.
+               Grid is 11 cols × 7 rows of 10×10 px pixels.
+               Subtle inner separator lines via stroke recreate the on-shirt pixel-art look. -->
+          <svg class="mascot" viewBox="0 0 110 70" xmlns="http://www.w3.org/2000/svg" shape-rendering="crispEdges" aria-label="Claude Code mascot">
+            <g fill="#D97757" stroke="rgba(30,20,15,.18)" stroke-width="0.6">
+              <!-- Head, row 0 (7 wide, cols 2–8) -->
+              <rect x="20" y="0"  width="10" height="10"/>
+              <rect x="30" y="0"  width="10" height="10"/>
+              <rect x="40" y="0"  width="10" height="10"/>
+              <rect x="50" y="0"  width="10" height="10"/>
+              <rect x="60" y="0"  width="10" height="10"/>
+              <rect x="70" y="0"  width="10" height="10"/>
+              <rect x="80" y="0"  width="10" height="10"/>
+              <!-- Head row 1 — eyes (gaps at cols 4 and 7) -->
+              <rect x="20" y="10" width="10" height="10"/>
+              <rect x="30" y="10" width="10" height="10"/>
+              <rect x="50" y="10" width="10" height="10"/>
+              <rect x="60" y="10" width="10" height="10"/>
+              <rect x="80" y="10" width="10" height="10"/>
+              <!-- Body row 0 (9 wide, cols 1–9 — extends 1px past head on each side) -->
+              <rect x="10" y="20" width="10" height="10"/>
+              <rect x="20" y="20" width="10" height="10"/>
+              <rect x="30" y="20" width="10" height="10"/>
+              <rect x="40" y="20" width="10" height="10"/>
+              <rect x="50" y="20" width="10" height="10"/>
+              <rect x="60" y="20" width="10" height="10"/>
+              <rect x="70" y="20" width="10" height="10"/>
+              <rect x="80" y="20" width="10" height="10"/>
+              <rect x="90" y="20" width="10" height="10"/>
+              <!-- Body row 1 -->
+              <rect x="10" y="30" width="10" height="10"/>
+              <rect x="20" y="30" width="10" height="10"/>
+              <rect x="30" y="30" width="10" height="10"/>
+              <rect x="40" y="30" width="10" height="10"/>
+              <rect x="50" y="30" width="10" height="10"/>
+              <rect x="60" y="30" width="10" height="10"/>
+              <rect x="70" y="30" width="10" height="10"/>
+              <rect x="80" y="30" width="10" height="10"/>
+              <rect x="90" y="30" width="10" height="10"/>
+              <!-- Legs — 4 single-column legs hanging down -->
+              <rect x="20" y="40" width="10" height="20"/>
+              <rect x="40" y="40" width="10" height="20"/>
+              <rect x="60" y="40" width="10" height="20"/>
+              <rect x="80" y="40" width="10" height="20"/>
+            </g>
+          </svg>
+          <span class="claude-code">
+            <span>CLAUDE</span>
+            <span>CODE</span>
+          </span>
+          </div>
+        </div>
+      </div>
+
+      <div class="right">
+        <div class="shot-wrap">
+          <img src="./shot-hero.png" alt="OpenIT workstation" />
+        </div>
+      </div>
+    </div>
+
+    <div class="footer-bar">
+      <span class="wordmark">Open<span class="it">IT</span></span>
+      <div class="meta">
+        <span>macOS · Windows</span>
+        <span class="divider"></span>
+        <span>Apache 2.0</span>
+      </div>
+    </div>
+  </div>
+</body>
+</html>
