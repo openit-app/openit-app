@@ -1,0 +1,12 @@
+# OpenIT code owners
+#
+# Order matters — the LAST matching pattern wins for any given file.
+# See: https://docs.github.com/en/repositories/managing-your-repositories-settings-and-security/customizing-your-repository/about-code-owners
+#
+# Note: while @sankalpgunturi is the sole maintainer, every file resolves
+# to the same owner via the wildcard below. Add per-path entries here
+# (with an additional reviewer or team) once we have a second maintainer
+# so we can require two-eyes review on sensitive paths like
+# .github/workflows/release.yml, src-tauri/tauri.conf.json, and SECURITY.md.
+
+*  @sankalpgunturi
