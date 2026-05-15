@@ -6,10 +6,15 @@ import "@fontsource/inter/400.css";
 import "@fontsource/inter/500.css";
 import "@fontsource/inter/600.css";
 import "@fontsource/inter/700.css";
+import "@fontsource/inter/800.css";
 import "@fontsource/jetbrains-mono/400.css";
 import "@fontsource/jetbrains-mono/500.css";
 import "@fontsource-variable/source-serif-4/standard.css";
 import "@fontsource-variable/source-serif-4/standard-italic.css";
+// Brand wordmark — italic "IT" in the OpenIT lockup. Matches the PH /
+// landing-page design system. Only italic weights needed.
+import "@fontsource/fraunces/500-italic.css";
+import "@fontsource/fraunces/600-italic.css";
 import App from "./App";
 import { ToastProvider } from "./Toast";
 

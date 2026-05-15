@@ -79,6 +79,10 @@
     'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
   --font-serif:
     'Source Serif 4 Variable', 'Source Serif 4', Charter, Georgia, serif;
+  /* Brand wordmark accent — used for the italic "IT" in the OpenIT lockup
+     and any display-scale editorial italics. Matches PH + landing design. */
+  --font-brand-italic:
+    'Fraunces', 'Source Serif 4 Variable', Charter, Georgia, serif;
   --font-mono: 'JetBrains Mono', 'Berkeley Mono', 'SF Mono', Menlo, monospace;
 
   /* Type scale (7 sizes) */

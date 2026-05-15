@@ -2073,17 +2073,18 @@ input.viewer-title.viewer-title-rename {
 .welcome-title {
   font-family: var(--font-display);
   font-size: 2.8rem;
-  font-weight: 600;
+  font-weight: 800;
   color: var(--text);
   margin: 0 0 12px;
-  letter-spacing: -0.02em;
+  letter-spacing: -0.025em;
 }
 .welcome-title em {
-  font-family: var(--font-serif);
+  font-family: var(--font-brand-italic);
   font-style: italic;
-  font-weight: 400;
+  font-weight: 500;
   font-size: 2.8rem;
   color: var(--accent);
+  margin-left: 2px;
 }
 .welcome-tagline {
   font-family: var(--font-display);
@@ -2911,16 +2912,17 @@ input.viewer-title.viewer-title-rename {
   margin: 0;
   font-family: var(--font-display);
   font-size: 26px;
-  font-weight: 600;
+  font-weight: 800;
   letter-spacing: -0.025em;
   color: var(--text);
   line-height: 1;
 }
 .onboard-title em {
-  font-family: var(--font-serif);
+  font-family: var(--font-brand-italic);
   font-style: italic;
-  font-weight: 400;
+  font-weight: 500;
   color: var(--accent);
+  margin-left: 1px;
 }
 
 .onboard-tagline {
@@ -4395,20 +4397,20 @@ input.viewer-title.viewer-title-rename {
 }
 .workbench-today-brand {
   font-family: var(--font-display);
-  font-weight: 600;
+  font-weight: 800;
   font-size: 11px;
   letter-spacing: -0.01em;
-  color: var(--text-faint);
+  color: var(--text);
   line-height: 1;
   user-select: none;
 }
 .workbench-today-brand em {
-  font-family: var(--font-serif);
+  font-family: var(--font-brand-italic);
   font-style: italic;
-  font-weight: 400;
+  font-weight: 500;
   font-size: 13px;
   color: var(--accent);
-  margin: 0 -1px;
+  margin-left: 1px;
 }
 
 .workbench-today-hero {
