@@ -1,0 +1,14 @@
+# OpenIT code owners
+#
+# Order matters — the LAST matching pattern wins for any given file.
+# See: https://docs.github.com/en/repositories/managing-your-repositories-settings-and-security/customizing-your-repository/about-code-owners
+
+# Default owner for everything in the repo.
+*                               @sankalpgunturi
+
+# Release pipeline and signing — changes here can break the auto-updater.
+/.github/workflows/release.yml  @sankalpgunturi
+/src-tauri/tauri.conf.json      @sankalpgunturi
+
+# Security policy must always be reviewed.
+/SECURITY.md                    @sankalpgunturi
