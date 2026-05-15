@@ -1,0 +1,52 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <title>OpenIT icon master · 1024×1024</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,wght@1,400;1,500&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --ink:        hsl(30 14% 10%);   /* #1D1813 */
+      --cream:      hsl(40 33% 96%);   /* #F7F2E8 */
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body { background: transparent; }
+
+    .icon {
+      width: 1024px;
+      height: 1024px;
+      background: var(--ink);
+      border-radius: 224px;        /* macOS-style superellipse approximation */
+      display: grid;
+      place-items: center;
+      position: relative;
+      overflow: hidden;
+    }
+    .icon::after {
+      content: "";
+      position: absolute; inset: 0;
+      box-shadow: inset 0 1px 0 rgba(255,255,255,.04);
+      border-radius: inherit;
+      pointer-events: none;
+    }
+    .glyph {
+      font-family: "Fraunces", "Source Serif 4", "Times New Roman", serif;
+      font-style: italic;
+      font-weight: 400;             /* matches the existing icon's weight */
+      font-size: 760px;
+      line-height: 1;
+      color: var(--cream);
+      letter-spacing: -0.04em;
+      transform: translateY(-12px) translateX(-8px);
+      user-select: none;
+    }
+  </style>
+</head>
+<body>
+  <div class="icon">
+    <span class="glyph">O</span>
+  </div>
+</body>
+</html>
