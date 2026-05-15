@@ -1,0 +1,65 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>OpenIT · mark</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@800&family=Fraunces:ital,wght@1,500&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --cream:      hsl(40 33% 96%);
+      --ink:        hsl(30 14% 10%);
+      --terracotta: hsl(14 62% 50%);
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body {
+      width: 100%; height: 100%;
+      background: var(--cream);
+      display: grid;
+      place-items: center;
+      -webkit-font-smoothing: antialiased;
+      -moz-osx-font-smoothing: grayscale;
+    }
+    /* Background toggle — append ?bg=ink | ?bg=terracotta | ?bg=white to the URL */
+    body[data-bg="ink"]        { background: var(--ink); }
+    body[data-bg="terracotta"] { background: var(--terracotta); }
+    body[data-bg="white"]      { background: #ffffff; }
+
+    .wm {
+      display: inline-flex;
+      align-items: baseline;
+      gap: 2px;
+      font-family: "Inter", sans-serif;
+      font-weight: 800;
+      letter-spacing: -0.02em;
+      line-height: 1;
+      color: var(--ink);
+      /* scales with viewport so the mark always fills nicely for screenshots */
+      font-size: clamp(96px, 22vw, 360px);
+    }
+    .wm .it {
+      color: var(--terracotta);
+      font-family: "Fraunces", serif;
+      font-style: italic;
+      font-weight: 500;
+      letter-spacing: -0.03em;
+    }
+
+    /* knockout colour for dark backgrounds */
+    body[data-bg="ink"] .wm        { color: var(--cream); }
+    body[data-bg="ink"] .wm .it    { color: var(--terracotta); }
+    body[data-bg="terracotta"] .wm     { color: var(--cream); }
+    body[data-bg="terracotta"] .wm .it { color: var(--ink); }
+  </style>
+</head>
+<body>
+  <span class="wm">Open<span class="it">IT</span></span>
+
+  <script>
+    // Tiny helper: ?bg=ink | terracotta | white | cream
+    const bg = new URLSearchParams(location.search).get("bg");
+    if (bg) document.body.dataset.bg = bg;
+  </script>
+</body>
+</html>

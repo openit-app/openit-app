@@ -18,6 +18,7 @@ const {
 const base = import.meta.env.BASE_URL;
 const url = (p: string) => `${base.replace(/\/$/, "")}/${p.replace(/^\//, "")}`;
 const githubUrl = "https://github.com/openit-app/openit-app";
+const cfBeaconToken = import.meta.env.PUBLIC_CF_BEACON_TOKEN;
 ---
 <!doctype html>
 <html lang="en">
@@ -30,17 +31,21 @@ const githubUrl = "https://github.com/openit-app/openit-app";
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
-      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500&family=Fraunces:ital,opsz,wght@0,9..144,400;0,9..144,500;1,9..144,400;1,9..144,500&display=swap"
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500&family=Fraunces:ital,opsz,wght@0,9..144,400;0,9..144,500;1,9..144,400;1,9..144,500&family=Press+Start+2P&display=swap"
       rel="stylesheet"
     />
+    {cfBeaconToken && (
+      <script
+        defer
+        src="https://static.cloudflareinsights.com/beacon.min.js"
+        data-cf-beacon={JSON.stringify({ token: cfBeaconToken })}
+      ></script>
+    )}
   </head>
   <body class="bg-cream text-ink selection:bg-terracotta selection:text-cream">
     <header class="mx-auto flex max-w-7xl items-center justify-between px-6 py-6 md:px-10">
-      <a href={url("/")} class="flex items-center gap-2 no-underline">
-        <div class="grid h-7 w-7 place-items-center rounded-md bg-ink text-cream">
-          <span class="font-display text-[13px] leading-none">O</span>
-        </div>
-        <span class="font-display text-lg tracking-tight">OpenIT</span>
+      <a href={url("/")} class="text-ink no-underline">
+        <span class="wordmark text-[22px]">Open<span class="wm-it">IT</span></span>
       </a>
       <nav class="hidden items-center gap-8 font-mono-tag text-[11px] text-ink/60 md:flex">
         <a href={url("/") + "#thesis"} class="hover:text-ink no-underline">Thesis</a>
@@ -51,7 +56,7 @@ const githubUrl = "https://github.com/openit-app/openit-app";
           <svg class="h-3 w-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" xmlns="http://www.w3.org/2000/svg"><path d="M7 7h10v10"/><path d="M7 17 17 7"/></svg>
         </a>
       </nav>
-      <a href={url("/download")} class="hidden rounded-full bg-ink px-4 py-2 font-mono-tag text-[10px] text-cream hover:bg-terracotta md:inline-flex no-underline">
+      <a href={url("/") + "#download"} class="hidden rounded-full bg-ink px-4 py-2 font-mono-tag text-[10px] text-cream hover:bg-terracotta md:inline-flex no-underline">
         Download
       </a>
     </header>
@@ -68,12 +73,9 @@ const githubUrl = "https://github.com/openit-app/openit-app";
 
     <footer class="border-t border-ink/10 bg-cream">
       <div class="mx-auto flex max-w-7xl flex-col items-start justify-between gap-6 px-6 py-10 md:flex-row md:items-center md:px-10">
-        <div class="flex items-center gap-2">
-          <div class="grid h-7 w-7 place-items-center rounded-md bg-ink text-cream">
-            <span class="font-display text-[13px] leading-none">O</span>
-          </div>
-          <span class="font-display text-lg tracking-tight">OpenIT</span>
-          <span class="ml-3 font-mono-tag text-[10px] text-ink/40">© 2026 · Apache 2.0</span>
+        <div class="flex items-center gap-3 text-ink">
+          <span class="wordmark text-[20px]">Open<span class="wm-it">IT</span></span>
+          <span class="ml-1 font-mono-tag text-[10px] text-ink/40">© 2026 · Apache 2.0</span>
         </div>
         <div class="flex items-center gap-6 font-mono-tag text-[11px] text-ink/60">
           <a href={githubUrl} class="hover:text-ink no-underline">GitHub ↗</a>

@@ -37,6 +37,8 @@ jobs:
           cache-dependency-path: landing/package-lock.json
       - run: npm ci
       - run: npm run build
+        env:
+          PUBLIC_CF_BEACON_TOKEN: ${{ secrets.CF_BEACON_TOKEN }}
       - uses: actions/upload-pages-artifact@v4
         with:
           path: landing/dist

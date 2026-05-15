@@ -76,6 +76,62 @@
     font-weight: 500;
     letter-spacing: -0.02em;
   }
+
+  /* ─────────────────────────────────────────────────────────────────
+     Brand wordmark — "Open" in Inter 800 + "IT" in Fraunces italic.
+     Single source of truth; see images/ph/wordmark.html for full spec.
+     Inherits color, so the surrounding context decides the ink colour;
+     the .wm-it half is always terracotta unless explicitly overridden.
+     ───────────────────────────────────────────────────────────────── */
+  .wordmark {
+    display: inline-flex;
+    align-items: baseline;
+    gap: 2px;
+    font-family: "Inter", system-ui, sans-serif;
+    font-weight: 800;
+    letter-spacing: -0.02em;
+    line-height: 1;
+  }
+  .wordmark .wm-it {
+    font-family: "Fraunces", "Times New Roman", serif;
+    font-style: italic;
+    font-weight: 500;
+    letter-spacing: -0.03em;
+    color: hsl(var(--terracotta));
+  }
+
+  /* ─────────────────────────────────────────────────────────────────
+     Claude Code pixel lockup — mascot + Press Start 2P wordmark in
+     Anthropic orange. Sized in em so it scales with its parent's
+     font-size; drop it inline anywhere "Claude Code" is the subject.
+     ───────────────────────────────────────────────────────────────── */
+  .claude-code-lockup {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.18em;
+    vertical-align: -0.06em;
+    line-height: 1;
+  }
+  .claude-code-lockup .cc-mascot {
+    width: 0.78em;
+    height: auto;
+    flex-shrink: 0;
+    image-rendering: pixelated;
+  }
+  .claude-code-lockup .cc-text {
+    display: inline-flex;
+    gap: 0.18em;
+    font-family: "Press Start 2P", "Courier New", monospace;
+    font-size: 0.42em;
+    letter-spacing: 0.02em;
+    color: #D97757;
+    text-shadow: 1.5px 1.5px 0 hsl(var(--ink) / 0.18);
+  }
+  /* On dark sections (e.g. the §03 ink band) tweak the shadow so the
+     pixel text reads cleanly against near-black instead of bleeding. */
+  .on-dark .claude-code-lockup .cc-text {
+    text-shadow: 1.5px 1.5px 0 rgba(0, 0, 0, 0.5);
+  }
 }
 
 @layer utilities {
@@ -88,7 +144,7 @@
 }
 
 /* ─────────────────────────────────────────────────────────────────
-   Prose typography for /download, /privacy, /terms.
+   Prose typography for /privacy, /terms.
    The homepage uses Tailwind classes inline; these utility classes
    give the bare-prose pages a consistent editorial look.
    ───────────────────────────────────────────────────────────────── */

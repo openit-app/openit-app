@@ -27,8 +27,23 @@ const nativeAccess: { k: string; v: string }[] = [
       </span>
 
       <h1 class="font-display mt-8 text-[9.5vw] leading-[0.95] md:mt-10 md:text-[68px] lg:text-[88px]">
-        An IT helpdesk{" "}
-        <span class="text-terracotta">that runs on Claude Code.</span>
+        An IT helpdesk
+        <span class="block text-terracotta">
+          that runs on
+          <span class="claude-code-lockup">
+            {/* Pixel mascot — matches images/ph/01-hero.html. Grid is 11×7 at 10px. */}
+            <svg class="cc-mascot" viewBox="0 0 110 70" xmlns="http://www.w3.org/2000/svg" shape-rendering="crispEdges" aria-label="Claude Code mascot">
+              <g fill="#D97757" stroke="rgba(30,20,15,.18)" stroke-width="0.6">
+                <rect x="20" y="0" width="10" height="10"/><rect x="30" y="0" width="10" height="10"/><rect x="40" y="0" width="10" height="10"/><rect x="50" y="0" width="10" height="10"/><rect x="60" y="0" width="10" height="10"/><rect x="70" y="0" width="10" height="10"/><rect x="80" y="0" width="10" height="10"/>
+                <rect x="20" y="10" width="10" height="10"/><rect x="30" y="10" width="10" height="10"/><rect x="50" y="10" width="10" height="10"/><rect x="60" y="10" width="10" height="10"/><rect x="80" y="10" width="10" height="10"/>
+                <rect x="10" y="20" width="10" height="10"/><rect x="20" y="20" width="10" height="10"/><rect x="30" y="20" width="10" height="10"/><rect x="40" y="20" width="10" height="10"/><rect x="50" y="20" width="10" height="10"/><rect x="60" y="20" width="10" height="10"/><rect x="70" y="20" width="10" height="10"/><rect x="80" y="20" width="10" height="10"/><rect x="90" y="20" width="10" height="10"/>
+                <rect x="10" y="30" width="10" height="10"/><rect x="20" y="30" width="10" height="10"/><rect x="30" y="30" width="10" height="10"/><rect x="40" y="30" width="10" height="10"/><rect x="50" y="30" width="10" height="10"/><rect x="60" y="30" width="10" height="10"/><rect x="70" y="30" width="10" height="10"/><rect x="80" y="30" width="10" height="10"/><rect x="90" y="30" width="10" height="10"/>
+                <rect x="20" y="40" width="10" height="20"/><rect x="40" y="40" width="10" height="20"/><rect x="60" y="40" width="10" height="20"/><rect x="80" y="40" width="10" height="20"/>
+              </g>
+            </svg>
+            <span class="cc-text"><span>CLAUDE</span><span>CODE</span></span>
+          </span>.
+        </span>
       </h1>
 
       <p class="mt-10 max-w-3xl text-xl leading-snug text-ink/80 md:text-2xl">
@@ -37,7 +52,7 @@ const nativeAccess: { k: string; v: string }[] = [
       </p>
 
       <div id="download" class="mt-12 flex flex-wrap items-center gap-4">
-        <a id="hero-download" href={url("/download")} class="group inline-flex items-center gap-3 rounded-full bg-ink px-7 py-4 text-cream transition hover:bg-terracotta no-underline">
+        <a id="hero-download" href={release.releaseUrl ?? githubUrl} class="group inline-flex items-center gap-3 rounded-full bg-ink px-7 py-4 text-cream transition hover:bg-terracotta no-underline">
           <svg class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" xmlns="http://www.w3.org/2000/svg"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" x2="12" y1="15" y2="3"/></svg>
           <span class="font-medium" id="hero-download-label">Download</span>
         </a>
@@ -303,7 +318,7 @@ const nativeAccess: { k: string; v: string }[] = [
           Apache 2.0. Fork it, ship it, make it yours. macOS and Windows today, Linux coming — contributions welcome.
         </p>
         <div class="mt-12 flex flex-wrap items-center gap-4">
-          <a id="bottom-download" href={url("/download")} class="group inline-flex items-center gap-3 rounded-full bg-ink px-7 py-4 text-cream transition hover:bg-cream hover:text-ink no-underline">
+          <a id="bottom-download" href={release.releaseUrl ?? githubUrl} class="group inline-flex items-center gap-3 rounded-full bg-ink px-7 py-4 text-cream transition hover:bg-cream hover:text-ink no-underline">
             <svg class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" xmlns="http://www.w3.org/2000/svg"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" x2="12" y1="15" y2="3"/></svg>
             <span class="font-medium" id="bottom-download-label">Download</span>
           </a>
