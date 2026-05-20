@@ -2,7 +2,7 @@ import { useEffect, useRef, useState, type ReactNode } from "react";
 import ReactMarkdown, { defaultUrlTransform } from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { fsRead, fsReadBytes, fsList, fsReveal, reportOverviewRun, entityDeleteFile, entityRemoveDir } from "../lib/api";
-import { isUnderRepo, relUnderRepo, basename, dirname, fsNorm } from "../lib/paths";
+import { isUnderRepo, relUnderRepo, basename, fsNorm } from "../lib/paths";
 import type { MemoryItem, Agent } from "../lib/localTypes";
 import { EntityCardGrid } from "./EntityCardGrid";
 import { EntityBadge, type EntityKind } from "./entityIcons";
@@ -70,6 +70,21 @@ export type { ViewerSource };
 
 function capitalize(s: string): string {
   return s.charAt(0).toUpperCase() + s.slice(1);
+}
+
+/** Extract the command slug from either path the viewer can land on:
+ * - the source file at `…/filestores/commands/<slug>.md`
+ * - the one-way mirror at `…/.claude/skills/<slug>/SKILL.md`
+ *
+ * Both map to the same logical command — delete and edit always operate
+ * on the source. Returns null if neither pattern matches. */
+export function extractCommandSlug(path: string): string | null {
+  const normalized = path.replace(/\\/g, "/");
+  const fileMatch = normalized.match(/\/filestores\/commands\/([^/]+)\.md$/);
+  if (fileMatch) return fileMatch[1];
+  const mirrorMatch = normalized.match(/\/\.claude\/skills\/([^/]+)\/SKILL\.md$/);
+  if (mirrorMatch) return mirrorMatch[1];
+  return null;
 }
 
 type ToneKey = "accent" | "sage" | "ochre" | "link" | "clay" | "neutral";
@@ -183,6 +198,54 @@ export function Viewer({
   const [editDraft, setEditDraft] = useState<string>("");
   const [editSaving, setEditSaving] = useState(false);
   const [editError, setEditError] = useState<string | null>(null);
+  // External-change tracking for the currently-open file. When Claude
+  // (or any other process) edits the file on disk while the user is
+  // mid-edit with unsaved changes, we surface a non-destructive banner
+  // instead of clobbering the textarea. `pendingDiskContent` holds the
+  // freshly-read disk content so the banner's "Reload from disk" action
+  // can apply it without a second read.
+  const [externalChanges, setExternalChanges] = useState(false);
+  const [pendingDiskContent, setPendingDiskContent] = useState<string | null>(null);
+  // `lastSeenDisk` is the file body we last observed on disk for the
+  // currently-open file. It's the comparison baseline for the
+  // fs-refresh effect, NOT `content`. We keep them separate because:
+  //
+  // 1. "Keep my edits" must not silently reload disk over the user's
+  //    draft on the next fsTick. If the effect compared against
+  //    `content`, then after Keep-my-edits (where we DON'T touch
+  //    content) the next external change would still register as
+  //    "disk diverged from content", and worse, with editDraft also
+  //    differing from content the cleanliness check would lie and
+  //    silently overwrite the kept draft.
+  // 2. Cancel reverts to `content` (the saved baseline). If we tracked
+  //    disk state in `content`, Cancel would jump to the external
+  //    version instead of the user's last saved state.
+  //
+  // Bumped whenever we read from disk (initial load, fs-refresh,
+  // Reload-from-disk) or write to disk (Save).
+  const [lastSeenDisk, setLastSeenDisk] = useState<string>("");
+  // Refs mirror the latest editDraft / mode / lastSeenDisk for the
+  // fs-refresh effect below. Using refs (rather than effect deps) keeps
+  // the effect from re-firing on every keystroke in the textarea while
+  // still letting the effect see the up-to-date values when fsTick
+  // changes.
+  const contentRef = useRef<string>("");
+  const editDraftRef = useRef<string>("");
+  const modeRef = useRef<ViewMode>("rendered");
+  const lastSeenDiskRef = useRef<string>("");
+  useEffect(() => { contentRef.current = content; }, [content]);
+  useEffect(() => { editDraftRef.current = editDraft; }, [editDraft]);
+  useEffect(() => { modeRef.current = mode; }, [mode]);
+  useEffect(() => { lastSeenDiskRef.current = lastSeenDisk; }, [lastSeenDisk]);
+  // Clear external-change state whenever the user navigates to a new
+  // file — stale "file changed on disk" warnings from the previous
+  // file shouldn't follow them. lastSeenDisk gets re-seeded by the
+  // main content-load effect's fsRead.
+  useEffect(() => {
+    setExternalChanges(false);
+    setPendingDiskContent(null);
+    setLastSeenDisk("");
+  }, [source]);
   // Inline rename state for the file-title in the viewer-header.
   // `renamingPath` is the source path the user is currently editing
   // (null when not renaming). `renameDraft` is the textbox value.
@@ -377,6 +440,10 @@ export function Viewer({
         .then((c) => {
           if (cancelled) return;
           setContent(c);
+          // Seed the fs-refresh baseline so the first external write
+          // we observe after this point is correctly recognised as a
+          // change relative to what we just loaded.
+          setLastSeenDisk(c);
           if (runnable) setEditDraft(c);
         })
         .catch((e) => !cancelled && setError(String(e)));
@@ -539,6 +606,65 @@ export function Viewer({
       return;
     }
   }, [source]);
+
+  // Re-read the currently-open text file from disk when fsTick fires.
+  // Conflict-aware: if the user has unsaved changes (editDraft diverges
+  // from the saved baseline `content`), we surface a banner instead of
+  // clobbering the textarea. Otherwise we silently refresh. Skips
+  // binary kinds — those use binaryData and have their own refresh.
+  //
+  // The comparison baseline is `lastSeenDisk`, NOT `content`. That's
+  // critical for "Keep my edits" semantics: when the user dismisses
+  // the banner, content/editDraft stay untouched but we want the next
+  // disk write to register correctly. Comparing against `content`
+  // instead would either re-fire the banner indefinitely or (worse)
+  // silently overwrite the kept draft once content drifted from disk.
+  useEffect(() => {
+    if (!source || source.kind !== "file") return;
+    if (fsTick === undefined || fsTick === 0) return;
+    const path = source.path;
+    if (
+      isImage(path) ||
+      isPdf(path) ||
+      isSpreadsheet(path) ||
+      isOfficeDoc(path)
+    ) {
+      return;
+    }
+    let cancelled = false;
+    fsRead(path)
+      .then((c) => {
+        if (cancelled) return;
+        if (c === lastSeenDiskRef.current) return;
+        // Disk diverged from what we last saw. Update our baseline so
+        // subsequent ticks don't keep re-firing on the same delta,
+        // regardless of whether the user accepts or dismisses below.
+        setLastSeenDisk(c);
+        const inEditDirty =
+          modeRef.current === "edit" &&
+          editDraftRef.current !== contentRef.current;
+        if (inEditDirty) {
+          setPendingDiskContent(c);
+          setExternalChanges(true);
+          return;
+        }
+        // Safe to apply silently — also re-seed the edit draft so a
+        // runnable script (which sits in edit mode by default) picks
+        // up the new content.
+        setContent(c);
+        setEditDraft(c);
+        setExternalChanges(false);
+        setPendingDiskContent(null);
+      })
+      .catch(() => {
+        // Transient read failure (lock, permission flap) — leave the
+        // previously-loaded content in place; we'll try again on the
+        // next fsTick.
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [fsTick, source]);
 
   // Re-read the single-row file from disk when fsTick fires. Lets edits
   // by Claude (or any process touching the .json file) reflect in the
@@ -1092,6 +1218,13 @@ export function Viewer({
         const { entityWriteFile } = await import("../lib/api");
         await entityWriteFile(repo, subdir, filename, editDraft);
         setContent(editDraft);
+        // Our own write is the disk state now — keep lastSeenDisk
+        // aligned so the fs-watcher tick that fires from this write
+        // doesn't show a phantom "file changed on disk" banner. Also
+        // clears any banner that was active when the user hit Save.
+        setLastSeenDisk(editDraft);
+        setExternalChanges(false);
+        setPendingDiskContent(null);
         setMode(afterMode);
       } catch (err) {
         setEditError(`Save failed: ${err instanceof Error ? err.message : String(err)}`);
@@ -1105,8 +1238,53 @@ export function Viewer({
       setMode(afterMode);
     };
     const isDirty = editDraft !== content;
+    const showExternalBanner = externalChanges && pendingDiskContent !== null;
+    const onReloadFromDisk = () => {
+      if (pendingDiskContent === null) return;
+      setContent(pendingDiskContent);
+      setEditDraft(pendingDiskContent);
+      setLastSeenDisk(pendingDiskContent);
+      setExternalChanges(false);
+      setPendingDiskContent(null);
+    };
+    const onKeepMyEdits = () => {
+      // Dismiss the banner without touching content or editDraft:
+      //   - editDraft stays as the user's in-flight edits
+      //   - content stays as the saved baseline (Save remains enabled,
+      //     Cancel still reverts to the last saved state)
+      //   - lastSeenDisk was already advanced by the fs-refresh effect
+      //     to the disk content that triggered this banner, so the
+      //     next external write registers correctly without re-firing
+      //     on the change we just dismissed
+      setExternalChanges(false);
+      setPendingDiskContent(null);
+    };
     return (
       <div className="viewer-edit">
+        {showExternalBanner && (
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: 8,
+              padding: "8px 12px",
+              background: "var(--surface-muted, #fff7e6)",
+              borderBottom: "1px solid var(--border, #e5e5e5)",
+              fontSize: 13,
+            }}
+            role="status"
+          >
+            <span style={{ flex: 1 }}>
+              This file changed on disk while you were editing.
+            </span>
+            <Button variant="secondary" size="sm" onClick={onReloadFromDisk}>
+              Reload from disk
+            </Button>
+            <Button variant="ghost" size="sm" onClick={onKeepMyEdits}>
+              Keep my edits
+            </Button>
+          </div>
+        )}
         <textarea
           className="viewer-edit-textarea"
           value={editDraft}
@@ -2492,20 +2670,58 @@ export function Viewer({
             size="sm"
             onClick={async () => {
               if (source.kind !== "file") return;
-              const filename = basename(source.path) || "";
-              const dir = dirname(source.path);
+              // Extract the slug from either form the viewer can be
+              // looking at: the source `filestores/commands/<slug>.md`
+              // or the one-way mirror `.claude/skills/<slug>/SKILL.md`.
+              // Delete always acts on the source — deleting the mirror
+              // alone is futile (skillMirror.ts regenerates it).
+              const slug = extractCommandSlug(source.path);
+              if (!slug) {
+                showToast("Couldn't identify the command to delete.");
+                return;
+              }
               const ok = await confirmDelete(
-                `Delete command "${filename.replace(/\.md$/, "")}"?\n\nThis cannot be undone.`,
+                `Delete command "${slug}"?\n\nThis cannot be undone.`,
                 "Delete command?",
               );
               if (!ok) return;
               try {
-                await entityDeleteFile(repo, toRepoRelative(repo, dir), filename);
-                // Navigate back to commands list
-                if (onOpenPath) void onOpenPath(`${repo}/filestores/commands`);
+                await entityDeleteFile(
+                  repo,
+                  "filestores/commands",
+                  `${slug}.md`,
+                );
               } catch (err) {
-                console.error("[command-delete] failed:", err);
+                const msg = err instanceof Error ? err.message : String(err);
+                showToast(`Failed to delete /${slug}: ${msg}`);
+                return;
               }
+              // The .md is gone. Now try to remove the sibling history
+              // directory `filestores/commands/<slug>/_history/`. The
+              // Rust side `entity_remove_dir` no-ops when the dir is
+              // missing, so the only errors that bubble up here are
+              // permission / canonicalization / EBUSY — which would
+              // leave an orphan. Surface those so the admin knows to
+              // intervene, rather than silently lying about "Deleted".
+              let historyError: string | null = null;
+              try {
+                await entityRemoveDir(
+                  repo,
+                  `filestores/commands/${slug}`,
+                );
+              } catch (err) {
+                historyError = err instanceof Error ? err.message : String(err);
+              }
+              if (historyError) {
+                showToast(
+                  `Deleted /${slug}, but couldn't clean history dir: ${historyError}`,
+                );
+              } else {
+                showToast(`Deleted /${slug}`);
+              }
+              // The `.claude/skills/<slug>/` mirror is auto-removed
+              // by the skillMirror watcher when the source disappears.
+              if (onOpenPath) void onOpenPath(`${repo}/filestores/commands`);
             }}
             title="Delete this command"
           >

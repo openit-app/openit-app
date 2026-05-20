@@ -5,37 +5,27 @@ import { writeToActiveSession } from "./activeSession";
 import { Button } from "../ui";
 import styles from "./ToolsPanel.module.css";
 
+type CommandOrigin = "system" | "custom";
+
 type CommandEntry = {
   name: string;
   description: string;
+  /** The path used for open / edit / delete — always the source-of-truth
+   * for that command. For commands that exist in `filestores/commands/`,
+   * this is the filestore path (the mirror at `.claude/skills/<slug>/`
+   * is one-way and gets overwritten on every sync — never operate on it
+   * directly). For system-only commands that have no filestore source,
+   * this is the `.claude/skills/<slug>/SKILL.md` path. */
   path: string;
-  /** Whether this is a featured command that Lisa cares about. */
-  featured: boolean;
+  origin: CommandOrigin;
 };
-
-// Commands that map directly to Lisa's pain points, in priority order.
-// Everything not in this list goes behind "Show more".
-const FEATURED_COMMANDS: string[] = [
-  "load-sample-data",        // Populate workspace with sample data
-  "cleanup",                 // Remove sample data
-  "salesforce-gmail",        // Salesforce + email disconnect
-  "backup",                  // Manual backups
-  "onboard",                 // Onboarding new employees
-  "offboard",                // Offboarding departing employees
-  "salesforce-data-quality",  // Data quality / cleanup in Salesforce
-  "slack-to-knowledge",             // Knowledge trapped in Slack
-  "patient-inquiry",          // Patient inquiry handling (Salesforce Cases)
-  "drive-search",             // Information scattered across Drive
-  "asset-tracking",           // Asset tracking
-  "pipeline-outreach",        // Recurring reporting / outreach
-  "report",                   // Custom reports
-];
 
 /**
  * CommandsStation — flat list of slash commands with a visible Run
- * button on each row. Merges system (.claude/skills/) and custom
- * (filestores/commands/) into one deduplicated list. System commands
- * appear first; extras are behind "Show more".
+ * button on each row. Merges system (`.claude/skills/`) and custom
+ * (`filestores/commands/`) into one alphabetised list. When the same
+ * slug exists in both places, the custom entry wins because that's the
+ * editable source of truth.
  */
 export function CommandsStation({
   repo,
@@ -47,7 +37,6 @@ export function CommandsStation({
   onOpen: (path: string) => void;
 }) {
   const [commands, setCommands] = useState<CommandEntry[]>([]);
-  const [showAll, setShowAll] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -68,7 +57,12 @@ export function CommandsStation({
               const raw = await fsRead(skillMdPath);
               description = extractDescription(raw);
             } catch { /* SKILL.md missing */ }
-            systemEntries.push({ name: d.name, description, path: skillMdPath, featured: FEATURED_COMMANDS.includes(d.name) });
+            systemEntries.push({
+              name: d.name,
+              description,
+              path: skillMdPath,
+              origin: "system",
+            });
           }),
         );
       } catch { /* .claude/skills/ doesn't exist */ }
@@ -77,12 +71,9 @@ export function CommandsStation({
       try {
         const root = `${repo}/filestores/commands`;
         const nodes = await fsList(root);
-        const prefix = `${root.replace(/\\/g, "/")}/`;
         const files = nodes.filter((n) => {
           if (n.is_dir) return false;
-          const p = n.path.replace(/\\/g, "/");
-          const tail = p.startsWith(prefix) ? p.slice(prefix.length) : "";
-          if (!tail || tail.includes("/")) return false;
+          if (!isDirectChild(root, n.path)) return false;
           if (n.name.includes(".server.")) return false;
           return n.name.endsWith(".md");
         });
@@ -94,93 +85,73 @@ export function CommandsStation({
               const raw = await fsRead(f.path);
               description = extractDescription(raw);
             } catch { /* unreadable */ }
-            customEntries.push({ name, description, path: f.path, featured: FEATURED_COMMANDS.includes(name) });
+            customEntries.push({
+              name,
+              description,
+              path: f.path,
+              origin: "custom",
+            });
           }),
         );
       } catch { /* filestores/commands/ doesn't exist */ }
 
-      // Deduplicate: if a name exists in both system and custom, keep
-      // the system version (it's the curated one).
-      const seen = new Set<string>();
-      const deduped: CommandEntry[] = [];
-      // System first so they win on collisions and sort to the top.
-      for (const e of systemEntries) {
-        if (!seen.has(e.name)) {
-          seen.add(e.name);
-          deduped.push(e);
-        }
-      }
-      for (const e of customEntries) {
-        if (!seen.has(e.name)) {
-          seen.add(e.name);
-          deduped.push(e);
-        }
-      }
-      // Featured commands first (in Lisa's priority order), then the
-      // rest alphabetically behind "Show more".
-      deduped.sort((a, b) => {
-        const aIdx = FEATURED_COMMANDS.indexOf(a.name);
-        const bIdx = FEATURED_COMMANDS.indexOf(b.name);
-        const aFeat = aIdx !== -1;
-        const bFeat = bIdx !== -1;
-        if (aFeat && bFeat) return aIdx - bIdx;
-        if (aFeat) return -1;
-        if (bFeat) return 1;
-        return a.name.localeCompare(b.name);
-      });
-
-      if (!cancelled) setCommands(deduped);
+      const merged = mergeCommandEntries(systemEntries, customEntries);
+      if (!cancelled) setCommands(merged);
     })();
     return () => { cancelled = true; };
   }, [repo, fsTick]);
 
   const [search, setSearch] = useState("");
   const [newName, setNewName] = useState("");
-
-  // When searching, show all matches (ignore fold). Otherwise fold at featured.
-  const q = search.toLowerCase();
-  const filtered = q
-    ? commands.filter((c) => c.name.includes(q) || c.description.toLowerCase().includes(q))
-    : commands;
-  const featuredCount = filtered.filter((c) => c.featured).length;
-  const foldAt = Math.max(featuredCount, 1);
-  const visible = q || showAll ? filtered : filtered.slice(0, foldAt);
-  const hiddenCount = filtered.length - foldAt;
+  const [newIntent, setNewIntent] = useState("");
+  const [createError, setCreateError] = useState<string | null>(null);
   const [showNewInput, setShowNewInput] = useState(false);
 
-  const createNewCommand = async () => {
-    const slug = newName.trim().toLowerCase().replace(/\s+/g, "-").replace(/[^a-z0-9-]/g, "");
-    if (!slug) return;
-    const boilerplate = `---
-description: "Describe what this command does in one sentence."
----
+  const q = search.toLowerCase();
+  const visible = q
+    ? commands.filter(
+        (c) =>
+          c.name.includes(q) || c.description.toLowerCase().includes(q),
+      )
+    : commands;
 
-# /${slug}
+  const intentValid = newIntent.trim().length >= 10;
+  const slugValid = !!newName
+    .trim()
+    .toLowerCase()
+    .replace(/\s+/g, "-")
+    .replace(/[^a-z0-9-]/g, "");
 
-<!-- This is a slash command. When you type /${slug} in the chat,
-     Claude will follow these instructions step by step. -->
-
-## What this command does
-
-Describe the goal here.
-
-## Steps
-
-1. First, ask the user what they need.
-2. Then, do the work.
-3. Finally, confirm the result.
-
-## Notes
-
-- Add any tips, edge cases, or context here.
-
-## After this run
-
-Before signing off, re-read this command body. If the admin's choices narrowed any defaults this run, rewrite the relevant sections to match — and snapshot the prior body to \`filestores/commands/${slug}/_history/<ms>.md\` first. Tell the admin in one line what changed.
-`;
-    await entityWriteFile(repo, "filestores/commands", `${slug}.md`, boilerplate);
+  const resetNewInput = () => {
     setShowNewInput(false);
     setNewName("");
+    setNewIntent("");
+    setCreateError(null);
+  };
+
+  const createNewCommand = async () => {
+    const slug = newName
+      .trim()
+      .toLowerCase()
+      .replace(/\s+/g, "-")
+      .replace(/[^a-z0-9-]/g, "");
+    const intent = newIntent.trim();
+    if (!slug) {
+      setCreateError("Pick a slug (letters, numbers, dashes).");
+      return;
+    }
+    if (intent.length < 10) {
+      setCreateError("Describe what this command should do (at least 10 characters).");
+      return;
+    }
+    const boilerplate = renderDraftBoilerplate(slug, intent);
+    try {
+      await entityWriteFile(repo, "filestores/commands", `${slug}.md`, boilerplate);
+    } catch (err) {
+      setCreateError(`Save failed: ${err instanceof Error ? err.message : String(err)}`);
+      return;
+    }
+    resetNewInput();
     onOpen(`${repo}/filestores/commands/${slug}.md`);
   };
 
@@ -193,7 +164,13 @@ Before signing off, re-read this command body. If the admin's choices narrowed a
         <Button
           variant="ghost"
           size="sm"
-          onClick={() => setShowNewInput((v) => !v)}
+          onClick={() => {
+            if (showNewInput) {
+              resetNewInput();
+            } else {
+              setShowNewInput(true);
+            }
+          }}
         >
           + New
         </Button>
@@ -208,7 +185,7 @@ Before signing off, re-read this command body. If the admin's choices narrowed a
       />
 
       {showNewInput && (
-        <div style={{ display: "flex", gap: 8, alignItems: "center", marginBottom: 4 }}>
+        <div style={{ display: "flex", flexDirection: "column", gap: 6, marginBottom: 4 }}>
           <input
             className={styles.search}
             type="text"
@@ -216,14 +193,42 @@ Before signing off, re-read this command body. If the admin's choices narrowed a
             value={newName}
             onChange={(e) => setNewName(e.target.value)}
             onKeyDown={(e) => {
-              if (e.key === "Enter") void createNewCommand();
-              if (e.key === "Escape") { setShowNewInput(false); setNewName(""); }
+              if (e.key === "Escape") resetNewInput();
             }}
             autoFocus
           />
-          <Button variant="secondary" size="sm" onClick={() => void createNewCommand()}>
-            Create
-          </Button>
+          <textarea
+            className={styles.search}
+            placeholder="What should this command do? (e.g. 'Pull this week's open Salesforce opportunities and summarise by stage.')"
+            value={newIntent}
+            onChange={(e) => setNewIntent(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Escape") resetNewInput();
+              if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) {
+                void createNewCommand();
+              }
+            }}
+            rows={3}
+            style={{ resize: "vertical", fontFamily: "inherit" }}
+          />
+          {createError && (
+            <span style={{ fontSize: 12, color: "var(--text-error, #b42318)" }}>
+              {createError}
+            </span>
+          )}
+          <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+            <Button
+              variant="secondary"
+              size="sm"
+              onClick={() => void createNewCommand()}
+              disabled={!slugValid || !intentValid}
+            >
+              Create
+            </Button>
+            <Button variant="ghost" size="sm" onClick={resetNewInput}>
+              Cancel
+            </Button>
+          </div>
         </div>
       )}
 
@@ -233,7 +238,7 @@ Before signing off, re-read this command body. If the admin's choices narrowed a
         <div className={styles.grid}>
           {visible.map((cmd) => (
             <div
-              key={cmd.name}
+              key={`${cmd.origin}:${cmd.name}`}
               className={styles.card}
               style={{ cursor: "pointer" }}
               onClick={() => onOpen(cmd.path)}
@@ -273,30 +278,79 @@ Before signing off, re-read this command body. If the admin's choices narrowed a
               )}
             </div>
           ))}
-
-          {hiddenCount > 0 && !q && (
-            <button
-              type="button"
-              onClick={() => setShowAll((v) => !v)}
-              style={{
-                all: "unset",
-                cursor: "pointer",
-                textAlign: "center",
-                padding: "10px 0",
-                fontSize: 13,
-                color: "var(--text-muted)",
-                fontWeight: 500,
-              }}
-            >
-              {showAll
-                ? "Show less"
-                : `Show ${hiddenCount} more command${hiddenCount === 1 ? "" : "s"}`}
-            </button>
-          )}
         </div>
       )}
     </div>
   );
+}
+
+/**
+ * Merge system + custom command entries into two ordered groups:
+ * system first (alphabetical), then custom (alphabetical). When the
+ * same slug exists in both, the custom entry wins because that's the
+ * editable source-of-truth — `.claude/skills/` is a one-way mirror
+ * that gets overwritten on every sync. An overridden command moves
+ * into the custom group (it carries `origin: "custom"`).
+ */
+export function mergeCommandEntries(
+  systemEntries: CommandEntry[],
+  customEntries: CommandEntry[],
+): CommandEntry[] {
+  const customNames = new Set(customEntries.map((e) => e.name));
+  const systemKept = systemEntries
+    .filter((e) => !customNames.has(e.name))
+    .sort((a, b) => a.name.localeCompare(b.name));
+  const customSorted = [...customEntries].sort((a, b) =>
+    a.name.localeCompare(b.name),
+  );
+  return [...systemKept, ...customSorted];
+}
+
+/** Boilerplate for a freshly-created draft command. The `status: draft`
+ * YAML field is what gates Claude's "be proactive about commands"
+ * behaviour — drafts are treated as intent placeholders, not runnable
+ * commands. The intent line shows up in command-discovery so the admin
+ * can find the draft later. */
+export function renderDraftBoilerplate(slug: string, intent: string): string {
+  // YAML 1.2 single-quoted scalar: only `'` needs escaping (doubled).
+  // The intent comes from a textarea so it can legitimately contain
+  // `"`, `\`, or stray whitespace — single-quoted YAML handles all of
+  // those without escaping. We also collapse internal newlines to a
+  // single space so the `description:` field stays on one line (some
+  // YAML parsers permit folded scalars but the markdown body below
+  // already carries the multiline intent verbatim, which is what the
+  // admin will actually edit).
+  const oneLineIntent = intent.replace(/\s+/g, " ").trim();
+  const safeIntent = oneLineIntent.replace(/'/g, "''");
+  return `---
+description: '${safeIntent}'
+status: draft
+---
+
+# /${slug}
+
+> **Draft.** Defined intent: ${intent}
+>
+> Fill in the steps below before invoking. Claude won't auto-build a draft.
+
+## What this command does
+
+${intent}
+
+## Steps
+
+1. (Define the first step.)
+2. (Define the second step.)
+3. (Define the final step.)
+
+## Notes
+
+- (Optional context, edge cases, prerequisites.)
+
+## After this run
+
+Once this command is no longer a draft, remove the \`status: draft\` line above. When the admin's choices narrow defaults during a run, rewrite the relevant sections to match — and snapshot the prior body to \`filestores/commands/${slug}/_history/<ms>.md\` first. Tell the admin in one line what changed.
+`;
 }
 
 /** Extract a one-line description from markdown with optional YAML frontmatter. */
@@ -316,7 +370,7 @@ function extractDescription(raw: string): string {
   const body = fmMatch ? raw.slice(fmMatch[0].length) : raw;
   for (const line of body.split("\n")) {
     const trimmed = line.trim();
-    if (!trimmed || trimmed.startsWith("#")) continue;
+    if (!trimmed || trimmed.startsWith("#") || trimmed.startsWith(">")) continue;
     return trimmed.slice(0, 140);
   }
   return "";

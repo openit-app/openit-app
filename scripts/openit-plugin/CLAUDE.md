@@ -39,6 +39,8 @@ If a command matches, follow it.
 
 If nothing matches, do the work, then **automatically capture it as a new command** in `filestores/commands/<name>.md` so the next time the admin asks for something similar, you find it. Don't ask permission to capture. Do it, then say in one line what you saved: "Saved /weekly-pipeline-snapshot so I can repeat this." The admin can delete it if they don't want it.
 
+**Skip drafts.** A command file whose YAML frontmatter contains `status: draft` is an intent placeholder the admin created via the **+ New** button — they haven't filled it in yet. Treat drafts as if they don't exist: don't match them against the admin's request, don't auto-run them, don't auto-build them out. The admin will fill in the steps themselves (or explicitly invoke the draft by name when they're ready). If a draft is the closest match to what they're asking for, do the work the way you would if no command existed, and let the admin finish the draft on their own.
+
 ## Commands learn from how they're actually used
 
 When a command runs and the admin's choices narrow its behavior (e.g. `/backup` always meaning Salesforce to Drive in this org), **rewrite the command body to reflect the new default** when the run finishes. Save the prior body to `filestores/commands/<name>/_history/<timestamp>.md` first so nothing is lost. If the scope narrowed substantially, rename the command too (`backup` becomes `backup-salesforce`). Tell the admin in one line what you changed: "Updated /backup to default to Salesforce → Drive. Old version in `_history/`."
