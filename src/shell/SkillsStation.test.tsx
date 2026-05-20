@@ -1,5 +1,9 @@
 import { describe, it, expect } from "vitest";
-import { mergeCommandEntries, renderDraftBoilerplate } from "./SkillsStation";
+import {
+  extractDescription,
+  mergeCommandEntries,
+  renderDraftBoilerplate,
+} from "./SkillsStation";
 
 type Entry = ReturnType<typeof mergeCommandEntries>[number];
 
@@ -163,5 +167,54 @@ describe("renderDraftBoilerplate", () => {
   it("includes the slug in the history path reminder", () => {
     const body = renderDraftBoilerplate("foo", "do the foo thing");
     expect(body).toContain("filestores/commands/foo/_history/<ms>.md");
+  });
+});
+
+describe("renderDraftBoilerplate ↔ extractDescription round-trip", () => {
+  // BugBot finding: doubled apostrophes were leaking into the
+  // displayed description because we YAML-escaped `'` → `''` in the
+  // boilerplate but extractDescription only stripped outer quotes.
+  // The round-trip must yield back exactly the admin's intent.
+  it("round-trips an intent containing an apostrophe", () => {
+    const intent = "Summarise this week's open tickets.";
+    const body = renderDraftBoilerplate("weekly", intent);
+    expect(extractDescription(body)).toBe(intent);
+  });
+
+  it("round-trips an intent containing double quotes", () => {
+    const intent = 'Find rows where status = "open".';
+    const body = renderDraftBoilerplate("quoter", intent);
+    expect(extractDescription(body)).toBe(intent);
+  });
+
+  it("round-trips a backslash-heavy Windows path", () => {
+    const intent = "Back up C:\\Users\\admin\\Documents nightly.";
+    const body = renderDraftBoilerplate("winpath", intent);
+    expect(extractDescription(body)).toBe(intent);
+  });
+
+  it("round-trips multi-line intent (collapsed to single line)", () => {
+    const body = renderDraftBoilerplate(
+      "multi",
+      "First line.\nSecond line.\nThird.",
+    );
+    expect(extractDescription(body)).toBe("First line. Second line. Third.");
+  });
+});
+
+describe("extractDescription — quoted YAML forms", () => {
+  it("unescapes doubled apostrophes in single-quoted YAML", () => {
+    const fm = "---\ndescription: 'week''s data'\nstatus: draft\n---\n";
+    expect(extractDescription(fm)).toBe("week's data");
+  });
+
+  it("unescapes backslash and double-quote in double-quoted YAML", () => {
+    const fm = '---\ndescription: "path\\\\to\\"thing"\n---\n';
+    expect(extractDescription(fm)).toBe('path\\to"thing');
+  });
+
+  it("returns unquoted YAML values verbatim", () => {
+    const fm = "---\ndescription: plain text value\n---\n";
+    expect(extractDescription(fm)).toBe("plain text value");
   });
 });

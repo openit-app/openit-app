@@ -353,18 +353,30 @@ Once this command is no longer a draft, remove the \`status: draft\` line above.
 `;
 }
 
-/** Extract a one-line description from markdown with optional YAML frontmatter. */
-function extractDescription(raw: string): string {
+/** Extract a one-line description from markdown with optional YAML
+ * frontmatter. Handles both quoted scalar styles per YAML 1.2: single
+ * quotes (`'foo''s'` → `foo's`) and double quotes (`"a\\\"b"` → `a"b`).
+ * Drafts created via `renderDraftBoilerplate` use the single-quoted
+ * form, so unescaping `''` here is what keeps the description display
+ * matching what the admin typed. */
+export function extractDescription(raw: string): string {
   const fmMatch = raw.match(/^---\r?\n([\s\S]*?)\r?\n---/);
   if (fmMatch) {
     const descLine = fmMatch[1]
       .split("\n")
       .find((l) => l.trim().startsWith("description:"));
     if (descLine) {
-      return descLine
-        .replace(/^description:\s*/, "")
-        .replace(/^["']|["']$/g, "")
-        .trim();
+      const value = descLine.replace(/^\s*description:\s*/, "").trim();
+      if (value.startsWith("'") && value.endsWith("'") && value.length >= 2) {
+        return value.slice(1, -1).replace(/''/g, "'");
+      }
+      if (value.startsWith('"') && value.endsWith('"') && value.length >= 2) {
+        return value
+          .slice(1, -1)
+          .replace(/\\"/g, '"')
+          .replace(/\\\\/g, "\\");
+      }
+      return value;
     }
   }
   const body = fmMatch ? raw.slice(fmMatch[0].length) : raw;

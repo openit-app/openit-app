@@ -1233,7 +1233,24 @@ export function Viewer({
       }
     };
     const onCancel = () => {
-      setEditDraft(content);
+      // If the user kept their edits earlier (banner dismissed but
+      // disk had since advanced past `content`), Cancel returning to
+      // view mode would leave the viewer showing the old saved
+      // baseline forever — the fs-refresh effect's early-return guard
+      // (`c === lastSeenDisk`) would match on every subsequent tick
+      // and the disk version never propagates. So when Cancel finds
+      // `content` lagging behind `lastSeenDisk`, sync both `content`
+      // and the textarea to the latest known disk content. The user
+      // already chose to discard their draft, so this matches their
+      // intent.
+      if (lastSeenDisk !== content) {
+        setContent(lastSeenDisk);
+        setEditDraft(lastSeenDisk);
+      } else {
+        setEditDraft(content);
+      }
+      setExternalChanges(false);
+      setPendingDiskContent(null);
       setEditError(null);
       setMode(afterMode);
     };
