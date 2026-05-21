@@ -6,6 +6,7 @@ import {
   mergeConfigWithDiscovery,
   type ResolvedTile,
 } from "../lib/workstationConfig";
+import { renderDraftBoilerplate } from "./SkillsStation";
 
 type Action = {
   id: string;
@@ -150,7 +151,10 @@ export function CommandPalette({
             path: `${r}/filestores/commands/untitled.md`,
             subdir: "filestores/commands",
             filename: "untitled.md",
-            initialContent: `---\ndescription: "Describe what this command should do."\nstatus: draft\n---\n\n# /untitled\n\n> **Draft.** Fill in the description above, rename the file from \`untitled.md\`, define the steps, and remove the \`status: draft\` line. Claude won't auto-build a draft.\n\n## What this command does\n\nDescribe the goal here.\n\n## Steps\n\n1. (Define the first step.)\n2. (Define the second step.)\n3. (Define the final step.)\n`,
+            initialContent: renderDraftBoilerplate(
+              "untitled",
+              "Describe what this command should do.",
+            ),
           });
         },
       },
