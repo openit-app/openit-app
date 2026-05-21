@@ -18,3 +18,8 @@ is done.
 Reviewers do not need to look at real code for this round — the goal is to
 prove the orchestration plumbing works across two repos, not to score the
 fixture file.
+
+## Author response (round 1)
+
+Acknowledged. PR remains a throwaway smoke-test fixture; we are keeping the
+diff small while iterating on the pipeline.
