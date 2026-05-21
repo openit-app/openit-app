@@ -329,7 +329,7 @@ status: draft
 
 # /${slug}
 
-> **Draft.** Defined intent: ${intent}
+> **Draft.** Defined intent: ${oneLineIntent}
 >
 > Fill in the steps below before invoking. Claude won't auto-build a draft.
 

@@ -164,6 +164,19 @@ describe("renderDraftBoilerplate", () => {
     );
   });
 
+  it("uses the collapsed intent inside the draft blockquote so multi-line intents don't break markdown", () => {
+    // The `>` blockquote breaks the moment a non-`>` line appears,
+    // so the raw multi-line intent must not leak in here — only the
+    // newline-collapsed form belongs in the quote.
+    const body = renderDraftBoilerplate(
+      "multiline",
+      "First line.\nSecond line.\nThird line.",
+    );
+    expect(body).toContain(
+      "> **Draft.** Defined intent: First line. Second line. Third line.",
+    );
+  });
+
   it("includes the slug in the history path reminder", () => {
     const body = renderDraftBoilerplate("foo", "do the foo thing");
     expect(body).toContain("filestores/commands/foo/_history/<ms>.md");
