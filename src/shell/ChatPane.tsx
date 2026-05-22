@@ -125,13 +125,15 @@ export function ChatPane({ cwd, resume }: { cwd: string | null; resume?: boolean
     term.focus();
 
     // Shift+Enter → insert a newline in the Claude Code session. xterm's
-    // default keymap collapses Enter and Shift+Enter to the same "\r", so
-    // Claude can't distinguish them. Emit "\x1b\r" (ESC + CR) — the same
-    // sequence `claude /terminal-setup` configures Terminal.app and iTerm2
-    // to send for Shift+Enter — and Claude treats it as a newline insert.
-    // Use term.input() so the byte flows through the normal onData →
-    // ptyWrite path; that also means pre-spawn presses are silently dropped
-    // like any other key (onData isn't wired until ptySpawn resolves).
+    // default keymap collapses Enter and Shift+Enter to the same "\r"
+    // (carriage return), which Claude treats as "submit". Emit a bare "\n"
+    // (line feed) instead — Claude's input reader treats LF as a newline
+    // insert and CR as submit, so this is what `claude /terminal-setup`
+    // configures Terminal.app / iTerm2 to send on Shift+Enter. Routed
+    // through term.input() so the byte flows through the normal onData →
+    // ptyWrite path; that also means pre-spawn presses are silently
+    // dropped like any other key (onData isn't wired until ptySpawn
+    // resolves).
     term.attachCustomKeyEventHandler((e) => {
       if (e.isComposing) return true;
       if (
@@ -142,7 +144,7 @@ export function ChatPane({ cwd, resume }: { cwd: string | null; resume?: boolean
         !e.metaKey &&
         !e.altKey
       ) {
-        term.input("\x1b\r");
+        term.input("\n");
         return false;
       }
       return true;

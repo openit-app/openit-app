@@ -139,7 +139,7 @@ describe("ChatPane", () => {
   });
 
   describe("Shift+Enter newline", () => {
-    it("sends exactly one ESC+CR for Shift+Enter and suppresses default", async () => {
+    it("sends exactly one LF for Shift+Enter and suppresses default", async () => {
       render(<ChatPane cwd="/tmp/test-repo" />);
       // Wait for ptySpawn to resolve and onData to be wired.
       await new Promise((r) => setTimeout(r, 0));
@@ -152,9 +152,9 @@ describe("ChatPane", () => {
         makeKeyEvent({ shiftKey: true }),
       );
       expect(result).toBe(false); // suppresses xterm's default "\r"
-      expect(xtermCapture.inputCalls).toEqual(["\x1b\r"]);
+      expect(xtermCapture.inputCalls).toEqual(["\n"]);
       expect(ptyMock.ptyWrite).toHaveBeenCalledTimes(1);
-      expect(ptyMock.ptyWrite).toHaveBeenCalledWith(sessionIdMatcher, "\x1b\r");
+      expect(ptyMock.ptyWrite).toHaveBeenCalledWith(sessionIdMatcher, "\n");
     });
 
     it("does not intercept plain Enter", async () => {
@@ -220,7 +220,7 @@ describe("ChatPane", () => {
       ).not.toThrow();
       // term.input still received the bytes, but onData isn't wired yet,
       // so the byte is silently dropped — same as any keystroke pre-spawn.
-      expect(xtermCapture.inputCalls).toEqual(["\x1b\r"]);
+      expect(xtermCapture.inputCalls).toEqual(["\n"]);
       expect(ptyMock.ptyWrite).not.toHaveBeenCalled();
     });
   });
