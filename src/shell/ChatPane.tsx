@@ -125,15 +125,15 @@ export function ChatPane({ cwd, resume }: { cwd: string | null; resume?: boolean
     term.focus();
 
     // Shift+Enter → insert a newline in the Claude Code session. xterm's
-    // default keymap collapses Enter and Shift+Enter to the same "\r"
-    // (carriage return), which Claude treats as "submit". Emit a bare "\n"
-    // (line feed) instead — Claude's input reader treats LF as a newline
-    // insert and CR as submit, so this is what `claude /terminal-setup`
-    // configures Terminal.app / iTerm2 to send on Shift+Enter. Routed
-    // through term.input() so the byte flows through the normal onData →
-    // ptyWrite path; that also means pre-spawn presses are silently
-    // dropped like any other key (onData isn't wired until ptySpawn
-    // resolves).
+    // default keymap collapses Enter and Shift+Enter to the same "\r", so
+    // Claude can't distinguish them. Emit "\x1b\r" (ESC + CR) — the exact
+    // sequence Claude Code's own /terminal-setup configures VS Code,
+    // iTerm2, and Terminal.app (via Option-as-Meta) to send on Shift+Enter
+    // (see VS Code keybinding installed by claude.exe: command
+    // `workbench.action.terminal.sendSequence`, args.text `"\r"`).
+    // Routed through term.input() so the bytes flow through the normal
+    // onData → ptyWrite path; pre-spawn presses are silently dropped like
+    // any other key (onData isn't wired until ptySpawn resolves).
     term.attachCustomKeyEventHandler((e) => {
       if (e.isComposing) return true;
       if (
@@ -144,7 +144,9 @@ export function ChatPane({ cwd, resume }: { cwd: string | null; resume?: boolean
         !e.metaKey &&
         !e.altKey
       ) {
-        term.input("\n");
+        // Temporary debug — remove once Shift+Enter is confirmed working.
+        console.warn("[ChatPane] Shift+Enter intercepted, emitting ESC+CR");
+        term.input("\x1b\r");
         return false;
       }
       return true;
