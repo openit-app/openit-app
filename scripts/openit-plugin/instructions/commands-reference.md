@@ -11,7 +11,7 @@ Admin-facing commands the admin invokes via `/<name>` in the chat.
 | `salesforce-data-quality` | Find and fix duplicate or dirty records in Salesforce. |
 | `slack-to-knowledge` | Mine Slack history into reusable knowledge articles. |
 | `drive-search` | Search across Google Drive from a single place. |
-| `asset-tracking` | Query device or asset inventory. Who owns what. |
+| `asset-tracking` | Query device or asset inventory. Who owns what; trigger offboarding. |
 | `pipeline-outreach` | Pull pipeline reports, draft emails, update CRM records. |
 | `report` | Generate custom reports from vault data. |
 | `connect-slack` | Connect OpenIT to a Slack workspace. |
