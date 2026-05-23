@@ -330,18 +330,30 @@ export function Workbench({
   const deleteStore = useCallback(
     async (tile: ResolvedTile) => {
       if (!repo) return;
+      // Claim the lock BEFORE awaiting the confirm dialog — otherwise
+      // a rapid second click also passes this gate (the first call is
+      // still awaiting confirm, hasn't called `add` yet) and both
+      // dialogs end up opening. PIN-6612 ensemble-review finding.
       if (deletingTilesRef.current.has(tile.rel)) return;
-      const ok = await confirmDelete(
-        `Delete "${tile.label}" and all its contents?\n\nThis cannot be undone.`,
-        "Delete store?",
-      );
-      if (!ok) return;
       deletingTilesRef.current.add(tile.rel);
+      let confirmed = false;
       try {
+        const ok = await confirmDelete(
+          `Delete "${tile.label}" and all its contents?\n\nThis cannot be undone.`,
+          "Delete store?",
+        );
+        if (!ok) return;
+        confirmed = true;
         await entityRemoveDir(repo, tile.rel);
         await removeTile(tile.rel);
         showToast({ message: `Deleted ${tile.label}`, tone: "success" });
       } catch (err) {
+        if (!confirmed) {
+          // Threw during the confirm phase — propagate as silent
+          // failure of the dialog, not a user-visible delete error.
+          console.error("[workbench-delete] confirm failed:", err);
+          return;
+        }
         const reason = err instanceof Error ? err.message : String(err);
         console.error("[workbench-delete] failed:", err);
         showToast({
