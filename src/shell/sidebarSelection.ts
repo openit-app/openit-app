@@ -76,9 +76,17 @@ export function selectedRelFromSource(
       // under the repo root. Useful for files opened directly from
       // the file explorer (knowledge articles, reports, etc.) so the
       // owning station still pulses.
-      const rel = s.path.startsWith(`${repo}/`)
-        ? s.path.slice(repo.length + 1)
-        : null;
+      //
+      // Path separator differs across platforms (Windows `\` vs
+      // Unix `/`), and Tauri commands may return mixed-separator
+      // paths. Normalize both to forward slashes before the
+      // prefix/segment slicing — same pattern Workbench.tsx uses for
+      // its tile-count walks (PIN-6613 BugBot finding on sha
+      // d088355).
+      const repoN = repo.replace(/\\/g, "/");
+      const pathN = s.path.replace(/\\/g, "/");
+      const prefix = `${repoN}/`;
+      const rel = pathN.startsWith(prefix) ? pathN.slice(prefix.length) : null;
       if (!rel) return null;
       const firstSlash = rel.indexOf("/");
       if (firstSlash < 0) return null;

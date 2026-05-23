@@ -114,6 +114,30 @@ describe("selectedRelFromSource", () => {
     ).toBe("filestores/scripts");
   });
 
+  it("normalizes Windows backslash separators in file paths", () => {
+    // Tauri commands on Windows can return mixed-separator paths.
+    // Without normalization, the prefix check fails and the rail
+    // never highlights the owning tile for file-explorer opens.
+    expect(
+      selectedRelFromSource(
+        {
+          kind: "file",
+          path: `${REPO}\\databases\\people\\alice.json`,
+        },
+        REPO,
+      ),
+    ).toBe("databases/people");
+    expect(
+      selectedRelFromSource(
+        {
+          kind: "file",
+          path: "C:\\vault\\knowledge\\runbooks\\x.md",
+        },
+        "C:\\vault",
+      ),
+    ).toBe("knowledge");
+  });
+
   it("returns null for files outside the repo", () => {
     expect(
       selectedRelFromSource(
