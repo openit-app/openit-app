@@ -334,13 +334,6 @@ Before signing off, re-read this command body. If the admin's choices narrowed a
     // create-new flag on the Rust side (followup ticket), but this
     // catches the realistic case where Claude in the chat pane wrote
     // the file while the user was typing the intent.
-    //
-    // Also re-list `.claude/skills` so a system-command collision is
-    // caught even when the panel-load fsList hasn't finished yet
-    // (the cached `commands` state stays empty during that window,
-    // and submitting + New in that window would otherwise create a
-    // `filestores/commands/<system-name>.md` that shadows the
-    // built-in skill). (BugBot iter-8 finding.)
     try {
       const live = await fsList(`${repo}/filestores/commands`);
       if (cancelled()) return;
@@ -360,38 +353,40 @@ Before signing off, re-read this command body. If the admin's choices narrowed a
         });
         return;
       }
-      // System-skill check via a live fsList — runs even if the
-      // panel hasn't enumerated yet.
-      try {
-        const sysDirs = await fsList(`${repo}/.claude/skills`);
-        if (cancelled()) return;
-        const sysCollide = sysDirs.some(
-          (n) => n.is_dir && n.name.toLowerCase() === slug,
-        );
-        if (sysCollide) {
-          showToast({
-            title: `/${slug} is a system command`,
-            message:
-              "This name is reserved by a built-in command. Pick a different name for your custom command.",
-            tone: "warn",
-          });
-          return;
-        }
-      } catch {
-        // `.claude/skills` may not exist (fresh vault). Fall through.
-        if (cancelled()) return;
-      }
     } catch {
       // `filestores/commands` may not exist yet — that's fine, the
-      // write below will create it. But ANY other fsList failure
-      // (permissions, transient IO) shouldn't silently skip the
-      // collision check — fall back on the cached `commands` state
-      // we already inspected above. That cache might be stale, but
-      // it's strictly better than nothing.
+      // write below will create it. Any other failure leaves us
+      // relying on the cached `commands` state, which we already
+      // inspected above. Fall through to the system-skill check.
       if (cancelled()) return;
-      // (The cached check at the top of the function already ran;
-      //  we'd have early-returned if it found a collision. Nothing
-      //  more we can do here without a richer fs API.)
+    }
+    // System-skill collision check, in its OWN try block so a
+    // failed `filestores/commands` fsList above doesn't suppress it.
+    // BugBot iter-9 (escalated by indep reviewer): the
+    // most-common first-create scenario IS a fresh vault with no
+    // `filestores/commands/` yet — that branch throws, and we used
+    // to skip straight to `entityWriteFile` without ever checking
+    // for system-name collisions. (BugBot iter-9 finding.)
+    try {
+      const sysDirs = await fsList(`${repo}/.claude/skills`);
+      if (cancelled()) return;
+      const sysCollide = sysDirs.some(
+        (n) => n.is_dir && n.name.toLowerCase() === slug,
+      );
+      if (sysCollide) {
+        showToast({
+          title: `/${slug} is a system command`,
+          message:
+            "This name is reserved by a built-in command. Pick a different name for your custom command.",
+          tone: "warn",
+        });
+        return;
+      }
+    } catch {
+      // `.claude/skills` may not exist (fresh vault). Fall through —
+      // the cached commands check above already caught any system
+      // skill that loaded into state.
+      if (cancelled()) return;
     }
     if (cancelled()) return;
     await entityWriteFile(repo, "filestores/commands", `${slug}.md`, boilerplate);

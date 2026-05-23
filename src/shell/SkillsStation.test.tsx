@@ -542,6 +542,52 @@ describe("CommandsStation + New flow", () => {
     );
   });
 
+  it("runs the system-skill check even when filestores/commands fsList throws (fresh-vault first-create)", async () => {
+    // Regression for BugBot iter-9: on a fresh vault, filestores/
+    // commands doesn't exist and fsList throws. Previously that
+    // catch jumped past the nested system-skill check entirely, so
+    // a `+ New backup` (where backup is a built-in skill) would
+    // write `filestores/commands/backup.md` and shadow the system
+    // version invisibly. With the system check in its own try
+    // block, it must fire even when the user-skills fsList fails.
+    let initialFsListHeld = false;
+    apiMock.fsList.mockImplementation(async (path: string) => {
+      if (path.endsWith("/.claude/skills") && !initialFsListHeld) {
+        initialFsListHeld = true;
+        return new Promise(() => {}); // initial panel load hangs
+      }
+      // The live re-list of filestores/commands FAILS (fresh vault).
+      if (path.endsWith("/filestores/commands")) {
+        throw new Error("ENOENT");
+      }
+      // The live re-list of .claude/skills succeeds and returns the
+      // built-in skill — collision check must fire.
+      if (path.endsWith("/.claude/skills")) {
+        return [{ name: "backup", path: `${path}/backup`, is_dir: true }];
+      }
+      return [];
+    });
+
+    renderInToastProvider(<CommandsStation repo="/tmp/repo" onOpen={() => {}} />);
+    fireEvent.click(screen.getByRole("button", { name: "+ New" }));
+    await screen.findByRole("dialog", { name: /create new command/i });
+    fireEvent.change(screen.getByPlaceholderText("command-name"), {
+      target: { value: "backup" },
+    });
+    fireEvent.change(
+      screen.getByPlaceholderText(/what should this command do/i),
+      { target: { value: "Try to shadow backup." } },
+    );
+    fireEvent.click(screen.getByRole("button", { name: /^create$/i }));
+
+    await waitFor(() =>
+      expect(
+        screen.getByText(/system command/i),
+      ).toBeInTheDocument(),
+    );
+    expect(apiMock.entityWriteFile).not.toHaveBeenCalled();
+  });
+
   it("blocks a system-skill name collision via a live re-list even before the panel finishes loading", async () => {
     // Simulate the panel still mid-initial-load: the first fsList
     // for `.claude/skills` never resolves (so the cached commands
