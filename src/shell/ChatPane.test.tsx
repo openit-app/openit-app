@@ -62,12 +62,41 @@ describe("ChatPane", () => {
     await new Promise((r) => setTimeout(r, 0));
     ptyMock.ptyResize.mockClear();
     window.dispatchEvent(new Event("resize"));
-    await new Promise((r) => setTimeout(r, 0));
+    // ptyResize runs inside requestAnimationFrame, so wait one frame.
+    await new Promise((r) => requestAnimationFrame(() => r(null)));
     expect(ptyMock.ptyResize).toHaveBeenCalledWith(
       sessionIdMatcher,
       expect.any(Number),
       expect.any(Number),
     );
+  });
+
+  it("coalesces rapid resizes into a single settle and re-emits the final size", async () => {
+    vi.useFakeTimers();
+    try {
+      render(<ChatPane cwd="/tmp/test-repo" />);
+      // Flush spawn promises.
+      await vi.advanceTimersByTimeAsync(0);
+      ptyMock.ptyResize.mockClear();
+
+      // Burst of 10 resizes in rapid succession.
+      for (let i = 0; i < 10; i++) {
+        window.dispatchEvent(new Event("resize"));
+      }
+      // Advance to flush rAF callbacks (jsdom falls back to setTimeout).
+      await vi.advanceTimersByTimeAsync(16);
+      const liveCalls = ptyMock.ptyResize.mock.calls.length;
+      // 10 events should coalesce — at most a handful of live-phase calls,
+      // definitely not 10.
+      expect(liveCalls).toBeLessThanOrEqual(2);
+
+      // Settle fires 80ms after the last resize event.
+      await vi.advanceTimersByTimeAsync(100);
+      // Settle always re-emits the final geometry.
+      expect(ptyMock.ptyResize.mock.calls.length).toBeGreaterThan(liveCalls);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it("kills the pty session on unmount", async () => {
