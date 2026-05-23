@@ -340,13 +340,21 @@ export function ChatPane({
       // actually painted — otherwise xterm measures zero and clamps to
       // 1 column. requestAnimationFrame is enough since the toggle is
       // a synchronous style change.
-      requestAnimationFrame(() => {
+      //
+      // CRITICAL: cancel the pending frame on cleanup. Without this, a
+      // rapid visible=true → visible=false transition (user clicks a
+      // tab then immediately clicks another within one frame) leaves a
+      // queued rAF that fires AFTER the cleanup ran, stealing focus
+      // back to a now-hidden pane and yanking the cursor away from the
+      // tab the user actually selected.
+      const handle = requestAnimationFrame(() => {
         fitRef.current?.fit();
         termRef.current?.focus();
       });
-    } else {
-      clearActiveSession(id);
+      return () => cancelAnimationFrame(handle);
     }
+    clearActiveSession(id);
+    return undefined;
   }, [visible]);
 
   if (!cwd) {

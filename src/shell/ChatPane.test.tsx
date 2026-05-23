@@ -125,4 +125,20 @@ describe("ChatPane", () => {
     const root = container.firstChild as HTMLElement | null;
     expect(root?.style.display).toBe("none");
   });
+
+  it("cancels the queued requestAnimationFrame on rapid visible→hidden flip", async () => {
+    const cancelSpy = vi.spyOn(window, "cancelAnimationFrame");
+    const { rerender, unmount } = render(
+      <ChatPane cwd="/tmp/test-repo" sessionId="main-raf" visible={true} />,
+    );
+    await new Promise((r) => setTimeout(r, 0));
+    // Visible→hidden flip must cancel the pending focus/fit rAF so the
+    // hidden pane doesn't steal focus after the user already picked a
+    // different tab. The cleanup of the visible-branch effect runs the
+    // cancelAnimationFrame; we just observe the call.
+    rerender(<ChatPane cwd="/tmp/test-repo" sessionId="main-raf" visible={false} />);
+    expect(cancelSpy).toHaveBeenCalled();
+    cancelSpy.mockRestore();
+    unmount();
+  });
 });
