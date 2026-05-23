@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
-import { fsList, fsRead, entityWriteFile } from "../lib/api";
-import { isDirectChild } from "../lib/paths";
+import { fsRead, entityWriteFile } from "../lib/api";
+import { listCommands } from "../lib/commandsCatalog";
 import { writeToActiveSession } from "./activeSession";
 import { Button } from "../ui";
 import styles from "./ToolsPanel.module.css";
@@ -52,73 +52,28 @@ export function CommandsStation({
   useEffect(() => {
     let cancelled = false;
     (async () => {
-      const systemEntries: CommandEntry[] = [];
-      const customEntries: CommandEntry[] = [];
+      // Discovery + dedup lives in commandsCatalog so the tile counter
+      // and this viewer always agree on what counts as a command.
+      const refs = await listCommands(repo);
+      const entries: CommandEntry[] = await Promise.all(
+        refs.map(async (r) => {
+          let description = "";
+          try {
+            const raw = await fsRead(r.path);
+            description = extractDescription(raw);
+          } catch { /* unreadable / SKILL.md missing */ }
+          return {
+            name: r.name,
+            description,
+            path: r.path,
+            featured: FEATURED_COMMANDS.includes(r.name),
+          };
+        }),
+      );
 
-      // System commands from .claude/skills/
-      try {
-        const root = `${repo}/.claude/skills`;
-        const nodes = await fsList(root);
-        const dirs = nodes.filter((n) => n.is_dir && isDirectChild(root, n.path));
-        await Promise.all(
-          dirs.map(async (d) => {
-            const skillMdPath = `${d.path}/SKILL.md`;
-            let description = "";
-            try {
-              const raw = await fsRead(skillMdPath);
-              description = extractDescription(raw);
-            } catch { /* SKILL.md missing */ }
-            systemEntries.push({ name: d.name, description, path: skillMdPath, featured: FEATURED_COMMANDS.includes(d.name) });
-          }),
-        );
-      } catch { /* .claude/skills/ doesn't exist */ }
-
-      // Custom commands from filestores/commands/
-      try {
-        const root = `${repo}/filestores/commands`;
-        const nodes = await fsList(root);
-        const prefix = `${root.replace(/\\/g, "/")}/`;
-        const files = nodes.filter((n) => {
-          if (n.is_dir) return false;
-          const p = n.path.replace(/\\/g, "/");
-          const tail = p.startsWith(prefix) ? p.slice(prefix.length) : "";
-          if (!tail || tail.includes("/")) return false;
-          if (n.name.includes(".server.")) return false;
-          return n.name.endsWith(".md");
-        });
-        await Promise.all(
-          files.map(async (f) => {
-            const name = f.name.replace(/\.md$/, "");
-            let description = "";
-            try {
-              const raw = await fsRead(f.path);
-              description = extractDescription(raw);
-            } catch { /* unreadable */ }
-            customEntries.push({ name, description, path: f.path, featured: FEATURED_COMMANDS.includes(name) });
-          }),
-        );
-      } catch { /* filestores/commands/ doesn't exist */ }
-
-      // Deduplicate: if a name exists in both system and custom, keep
-      // the system version (it's the curated one).
-      const seen = new Set<string>();
-      const deduped: CommandEntry[] = [];
-      // System first so they win on collisions and sort to the top.
-      for (const e of systemEntries) {
-        if (!seen.has(e.name)) {
-          seen.add(e.name);
-          deduped.push(e);
-        }
-      }
-      for (const e of customEntries) {
-        if (!seen.has(e.name)) {
-          seen.add(e.name);
-          deduped.push(e);
-        }
-      }
       // Featured commands first (in Lisa's priority order), then the
       // rest alphabetically behind "Show more".
-      deduped.sort((a, b) => {
+      entries.sort((a, b) => {
         const aIdx = FEATURED_COMMANDS.indexOf(a.name);
         const bIdx = FEATURED_COMMANDS.indexOf(b.name);
         const aFeat = aIdx !== -1;
@@ -129,7 +84,7 @@ export function CommandsStation({
         return a.name.localeCompare(b.name);
       });
 
-      if (!cancelled) setCommands(deduped);
+      if (!cancelled) setCommands(entries);
     })();
     return () => { cancelled = true; };
   }, [repo, fsTick]);
