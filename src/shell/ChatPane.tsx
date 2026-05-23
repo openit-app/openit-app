@@ -126,6 +126,44 @@ export function ChatPane({ cwd, resume }: { cwd: string | null; resume?: boolean
     const focusOnClick = () => term.focus();
     containerRef.current.addEventListener("click", focusOnClick);
 
+    // Shift+Enter / Ctrl+Enter → newline-insert in Claude Code.
+    //
+    // xterm.js's default keymap collapses Enter, Shift+Enter, and
+    // Ctrl+Enter to the same "\r" (carriage return), which Claude
+    // treats as "submit". To insert a newline we must emit "\x1b\r"
+    // (ESC + CR) — the exact sequence Claude Code's own
+    // `/terminal-setup` installs as the VS Code keybinding for
+    // Shift+Enter (command `workbench.action.terminal.sendSequence`,
+    // args.text `"\x1b\r"`). Same byte sequence is what
+    // `/terminal-setup` configures Terminal.app and iTerm2 to send
+    // via Option-as-Meta.
+    //
+    // Ben's feedback (PIN-6609): users hit Shift+Return AND
+    // Ctrl+Return based on muscle memory from different editors;
+    // both must work. We bind both here. On macOS Cmd+Enter is a
+    // different chord (meta) and is intentionally NOT rebound —
+    // that's Claude Code's submit-without-confirm.
+    //
+    // Routed through `term.input()` so the byte flows through the
+    // normal `onData → ptyWrite` pipeline. That also means a
+    // pre-spawn press is silently dropped like any other key
+    // (onData isn't wired until ptySpawn resolves) — no throw, no
+    // stuck buffer.
+    term.attachCustomKeyEventHandler((e) => {
+      if (e.type !== "keydown") return true;
+      if (e.key !== "Enter") return true;
+      if (e.isComposing) return true;
+      // Shift+Enter: only shift held (no ctrl/alt/meta).
+      const isShiftEnter =
+        e.shiftKey && !e.ctrlKey && !e.altKey && !e.metaKey;
+      // Ctrl+Enter: only ctrl held (no shift/alt/meta).
+      const isCtrlEnter =
+        e.ctrlKey && !e.shiftKey && !e.altKey && !e.metaKey;
+      if (!isShiftEnter && !isCtrlEnter) return true;
+      term.input("\x1b\r");
+      return false;
+    });
+
     // Drag-drop: accept in-app drags (file explorer, entity refs) AND OS
     // file drops (Finder / Desktop). We keep `dragDropEnabled: false` in
     // tauri.conf.json because Tauri's native drag-drop handler is mutually
