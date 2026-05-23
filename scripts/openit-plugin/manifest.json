@@ -1,7 +1,15 @@
 {
-  "version": "2026-05-14-003",
+  "version": "2026-05-23-001",
   "files": [
     { "path": "CLAUDE.md" },
+    { "path": "instructions/vault-layout.md" },
+    { "path": "instructions/command-authoring.md" },
+    { "path": "instructions/knowledge-conventions.md" },
+    { "path": "instructions/tool-calling.md" },
+    { "path": "instructions/auto-vs-ask.md" },
+    { "path": "instructions/communication-style.md" },
+    { "path": "instructions/ui-side-channels.md" },
+    { "path": "instructions/commands-reference.md" },
     { "path": "commands/ai-intake.md" },
     { "path": "commands/answer-ticket.md" },
     { "path": "commands/connect-slack.md" },

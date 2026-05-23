@@ -37,6 +37,7 @@
     "resources": {
       "../scripts/openit-plugin/manifest.json": "openit-plugin/manifest.json",
       "../scripts/openit-plugin/CLAUDE.md": "openit-plugin/CLAUDE.md",
+      "../scripts/openit-plugin/instructions/*.md": "openit-plugin/instructions/",
       "../scripts/openit-plugin/commands/*.md": "openit-plugin/commands/",
       "../scripts/openit-plugin/schemas/*.json": "openit-plugin/schemas/",
       "../scripts/openit-plugin/agents/*.md": "openit-plugin/agents/",
