@@ -62,12 +62,46 @@ describe("ChatPane", () => {
     await new Promise((r) => setTimeout(r, 0));
     ptyMock.ptyResize.mockClear();
     window.dispatchEvent(new Event("resize"));
-    await new Promise((r) => setTimeout(r, 0));
+    // ptyResize runs inside requestAnimationFrame, so wait one frame.
+    await new Promise((r) => requestAnimationFrame(() => r(null)));
     expect(ptyMock.ptyResize).toHaveBeenCalledWith(
       sessionIdMatcher,
       expect.any(Number),
       expect.any(Number),
     );
+  });
+
+  it("coalesces rapid resizes — never one ptyResize per event", async () => {
+    // Pin the faked clock set so future vitest config tweaks can't
+    // silently let real rAF leak through and produce a false pass.
+    vi.useFakeTimers({
+      toFake: ["setTimeout", "clearTimeout", "requestAnimationFrame"],
+    });
+    try {
+      render(<ChatPane cwd="/tmp/test-repo" />);
+      // Flush spawn promises so onResize is wired.
+      await vi.advanceTimersByTimeAsync(0);
+      ptyMock.ptyResize.mockClear();
+
+      // Burst of 10 resizes in rapid succession.
+      for (let i = 0; i < 10; i++) {
+        window.dispatchEvent(new Event("resize"));
+      }
+      // One rAF + the 80ms settle window.
+      await vi.advanceTimersByTimeAsync(16);
+      const liveCalls = ptyMock.ptyResize.mock.calls.length;
+      // 10 events MUST coalesce — definitely not 10.
+      expect(liveCalls).toBeLessThanOrEqual(2);
+
+      await vi.advanceTimersByTimeAsync(100);
+      // Total calls (live + settle) still capped well below the event count.
+      // Note: with mocked xterm cols/rows = 0, the settle's geometry-changed
+      // gate may suppress its ptyResize. The deterministic invariant is just
+      // "coalesces" — that's what we assert.
+      expect(ptyMock.ptyResize.mock.calls.length).toBeLessThan(10);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it("kills the pty session on unmount", async () => {

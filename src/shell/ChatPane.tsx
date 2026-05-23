@@ -271,36 +271,130 @@ export function ChatPane({
         ptyWrite(SESSION_ID, data).catch((e) => console.error("pty bridge error:", e));
       });
 
-      const onResize = () => {
-        if (disposed) return;
-        fit.fit();
+      // Resize handling has two phases:
+      //
+      // 1. Live phase (during a drag / window resize): throttle to one
+      //    rAF — call `fit.fit()` + `ptyResize()` so layout stays
+      //    responsive. This sends SIGWINCH to Claude, which starts
+      //    repainting at the new geometry.
+      //
+      // 2. Settle phase (after resize stops): once we've been quiet
+      //    for SETTLE_MS, do a final `fit.fit()` + `ptyResize()` at
+      //    the final geometry, then wipe the xterm buffer with a full
+      //    clear-screen + clear-scrollback sequence. The next frame
+      //    Claude paints lands on a blank canvas, eliminating the
+      //    duplicate spinners / overlapping prompt / stale glyphs
+      //    that Ben reported (PIN-6608).
+      //
+      // Why settle (not refresh): xterm's `refresh()` only redraws
+      // what's already in its buffer at its current width. The bug
+      // is that Claude's TUI renderer is a delta-painter — when
+      // SIGWINCH fires mid-frame, its next frame doesn't always
+      // overwrite every cell from the prior (wider) frame, so old
+      // glyphs leak through. Clearing the buffer ourselves forces a
+      // full repaint from Claude's next frame onward.
+      const SETTLE_MS = 80;
+      let rafScheduled = false;
+      let settleTimer: ReturnType<typeof setTimeout> | null = null;
+      // Baseline geometry. We *don't* seed from `term.cols`/`term.rows`
+      // here — the initial `fit.fit()` at mount ran before the
+      // container settled into its post-layout size, so the first
+      // ResizeObserver fire would otherwise see a spurious delta and
+      // wipe Claude's startup banner. Instead we baseline lazily on
+      // the first settle (see `baselined` below).
+      let lastCols = -1;
+      let lastRows = -1;
+      let baselined = false;
+
+      // Wrap `fit.fit()` because it can throw on degenerate geometry
+      // (zero or NaN width when the pane is collapsed to nothing
+      // during a drag). The throw would propagate out of the rAF /
+      // setTimeout callback as an unhandled error — we'd rather log
+      // and continue at the prior size.
+      const safeFit = () => {
+        try {
+          fit.fit();
+        } catch (e) {
+          console.warn("fit.fit failed (probably zero-size pane):", e);
+        }
+      };
+
+      const sendResize = () => {
         ptyResize(SESSION_ID, term.cols, term.rows).catch((e) =>
           console.error("pty bridge error:", e),
         );
-        // Force xterm to repaint the visible buffer at the new width.
-        // Without this, lines that streamed in at the previous column
-        // count keep their original wrap points — so resizing the
-        // pane mid-stream leaves a half-broken display until the user
-        // hits Ctrl-L. New content wraps fine on its own; this only
-        // matters for already-rendered scrollback.
-        term.refresh(0, term.rows - 1);
       };
+
+      const settle = () => {
+        if (disposed) return;
+        // Final fit in case the last live-phase fit was stale.
+        safeFit();
+        const cols = term.cols;
+        const rows = term.rows;
+        const changed = cols !== lastCols || rows !== lastRows;
+        if (!baselined) {
+          // First settle after mount: don't treat the initial layout
+          // as a "resize" — capture it as the baseline and skip both
+          // the redundant SIGWINCH and the buffer clear.
+          lastCols = cols;
+          lastRows = rows;
+          baselined = true;
+          return;
+        }
+        if (!changed) {
+          // Spurious settle (focus change, scrollbar toggle, devtools
+          // open). Skip ptyResize so Claude doesn't repaint on
+          // every layout perturbation.
+          return;
+        }
+        // Geometry really did change. Re-emit the final size — the
+        // child may have missed a SIGWINCH mid-frame — then wipe the
+        // xterm buffer so Claude's next paint lands on a blank canvas.
+        sendResize();
+        // \x1b[3J → clear scrollback
+        // \x1b[2J → clear entire visible viewport
+        // \x1b[H  → move cursor to home (1,1)
+        // We write to xterm only; the child manages its own framebuffer.
+        term.write("\x1b[3J\x1b[2J\x1b[H");
+        lastCols = cols;
+        lastRows = rows;
+      };
+
+      const scheduleSettle = () => {
+        if (settleTimer) clearTimeout(settleTimer);
+        settleTimer = setTimeout(settle, SETTLE_MS);
+      };
+
+      const onResize = () => {
+        if (disposed) return;
+        if (rafScheduled) {
+          // Live tick already queued; just extend the settle window.
+          scheduleSettle();
+          return;
+        }
+        rafScheduled = true;
+        requestAnimationFrame(() => {
+          rafScheduled = false;
+          if (disposed) return;
+          safeFit();
+          sendResize();
+          scheduleSettle();
+        });
+      };
+
       window.addEventListener("resize", onResize);
       unlistens.push(() => window.removeEventListener("resize", onResize));
 
       // Catch pane-splitter drags — those don't fire window 'resize'.
-      // Throttle to one rAF so we don't ptyResize on every pixel.
-      let rafScheduled = false;
-      const observer = new ResizeObserver(() => {
-        if (rafScheduled) return;
-        rafScheduled = true;
-        requestAnimationFrame(() => {
-          rafScheduled = false;
-          onResize();
-        });
-      });
+      const observer = new ResizeObserver(() => onResize());
       if (containerRef.current) observer.observe(containerRef.current);
-      unlistens.push(() => observer.disconnect());
+      unlistens.push(() => {
+        observer.disconnect();
+        if (settleTimer) {
+          clearTimeout(settleTimer);
+          settleTimer = null;
+        }
+      });
     })();
 
     return () => {
