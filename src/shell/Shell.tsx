@@ -942,16 +942,18 @@ export function Shell({
           defaultsTotal === 0
             ? PANE_DEFAULT[id]
             : (PANE_DEFAULT[id] * 100) / defaultsTotal;
-        // autoSaveId includes the FULL paneOrder (not just the panes
-        // inside the PanelGroup) so different reorderings get
-        // independent saved layouts even when they reduce to the same
-        // collapsed configuration. Without this, paneOrder
-        // ["center","left","right"] and ["left","center","right"]
-        // would share the same collapsed key and clobber each other's
-        // remembered widths.
+        // autoSaveId key:
+        //  - expanded mode: full paneOrder so each reordering has its
+        //    own saved widths (no cross-bleed on drop).
+        //  - collapsed mode: only the panes inside the PanelGroup
+        //    (left is rendered as the fixed-width rail OUTSIDE the
+        //    group). Reordering left↔center↔right while collapsed has
+        //    no visible effect on the two remaining panes, so keying
+        //    on panelPaneOrder avoids spawning a fresh storage key
+        //    that would drop the user's previously-saved widths.
         const autoSaveId = `openit-shell-panes-${
           sidebarCollapsed ? "collapsed-" : ""
-        }${paneOrder.join("-")}`;
+        }${(sidebarCollapsed ? panelPaneOrder : paneOrder).join("-")}`;
         const railSelectedRel = selectedRelFromSource(source, repo);
         return (
           // Wrapper enforces the panes-row geometry: takes all

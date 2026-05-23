@@ -272,6 +272,7 @@ export function FileExplorer({
             onClick={onCollapse}
             title="Collapse sidebar"
             aria-label="Collapse sidebar"
+            aria-expanded={true}
           >
             <svg width={14} height={14} viewBox="0 0 14 14" fill="none" aria-hidden>
               <path d="M9 3l-4 4 4 4" stroke="currentColor" strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round" />

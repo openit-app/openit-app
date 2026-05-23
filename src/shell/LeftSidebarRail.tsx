@@ -1,5 +1,4 @@
 import { useCallback, useEffect, useState } from "react";
-import { fsList } from "../lib/api";
 import {
   loadWorkstationConfig,
   discoverTiles,
@@ -49,10 +48,6 @@ export function LeftSidebarRail({
         ]);
         if (cancelled) return;
         const { main } = mergeConfigWithDiscovery(cfg, discovered);
-        // Touch fsList once so the auto-watcher path stays warm — same
-        // pattern Workbench uses, just without count surfacing. We don't
-        // need counts in the rail (no labels mean nowhere to render them).
-        void fsList(repo).catch(() => {});
         setMainTiles(main);
       } catch (err) {
         console.warn("[left-sidebar-rail] tile load failed:", err);

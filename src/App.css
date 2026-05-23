@@ -4816,10 +4816,19 @@ input.viewer-title.viewer-title-rename {
     background var(--t-fast) var(--ease);
 }
 
-.sidebar-rail-toggle:hover,
+.sidebar-rail-toggle:hover {
+  color: var(--accent);
+  background: var(--accent-faint);
+}
+
 .sidebar-rail-toggle:focus-visible {
   color: var(--accent);
   background: var(--accent-faint);
+  /* Visible focus ring for keyboard users — `all: unset` above strips
+     the browser default, so :focus-visible must re-establish a
+     contrast-passing indicator (WCAG 2.4.7 / 1.4.11). */
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
 }
 
 .sidebar-rail-tiles {
@@ -4850,10 +4859,17 @@ input.viewer-title.viewer-title-rename {
     transform var(--t-fast) var(--ease);
 }
 
-.sidebar-rail-tile:hover,
+.sidebar-rail-tile:hover {
+  border-color: var(--tone-border, var(--accent-soft));
+  transform: translateY(-1px);
+}
+
 .sidebar-rail-tile:focus-visible {
   border-color: var(--tone-border, var(--accent-soft));
   transform: translateY(-1px);
+  /* WCAG-compliant focus ring (see .sidebar-rail-toggle). */
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
 }
 
 .sidebar-rail-tile-selected {
@@ -4893,10 +4909,17 @@ input.viewer-title.viewer-title-rename {
     background var(--t-fast) var(--ease);
 }
 
-.workbench-collapse-btn:hover,
+.workbench-collapse-btn:hover {
+  color: var(--accent);
+  background: var(--accent-faint);
+}
+
 .workbench-collapse-btn:focus-visible {
   color: var(--accent);
   background: var(--accent-faint);
+  /* WCAG-compliant focus ring (see .sidebar-rail-toggle). */
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
 }
 
 /* ─────────────────────────────────────────────────────────────────
