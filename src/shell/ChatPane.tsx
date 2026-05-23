@@ -72,6 +72,17 @@ export function ChatPane({
   useEffect(() => {
     titleCbRef.current = onTitleChange;
   }, [onTitleChange]);
+  // Mirror `visible` into a ref so the async ptySpawn IIFE checks the LIVE
+  // value when it completes, not the value captured at effect-creation time.
+  // Without this, a fast user (create tab → immediately switch back to the
+  // previous tab while the new pty is still spawning) sees the post-spawn
+  // `setActiveSession` overwrite the now-correct active id with the hidden
+  // tab's id, redirecting subsequent paste/skill-action writes to the wrong
+  // pane.
+  const visibleRef = useRef(visible);
+  useEffect(() => {
+    visibleRef.current = visible;
+  }, [visible]);
 
   // Re-fit + refocus when this tab becomes visible. Hidden panes don't get
   // ResizeObserver/window resize events that match their actual geometry,
@@ -239,7 +250,10 @@ export function ChatPane({
         return;
       }
 
-      if (visible) setActiveSession(SESSION_ID);
+      // Read through the ref so a tab-switch that happened during the
+      // ptySpawn await is honored — without this we'd clobber the active
+      // session pointer with this (now-hidden) tab's id.
+      if (visibleRef.current) setActiveSession(SESSION_ID);
 
       const unlistenData = await onPtyData(SESSION_ID, (chunk) => term.write(chunk));
       const unlistenExit = await onPtyExit(SESSION_ID, (code) => {

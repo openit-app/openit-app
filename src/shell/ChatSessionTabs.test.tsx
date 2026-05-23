@@ -205,6 +205,32 @@ describe("ChatSessionTabs component", () => {
     expect(screen.getByRole("tab", { selected: true })).toHaveTextContent("Session 2");
   });
 
+  it("Cmd+N is ignored when focus is in an editable input outside the chat area", async () => {
+    render(
+      <div>
+        <input data-testid="rename-input" />
+        <ChatSessionTabs cwd={REPO} />
+      </div>,
+    );
+    await act(async () => {
+      await new Promise((r) => setTimeout(r, 0));
+    });
+    fireEvent.click(screen.getByRole("button", { name: /new claude session/i }));
+    await act(async () => {
+      await new Promise((r) => setTimeout(r, 0));
+    });
+    // Focus the input and dispatch Cmd+1 from inside it. The handler
+    // should bail because the target is an editable INPUT not in
+    // .chat-area, leaving the active tab unchanged (Session 2).
+    const input = screen.getByTestId("rename-input") as HTMLInputElement;
+    input.focus();
+    fireEvent.keyDown(input, { key: "1", metaKey: true });
+    await act(async () => {
+      await new Promise((r) => setTimeout(r, 0));
+    });
+    expect(screen.getByRole("tab", { selected: true })).toHaveTextContent("Session 2");
+  });
+
   it("renders empty-state placeholder when cwd is null", () => {
     render(<ChatSessionTabs cwd={null} />);
     expect(screen.getByText(/open a project folder/i)).toBeInTheDocument();

@@ -86,6 +86,30 @@ export function nextDefaultLabel(existing: ChatSessionMeta[]): string {
   return `Session ${n}`;
 }
 
+/// Build the initial tab state for a given cwd. Reused on first mount and
+/// on every cwd-change to keep the render output and the active session id
+/// strictly consistent with the cwd we're handing the ChatPane children.
+function initTabState(cwd: string | null): {
+  cwd: string | null;
+  tabs: ChatSessionMeta[];
+  activeId: string | null;
+} {
+  if (!cwd) {
+    return { cwd, tabs: [], activeId: null };
+  }
+  const loaded = loadTabs(cwd);
+  if (loaded.length === 0) {
+    const seed: ChatSessionMeta = {
+      id: newSessionId(),
+      label: "Session 1",
+      resume: false,
+    };
+    persistTabs(cwd, [seed]);
+    return { cwd, tabs: [seed], activeId: seed.id };
+  }
+  return { cwd, tabs: loaded, activeId: loaded[0].id };
+}
+
 export interface ChatSessionTabsHandle {
   newSession: () => void;
   resumeSession: () => void;
@@ -100,36 +124,50 @@ export interface ChatSessionTabsProps {
 }
 
 export function ChatSessionTabs({ cwd, registerHandle }: ChatSessionTabsProps) {
-  const [tabs, setTabs] = useState<ChatSessionMeta[]>(() => loadTabs(cwd));
-  const [activeId, setActiveId] = useState<string | null>(() => {
-    const initial = loadTabs(cwd);
-    return initial[0]?.id ?? null;
-  });
+  // Track which cwd the current `tabs` state belongs to. When `cwd` changes,
+  // we synchronously rebuild tabs during render (rather than waiting for a
+  // post-render effect) so we never render ChatPanes whose session ids belong
+  // to a different repo than the cwd we're handing them — that race would
+  // spawn-and-immediately-kill claude PTYs in the wrong working directory.
+  const [tabState, setTabState] = useState<{
+    cwd: string | null;
+    tabs: ChatSessionMeta[];
+    activeId: string | null;
+  }>(() => initTabState(cwd));
 
-  // When the repo changes (project switch), reload tabs for the new repo
-  // and ensure we always have at least one session so the user never
-  // stares at an empty tab strip.
-  useEffect(() => {
-    if (!cwd) {
-      setTabs([]);
-      setActiveId(null);
-      return;
-    }
-    const loaded = loadTabs(cwd);
-    if (loaded.length === 0) {
-      const seed: ChatSessionMeta = {
-        id: newSessionId(),
-        label: "Session 1",
-        resume: false,
-      };
-      setTabs([seed]);
-      setActiveId(seed.id);
-      persistTabs(cwd, [seed]);
-    } else {
-      setTabs(loaded);
-      setActiveId(loaded[0].id);
-    }
-  }, [cwd]);
+  // Sync rebuild on cwd change (mid-render is fine: same component, new
+  // input). React batches the resulting setState into the current commit.
+  if (cwd !== tabState.cwd) {
+    setTabState(initTabState(cwd));
+  }
+
+  const { tabs, activeId } = tabState;
+
+  const setTabs = useCallback(
+    (updater: ChatSessionMeta[] | ((prev: ChatSessionMeta[]) => ChatSessionMeta[])) => {
+      setTabState((prev) => {
+        const nextTabs =
+          typeof updater === "function"
+            ? (updater as (p: ChatSessionMeta[]) => ChatSessionMeta[])(prev.tabs)
+            : updater;
+        return prev.tabs === nextTabs ? prev : { ...prev, tabs: nextTabs };
+      });
+    },
+    [],
+  );
+
+  const setActiveId = useCallback(
+    (updater: string | null | ((current: string | null) => string | null)) => {
+      setTabState((prev) => {
+        const nextId =
+          typeof updater === "function"
+            ? (updater as (c: string | null) => string | null)(prev.activeId)
+            : updater;
+        return prev.activeId === nextId ? prev : { ...prev, activeId: nextId };
+      });
+    },
+    [],
+  );
 
   // Persist on every change. Keep this effect-driven (rather than baked
   // into every setTabs call) so all mutation paths — add, close, rename
@@ -139,27 +177,26 @@ export function ChatSessionTabs({ cwd, registerHandle }: ChatSessionTabsProps) {
     persistTabs(cwd, tabs);
   }, [cwd, tabs]);
 
-  const addSession = useCallback(
-    (opts: { resume?: boolean } = {}) => {
-      setTabs((prev) => {
-        const next: ChatSessionMeta = {
-          id: newSessionId(),
-          label: nextDefaultLabel(prev),
-          resume: !!opts.resume,
-        };
-        const updated = [...prev, next];
-        setActiveId(next.id);
-        return updated;
-      });
-    },
-    [],
-  );
+  // addSession / closeSession update tabs and activeId atomically through
+  // setTabState, so the activeId always references a live tab — no nested
+  // setState updaters, no risk of an orphaned active id between the two
+  // reductions.
+  const addSession = useCallback((opts: { resume?: boolean } = {}) => {
+    setTabState((prev) => {
+      const next: ChatSessionMeta = {
+        id: newSessionId(),
+        label: nextDefaultLabel(prev.tabs),
+        resume: !!opts.resume,
+      };
+      return { ...prev, tabs: [...prev.tabs, next], activeId: next.id };
+    });
+  }, []);
 
   const closeSession = useCallback((id: string) => {
-    setTabs((prev) => {
-      const idx = prev.findIndex((t) => t.id === id);
+    setTabState((prev) => {
+      const idx = prev.tabs.findIndex((t) => t.id === id);
       if (idx === -1) return prev;
-      const updated = prev.filter((t) => t.id !== id);
+      const updated = prev.tabs.filter((t) => t.id !== id);
       // Guarantee at least one tab — closing the last tab spawns a
       // fresh Session 1 so the right pane is never empty.
       if (updated.length === 0) {
@@ -168,16 +205,11 @@ export function ChatSessionTabs({ cwd, registerHandle }: ChatSessionTabsProps) {
           label: "Session 1",
           resume: false,
         };
-        setActiveId(fresh.id);
-        return [fresh];
+        return { ...prev, tabs: [fresh], activeId: fresh.id };
       }
-      setActiveId((current) => {
-        if (current !== id) return current;
-        // Activate the neighbour to the left, or the new first tab.
-        const fallback = updated[Math.max(0, idx - 1)];
-        return fallback.id;
-      });
-      return updated;
+      const nextActive =
+        prev.activeId === id ? updated[Math.max(0, idx - 1)].id : prev.activeId;
+      return { ...prev, tabs: updated, activeId: nextActive };
     });
   }, []);
 
@@ -225,14 +257,36 @@ export function ChatSessionTabs({ cwd, registerHandle }: ChatSessionTabsProps) {
       if (!mod || e.altKey || e.shiftKey) return;
       const n = Number(e.key);
       if (!Number.isInteger(n) || n < 1 || n > 9) return;
+      // Skip when focus is in an editable control so the shortcut doesn't
+      // hijack Cmd+1 in a rename input, the command palette, etc. The
+      // terminal pane uses xterm's hidden textarea (which IS contentEditable
+      // via inputmode), but we want the shortcut to work there — so check
+      // for the chat-area ancestor as an explicit pass-through.
+      const t = e.target as (HTMLElement & { closest?: HTMLElement["closest"] }) | null;
+      // `closest` is only on Element — when the event target is window
+      // (e.g. dispatched programmatically) we skip the editable guard
+      // entirely; nothing's focused so the shortcut should fire.
+      if (t && typeof t.closest === "function") {
+        const tag = t.tagName;
+        const editable =
+          (tag === "INPUT" && (t as HTMLInputElement).type !== "checkbox" && (t as HTMLInputElement).type !== "radio") ||
+          tag === "TEXTAREA" ||
+          tag === "SELECT" ||
+          t.isContentEditable;
+        const inChat = t.closest(".chat-area") !== null;
+        if (editable && !inChat) return;
+      }
       const target = tabs[n - 1];
       if (!target) return;
       e.preventDefault();
       setActiveId(target.id);
     };
-    window.addEventListener("keydown", onKey, true);
-    return () => window.removeEventListener("keydown", onKey, true);
-  }, [tabs]);
+    // Listen at bubble phase (not capture) so a focused editable that
+    // explicitly preventDefaults the key wins — matches every other app
+    // shortcut convention.
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [tabs, setActiveId]);
 
   const onTitleChangeFor = useMemo(() => {
     // Stable per-id callbacks so panes don't see a new callback identity
