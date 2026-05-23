@@ -334,6 +334,13 @@ Before signing off, re-read this command body. If the admin's choices narrowed a
     // create-new flag on the Rust side (followup ticket), but this
     // catches the realistic case where Claude in the chat pane wrote
     // the file while the user was typing the intent.
+    //
+    // Also re-list `.claude/skills` so a system-command collision is
+    // caught even when the panel-load fsList hasn't finished yet
+    // (the cached `commands` state stays empty during that window,
+    // and submitting + New in that window would otherwise create a
+    // `filestores/commands/<system-name>.md` that shadows the
+    // built-in skill). (BugBot iter-8 finding.)
     try {
       const live = await fsList(`${repo}/filestores/commands`);
       if (cancelled()) return;
@@ -352,6 +359,27 @@ Before signing off, re-read this command body. If the admin's choices narrowed a
           tone: "warn",
         });
         return;
+      }
+      // System-skill check via a live fsList — runs even if the
+      // panel hasn't enumerated yet.
+      try {
+        const sysDirs = await fsList(`${repo}/.claude/skills`);
+        if (cancelled()) return;
+        const sysCollide = sysDirs.some(
+          (n) => n.is_dir && n.name.toLowerCase() === slug,
+        );
+        if (sysCollide) {
+          showToast({
+            title: `/${slug} is a system command`,
+            message:
+              "This name is reserved by a built-in command. Pick a different name for your custom command.",
+            tone: "warn",
+          });
+          return;
+        }
+      } catch {
+        // `.claude/skills` may not exist (fresh vault). Fall through.
+        if (cancelled()) return;
       }
     } catch {
       // `filestores/commands` may not exist yet — that's fine, the
@@ -392,7 +420,17 @@ Before signing off, re-read this command body. If the admin's choices narrowed a
     // submit until Claude finished acknowledging the first one (PTY
     // writes can stall for hundreds of ms on a busy session).
     // (Independent reviewer iter-4 finding.)
-    creatingRef.current = false;
+    //
+    // Gen-check: only clear if THIS pipeline still owns the guard.
+    // Cancel-then-restart can install a new pipeline (P2) before our
+    // entityWriteFile resolves — and cancelNewCommand clears the
+    // guard, then P2 sets it again. If we unconditionally cleared
+    // here we'd steal P2's guard and allow a third concurrent click
+    // to slip through and produce a duplicate Claude handoff for the
+    // same slug. (Independent reviewer iter-8 finding.)
+    if (createGenRef.current === gen) {
+      creatingRef.current = false;
+    }
     // Hand the intent off to Claude alongside the file path. Building
     // this prompt server-side (here) instead of relying on the
     // template means Claude gets the user's ask verbatim in its first

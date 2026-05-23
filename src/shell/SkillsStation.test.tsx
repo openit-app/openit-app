@@ -288,6 +288,79 @@ describe("CommandsStation + New flow", () => {
     expect(activeSessionMock.writeToActiveSession).not.toHaveBeenCalled();
   });
 
+  it("cancelled P1's late inline release does not steal a concurrent P2's double-submit guard", async () => {
+    // Sequence: Create alpha (P1) → entityWriteFile suspends → Cancel
+    // (clears guard, bumps gen) → +New → fill beta → Create (P2,
+    // grabs guard). Now P1's write resolves and hits the inline
+    // `creatingRef.current = false` early-release at the
+    // point-of-no-return. WITHOUT the gen-check on that line, it
+    // would clear P2's guard, letting a third Create slip through
+    // and produce a duplicate handoff for beta. WITH the check,
+    // P1's gen no longer matches, the inline release is skipped,
+    // and the guard stays owned by P2.
+    let resolveAlphaWrite: (() => void) | null = null;
+    let alphaWriteStarted = false;
+    apiMock.entityWriteFile.mockImplementation(async () => {
+      if (!alphaWriteStarted) {
+        alphaWriteStarted = true;
+        return new Promise<void>((res) => {
+          resolveAlphaWrite = res;
+        });
+      }
+      // beta's write resolves immediately so it can proceed.
+    });
+
+    renderInToastProvider(<CommandsStation repo="/tmp/repo" onOpen={() => {}} />);
+    fireEvent.click(screen.getByRole("button", { name: "+ New" }));
+    await screen.findByRole("dialog", { name: /create new command/i });
+    fireEvent.change(screen.getByPlaceholderText("command-name"), {
+      target: { value: "alpha" },
+    });
+    fireEvent.change(
+      screen.getByPlaceholderText(/what should this command do/i),
+      { target: { value: "Suspended write." } },
+    );
+    fireEvent.click(screen.getByRole("button", { name: /^create$/i }));
+    await new Promise((r) => setTimeout(r, 0));
+
+    // Cancel alpha — bumps gen and releases guard.
+    fireEvent.click(screen.getByRole("button", { name: /cancel/i }));
+    // Reopen, fill beta, submit.
+    fireEvent.click(screen.getByRole("button", { name: "+ New" }));
+    await screen.findByRole("dialog", { name: /create new command/i });
+    fireEvent.change(screen.getByPlaceholderText("command-name"), {
+      target: { value: "beta" },
+    });
+    fireEvent.change(
+      screen.getByPlaceholderText(/what should this command do/i),
+      { target: { value: "Real one." } },
+    );
+    fireEvent.click(screen.getByRole("button", { name: /^create$/i }));
+    await new Promise((r) => setTimeout(r, 0));
+    await new Promise((r) => setTimeout(r, 0));
+
+    // P2 (beta) is now in flight. Release P1 (alpha). Its inline
+    // creatingRef release must SKIP (gen mismatch). beta's guard
+    // stays armed.
+    resolveAlphaWrite?.();
+    await new Promise((r) => setTimeout(r, 0));
+    await new Promise((r) => setTimeout(r, 0));
+
+    // The exact assertion that matters: a third Create click while
+    // P2 is still mid-flight must be blocked, NOT slip through.
+    // We can detect this by checking that no third write fires.
+    const writeCountBeforeThirdClick = apiMock.entityWriteFile.mock.calls.length;
+    // Form is still showing beta because P2 hasn't reset it. Click
+    // Create again to try to trigger P3.
+    const createBtn = screen.queryByRole("button", { name: /^create$/i });
+    if (createBtn) {
+      fireEvent.click(createBtn);
+      await new Promise((r) => setTimeout(r, 0));
+    }
+    // No additional entityWriteFile call — the guard held.
+    expect(apiMock.entityWriteFile.mock.calls.length).toBe(writeCountBeforeThirdClick);
+  });
+
   it("cancel-mid-create releases the double-submit guard so a follow-up create still works", async () => {
     // Regression for the high-severity 9942cb0 issue: gen-gating the
     // outer finally meant a cancel-mid-fsList path skipped the
@@ -467,6 +540,48 @@ describe("CommandsStation + New flow", () => {
     await waitFor(() =>
       expect(activeSessionMock.writeToActiveSession).toHaveBeenCalledTimes(1),
     );
+  });
+
+  it("blocks a system-skill name collision via a live re-list even before the panel finishes loading", async () => {
+    // Simulate the panel still mid-initial-load: the first fsList
+    // for `.claude/skills` never resolves (so the cached commands
+    // state stays empty). Submitting `+ New` for a system name in
+    // that window must still be blocked by the live re-list inside
+    // createNewCommandInner.
+    let initialFsListHeld = false;
+    apiMock.fsList.mockImplementation(async (path: string) => {
+      // The initial-load call to `.claude/skills` hangs.
+      if (path.endsWith("/.claude/skills") && !initialFsListHeld) {
+        initialFsListHeld = true;
+        return new Promise(() => {}); // never resolves
+      }
+      // The live re-list inside createNewCommandInner returns the
+      // system skill so the collision check fires.
+      if (path.endsWith("/.claude/skills")) {
+        return [{ name: "backup", path: `${path}/backup`, is_dir: true }];
+      }
+      if (path.endsWith("/filestores/commands")) return [];
+      return [];
+    });
+
+    renderInToastProvider(<CommandsStation repo="/tmp/repo" onOpen={() => {}} />);
+    fireEvent.click(screen.getByRole("button", { name: "+ New" }));
+    await screen.findByRole("dialog", { name: /create new command/i });
+    fireEvent.change(screen.getByPlaceholderText("command-name"), {
+      target: { value: "backup" },
+    });
+    fireEvent.change(
+      screen.getByPlaceholderText(/what should this command do/i),
+      { target: { value: "Override the built-in." } },
+    );
+    fireEvent.click(screen.getByRole("button", { name: /^create$/i }));
+
+    await waitFor(() =>
+      expect(
+        screen.getByText(/system command/i),
+      ).toBeInTheDocument(),
+    );
+    expect(apiMock.entityWriteFile).not.toHaveBeenCalled();
   });
 
   it("normalises Windows backslash paths when classifying system vs user collisions", async () => {

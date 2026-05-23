@@ -68,6 +68,39 @@ describe("writeToActiveSession", () => {
     expect(aEnterIdx).toBeLessThan(bBodyIdx);
   });
 
+  it("drops a queued write if the active session is cleared before it runs", async () => {
+    setActiveSession("doomed");
+    // Hold the first write so the chain queues the second behind it.
+    let resolveFirst: (() => void) | null = null;
+    ptyMock.ptyWrite.mockImplementationOnce(
+      () =>
+        new Promise<void>((res) => {
+          resolveFirst = res;
+        }),
+    );
+    ptyMock.ptyWrite.mockImplementation(async (sessionId: string, data: string) => {
+      ptyMock.events.push({ sessionId, data, at: Date.now() });
+    });
+
+    const a = writeToActiveSession("first\r");
+    const b = writeToActiveSession("second\r");
+
+    // While the first write is suspended, the active session is
+    // cleared (Claude pane closed, etc.). The second queued write
+    // must drop with false instead of writing to the stale id.
+    await new Promise((r) => setTimeout(r, 0));
+    clearActiveSession("doomed");
+    resolveFirst?.();
+
+    const errSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+    expect(await a).toBe(true);
+    expect(await b).toBe(false);
+    errSpy.mockRestore();
+
+    // The second write's payload never reached the PTY.
+    expect(ptyMock.events.find((e) => e.data === "second")).toBeUndefined();
+  });
+
   it("a thrown write in one caller does not poison the chain for the next", async () => {
     setActiveSession("test-session");
     let callCount = 0;
