@@ -126,6 +126,20 @@ export function Viewer({
   const [binaryData, setBinaryData] = useState<Uint8Array | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [mode, setMode] = useState<ViewMode>("rendered");
+  // In-flight guard for the standalone Command-file Delete button in
+  // the viewer header (PIN-6612). The card-grid delete buttons get
+  // this for free from EntityCardGrid, but the header button is a
+  // plain <Button> and would re-fire on rapid clicks.
+  //
+  // Two parallel structures: `commandDeletingRef` is the synchronous
+  // truth used by the click handler — it must be set BEFORE we await
+  // confirmDelete, otherwise two rapid clicks can each open a confirm
+  // dialog and a double-confirm fires two `entityDeleteFile` calls
+  // (BugBot Round 2 finding). `commandDeleting` mirrors the ref into
+  // state so the button's `disabled`/`aria-busy` attributes update on
+  // the next render.
+  const commandDeletingRef = useRef(false);
+  const [commandDeleting, setCommandDeleting] = useState(false);
 
   // Self-loaded table data for datastore-table
   const [tableItems, setTableItems] = useState<MemoryItem[]>([]);
@@ -1648,7 +1662,13 @@ export function Viewer({
                   showToast(`Deleted filestore ${c.displayName}`);
                   onFsChange?.();
                 } catch (err) {
+                  const reason = err instanceof Error ? err.message : String(err);
                   console.error("[filestore-delete] failed:", err);
+                  showToast({
+                    title: `Failed to delete filestore ${c.displayName}`,
+                    message: reason,
+                    tone: "critical",
+                  });
                 }
               } : undefined,
             };
@@ -1821,7 +1841,13 @@ export function Viewer({
                   showToast(`Deleted database ${dbLabel}`);
                   onFsChange?.();
                 } catch (err) {
+                  const reason = err instanceof Error ? err.message : String(err);
                   console.error("[db-delete] failed:", err);
+                  showToast({
+                    title: `Failed to delete database ${dbLabel}`,
+                    message: reason,
+                    tone: "critical",
+                  });
                 }
               } : undefined,
             };
@@ -2258,26 +2284,46 @@ export function Viewer({
             variant="ghost"
             tone="destructive"
             size="sm"
+            disabled={commandDeleting}
+            aria-busy={commandDeleting}
             onClick={async () => {
               if (source.kind !== "file") return;
+              // Synchronous ref check + claim BEFORE any await — two
+              // rapid clicks both pass a React-state guard (the
+              // setState hasn't committed yet) and end up each
+              // opening a confirm dialog. The ref is updated
+              // immediately so the second click bails.
+              if (commandDeletingRef.current) return;
+              commandDeletingRef.current = true;
+              setCommandDeleting(true);
               const filename = basename(source.path) || "";
               const dir = dirname(source.path);
-              const ok = await confirmDelete(
-                `Delete command "${filename.replace(/\.md$/, "")}"?\n\nThis cannot be undone.`,
-                "Delete command?",
-              );
-              if (!ok) return;
               try {
+                const ok = await confirmDelete(
+                  `Delete command "${filename.replace(/\.md$/, "")}"?\n\nThis cannot be undone.`,
+                  "Delete command?",
+                );
+                if (!ok) return;
                 await entityDeleteFile(repo, toRepoRelative(repo, dir), filename);
+                showToast(`Deleted ${filename.replace(/\.md$/, "")}`);
                 // Navigate back to commands list
                 if (onOpenPath) void onOpenPath(`${repo}/filestores/commands`);
               } catch (err) {
+                const reason = err instanceof Error ? err.message : String(err);
                 console.error("[command-delete] failed:", err);
+                showToast({
+                  title: `Failed to delete ${filename}`,
+                  message: reason,
+                  tone: "critical",
+                });
+              } finally {
+                commandDeletingRef.current = false;
+                setCommandDeleting(false);
               }
             }}
-            title="Delete this command"
+            title={commandDeleting ? "Deleting command…" : "Delete this command"}
           >
-            Delete
+            {commandDeleting ? "Deleting…" : "Delete"}
           </Button>
         )}
         {showRowTabs && (

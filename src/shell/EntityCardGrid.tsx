@@ -1,4 +1,4 @@
-import { useEffect, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import { ENTITY_META, type EntityKind } from "./entityIcons";
 import { TrashIcon } from "./TrashIcon";
 import { PlayIcon } from "./PlayIcon";
@@ -34,7 +34,14 @@ export type EntityCard = {
    *  confirmation prompt — the grid just wires the click + stops
    *  propagation so the card's `onClick` doesn't fire. Also bound
    *  to Backspace/Delete when the card is focused, and exposed
-   *  as a "Delete" entry in the right-click context menu. */
+   *  as a "Delete" entry in the right-click context menu.
+   *
+   *  PIN-6612: while the returned promise is pending, the grid keeps
+   *  the button disabled and ignores duplicate activations keyed by
+   *  `card.key` — repeated clicks ("slamming the delete button") no
+   *  longer fire multiple backend deletes. Handlers should additionally
+   *  show a user-visible error (toast) on rejection — the grid logs
+   *  to the devtools console as a backstop. */
   onDelete?: () => void | Promise<void>;
   /** When set, the right-click context menu shows a "Reveal in
    *  Finder" entry that calls this handler. */
@@ -81,6 +88,35 @@ export function EntityCardGrid({
     y: number;
   } | null>(null);
 
+  // Per-card delete in-flight tracking (PIN-6612). Keyed by card.key so
+  // a file-watcher-triggered re-render (which rebuilds the cards array)
+  // doesn't release the lock while the underlying delete is still
+  // pending. State is mirrored in a ref because two pointer events in
+  // the same React event cycle both observe the same stale state — the
+  // ref read is synchronous and catches the race.
+  const [deleting, setDeleting] = useState<ReadonlySet<string>>(() => new Set());
+  const deletingRef = useRef<Set<string>>(new Set());
+
+  const runDelete = useCallback(
+    async (cardKey: string, fn: () => void | Promise<void>) => {
+      if (deletingRef.current.has(cardKey)) return;
+      deletingRef.current.add(cardKey);
+      setDeleting(new Set(deletingRef.current));
+      try {
+        await fn();
+      } catch (err) {
+        // Handlers own user-visible error surfacing (toast). Logging
+        // here is a backstop so a handler that forgets isn't fully
+        // silent in the devtools console.
+        console.error(`[entity-card-grid] delete handler threw for ${cardKey}:`, err);
+      } finally {
+        deletingRef.current.delete(cardKey);
+        setDeleting(new Set(deletingRef.current));
+      }
+    },
+    [],
+  );
+
   // Dismiss the menu on Escape or any click outside.
   useEffect(() => {
     if (!menu) return;
@@ -103,6 +139,7 @@ export function EntityCardGrid({
   }
 
   const activeCard = menu ? cards.find((c) => c.key === menu.cardKey) : null;
+  const activeDeleting = activeCard ? deleting.has(activeCard.key) : false;
 
   return (
     <div className={`entity-grid entity-tone-${meta.tone}`}>
@@ -111,6 +148,8 @@ export function EntityCardGrid({
           key={c.key}
           card={c}
           fallbackIcon={meta.icon}
+          isDeleting={deleting.has(c.key)}
+          runDelete={runDelete}
           onContextMenu={(x, y) => {
             if (!c.onDelete && !c.onReveal && !c.onAddToClaude) return;
             setMenu({ cardKey: c.key, x, y });
@@ -161,16 +200,19 @@ export function EntityCardGrid({
                 variant="ghost"
                 tone="destructive"
                 className="context-menu-item"
+                disabled={activeDeleting}
                 onClick={() => {
                   // The onDelete handler runs its own window.confirm()
                   // — duplicating it here with an arm-twice click
                   // forced three clicks to delete from the menu. Drop
                   // straight into the handler.
-                  void activeCard.onDelete?.();
+                  const handler = activeCard.onDelete;
+                  if (!handler) return;
+                  void runDelete(activeCard.key, handler);
                   setMenu(null);
                 }}
               >
-                Delete
+                {activeDeleting ? "Deleting…" : "Delete"}
               </Button>
             )}
           </div>
@@ -183,10 +225,14 @@ export function EntityCardGrid({
 function EntityCardItem({
   card: c,
   fallbackIcon,
+  isDeleting,
+  runDelete,
   onContextMenu,
 }: {
   card: EntityCard;
   fallbackIcon: ReactNode;
+  isDeleting: boolean;
+  runDelete: (cardKey: string, fn: () => void | Promise<void>) => Promise<void>;
   onContextMenu: (x: number, y: number) => void;
 }) {
   const [dragOver, setDragOver] = useState(false);
@@ -220,11 +266,17 @@ function EntityCardItem({
   // its own confirm() so a fat-finger keystroke can't silently nuke
   // a file. Only clickable cards (which render as <button>) can
   // receive focus, so this is naturally scoped.
+  //
+  // PIN-6612: route through runDelete so a held-down Backspace key
+  // doesn't fire repeat invocations while the first delete is in
+  // flight.
   const onKeyDown = c.onDelete
     ? (e: React.KeyboardEvent) => {
         if (e.key === "Backspace" || e.key === "Delete") {
           e.preventDefault();
-          void c.onDelete?.();
+          const handler = c.onDelete;
+          if (!handler || isDeleting) return;
+          void runDelete(c.key, handler);
         }
       }
     : undefined;
@@ -305,18 +357,28 @@ function EntityCardItem({
           size="sm"
           iconOnly
           className="entity-card-delete"
-          title={`Delete ${c.title}`}
-          aria-label={`Delete ${c.title}`}
+          title={isDeleting ? `Deleting ${c.title}…` : `Delete ${c.title}`}
+          aria-label={isDeleting ? `Deleting ${c.title}` : `Delete ${c.title}`}
+          aria-busy={isDeleting}
+          disabled={isDeleting}
           // Pointer flow: fire on mousedown, not click. The button's
           // `:active` rule does a translateY(1px) — between mousedown
           // and mouseup the button moves out from under the cursor,
           // mouseup lands on the card behind it, and click never fires
           // on the trash button itself. mousedown is the actual commit
           // signal we want for pointer activations.
+          //
+          // PIN-6612 click-storm guard: runDelete dedupes by card.key
+          // for the lifetime of the in-flight promise. The disabled
+          // attribute above also blocks default activation, but we
+          // still guard here defensively — mousedown reaches us even
+          // on a disabled button in some webview builds.
           onMouseDown={(e) => {
             e.stopPropagation();
             e.preventDefault();
-            void c.onDelete?.();
+            const handler = c.onDelete;
+            if (!handler || isDeleting) return;
+            void runDelete(c.key, handler);
           }}
           // Keyboard flow: Enter/Space activation dispatches a click
           // *without* a preceding mousedown — those clicks have
@@ -328,7 +390,9 @@ function EntityCardItem({
             e.stopPropagation();
             e.preventDefault();
             if (e.detail === 0) {
-              void c.onDelete?.();
+              const handler = c.onDelete;
+              if (!handler || isDeleting) return;
+              void runDelete(c.key, handler);
             }
           }}
         >

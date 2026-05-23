@@ -15,6 +15,7 @@ import {
 import { IconPicker } from "./IconPicker";
 import { Button } from "../ui";
 import { confirmDelete } from "./viewers";
+import { useToast } from "../Toast";
 
 // ── Helpers ──────────────────────────────────────────────────────────
 
@@ -71,6 +72,12 @@ export function Workbench({
   const [mainTiles, setMainTiles] = useState<ResolvedTile[]>([]);
   const [moreTiles, setMoreTiles] = useState<ResolvedTile[]>([]);
   const [counts, setCounts] = useState<Record<string, number>>({});
+  const { show: showToast } = useToast();
+  // Per-tile in-flight delete tracking (PIN-6612). Rapid clicks on the
+  // same store's trash glyph dedupe to a single backend
+  // `entityRemoveDir`; failure surfaces as a critical toast instead of
+  // silent `console.error`.
+  const deletingTilesRef = useRef<Set<string>>(new Set());
   const prevCountsRef = useRef<Record<string, number> | null>(null);
   const highlightTimerRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   // Suppress count-based highlights for the first 15 seconds after
@@ -328,19 +335,42 @@ export function Workbench({
   const deleteStore = useCallback(
     async (tile: ResolvedTile) => {
       if (!repo) return;
-      const ok = await confirmDelete(
-        `Delete "${tile.label}" and all its contents?\n\nThis cannot be undone.`,
-        "Delete store?",
-      );
-      if (!ok) return;
+      // Claim the lock BEFORE awaiting the confirm dialog — otherwise
+      // a rapid second click also passes this gate (the first call is
+      // still awaiting confirm, hasn't called `add` yet) and both
+      // dialogs end up opening. PIN-6612 ensemble-review finding.
+      if (deletingTilesRef.current.has(tile.rel)) return;
+      deletingTilesRef.current.add(tile.rel);
+      let confirmed = false;
       try {
+        const ok = await confirmDelete(
+          `Delete "${tile.label}" and all its contents?\n\nThis cannot be undone.`,
+          "Delete store?",
+        );
+        if (!ok) return;
+        confirmed = true;
         await entityRemoveDir(repo, tile.rel);
         await removeTile(tile.rel);
+        showToast({ message: `Deleted ${tile.label}`, tone: "success" });
       } catch (err) {
+        if (!confirmed) {
+          // Threw during the confirm phase — propagate as silent
+          // failure of the dialog, not a user-visible delete error.
+          console.error("[workbench-delete] confirm failed:", err);
+          return;
+        }
+        const reason = err instanceof Error ? err.message : String(err);
         console.error("[workbench-delete] failed:", err);
+        showToast({
+          title: `Failed to delete ${tile.label}`,
+          message: reason,
+          tone: "critical",
+        });
+      } finally {
+        deletingTilesRef.current.delete(tile.rel);
       }
     },
-    [repo, removeTile],
+    [repo, removeTile, showToast],
   );
 
   const customizeTile = useCallback(
