@@ -22,12 +22,10 @@ type CommandEntry = {
   name: string;
   description: string;
   path: string;
-  /** Whether this is a featured command that Lisa cares about. */
-  featured: boolean;
 };
 
 // Commands that map directly to Lisa's pain points, in priority order.
-// Everything not in this list goes behind "Show more".
+// These sort to the top of the list; everything else follows alphabetically.
 const FEATURED_COMMANDS: string[] = [
   "load-sample-data",        // Populate workspace with sample data
   "cleanup",                 // Remove sample data
@@ -47,8 +45,9 @@ const FEATURED_COMMANDS: string[] = [
 /**
  * CommandsStation — flat list of slash commands with a visible Run
  * button on each row. Merges system (.claude/skills/) and custom
- * (filestores/commands/) into one deduplicated list. System commands
- * appear first; extras are behind "Show more".
+ * (filestores/commands/) into one deduplicated list. Featured commands
+ * sort to the top; the rest follow alphabetically. All commands render
+ * by default — no truncation.
  */
 export function CommandsStation({
   repo,
@@ -60,7 +59,6 @@ export function CommandsStation({
   onOpen: (path: string) => void;
 }) {
   const [commands, setCommands] = useState<CommandEntry[]>([]);
-  const [showAll, setShowAll] = useState(false);
   const { show: showToast } = useToast();
 
   useEffect(() => {
@@ -86,7 +84,9 @@ export function CommandsStation({
       );
 
       // Featured commands first (in Lisa's priority order), then the
-      // rest alphabetically behind "Show more".
+      // rest alphabetically. Discovery + dedup happens in
+      // `commandsCatalog.listCommands` so the tile count agrees with
+      // this list (PIN-6610).
       entries.sort((a, b) => {
         const aIdx = FEATURED_COMMANDS.indexOf(a.name);
         const bIdx = FEATURED_COMMANDS.indexOf(b.name);
@@ -107,15 +107,11 @@ export function CommandsStation({
   const [newName, setNewName] = useState("");
   const [newIntent, setNewIntent] = useState("");
 
-  // When searching, show all matches (ignore fold). Otherwise fold at featured.
+  // Show every command by default. Search narrows the list in place.
   const q = search.toLowerCase();
-  const filtered = q
+  const visible = q
     ? commands.filter((c) => c.name.includes(q) || c.description.toLowerCase().includes(q))
     : commands;
-  const featuredCount = filtered.filter((c) => c.featured).length;
-  const foldAt = Math.max(featuredCount, 1);
-  const visible = q || showAll ? filtered : filtered.slice(0, foldAt);
-  const hiddenCount = filtered.length - foldAt;
   const [showNewInput, setShowNewInput] = useState(false);
   // In-flight guard: a fast double-click on Create (or Enter +
   // immediate second Enter) could otherwise launch two write
@@ -573,26 +569,6 @@ Before signing off, re-read this command body. If the admin's choices narrowed a
               )}
             </div>
           ))}
-
-          {hiddenCount > 0 && !q && (
-            <button
-              type="button"
-              onClick={() => setShowAll((v) => !v)}
-              style={{
-                all: "unset",
-                cursor: "pointer",
-                textAlign: "center",
-                padding: "10px 0",
-                fontSize: 13,
-                color: "var(--text-muted)",
-                fontWeight: 500,
-              }}
-            >
-              {showAll
-                ? "Show less"
-                : `Show ${hiddenCount} more command${hiddenCount === 1 ? "" : "s"}`}
-            </button>
-          )}
         </div>
       )}
     </div>
