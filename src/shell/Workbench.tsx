@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { fsList, fsRead, entityRemoveDir, type FileNode } from "../lib/api";
 import { listTasks, tallyTasks, type TaskCounts } from "../lib/tasks";
 import { listInstalled as listInstalledTools } from "../lib/toolsInstall";
+import { countCommands } from "../lib/commandsCatalog";
 import { iconForKey, type ToneKey } from "./entityIcons";
 import {
   loadWorkstationConfig,
@@ -153,23 +154,16 @@ export function Workbench({
             }
             return;
           }
-          // Commands (filestores/commands) — count both .claude/skills dirs + custom skills
+          // Commands (filestores/commands) — defer to the shared catalog
+          // so the tile count always matches the number of entries the
+          // Commands viewer (SkillsStation) actually renders. See
+          // `src/lib/commandsCatalog.ts` for the canonical filter.
           if (t.rel === "filestores/commands") {
-            let slashCount = 0;
-            let customCount = 0;
             try {
-              const slashRoot = `${repo}/.claude/skills`;
-              const slashItems = await fsList(slashRoot);
-              slashCount = directChildren(slashItems, slashRoot).filter((n) => n.is_dir).length;
-            } catch { /* .claude/skills/ may not exist */ }
-            try {
-              const customRoot = `${repo}/filestores/commands`;
-              const customItems = await fsList(customRoot);
-              customCount = directChildren(customItems, customRoot).filter(
-                (n) => !n.is_dir && n.name.endsWith(".md"),
-              ).length;
-            } catch { /* filestores/commands/ may not exist */ }
-            next[t.rel] = slashCount + customCount;
+              next[t.rel] = await countCommands(repo);
+            } catch {
+              next[t.rel] = 0;
+            }
             return;
           }
           // Everything else — standard counting
