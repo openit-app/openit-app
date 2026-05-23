@@ -1,11 +1,8 @@
-import { fsRead, fsList, entityWriteFile } from "../../../lib/api";
-import { loadOpenitConfig } from "../../../lib/openitConfig";
+import { fsRead, fsList } from "../../../lib/api";
 import { isDirectChild } from "../../../lib/paths";
 import type {
   AccessSummary,
   AssetSummary,
-  ConversationThreadSummary,
-  ConversationTurn,
   PersonSummary,
   ViewerSource,
 } from "../../viewerTypes";
@@ -57,291 +54,6 @@ export async function resolveDatastoreRow(
   } catch {
     return { kind: "file", path };
   }
-}
-
-/**
- * databases/tickets/ -- conversations-list (one card per ticket
- * with subject/status/last-activity from the ticket file + message
- * count from the corresponding conversations subfolder). The user
- * mental model is "tickets" -- one entry -- so we route the click
- * there and hide the underlying `conversations` folder elsewhere.
- * Older code paths may still hit `databases/conversations`; we
- * alias both paths through the same resolver.
- */
-export async function resolveConversationsList(
-  repo: string,
-): Promise<ViewerSource> {
-  try {
-    const ticketsDir = `${repo}/databases/tickets`;
-    const conversationsDir = `${repo}/databases/conversations`;
-    const ticketNodes = await fsList(ticketsDir);
-    const threads: ConversationThreadSummary[] = [];
-    for (const node of ticketNodes) {
-      if (node.is_dir) continue;
-      // Depth-1 filter -- fs_list is recursive.
-      if (!isDirectChild(ticketsDir, node.path)) continue;
-      if (!node.name.endsWith(".json")) continue;
-      if (node.name === "_schema.json") continue;
-      if (node.name.includes(".server.")) continue;
-
-      const ticketId = node.name.replace(/\.json$/, "");
-      let subject = "";
-      let asker = "";
-      let status = "";
-      let createdAt = "";
-      let tags: string[] = [];
-      try {
-        const raw = await fsRead(node.path);
-        const ticket = JSON.parse(raw);
-        if (ticket && typeof ticket === "object") {
-          subject = typeof ticket.subject === "string" ? ticket.subject : "";
-          asker = typeof ticket.asker === "string" ? ticket.asker : "";
-          status = typeof ticket.status === "string" ? ticket.status : "";
-          createdAt = typeof ticket.createdAt === "string" ? ticket.createdAt : "";
-          tags = Array.isArray(ticket.tags)
-            ? ticket.tags.filter((v: unknown): v is string => typeof v === "string")
-            : [];
-        }
-      } catch {
-        /* unparseable -- keep defaults; fall back to ticketId in subject */
-      }
-
-      // Look up the conversation folder for message count + last
-      // activity. Missing folder = brand-new ticket with no turns
-      // yet (the chat-intake server creates it on first turn).
-      const threadDir = `${conversationsDir}/${ticketId}`;
-      let turnCount = 0;
-      let lastTurnAt = "";
-      let firstBody = "";
-      try {
-        const msgs = await fsList(threadDir);
-        msgs.sort((a, b) => a.name.localeCompare(b.name));
-        for (const m of msgs) {
-          if (m.is_dir) continue;
-          if (!isDirectChild(threadDir, m.path)) continue;
-          if (!m.name.endsWith(".json")) continue;
-          if (m.name.includes(".server.")) continue;
-          turnCount += 1;
-          try {
-            const raw = await fsRead(m.path);
-            const parsed = JSON.parse(raw);
-            if (parsed && typeof parsed === "object") {
-              const ts = typeof parsed.timestamp === "string" ? parsed.timestamp : "";
-              if (ts > lastTurnAt) lastTurnAt = ts;
-              if (!firstBody && parsed.role === "asker" && typeof parsed.body === "string") {
-                firstBody = parsed.body;
-              }
-            }
-          } catch {
-            /* skip unparseable */
-          }
-        }
-      } catch {
-        /* no thread folder yet */
-      }
-
-      threads.push({
-        ticketId,
-        subject: subject || firstBody.split("\n")[0].slice(0, 80) || ticketId,
-        asker,
-        status,
-        createdAt: createdAt || lastTurnAt,
-        lastTurnAt,
-        turnCount,
-        tags,
-      });
-    }
-    // Lifecycle walkers: auto-escalate stale `open` tickets and
-    // auto-close stale `resolved` tickets. Both run passive-on-view --
-    // rewriting the JSON here means the on-disk truth changes the
-    // next time the list renders, which keeps the rule consistent
-    // across reloads without a separate cron. Hour thresholds and
-    // both transitions are admin-tunable via `.openit/config.json`;
-    // setting either threshold to `0` disables that walker.
-    const cfg = await loadOpenitConfig(repo);
-    const staleOpenMs = cfg.ticketLifecycle.autoEscalateOpenAfterHours * 60 * 60 * 1000;
-    const autoCloseMs = cfg.ticketLifecycle.autoCloseResolvedAfterHours * 60 * 60 * 1000;
-    const nowMs = Date.now();
-    await Promise.all(
-      threads.map(async (t) => {
-        // -- auto-escalate `open` past stale window --
-        if (staleOpenMs > 0 && t.status === "open" && t.lastTurnAt) {
-          const lastMs = Date.parse(t.lastTurnAt);
-          if (!Number.isNaN(lastMs) && nowMs - lastMs >= staleOpenMs) {
-            try {
-              const ticketPath = `${ticketsDir}/${t.ticketId}.json`;
-              const raw = await fsRead(ticketPath);
-              const parsed = JSON.parse(raw) as Record<string, unknown>;
-              // Re-check on disk to avoid racing a concurrent write
-              // (e.g. an admin reply that just escalated this ticket).
-              if (parsed.status === "open") {
-                parsed.status = "escalated";
-                parsed.updatedAt = new Date(nowMs).toISOString().replace(/\.\d+Z$/, "Z");
-                const existingTags = Array.isArray(parsed.tags)
-                  ? parsed.tags.filter((v: unknown): v is string => typeof v === "string")
-                  : [];
-                if (!existingTags.includes("auto-escalated")) {
-                  existingTags.push("auto-escalated");
-                }
-                parsed.tags = existingTags;
-                // Stamp the internal notes field so an admin opening the
-                // ticket sees the *reason* for the escalation. Append-only:
-                // preserve any existing notes the admin or agent has already
-                // written.
-                const hours = cfg.ticketLifecycle.autoEscalateOpenAfterHours;
-                const noteLine = `Escalated for time (no asker reply in ${hours}h).`;
-                const existingNotes =
-                  typeof parsed.notes === "string" ? parsed.notes : "";
-                if (!existingNotes.includes(noteLine)) {
-                  parsed.notes = existingNotes
-                    ? `${existingNotes.replace(/\s+$/, "")}\n${noteLine}`
-                    : noteLine;
-                }
-                await entityWriteFile(
-                  repo,
-                  "databases/tickets",
-                  `${t.ticketId}.json`,
-                  JSON.stringify(parsed, null, 2),
-                );
-                t.status = "escalated";
-                t.tags = existingTags;
-                return;
-              }
-            } catch {
-              /* unparseable / missing -- leave status as-is */
-            }
-          }
-        }
-        // -- auto-close `resolved` past close window --
-        // The resolve-time anchor is the ticket's `updatedAt` --
-        // `mark_status` (intake.rs) stamps it on every status flip,
-        // and an asker follow-up that re-opens a resolved ticket
-        // flips it to `agent-responding` (so we won't false-trigger
-        // here). Walker only writes when the on-disk status is still
-        // `resolved` to avoid racing concurrent writes.
-        if (autoCloseMs > 0 && t.status === "resolved") {
-          try {
-            const ticketPath = `${ticketsDir}/${t.ticketId}.json`;
-            const raw = await fsRead(ticketPath);
-            const parsed = JSON.parse(raw) as Record<string, unknown>;
-            if (parsed.status !== "resolved") return;
-            const updatedAt = typeof parsed.updatedAt === "string" ? parsed.updatedAt : "";
-            const resolvedAtMs = Date.parse(updatedAt);
-            if (Number.isNaN(resolvedAtMs)) return;
-            if (nowMs - resolvedAtMs < autoCloseMs) return;
-            parsed.status = "closed";
-            parsed.updatedAt = new Date(nowMs).toISOString().replace(/\.\d+Z$/, "Z");
-            const existingTags = Array.isArray(parsed.tags)
-              ? parsed.tags.filter((v: unknown): v is string => typeof v === "string")
-              : [];
-            if (!existingTags.includes("auto-closed")) {
-              existingTags.push("auto-closed");
-            }
-            parsed.tags = existingTags;
-            await entityWriteFile(
-              repo,
-              "databases/tickets",
-              `${t.ticketId}.json`,
-              JSON.stringify(parsed, null, 2),
-            );
-            t.status = "closed";
-            t.tags = existingTags;
-          } catch {
-            /* unparseable / missing -- leave status as-is */
-          }
-        }
-      }),
-    );
-    threads.sort((a, b) => b.lastTurnAt.localeCompare(a.lastTurnAt));
-
-    // Load the tickets schema so the conversations-list header can
-    // offer a "+ New" button that drafts a new ticket via RowEditForm.
-    let ticketsCollection: DataCollection | undefined;
-    try {
-      const schemaRaw = await fsRead(`${repo}/databases/tickets/_schema.json`);
-      const schema = JSON.parse(schemaRaw);
-      ticketsCollection = { id: "", name: "tickets", type: "datastore", numItems: threads.length, schema };
-    } catch { /* no schema — + New button won't render */ }
-
-    return { kind: "conversations-list", threads, collection: ticketsCollection };
-  } catch {
-    return { kind: "file", path: `${repo}/databases/tickets` };
-  }
-}
-
-/**
- * databases/conversations/<ticketId>/ directory -- conversation-thread
- * (read every msg-*.json under the subfolder, sort by timestamp).
- * Match before the generic datastore-table rule so conversation
- * subfolders don't get rendered as tables.
- */
-export async function resolveConversationThread(
-  path: string,
-  repo: string,
-  ticketId: string,
-): Promise<ViewerSource> {
-  // Try to read conversation turns from the thread folder.
-  try {
-    const nodes = await fsList(path);
-    const turns: ConversationTurn[] = [];
-    for (const node of nodes) {
-      if (node.is_dir) continue;
-      // Depth-1 filter -- fs_list is recursive.
-      if (!isDirectChild(path, node.path)) continue;
-      if (!node.name.endsWith(".json")) continue;
-      if (node.name.includes(".server.")) continue;
-      try {
-        const raw = await fsRead(node.path);
-        const parsed = JSON.parse(raw);
-        if (parsed && typeof parsed === "object") {
-          const attachments = Array.isArray((parsed as { attachments?: unknown }).attachments)
-            ? ((parsed as { attachments?: unknown[] }).attachments ?? []).filter(
-                (v): v is string => typeof v === "string",
-              )
-            : undefined;
-          turns.push({
-            id: typeof parsed.id === "string" ? parsed.id : node.name,
-            ticketId: typeof parsed.ticketId === "string" ? parsed.ticketId : ticketId,
-            role: typeof parsed.role === "string" ? parsed.role : "asker",
-            sender: typeof parsed.sender === "string" ? parsed.sender : "",
-            timestamp: typeof parsed.timestamp === "string" ? parsed.timestamp : "",
-            body: typeof parsed.body === "string" ? parsed.body : "",
-            ...(attachments && attachments.length > 0 ? { attachments } : {}),
-          });
-        }
-      } catch {
-        /* skip unparseable */
-      }
-    }
-    if (turns.length > 0) {
-      turns.sort((a, b) => a.timestamp.localeCompare(b.timestamp));
-      return { kind: "conversation-thread", ticketId, turns };
-    }
-  } catch {
-    /* no conversation folder — fall through to ticket detail */
-  }
-
-  // No conversation turns (manually created ticket or empty thread).
-  // Fall back to the ticket JSON as a datastore-row detail card.
-  try {
-    const ticketPath = `${repo}/databases/tickets/${ticketId}.json`;
-    const raw = await fsRead(ticketPath);
-    const content = JSON.parse(raw);
-    let schema;
-    try {
-      const schemaRaw = await fsRead(`${repo}/databases/tickets/_schema.json`);
-      schema = JSON.parse(schemaRaw);
-    } catch { /* no schema */ }
-    return {
-      kind: "datastore-row",
-      collection: { id: "", name: "tickets", type: "datastore", numItems: 0, schema },
-      item: { id: ticketId, key: ticketId, content, createdAt: "", updatedAt: "" },
-    };
-  } catch {
-    /* ticket JSON also missing — fall through to file */
-  }
-
-  return { kind: "file", path };
 }
 
 /**
@@ -540,30 +252,14 @@ export async function resolveDatabasesList(
       // `conversations/`). Keep only direct children of `databases/`
       // -- those are the actual collections.
       if (!isDirectChild(path, sd.path)) continue;
-      // Hide the `conversations` collection from the databases
-      // overview. Conversations are folder-of-msg-*.json data tied
-      // to a specific ticket; the ticket-list view (which we route
-      // `databases/tickets` to below) shows them aggregated as
-      // chat-thread cards. Showing both was repetitive.
-      if (sd.name === "conversations") continue;
       let itemCount = 0;
       let hasSchema = false;
       try {
         const inner = await fsList(sd.path);
         for (const node of inner) {
-          // Same depth-1 filter as above -- counting `inner`
-          // recursively would over-count (every msg-*.json inside
-          // every thread for `conversations`, etc.).
           if (!isDirectChild(sd.path, node.path)) continue;
           if (node.name === "_schema.json") {
             hasSchema = true;
-            continue;
-          }
-          // Conversations is a folder-of-folders (one dir per
-          // ticketId, msg-*.json files inside) so use dir count
-          // there. For everything else count row files.
-          if (sd.name === "conversations") {
-            if (node.is_dir) itemCount += 1;
             continue;
           }
           if (node.is_dir) continue;
@@ -576,9 +272,7 @@ export async function resolveDatabasesList(
       }
       collections.push({ name: sd.name, path: sd.path, itemCount, hasSchema });
     }
-    // Sort alphabetically so the order is deterministic -- built-ins
-    // (conversations / people / tickets) end up adjacent and any
-    // user-created collections fall in their natural place.
+    // Sort alphabetically so the order is deterministic.
     collections.sort((a, b) => a.name.localeCompare(b.name));
     return { kind: "databases-list", collections };
   } catch {

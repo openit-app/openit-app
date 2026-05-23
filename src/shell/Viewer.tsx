@@ -39,8 +39,7 @@ import {
   toRepoRelative,
   confirmDelete,
   uploadFilesToSubdir,
-  ConversationsListBody,
-  ConversationThreadBody,
+  TasksViewer,
   DatastoreTableBody,
   DatastoreRowBody,
   DatastoreSchemaBody,
@@ -77,15 +76,13 @@ type ToneKey = "accent" | "sage" | "ochre" | "link" | "clay" | "neutral";
 const FS_DEFAULTS: Record<string, { icon: string; tone: ToneKey; label: string }> = {
   skills:      { icon: "commands",    tone: "accent",  label: "Commands" },
   scripts:     { icon: "scripts",     tone: "link",    label: "Scripts" },
-  attachments: { icon: "attachments", tone: "neutral", label: "Attachments" },
   library:     { icon: "folder",      tone: "neutral", label: "Library" },
 };
 
 const DB_DEFAULTS: Record<string, { icon: string; tone: ToneKey; label: string; description: string }> = {
-  people:  { icon: "person", tone: "sage",   label: "People",  description: "Contacts directory — employees, vendors, and external contacts referenced by tickets and access audits." },
+  people:  { icon: "person", tone: "sage",   label: "People",  description: "Contacts directory — employees, vendors, and external contacts." },
   access:  { icon: "access", tone: "sage",   label: "Access",  description: "Onboard/offboard audit log — who was granted or revoked access, when, and to what role." },
   assets:  { icon: "assets", tone: "clay",   label: "Assets",  description: "Device and equipment inventory — laptops, monitors, licenses, and their assignment status." },
-  tickets: { icon: "inbox",  tone: "accent", label: "Inbox",   description: "Support tickets from chat intake and Slack. Tracks status, escalation, and resolution." },
 };
 
 export function Viewer({
@@ -111,9 +108,9 @@ export function Viewer({
    *  welcome doc is already the active source. Triggers a one-shot flash
    *  animation so the click doesn't look like a no-op. */
   welcomeFlashKey?: number;
-  /** Open another path in the viewer (used by the conversations-list
-   *  cards to drill into a specific thread). Optional — falls back to
-   *  no-op if the parent didn't wire it. */
+  /** Open another path in the viewer (used by various list views to
+   *  drill into a specific item). Optional — falls back to no-op if
+   *  the parent didn't wire it. */
   onOpenPath?: (path: string) => void | Promise<void>;
   /** Programmatically route the viewer to a non-path source (e.g.
    *  the captured stdout/stderr of a script run). The parent owns
@@ -145,20 +142,9 @@ export function Viewer({
   // on-disk file changes (fsTick) so the table/raw view updates
   // without re-clicking.
   const [rowOverride, setRowOverride] = useState<MemoryItem | null>(null);
-  // Filter for the conversations-list view. `all` shows every thread;
-  // the others narrow by ticket status. Persists across click+reopen
-  // of the conversations folder within the same session, but resets
-  // when the project (repo) changes — the filter is per-project, not
-  // global.
-  const [conversationsFilter, setConversationsFilter] =
-    useState<"all" | "open" | "resolved" | "escalated">("all");
-  useEffect(() => {
-    setConversationsFilter("all");
-  }, [repo]);
-
   // People view-mode toggle (Cards / Table). Default cards; sticks
-  // for the lifetime of this Viewer instance so flipping into a
-  // ticket and back doesn't reset the admin's preferred mode.
+  // for the lifetime of this Viewer instance so flipping between
+  // views doesn't reset the admin's preferred mode.
   const [peopleView, setPeopleView] = useState<"cards" | "table">("cards");
   const [accessView, setAccessView] = useState<"cards" | "table">("cards");
   const [assetsView, setAssetsView] = useState<"cards" | "table">("cards");
@@ -255,8 +241,6 @@ export function Viewer({
   const [agentEditFss, setAgentEditFss] = useState<string[] | null>(null);
   const [agentOverride, setAgentOverride] = useState<Agent | null>(null);
 
-  // Admin email for the conversation thread sub-viewer.
-  const [adminEmail, setAdminEmail] = useState<string | null>(null);
   const [folderUploadError, setFolderUploadError] = useState<string | null>(null);
   // v5: the in-viewer ToastView was removed. The global ToastProvider
   // (mounted in main.tsx via src/Toast.tsx) renders all toasts at the
@@ -314,24 +298,6 @@ export function Viewer({
     setNewCollectionKind(null);
     setNewCollectionName("");
   }, [source]);
-  useEffect(() => {
-    // Fetch the admin's email once and cache it so the composer
-    // doesn't re-invoke for every thread open. Falls back to "admin"
-    // if user.email isn't set globally.
-    let cancelled = false;
-    (async () => {
-      try {
-        const { globalUserEmail } = await import("../lib/api");
-        const email = await globalUserEmail();
-        if (!cancelled) setAdminEmail(email);
-      } catch {
-        /* leave as null — composer falls back to "admin" */
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, []);
   useEffect(() => {
     setEditDraft("");
     setRowEditDraft({});
@@ -458,12 +424,7 @@ export function Viewer({
       setContent("");
       return;
     }
-    if (source.kind === "conversation-thread") {
-      setMode("rendered");
-      setContent("");
-      return;
-    }
-    if (source.kind === "conversations-list") {
+    if (source.kind === "tasks-list") {
       setMode("rendered");
       setContent("");
       return;
@@ -479,11 +440,6 @@ export function Viewer({
       return;
     }
     if (source.kind === "filestores-list") {
-      setMode("rendered");
-      setContent("");
-      return;
-    }
-    if (source.kind === "attachments-folder") {
       setMode("rendered");
       setContent("");
       return;
@@ -627,7 +583,6 @@ export function Viewer({
     reports: "reports", library: "filestores/library",
     scripts: "filestores/scripts", skills: "filestores/commands",
     agents: "agents", workflows: "workflows",
-    attachments: "filestores/attachments",
   };
   const sourceRel: string | null = (() => {
     if (!source) return null;
@@ -637,7 +592,7 @@ export function Viewer({
       case "people-list": return "databases/people";
       case "access-list": return "databases/access";
       case "assets-list": return "databases/assets";
-      case "conversations-list": return "databases/tickets";
+      case "tasks-list": return "tasks";
       case "tools": return "tools";
       case "commands-station": return "filestores/commands";
       case "scripts-station": return "filestores/scripts";
@@ -673,8 +628,7 @@ export function Viewer({
       case "datastore-row": return `${source.item?.key || source.item?.id || "Row"}.json`;
       case "agent": return source.agent?.name ?? "Agent";
       case "workflow": return source.workflow?.name ?? "Workflow";
-      case "conversation-thread": return source.ticketId;
-      case "conversations-list": return "Inbox";
+      case "tasks-list": return "Tasks";
       case "entity-folder": {
         if (source.entity === "knowledge" || source.entity === "knowledge-base") {
           return "Knowledge";
@@ -683,7 +637,6 @@ export function Viewer({
       }
       case "databases-list":     return "Databases";
       case "filestores-list":    return "Filestores";
-      case "attachments-folder": return "Attachments";
       case "knowledge-list": return "Knowledge";
       case "agent-trace":
         return source.subject || source.ticketId;
@@ -721,8 +674,6 @@ export function Viewer({
   const showPeopleTabs = source.kind === "people-list";
   const showAccessTabs = source.kind === "access-list";
   const showAssetsTabs = source.kind === "assets-list";
-  const showConversationsFilter = source.kind === "conversations-list";
-
   // Path used by the "add to chat →" header link. Any source that maps
   // to a real on-disk file or folder Claude can reference goes through
   // this — keeps the link offer consistent across viewers without
@@ -737,8 +688,8 @@ export function Viewer({
       if (skillMatch) return `/${skillMatch[1]}`;
       return source.path;
     }
-    if (source.kind === "conversation-thread")
-      return `/answer-ticket databases/tickets/${source.ticketId}.json`;
+    if (source.kind === "tasks-list")
+      return `${repo}/tasks`;
     if (source.kind === "datastore-row")
       return `${repo}/databases/${source.collection.name}/${source.item.key || source.item.id}.json`;
     if (source.kind === "datastore-table")
@@ -761,23 +712,12 @@ export function Viewer({
       return `${repo}/databases`;
     if (source.kind === "filestores-list")
       return `${repo}/filestores`;
-    if (source.kind === "conversations-list")
-      return `${repo}/databases/conversations`;
     if (source.kind === "agent")
       return source.path;
     if (source.kind === "workflow")
       return `${repo}/workflows/${source.workflow.id || source.workflow.name}.json`;
     return null;
   })();
-
-  // Ticket id for the "Conversation" header link on attachments
-  // subfolders (filestores/attachments/<ticketId>/). Lets admins jump
-  // from the file list back to the related thread without re-walking
-  // the file tree.
-  const attachmentsTicketId: string | null =
-    source && source.kind === "entity-folder" && source.entity === "attachments-ticket"
-      ? source.path.replace(/^filestores\/attachments\//, "")
-      : null;
 
   // "run" affordance in the viewer-subheader for runnable script
   // files (.mjs / .js / .cjs / .py living anywhere — gates on
@@ -986,23 +926,6 @@ export function Viewer({
     }
   }
 
-  // reference until fsTick triggers a new resolver run.
-  const conversationCounts: Record<
-    "all" | "open" | "resolved" | "escalated",
-    number
-  > = { all: 0, open: 0, resolved: 0, escalated: 0 };
-  if (source.kind === "conversations-list") {
-    conversationCounts.all = source.threads.length;
-    for (const t of source.threads) {
-      if (t.status === "open" || t.status === "agent-responding") {
-        conversationCounts.open += 1;
-      } else if (t.status === "resolved" || t.status === "closed") {
-        conversationCounts.resolved += 1;
-      } else if (t.status === "escalated") {
-        conversationCounts.escalated += 1;
-      }
-    }
-  }
   // The sync stream and the diff view are the two cases where the
   // user's natural next step is "paste this into Claude". The
   // "add to chat" affordance pastes the contents into the active Claude
@@ -1042,7 +965,6 @@ export function Viewer({
   // the content). Everything else uses the canonical pane padding so
   // content's left edge sits in the same place across pages.
   const flushBody =
-    source.kind === "conversation-thread" ||
     (source.kind === "datastore-row" && mode === "edit") ||
     (source.kind === "datastore-schema" && mode === "edit") ||
     (source.kind === "file" &&
@@ -1394,11 +1316,11 @@ export function Viewer({
 
     // Datastore table view — generic datastores with a schema get
     // a Cards / Table toggle. Well-known collections (people, access,
-    // assets, tickets, conversations) keep their dedicated renderers.
+    // assets) keep their dedicated renderers.
     if (source.kind === "datastore-table") {
       const hasCardView =
         source.collection.schema &&
-        !["people", "access", "assets", "tickets", "conversations"].includes(source.collection.name);
+        !["people", "access", "assets"].includes(source.collection.name);
       if (hasCardView && datastoreView === "cards") {
         return (
           <GenericRecordCardsBody
@@ -1573,18 +1495,17 @@ export function Viewer({
       );
     }
 
-    // Conversations list — one clickable card per thread, sorted by
-    // most-recent activity.
-    if (source.kind === "conversations-list") {
+    // Tasks list — the new Inbox. Three sections (todo / in-progress /
+    // complete) with one-click status cycling.
+    if (source.kind === "tasks-list") {
       return (
-        <ConversationsListBody
-          threads={source.threads}
-          intakeUrl={intakeUrl}
-          conversationsFilter={conversationsFilter}
+        <TasksViewer
+          tasks={source.tasks}
           repo={repo}
-          onOpenPath={onOpenPath}
-          setFolderUploadError={setFolderUploadError}
-          showToast={showToast}
+          onOpenTask={(path) => {
+            if (onOpenPath) void onOpenPath(path);
+          }}
+          onChanged={() => onFsChange?.()}
         />
       );
     }
@@ -1645,7 +1566,7 @@ export function Viewer({
 
     // Top-level `filestores/` parent. Two cards (attachments,
     // library) — same layout as databases-list. Click attachments →
-    // attachments-folder welcome stub. Click library → entity-folder
+    // filestores-list cards. Click library → entity-folder
     // file view.
     if (source.kind === "knowledge-list") {
       return (
@@ -1758,12 +1679,10 @@ export function Viewer({
                 ? undefined
                 : { label: "custom", tone: "info" as const },
               onClick: () => onOpenPath && void onOpenPath(c.path),
-              // Attachments collection is per-ticket — dropping into the
-              // generic folder would have nowhere meaningful to land. The
-              // remaining built-in (`library`) and any user-created
-              // filestore accept drops to their on-disk subdir.
+              // Built-ins (`library`) and any user-created filestore
+              // accept drops to their on-disk subdir.
               onFilesDropped:
-                repo && c.name !== "attachments"
+                repo
                   ? (files) =>
                       uploadFilesToSubdir(repo, c.path, files, setFolderUploadError, showToast)
                   : undefined,
@@ -1816,7 +1735,7 @@ export function Viewer({
       if (source.folders.length === 0) {
         return (
           <div className="viewer-summary">
-            <p className="summary-desc">No agent traces yet. Traces appear here when the AI agent handles tickets.</p>
+            <p className="summary-desc">No agent traces yet. Traces appear here when the chat intake agent runs.</p>
           </div>
         );
       }
@@ -1831,25 +1750,11 @@ export function Viewer({
                   onClick={() => onOpenPath && void onOpenPath(f.path)}
                   title={`View ${f.traceCount} turn${f.traceCount === 1 ? "" : "s"}`}
                 >
-                  <div className="thread-card-row" style={{ display: "flex", alignItems: "center", justifyContent: "space-between", paddingRight: 0 }}>
-                    <div style={{ minWidth: 0 }}>
-                      <span className="thread-card-subject">{f.subject}</span>
-                      <div className="thread-card-meta">
-                        <span className="thread-card-count">{f.traceCount} turn{f.traceCount === 1 ? "" : "s"}</span>
-                      </div>
+                  <div className="thread-card-row">
+                    <span className="thread-card-subject">{f.subject}</span>
+                    <div className="thread-card-meta">
+                      <span className="thread-card-count">{f.traceCount} turn{f.traceCount === 1 ? "" : "s"}</span>
                     </div>
-                    <Button
-                      variant="link"
-                      size="sm"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        if (onOpenPath) void onOpenPath(`${repo}/databases/tickets/${f.name}.json`);
-                      }}
-                      title="Open ticket"
-                      style={{ flexShrink: 0 }}
-                    >
-                      ticket →
-                    </Button>
                   </div>
                 </button>
               </div>
@@ -1863,50 +1768,12 @@ export function Viewer({
       return <ScriptsStation repo={repo} fsTick={fsTick} onOpen={(p) => onOpenPath && void onOpenPath(p)} onShowSource={onShowSource} />;
     }
 
-    // `filestores/attachments/` welcome stub + per-ticket roll-up.
-    // The lead paragraph explains what lives in this folder so an
-    // admin clicking it for the first time understands the split
-    // from `library/`. Below, one card per ticket subfolder routes
-    // back to the conversation thread — that's where attachments
-    // belong contextually, alongside the messages they came in
-    // with.
-    if (source.kind === "attachments-folder") {
-      return (
-        <div className="viewer-summary">
-          <EntityCardGrid
-            kind="attachments"
-            empty={
-              <p className="summary-desc">
-                No attachments yet. Files dropped into a chat or admin reply land here, grouped by ticket.
-              </p>
-            }
-            cards={source.tickets.map((t) => ({
-              key: t.ticketId,
-              title: t.ticketId,
-              meta: `${t.fileCount} file${t.fileCount === 1 ? "" : "s"}`,
-              onClick: () => {
-                // Open the actual attachments folder for this ticket.
-                // The viewer adds a "Conversation" link in the header
-                // so admins can still jump to the related thread
-                // when they need context.
-                if (onOpenPath) {
-                  void onOpenPath(t.path);
-                }
-              },
-              onReveal: () => void fsReveal(t.path).catch(console.error),
-            }))}
-          />
-        </div>
-      );
-    }
-
     // Top-level `databases/` parent. Each subfolder is a collection
-    // with its own row format (datastore-table for tickets/people,
-    // conversations-list for conversations). The parent view here
-    // surfaces an at-a-glance overview — name, item count, schema
-    // status — so the user sees the shape of their data without
-    // expanding every folder. Click a card → onOpenPath routes into
-    // the per-collection viewer.
+    // rendered as a datastore-table. The parent view surfaces an
+    // at-a-glance overview — name, item count, schema status — so
+    // the user sees the shape of their data without expanding every
+    // folder. Click a card → onOpenPath routes into the per-collection
+    // viewer.
     if (source.kind === "databases-list") {
       return (
         <div className="viewer-summary">
@@ -1971,7 +1838,7 @@ export function Viewer({
             empty={
               <p className="summary-desc">
                 No collections yet. Collections are JSON-backed tables that
-                hold tickets, people, conversations, and any custom entities
+                hold people, access logs, assets, and any custom entities
                 you create. Ask Claude —{" "}
                 <em>"create a collection for inventory items"</em> — and it
                 will scaffold one under <code>databases/</code> with a
@@ -1991,9 +1858,7 @@ export function Viewer({
               description: dbDescription,
               icon: dbCardIcon ? iconForKey(dbCardIcon) : undefined,
               cardTone: dbCardTone,
-              meta: `${c.itemCount} ${
-                c.name === "conversations" ? "thread" : "row"
-              }${c.itemCount === 1 ? "" : "s"}`,
+              meta: `${c.itemCount} row${c.itemCount === 1 ? "" : "s"}`,
               onClick: () => onOpenPath && void onOpenPath(c.path),
               onReveal: () => void fsReveal(c.path).catch(console.error),
               onDelete: repo ? async () => {
@@ -2036,21 +1901,6 @@ export function Viewer({
           showToast={showToast}
           reportError={reportError}
           onFsChange={onFsChange}
-        />
-      );
-    }
-
-    // Conversation thread — chat-style bubbles + admin reply composer.
-    // State (replyText, replySending, etc.) now lives inside
-    // ConversationThreadBody.
-    if (source.kind === "conversation-thread") {
-      return (
-        <ConversationThreadBody
-          turns={source.turns}
-          ticketId={source.ticketId}
-          repo={repo}
-          adminEmail={adminEmail}
-          onOpenPath={onOpenPath}
         />
       );
     }
@@ -2105,14 +1955,7 @@ export function Viewer({
   if (source) {
     switch (source.kind) {
       case "entity-folder":
-        // Map the per-ticket attachments folder to the generic
-        // "attachments" icon kind — it doesn't have its own ENTITY_META
-        // entry. All other entity-folder values match an EntityKind
-        // 1:1.
-        headerKind =
-          source.entity === "attachments-ticket"
-            ? "attachments"
-            : (source.entity as EntityKind);
+        headerKind = source.entity as EntityKind;
         break;
       case "knowledge-list":
         headerKind = "knowledge";
@@ -2120,21 +1963,17 @@ export function Viewer({
       case "filestores-list":
         headerKind = "filestores";
         break;
-      case "attachments-folder":
-        headerKind = "attachments";
-        break;
       case "datastore-table":
         // Map specific collection names to their entity icons
         if (source.collection.name === "access") headerKind = "access";
         else if (source.collection.name === "assets") headerKind = "assets";
         else if (source.collection.name === "people") headerKind = "people";
-        else if (source.collection.name === "tickets") headerKind = "inbox";
         else headerKind = "databases";
         break;
       case "databases-list":
         headerKind = "databases";
         break;
-      case "conversations-list":
+      case "tasks-list":
         headerKind = "inbox";
         break;
       case "people-list":
@@ -2347,19 +2186,6 @@ export function Viewer({
             {renameError}
           </span>
         )}
-        {source && source.kind === "conversation-thread" && onOpenPath && (
-          <TabStrip variant="segmented">
-            <Tab active>Conversation</Tab>
-            <Tab
-              onClick={() => {
-                void onOpenPath(`${repo}/databases/tickets/${source.ticketId}.json`);
-              }}
-              title="Open the ticket record (status, tags, notes, asker info)"
-            >
-              Ticket
-            </Tab>
-          </TabStrip>
-        )}
         {source && source.kind === "entity-folder" && source.entity === "reports" && (
           <>
             <Button
@@ -2452,7 +2278,7 @@ export function Viewer({
         {/* Schema-driven datastore: + New and Cards/Table toggle */}
         {source && source.kind === "datastore-table" &&
           !!source.collection.schema &&
-          !["people", "access", "assets", "tickets", "conversations"].includes(source.collection.name) &&
+          !["people", "access", "assets"].includes(source.collection.name) &&
           renderRecordListHeader({
             dbName: source.collection.name,
             collection: source.collection,
@@ -2514,28 +2340,11 @@ export function Viewer({
         )}
         {showRowTabs && (
           <TabStrip variant="segmented">
-            {source.kind === "datastore-row" &&
-              source.collection.name === "tickets" &&
-              onOpenPath && (
-                <Tab
-                  onClick={() => {
-                    void onOpenPath(
-                      `${repo}/databases/conversations/${source.item.key || source.item.id}`,
-                    );
-                  }}
-                  title="Open the conversation thread for this ticket"
-                >
-                  Conversation
-                </Tab>
-              )}
             <Tab
               active={mode === "table"}
               onClick={() => setMode("table")}
             >
-              {source.kind === "datastore-row" &&
-              source.collection.name === "tickets"
-                ? "Ticket"
-                : "View"}
+              View
             </Tab>
             <Tab
               active={mode === "edit"}
@@ -2633,66 +2442,6 @@ export function Viewer({
           view: assetsView,
           setView: setAssetsView,
         })}
-        {showConversationsFilter && (
-          <>
-            {source.kind === "conversations-list" && source.collection && onShowSource && repo && (
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => {
-                  if (source.kind !== "conversations-list" || !source.collection) return;
-                  const col = source.collection;
-                  const fields = (col.schema as { fields?: Array<Record<string, unknown>> })?.fields ?? [];
-                  const template: Record<string, unknown> = {};
-                  for (const f of fields) {
-                    const id = f.id as string;
-                    if (id === "createdAt" || id === "updatedAt") {
-                      template[id] = new Date().toISOString();
-                    } else if (id === "askerChannel") {
-                      template[id] = "desktop";
-                    } else if (id === "status") {
-                      template[id] = "open";
-                    } else if (id === "priority") {
-                      template[id] = "normal";
-                    } else {
-                      template[id] = "";
-                    }
-                  }
-                  const taken = new Set(source.threads.map((t) => t.ticketId));
-                  let filename = "new-ticket.json";
-                  let i = 2;
-                  while (taken.has(filename.replace(".json", ""))) {
-                    filename = `new-ticket-${i}.json`;
-                    i += 1;
-                  }
-                  onShowSource({
-                    kind: "draft-file",
-                    path: `${repo}/databases/tickets/${filename}`,
-                    subdir: "databases/tickets",
-                    filename,
-                    initialContent: JSON.stringify(template, null, 2),
-                    collection: col,
-                  });
-                }}
-                title="Create a new ticket"
-              >
-                + New
-              </Button>
-            )}
-            <TabStrip>
-              {(["all", "open", "resolved", "escalated"] as const).map((key) => (
-                <Tab
-                  key={key}
-                  active={conversationsFilter === key}
-                  count={conversationCounts[key]}
-                  onClick={() => setConversationsFilter(key)}
-                >
-                  {key === "all" ? "All" : key[0].toUpperCase() + key.slice(1)}
-                </Tab>
-              ))}
-            </TabStrip>
-          </>
-        )}
         {showAddToChat && (
           <Button
             variant="linkMuted"
@@ -2704,20 +2453,8 @@ export function Viewer({
           </Button>
         )}
       </div>
-      {(chatAddPath || attachmentsTicketId) && (
+      {chatAddPath && (
         <div className="viewer-subheader">
-          {attachmentsTicketId && onOpenPath && (
-            <Button
-              variant="linkMuted"
-              onClick={() => {
-                void onOpenPath(`${repo}/databases/conversations/${attachmentsTicketId}`);
-              }}
-              title="Open the related conversation thread"
-            >
-              conversation
-              <span className="arrow" aria-hidden="true">→</span>
-            </Button>
-          )}
           {chatAddPath && (
             <Button
               variant="linkMuted"
@@ -2733,7 +2470,7 @@ export function Viewer({
                   console.warn("[viewer] add-to-chat failed:", e),
                 );
               }}
-              title={source?.kind === "conversation-thread" ? "Run /answer-ticket in Claude" : "Reference this in Claude"}
+              title="Reference this in Claude"
             >
               add to chat
               <span className="arrow" aria-hidden="true">→</span>

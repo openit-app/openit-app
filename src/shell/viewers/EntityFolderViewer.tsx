@@ -78,7 +78,6 @@ export function EntityFolderBody({
     const useTypeBadge =
       (source.entity === "library" ||
         source.entity === "reports" ||
-        source.entity === "attachments-ticket" ||
         source.entity === "knowledge-base" ||
         source.entity === "skills" ||
         source.entity === "scripts") &&
@@ -232,7 +231,7 @@ export function EntityFolderBody({
         </div>
       )}
       <EntityCardGrid
-        kind={source.entity === "attachments-ticket" ? "attachments" : source.entity}
+        kind={source.entity}
         cards={cards}
         empty={
           <p className="summary-desc">

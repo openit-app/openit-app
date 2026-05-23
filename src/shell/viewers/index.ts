@@ -50,8 +50,8 @@ export {
 } from "./viewerHelpers";
 export type { ViewMode } from "./viewerHelpers";
 
-// Conversation sub-viewers
-export { ConversationsListBody, ConversationThreadBody } from "./ConversationViewer";
+// Tasks viewer — flat Linear-style list. Replaces the bespoke ticket UI.
+export { TasksViewer } from "./TasksViewer";
 
 // Datastore sub-viewers
 export { DatastoreTableBody, DatastoreRowBody, DatastoreSchemaBody, GenericRecordCardsBody } from "./DatastoreViewer";

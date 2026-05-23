@@ -20,11 +20,8 @@ export function sourceToTreePath(
     case "file":
       return source.path;
 
-    case "conversation-thread":
-      return `${repo}/databases/conversations/${source.ticketId}`;
-
-    case "conversations-list":
-      return `${repo}/databases/conversations`;
+    case "tasks-list":
+      return `${repo}/tasks`;
 
     case "people-list":
     case "access-list":
@@ -45,9 +42,6 @@ export function sourceToTreePath(
 
     case "knowledge-list":
       return `${repo}/knowledge`;
-
-    case "attachments-folder":
-      return `${repo}/filestores/attachments`;
 
     // Kinds without a stable tree node — leave the highlight cleared
     // rather than pin it to a stale row:

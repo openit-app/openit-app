@@ -1,16 +1,14 @@
 // Bundled-seed helper, exposed via the "Create sample dataset" CTA in
-// `getting-started.md`. Writes sample tickets/people/conversations/KB
+// `getting-started.md`. Writes sample people / access / assets / KB
 // articles to disk so a user has something to interact with.
 //
 // **Connected mode never auto-seeds.** Seeding is exclusively user-
 // triggered — once an account is in the loop, we trust whatever's on
-// disk and in the cloud.
+// disk.
 //
 // Gate is **per-file**, not per-folder: re-clicking the CTA fills in
 // any missing sample without clobbering files that already exist on
-// disk. A user who deleted `sample-ticket-3.json` and clicks again
-// gets just that one file back. A user who has authored their own
-// tickets alongside the samples gets nothing rewritten.
+// disk.
 
 import { invoke } from "@tauri-apps/api/core";
 import { fsRead } from "./api";
@@ -21,9 +19,6 @@ import { fetchSkillFile, fetchSkillsManifest } from "./skillsSync";
 export function seedRoute(
   manifestPath: string,
 ): { subdir: string; filename: string } | null {
-  if (manifestPath.startsWith("seed/tickets/")) {
-    return { subdir: "databases/tickets", filename: manifestPath.replace("seed/tickets/", "") };
-  }
   if (manifestPath.startsWith("seed/people/")) {
     return { subdir: "databases/people", filename: manifestPath.replace("seed/people/", "") };
   }
@@ -44,17 +39,6 @@ export function seedRoute(
   }
   if (manifestPath.startsWith("seed/reports/")) {
     return { subdir: "reports", filename: manifestPath.replace("seed/reports/", "") };
-  }
-  if (manifestPath.startsWith("seed/conversations/")) {
-    // Preserve the per-ticket subfolder: seed/conversations/<ticketId>/<file>
-    // → databases/conversations/<ticketId>/<file>.
-    const rel = manifestPath.replace("seed/conversations/", "");
-    const lastSlash = rel.lastIndexOf("/");
-    if (lastSlash < 0) return null;
-    return {
-      subdir: `databases/conversations/${rel.slice(0, lastSlash)}`,
-      filename: rel.slice(lastSlash + 1),
-    };
   }
   return null;
 }

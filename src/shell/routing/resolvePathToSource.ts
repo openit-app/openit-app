@@ -7,8 +7,6 @@ import {
 import {
   resolveDatastoreSchema,
   resolveDatastoreRow,
-  resolveConversationsList,
-  resolveConversationThread,
   resolveDatastoreTable,
   resolveDatabasesList,
 } from "./resolvers/datastoreResolvers";
@@ -18,28 +16,21 @@ import {
   resolveWorkflow,
 } from "./resolvers/agentResolvers";
 import {
-  resolveAttachmentsTicket,
   resolveEntityFolder,
   resolveFilestoresList,
-  resolveAttachmentsFolder,
 } from "./resolvers/filestoreResolvers";
+import { resolveTasksList } from "./resolvers/taskResolvers";
 import { relUnderRepo } from "../../lib/paths";
 
 /**
  * Given an absolute file path, determine if it's an entity file
- * (database row, agent, workflow, schema) and return the appropriate
- * ViewerSource. Falls back to { kind: "file", path } for regular files.
- *
- * `opts.rawTickets` skips the `databases/tickets` -> conversations-list
- * shortcut and falls through to the generic datastore-table rule. Used
- * by the file-explorer click so the tree node renders the underlying
- * table, while the Inbox station (and other inbox entry points) keep
- * the curated card list.
+ * (database row, agent, workflow, schema, task) and return the
+ * appropriate ViewerSource. Falls back to { kind: "file", path } for
+ * regular files.
  */
 export async function resolvePathToSource(
   path: string,
   repo: string | null,
-  opts?: { rawTickets?: boolean },
 ): Promise<ViewerSource> {
   if (!repo) return { kind: "file", path };
 
@@ -66,6 +57,16 @@ export async function resolvePathToSource(
   // skills view instead of the plain file list.
   if (rel === "filestores/commands") return { kind: "commands-station" };
   if (rel === "filestores/scripts") return { kind: "scripts-station" };
+
+  // ── Tasks ─────────────────────────────────────────────────────────
+
+  // `tasks/` parent -> the new flat task list. Individual task files
+  // (`tasks/task-*.md`) fall through to the generic markdown file view
+  // so the Viewer's standard render / raw / edit toggle handles body
+  // edits the same way it would for any other markdown file.
+  if (rel === "tasks" || rel === "tasks/") {
+    return resolveTasksList(repo);
+  }
 
   // ── Trace resolvers ──
 
@@ -102,21 +103,10 @@ export async function resolvePathToSource(
     return resolveDatastoreRow(path, repo, rowMatch[1], rowMatch[2]);
   }
 
-  // databases/tickets/ -> conversations-list
-  if (
-    !opts?.rawTickets &&
-    (rel === "databases/tickets" || rel === "databases/conversations")
-  ) {
-    return resolveConversationsList(repo);
-  }
-
-  // databases/conversations/<ticketId>/ directory -> conversation-thread
-  const threadMatch = rel.match(/^databases\/conversations\/([^/]+)$/);
-  if (threadMatch) {
-    return resolveConversationThread(path, repo, threadMatch[1]);
-  }
-
-  // databases/<collection>/ directory -> datastore-table
+  // databases/<collection>/ directory -> datastore-table. Includes
+  // legacy `databases/tickets/` and `databases/conversations/` folders
+  // (created by older app versions); they now render as plain JSON
+  // tables instead of the bespoke conversations UI.
   const dirMatch = rel.match(/^databases\/([^/]+)$/);
   if (dirMatch) {
     return resolveDatastoreTable(path, dirMatch[1]);
@@ -144,27 +134,15 @@ export async function resolvePathToSource(
 
   // ── Filestore resolvers ──
 
-  // filestores/attachments/<ticketId>/ -> entity-folder
-  const attachmentsTicketMatch = rel.match(
-    /^filestores\/attachments\/([^/]+)$/,
-  );
-  if (attachmentsTicketMatch) {
-    return resolveAttachmentsTicket(path, rel);
-  }
-
   // Top-level entity folders
   const filestoreCollectionMatch = rel.match(/^filestores\/([^/]+)$/);
-  const isAttachmentsParent =
-    filestoreCollectionMatch && filestoreCollectionMatch[1] === "attachments";
   // Built-in filestore collections each get their own entity-folder
   // entity so the right-pane title bar + empty-state copy can be
   // tailored. `library` was the only one historically; `skills` +
   // `scripts` join it under PIN-5829. Anything else under filestores/
   // (user-created or dynamic openit-* collection) still routes through
   // the generic `library` rendering path.
-  const filestoreSubdir = filestoreCollectionMatch && !isAttachmentsParent
-    ? filestoreCollectionMatch[1]
-    : null;
+  const filestoreSubdir = filestoreCollectionMatch ? filestoreCollectionMatch[1] : null;
   const entityFolderEntry: {
     entity:
       | "agents"
@@ -203,15 +181,6 @@ export async function resolvePathToSource(
   // `filestores/` parent -> filestores-list overview
   if (rel === "filestores") {
     return resolveFilestoresList(path);
-  }
-
-  // `knowledge/` -> flat list of all KB articles (markdown files).
-  // No more collection/subfolder concept -- articles live directly in
-  // knowledge/ and render as a plain entity-folder.
-
-  // `filestores/attachments/` -> list of per-ticket subfolders
-  if (rel === "filestores/attachments") {
-    return resolveAttachmentsFolder(path);
   }
 
   return { kind: "file", path };
