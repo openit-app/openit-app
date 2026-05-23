@@ -5028,17 +5028,13 @@ input.viewer-title.viewer-title-rename {
   top: 50%;
   right: 43px;
   transform: translateY(-50%);
-  opacity: 0;
-  pointer-events: none;
-  z-index: 10;
-}
-
-.entity-card-wrapper:hover .entity-card-run,
-.entity-card-wrapper:focus-within .entity-card-run,
-.entity-card-run:hover,
-.entity-card-run:focus {
+  /* Always visible — Ben feedback (PIN-6611): the hover-only Run
+     button was invisible on first paint, so users didn't realize
+     they could run a script. Click-on-tile still triggers run; the
+     button is the explicit affordance for it. */
   opacity: 1;
   pointer-events: auto;
+  z-index: 10;
 }
 
 /* When a card has run-only (no delete), pull the run slot back to the

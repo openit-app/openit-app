@@ -39,7 +39,7 @@ export type EntityCard = {
   /** When set, the right-click context menu shows a "Reveal in
    *  Finder" entry that calls this handler. */
   onReveal?: () => void | Promise<void>;
-  /** When set, the card shows a hover-revealed play button that
+  /** When set, the card shows an always-visible play button that
    *  invokes this handler. Used by the scripts-folder cards to
    *  spawn `node <script>` and route the viewer to the captured
    *  stdout/stderr. The handler is responsible for any guard
@@ -47,6 +47,11 @@ export type EntityCard = {
    *  so the card's onClick (which would open the file) doesn't
    *  fire alongside the run. */
   onRun?: () => void | Promise<void>;
+  /** When true, the run affordance shows a spinner instead of the
+   *  play glyph and rejects pointer events. Lets callers surface a
+   *  "running…" state for long scripts without re-implementing the
+   *  whole card. */
+  running?: boolean;
   /** When set, the card shows an "Add to Claude" hover button that
    *  injects a reference (slash command, file path, etc.) into the
    *  active Claude session. */
@@ -280,14 +285,17 @@ function EntityCardItem({
           size="sm"
           iconOnly
           className="entity-card-run"
-          title={`Run ${c.title}`}
-          aria-label={`Run ${c.title}`}
+          title={c.running ? `Running ${c.title}…` : `Run ${c.title}`}
+          aria-label={c.running ? `Running ${c.title}` : `Run ${c.title}`}
+          aria-busy={c.running}
+          disabled={c.running}
           onClick={(e) => {
             e.stopPropagation();
+            if (c.running) return;
             void c.onRun?.();
           }}
         >
-          <PlayIcon />
+          {c.running ? <CardSpinner /> : <PlayIcon />}
         </Button>
       )}
       {c.onDelete && (
@@ -328,5 +336,26 @@ function EntityCardItem({
         </Button>
       )}
     </div>
+  );
+}
+
+/// 14px spinner shown in place of the play glyph while a script is
+/// running. Reuses the global `sc-spin` keyframe defined in
+/// `App.css`; the SVG is local so we don't pull in another helper.
+function CardSpinner() {
+  return (
+    <svg
+      width={14}
+      height={14}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="3"
+      style={{ animation: "sc-spin 0.85s linear infinite" }}
+      aria-hidden
+    >
+      <circle cx="12" cy="12" r="9" opacity="0.25" />
+      <path d="M21 12a9 9 0 0 0-9-9" />
+    </svg>
   );
 }

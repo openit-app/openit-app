@@ -106,6 +106,7 @@ pub fn run() {
             workspaces::remove_workspace,
             reports::report_overview_run,
             scripts::script_run,
+            scripts::script_resolve_interpreter,
             kb::kb_init,
             kb::kb_delete_file,
             kb::kb_read_file,

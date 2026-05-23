@@ -48,6 +48,14 @@ export function EntityFolderBody({
   useEffect(() => {
     setHiddenPaths(new Set());
   }, [source.path]);
+  // Per-script "currently running" set keyed by absolute path. Lets
+  // the scripts-folder cards swap their play glyph for a spinner so
+  // long-running runs don't look frozen. Reset when the folder path
+  // changes.
+  const [runningScripts, setRunningScripts] = useState<Set<string>>(new Set());
+  useEffect(() => {
+    setRunningScripts(new Set());
+  }, [source.path]);
 
   const isReport = source.entity === "reports";
   const reversed = !!sortReversed[source.path];
@@ -120,11 +128,18 @@ export function EntityFolderBody({
           }
         : undefined,
       onReveal: () => void fsReveal(f.path).catch(console.error),
+      running: runningScripts.has(f.path),
       onRun:
         source.entity === "scripts" &&
         /\.(mjs|js|cjs|py)$/i.test(f.path) &&
         onShowSource
           ? async () => {
+              if (runningScripts.has(f.path)) return;
+              setRunningScripts((prev) => {
+                const next = new Set(prev);
+                next.add(f.path);
+                return next;
+              });
               try {
                 const { scriptRun } = await import("../../lib/api");
                 const out = await scriptRun(repo, f.path);
@@ -140,6 +155,12 @@ export function EntityFolderBody({
                 const reason = err instanceof Error ? err.message : String(err);
                 console.error(`[script-run] ${f.name} failed:`, err);
                 showToast(`Run failed: ${reason}`);
+              } finally {
+                setRunningScripts((prev) => {
+                  const next = new Set(prev);
+                  next.delete(f.path);
+                  return next;
+                });
               }
             }
           : undefined,

@@ -235,7 +235,7 @@ mod tests {
         assert!(names.contains(&"file.ts"));
         assert!(names.contains(&"README.md"));
         assert!(!names.iter().any(|n| n.starts_with(".env")));
-        assert!(!names.iter().any(|n| *n == "foo.js"));
+        assert!(!names.contains(&"foo.js"));
     }
 
     #[test]
