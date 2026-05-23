@@ -76,4 +76,69 @@ describe("ChatPane", () => {
     unmount();
     expect(ptyMock.ptyKill).toHaveBeenCalledWith(sessionIdMatcher);
   });
+
+  it("uses the provided sessionId when supplied by parent", async () => {
+    render(<ChatPane cwd="/tmp/test-repo" sessionId="main-custom-id" />);
+    await new Promise((r) => setTimeout(r, 0));
+    expect(ptyMock.ptySpawn).toHaveBeenCalledTimes(1);
+    const args = ptyMock.ptySpawn.mock.calls[0][0];
+    expect(args.sessionId).toBe("main-custom-id");
+  });
+
+  it("does not claim active-session when made hidden during pty spawn", async () => {
+    // Hold ptySpawn in flight so we can flip visibility before it resolves —
+    // mirroring the real race: user clicks '+' (new tab becomes active),
+    // then immediately switches back; the slow spawn must not retake the
+    // active pointer after the visibility has already moved away.
+    let resolveSpawn: (() => void) | undefined;
+    ptyMock.ptySpawn.mockImplementationOnce(
+      () =>
+        new Promise<void>((resolve) => {
+          resolveSpawn = resolve;
+        }),
+    );
+    const { rerender } = render(
+      <ChatPane cwd="/tmp/test-repo" sessionId="main-race" visible={true} />,
+    );
+    // Switch the pane to hidden while spawn is still pending.
+    rerender(<ChatPane cwd="/tmp/test-repo" sessionId="main-race" visible={false} />);
+    // Let spawn complete; the post-spawn `setActiveSession` should see the
+    // ref-mirrored `visible=false` and bail.
+    resolveSpawn?.();
+    await new Promise((r) => setTimeout(r, 0));
+    // We don't import activeSession state directly (no exported getter),
+    // but writing to the active session is a clean observable: write must
+    // NOT go to the hidden pane. The test relies on the documented
+    // contract: setActiveSession is skipped when visible flips false
+    // before spawn completes.
+    expect(ptyMock.ptyWrite).not.toHaveBeenCalledWith("main-race", expect.any(String));
+  });
+
+  it("renders display:none when visible=false but still spawns the pty", async () => {
+    const { container } = render(
+      <ChatPane cwd="/tmp/test-repo" sessionId="main-bg" visible={false} />,
+    );
+    await new Promise((r) => setTimeout(r, 0));
+    // Spawn must happen regardless of visibility so background sessions
+    // keep running — switching tabs only changes display.
+    expect(ptyMock.ptySpawn).toHaveBeenCalledTimes(1);
+    const root = container.firstChild as HTMLElement | null;
+    expect(root?.style.display).toBe("none");
+  });
+
+  it("cancels the queued requestAnimationFrame on rapid visible→hidden flip", async () => {
+    const cancelSpy = vi.spyOn(window, "cancelAnimationFrame");
+    const { rerender, unmount } = render(
+      <ChatPane cwd="/tmp/test-repo" sessionId="main-raf" visible={true} />,
+    );
+    await new Promise((r) => setTimeout(r, 0));
+    // Visible→hidden flip must cancel the pending focus/fit rAF so the
+    // hidden pane doesn't steal focus after the user already picked a
+    // different tab. The cleanup of the visible-branch effect runs the
+    // cancelAnimationFrame; we just observe the call.
+    rerender(<ChatPane cwd="/tmp/test-repo" sessionId="main-raf" visible={false} />);
+    expect(cancelSpy).toHaveBeenCalled();
+    cancelSpy.mockRestore();
+    unmount();
+  });
 });

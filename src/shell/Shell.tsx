@@ -13,7 +13,7 @@ import { fsWatchStart, fsWatchStop, onFsChanged } from "../lib/fsWatcher";
 // Auto-commit disabled in local-first mode.
 import { startSkillMirrorDriver, stopSkillMirrorDriver } from "../lib/skillMirror";
 import { relUnderRepo, fsNorm } from "../lib/paths";
-import { ChatPane } from "./ChatPane";
+import { ChatSessionTabs, type ChatSessionTabsHandle } from "./ChatSessionTabs";
 import { ChatShellHeader } from "./ChatShellHeader";
 import { PaneDragHandle } from "./PaneDragHandle";
 // StatusBar is no longer rendered at the bottom of the shell. The
@@ -256,8 +256,13 @@ export function Shell({
   const [paneOrder, setPaneOrder] = useState<PaneId[]>(DEFAULT_PANE_ORDER);
   const [draggingPaneId, setDraggingPaneId] = useState<PaneId | null>(null);
   const [dragOverPaneId, setDragOverPaneId] = useState<PaneId | null>(null);
-  const [chatSessionKey, setChatSessionKey] = useState(0);
-  const [chatResume, setChatResume] = useState(false);
+  // Tab-aware chat: ChatSessionTabs owns its own state and registers
+  // an imperative handle here so the existing ChatShellHeader buttons
+  // (New / Resume) can keep working without lifting tab state up.
+  const chatHandleRef = useRef<ChatSessionTabsHandle | null>(null);
+  const registerChatHandle = useCallback((h: ChatSessionTabsHandle | null) => {
+    chatHandleRef.current = h;
+  }, []);
   /// Left sidebar collapse state. `null` until the first state_load
   /// resolves — we hold off on rendering the panes row so we don't
   /// flash expanded → collapsed (or vice versa) on cold start. Default
@@ -362,13 +367,11 @@ export function Shell({
   );
 
   const newChatSession = useCallback(() => {
-    setChatResume(false);
-    setChatSessionKey((k) => k + 1);
+    chatHandleRef.current?.newSession();
   }, []);
 
   const resumeChatSession = useCallback(() => {
-    setChatResume(true);
-    setChatSessionKey((k) => k + 1);
+    chatHandleRef.current?.resumeSession();
   }, []);
 
   // Manual pull is a no-op in local-only mode (no cloud to pull from).
@@ -857,9 +860,8 @@ export function Shell({
                   />
                 }
               />
-              <div className="chat-area">
-                <ChatPane key={chatSessionKey} cwd={repo} resume={chatResume} />
-              </div>
+              <ChatSessionTabs cwd={repo} registerHandle={registerChatHandle} />
+
               <SkillActionDock
                 dock={dock}
                 repo={repo}
