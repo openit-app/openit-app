@@ -17,16 +17,14 @@ import { ChatShellHeader } from "./ChatShellHeader";
 import { PaneDragHandle } from "./PaneDragHandle";
 // StatusBar is no longer rendered at the bottom of the shell. The
 // status chips (project, cloud, intake, slack, changes) now live in
-// the TitleRail at the top — see src/App.tsx. The bottom of the
-// window is pure cream gutter, fixing the "panes look chipped off"
-// feedback. The StatusChips export is consumed there.
+// the TitleRail at the top — see src/App.tsx.
 import { Workbench } from "./Workbench";
 import { ConflictBanner } from "./ConflictBanner";
 import { FileExplorer } from "./FileExplorer";
-import { EscalatedTicketBanner } from "./EscalatedTicketBanner";
-import { AgentActivityBanner } from "./AgentActivityBanner";
-// SourceControl removed — local-first mode has no commit/push UI.
-// Phase 2 re-introduces it gated to syncMode === "git".
+// EscalatedTicketBanner and AgentActivityBanner were removed alongside
+// the rest of the bespoke ticket UI (PIN-6605). The chat intake server
+// still writes ticket-shaped JSON to disk for backwards compatibility
+// but nothing in the renderer surfaces it.
 import { Viewer, type ViewerSource } from "./Viewer";
 // Tab, TabStrip, PaneBody removed — left pane is now just FileExplorer.
 import type { DockKind } from "../lib/skillState";
@@ -83,10 +81,8 @@ function sourceKey(s: ViewerSource): string {
       return `agent:${(s.agent as { name?: string }).name ?? ""}`;
     case "workflow":
       return `workflow:${(s.workflow as { name?: string }).name ?? ""}`;
-    case "conversation-thread":
-      return `conversation-thread:${s.ticketId}`;
-    case "conversations-list":
-      return "conversations-list";
+    case "tasks-list":
+      return "tasks-list";
     case "people-list":
       return "people-list";
     case "agent-trace":
@@ -99,8 +95,6 @@ function sourceKey(s: ViewerSource): string {
       return "databases-list";
     case "filestores-list":
       return "filestores-list";
-    case "attachments-folder":
-      return "attachments-folder";
     case "knowledge-list":
       return "knowledge-list";
     case "tools":
@@ -142,10 +136,8 @@ function sourceLabel(s: ViewerSource, repo: string): string | null {
       return `agent: ${(s.agent as { name?: string }).name ?? "unknown"}`;
     case "workflow":
       return `workflow: ${(s.workflow as { name?: string }).name ?? "unknown"}`;
-    case "conversation-thread":
-      return `ticket: ${s.ticketId}`;
-    case "conversations-list":
-      return "tickets list";
+    case "tasks-list":
+      return "tasks list";
     case "people-list":
       return "people directory";
     case "tools":
@@ -420,16 +412,6 @@ export function Shell({
   // it, clicking Getting Started while already on the welcome looked
   // like a no-op.
   const [welcomeFlashKey, setWelcomeFlashKey] = useState(0);
-  // Sticky flag: once the getting-started page is viewed, pulse the
-  // agent activity banner for the rest of this session. The source
-  // changes as the admin navigates (welcome → trace → conversation →
-  // workbench) but the tour is still active.
-  const [gettingStartedActive, setGettingStartedActive] = useState(false);
-  useEffect(() => {
-    if (source?.kind === "file" && source.path.endsWith("/getting-started.html")) {
-      setGettingStartedActive(true);
-    }
-  }, [source]);
   useEffect(() => {
     if (!repo) return;
     const welcomePath = `${repo}/getting-started.html`;
@@ -471,11 +453,8 @@ export function Shell({
     };
   }, [repo, source]);
 
-  // Re-resolve conversation views when the filesystem changes. The
-  // conversations-list reads ticket files for subject/status (so a
-  // ticket status flip from "incoming" → "open" should refresh the
-  // pill). The conversation-thread view reads each message file (so
-  // a new turn from Claude should append to the bubbles). Both are
+  // Re-resolve list-shaped views when the filesystem changes. Card
+  // grids (datastore-table, entity-folder, tasks-list, etc.) are
   // computed at click time in entityRouting; without this effect they
   // stay frozen at the snapshot.
   // Stash `source` in a ref so the fs-tick re-resolver below can read
@@ -493,59 +472,47 @@ export function Shell({
     if (!repo || fsTick === 0) return;
     const current = sourceRef.current;
     if (!current) return;
-    const isConversation =
-      current.kind === "conversations-list" ||
-      current.kind === "conversation-thread";
     const isEntityFolder = current.kind === "entity-folder";
     const isDatabasesList = current.kind === "databases-list";
     const isFilestoresList = current.kind === "filestores-list";
-    const isAttachmentsFolder = current.kind === "attachments-folder";
     const isKnowledgeBasesList = current.kind === "knowledge-list";
     const isPeopleList = current.kind === "people-list";
     const isAccessList = current.kind === "access-list";
     const isAssetsList = current.kind === "assets-list";
     const isDatastoreTable = current.kind === "datastore-table";
+    const isTasksList = current.kind === "tasks-list";
     if (
-      !isConversation &&
       !isEntityFolder &&
       !isDatabasesList &&
       !isFilestoresList &&
-      !isAttachmentsFolder &&
       !isKnowledgeBasesList &&
       !isPeopleList &&
       !isAccessList &&
       !isAssetsList &&
-      !isDatastoreTable
+      !isDatastoreTable &&
+      !isTasksList
     )
       return;
     const path =
-      current.kind === "conversations-list"
-        ? `${repo}/databases/conversations`
-        : current.kind === "conversation-thread"
-          ? `${repo}/databases/conversations/${current.ticketId}`
-          : current.kind === "entity-folder"
-            // Source carries an explicit `path` post-2026-04-27 splits
-            // (KB collections + filestores/library); fall back to the
-            // entity name for built-ins that still match 1:1 (agents,
-            // workflows).
-            ? `${repo}/${current.path}`
-            : current.kind === "databases-list"
-              ? `${repo}/databases`
-              : current.kind === "filestores-list"
-                ? `${repo}/filestores`
-                : current.kind === "attachments-folder"
-                  ? `${repo}/filestores/attachments`
-                  : current.kind === "knowledge-list"
-                    ? `${repo}/knowledge`
-                    : current.kind === "people-list"
-                      ? `${repo}/databases/people`
-                      : current.kind === "access-list"
-                        ? `${repo}/databases/access`
-                        : current.kind === "assets-list"
-                          ? `${repo}/databases/assets`
-                          : current.kind === "datastore-table"
-                            ? `${repo}/databases/${current.collection.name}`
-                            : "";
+      current.kind === "entity-folder"
+        ? `${repo}/${current.path}`
+        : current.kind === "databases-list"
+          ? `${repo}/databases`
+          : current.kind === "filestores-list"
+            ? `${repo}/filestores`
+            : current.kind === "knowledge-list"
+              ? `${repo}/knowledge`
+              : current.kind === "people-list"
+                ? `${repo}/databases/people`
+                : current.kind === "access-list"
+                  ? `${repo}/databases/access`
+                  : current.kind === "assets-list"
+                    ? `${repo}/databases/assets`
+                    : current.kind === "datastore-table"
+                      ? `${repo}/databases/${current.collection.name}`
+                      : current.kind === "tasks-list"
+                        ? `${repo}/tasks`
+                        : "";
     if (!path) return;
     let cancelled = false;
     resolvePathToSource(path, repo)
@@ -560,10 +527,13 @@ export function Shell({
 
   // Re-fetch the live agent trace whenever the fs watcher ticks. The
   // chat-intake server writes a partial trace file after each event
-  // during the turn (see `LiveTracePersister` in `intake.rs`); this
+  // during a turn (see `LiveTracePersister` in `intake.rs`); this
   // effect pulls the latest snapshot in so the timeline animates
   // through the agent's actions instead of waiting for the turn to
-  // finish.
+  // finish. The Ben-feedback batch removed the ticket-shaped UI but
+  // kept the intake server, which still writes traces — anyone who
+  // navigates to a `traces/<id>/<stamp>.json` file via the file
+  // explorer should still get the live animation.
   useEffect(() => {
     if (!repo || fsTick === 0) return;
     const current = sourceRef.current;
@@ -576,8 +546,8 @@ export function Shell({
         if (cancelled) return;
         // Only update if events actually changed — comparing
         // lengths is a cheap proxy that avoids re-rendering the
-        // viewer for unrelated fs ticks (KB push, ticket status
-        // flips, etc.) when the trace file itself hasn't grown.
+        // viewer for unrelated fs ticks when the trace file itself
+        // hasn't grown.
         const currentLen = current.doc?.events.length ?? -1;
         const nextLen = doc?.events.length ?? -1;
         const outcomeChanged = (current.doc?.outcome ?? "") !== (doc?.outcome ?? "");
@@ -697,34 +667,6 @@ export function Shell({
   return (
     <div className="shell">
       <ConflictBanner />
-      <AgentActivityBanner
-        repo={repo}
-        fsTick={fsTick}
-        pulse={gettingStartedActive}
-        onOpenTrace={async (ticketId, subject) => {
-          if (!repo) return;
-          try {
-            const doc = await agentTraceLatest(repo, ticketId);
-            // doc may be null when the click lands during the first
-            // turn for a brand-new ticket (the trace file is written
-            // only after the turn completes). Push the source anyway
-            // — the viewer renders a "composing" placeholder and the
-            // fs-watcher reload below swaps in the real doc once it
-            // lands.
-            setSource({ kind: "agent-trace", ticketId, subject, doc });
-          } catch (e) {
-            console.warn("[shell] agent-trace open failed:", e);
-          }
-        }}
-      />
-      <EscalatedTicketBanner
-        repo={repo}
-        fsTick={fsTick}
-        onOpenPath={async (path) => {
-          const resolved = await resolvePathToSource(path, repo);
-          setSource(resolved);
-        }}
-      />
       {(() => {
         const paneClass = (id: PaneId) =>
           `${id === "left" ? "left-pane" : id === "center" ? "center-pane" : "right-pane"} ${
@@ -747,9 +689,7 @@ export function Shell({
                 <FileExplorer
                   repo={repo}
                   onSelect={async (path) => {
-                    const resolved = await resolvePathToSource(path, repo, {
-                      rawTickets: true,
-                    });
+                    const resolved = await resolvePathToSource(path, repo);
                     setSource(resolved);
                   }}
                   fsTick={fsTick}

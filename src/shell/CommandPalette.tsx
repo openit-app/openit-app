@@ -80,7 +80,7 @@ export function CommandPalette({
         }))
       : [
           // Fallback to hardcoded entries if tiles haven't loaded yet
-          { id: "goto-inbox", label: "Inbox", hint: "Tickets & escalations", group: "Go to" as const, run: () => navigate(`${r}/databases/tickets`) },
+          { id: "goto-tasks", label: "Tasks", hint: "Personal task list", group: "Go to" as const, run: () => navigate(`${r}/tasks`) },
           { id: "goto-knowledge", label: "Knowledge", hint: "KB articles", group: "Go to" as const, run: () => navigate(`${r}/knowledge`) },
           { id: "goto-commands", label: "Commands", hint: "Slash commands", group: "Go to" as const, run: () => navigate(`${r}/filestores/commands`) },
           { id: "goto-people", label: "People", hint: "Contacts directory", group: "Go to" as const, run: () => navigate(`${r}/databases/people`) },
@@ -91,16 +91,6 @@ export function CommandPalette({
           { id: "goto-tools", label: "Tools", hint: "Installed CLI & MCP tools", group: "Go to" as const, run: () => navigate(`${r}/tools`) },
           { id: "goto-traces", label: "Traces", hint: "Agent activity logs", group: "Go to" as const, run: () => navigate(`${r}/traces`) },
         ];
-    // Inbox is a primitive (not discovered as a tile) — always present.
-    if (dynamicTiles.length > 0) {
-      gotoEntries.unshift({
-        id: "goto-inbox",
-        label: "Inbox",
-        hint: "Tickets & escalations",
-        group: "Go to",
-        run: () => navigate(`${r}/databases/tickets`),
-      });
-    }
 
     const items: Action[] = [
       // ── Go to (dynamic) ──
@@ -118,10 +108,16 @@ export function CommandPalette({
       { id: "run-asset-tracking", label: "/asset-tracking", hint: "Query device inventory", group: "Run", run: () => injectIntoChat("/asset-tracking") },
       { id: "run-pipeline-outreach", label: "/pipeline-outreach", hint: "Pipeline reports & emails", group: "Run", run: () => injectIntoChat("/pipeline-outreach") },
       { id: "run-report", label: "/report", hint: "Generate a custom report", group: "Run", run: () => injectIntoChat("/report") },
-      { id: "run-answer-ticket", label: "/answer-ticket", hint: "Reply to an escalated ticket", group: "Run", run: () => injectIntoChat("/answer-ticket") },
       { id: "run-cleanup", label: "/cleanup", hint: "Remove sample data", group: "Run", run: () => injectIntoChat("/cleanup") },
 
       // ── New ──
+      {
+        id: "new-task",
+        label: "New task",
+        hint: "Personal task — todo / in-progress / complete",
+        group: "New",
+        run: () => navigate(`${r}/tasks`),
+      },
       {
         id: "new-article",
         label: "New article",

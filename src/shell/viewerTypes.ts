@@ -1,9 +1,12 @@
 import type { DataCollection, MemoryItem, Agent, Workflow } from "../lib/localTypes";
+import type { TaskSummary } from "../lib/tasks";
 
 /// Mirrors `agent_trace::TraceEvent` on the Rust side. Persisted at
 /// `traces/<ticketId>/<startedAt>.json` per turn; the
-/// agent-activity banner click-through opens the latest one in the
-/// viewer.
+/// agent-trace viewer reads the latest one. The on-disk layout still
+/// uses `ticketId` as the folder name (intake-server lineage); the new
+/// task UI never produces traces, so this only surfaces traces that
+/// the chat intake server has already written.
 export type TraceEvent = {
   ts: string;
   kind: string;
@@ -23,27 +26,6 @@ export type TraceDoc = {
   events: TraceEvent[];
 };
 
-/// One conversation turn — sender, role, body, timestamp. The thread
-/// view orders these by timestamp and renders them as chat bubbles.
-export type ConversationTurn = {
-  id: string;
-  ticketId: string;
-  role: "asker" | "agent" | "admin" | "system" | string;
-  sender: string;
-  timestamp: string;
-  body: string;
-  /// Repo-relative paths to attachments associated with this turn —
-  /// e.g. `filestores/attachments/<ticketId>/<filename>`. Asker
-  /// uploads land here via `/chat/upload`; admin replies sent from
-  /// the desktop composer write attachments through `entityWriteFile`
-  /// to the same path. Empty / missing when the turn has no
-  /// attachments.
-  attachments?: string[];
-};
-
-/// Summary of a single conversation thread, shown as a clickable card
-/// in the conversations-list view (one row per thread). Clicking opens
-/// the chat-thread view for that ticketId.
 export type PersonSummary = {
   /// File-stem key (e.g. the email-as-id used for the person row).
   key: string;
@@ -70,27 +52,6 @@ export type AssetSummary = {
   serialNumber: string;
   assignedTo: string;
   status: string;     // "assigned", "available", etc.
-};
-
-export type ConversationThreadSummary = {
-  ticketId: string;
-  // Subject pulled from the ticket file; falls back to the first
-  // message body if the ticket isn't readable yet.
-  subject: string;
-  // Asker label from the ticket; empty when the ticket file is missing.
-  asker: string;
-  // Status from the ticket — drives a status pill on the card.
-  status: string;
-  // ticket.createdAt or fallback to the thread folder's first turn.
-  createdAt: string;
-  // Newest turn's timestamp — used for sort + "last activity" label.
-  lastTurnAt: string;
-  // Number of msg-*.json files under the thread folder.
-  turnCount: number;
-  // Free-form labels from the ticket. Includes `auto-escalated` when
-  // the stale-open scan flipped this ticket — the only signal on the
-  // card that "escalated" means "timed out" vs "agent gave up".
-  tags: string[];
 };
 
 export type ViewerSource =
@@ -138,8 +99,11 @@ export type ViewerSource =
   // has no way to derive the path from AgentRow/WorkflowRow alone.
   | { kind: "agent"; agent: Agent; path: string }
   | { kind: "workflow"; workflow: Workflow; path: string }
-  | { kind: "conversation-thread"; ticketId: string; turns: ConversationTurn[] }
-  | { kind: "conversations-list"; threads: ConversationThreadSummary[]; collection?: DataCollection }
+  // Tasks — the new Inbox. Linear-style flat list with three statuses
+  // (todo / in-progress / complete). Replaces the bespoke ticket model.
+  // Resolved when the user opens `tasks/` (workstation tile or file
+  // explorer click on the top-level `tasks/` folder).
+  | { kind: "tasks-list"; tasks: TaskSummary[] }
   // People directory — one row per contact. Default view is cards
   // (name + email + role/department); the header has a Cards / Table
   // toggle so admins can flip into the raw datastore-table when they
@@ -172,9 +136,8 @@ export type ViewerSource =
       items: MemoryItem[];
     }
   // Per-turn agent trace (the verbs + timestamps the agent emitted
-  // running this chat turn). Opened by clicking the agent-activity
-  // banner; resolves to the most recent trace file under
-  // `traces/<ticketId>/`. `doc` may be null on the
+  // running this chat turn). Resolved when the user opens a
+  // `traces/<ticketId>/<isoStamp>.json` file. `doc` may be null on the
   // very first click before any turn has finished — the viewer shows
   // a "composing first reply" placeholder, and the fs-watcher tick
   // re-resolves the source once the file lands.
@@ -184,31 +147,26 @@ export type ViewerSource =
       subject: string;
       doc: TraceDoc | null;
     }
-  // All traces for a single ticket, oldest-first. Surfaced when the
-  // admin clicks `traces/<ticketId>/` in the file
-  // explorer — the viewer renders each turn's trace stacked with a
-  // separator. Each entry carries the source filename so the header
-  // can show "turn 3 (2026-04-28T20:09:43Z)".
+  // All traces for a single ticket folder, oldest-first. Surfaced when
+  // the admin clicks `traces/<ticketId>/` in the file explorer — the
+  // viewer renders each turn's trace stacked with a separator.
   | {
       kind: "agent-trace-list";
       ticketId: string;
       subject: string;
       docs: { name: string; doc: TraceDoc | null }[];
     }
-  // Top-level entity folder (agents/, workflows/, knowledge-base/, filestore/).
+  // Top-level entity folder (agents/, workflows/, knowledge/, etc.).
   // Carries the files inside so the viewer can either show a list or a
-  // friendly empty-state notice — the same affordance the conversations-
-  // list provides for the databases/conversations folder.
+  // friendly empty-state notice.
   | {
       kind: "entity-folder";
       // Top-level entity folders that render a card list. `library`
       // is the curated filestore collection (`filestores/library/`);
       // `knowledge` / `knowledge-base` covers the flat
-      // `knowledge/` directory; the operational
-      // `filestores/attachments/` collection has its own ticketid-
-      // grouped renderer and isn't part of this set. `reports`
-      // carries on-demand generated markdown reports — sorted
-      // newest-first by filename instead of alphabetically.
+      // `knowledge/` directory; `reports` carries on-demand generated
+      // markdown reports — sorted newest-first by filename instead of
+      // alphabetically.
       entity:
         | "agents"
         | "workflows"
@@ -217,8 +175,7 @@ export type ViewerSource =
         | "library"
         | "reports"
         | "skills"
-        | "scripts"
-        | "attachments-ticket";
+        | "scripts";
       // Repo-relative path the resolver matched.
       path: string;
       // displayName drops the file extension and falls back to the
@@ -238,22 +195,10 @@ export type ViewerSource =
     }
   // Top-level `databases/` directory. Each collection is its own
   // subfolder (databases/<col>/) — the parent view shows them as cards
-  // with item counts and routes clicks to the per-collection viewer
-  // (datastore-table or conversations-list, whichever the child
-  // resolver picks up).
+  // with item counts and routes clicks to the per-collection viewer.
   | { kind: "databases-list"; collections: { name: string; path: string; itemCount: number; hasSchema: boolean }[] }
   // Top-level `filestores/` directory — mirrors `databases-list`.
-  // `attachments` and `library` ship as built-ins (special-cased for
-  // copy + counting semantics); the resolver also enumerates any
-  // user-created collection (`mkdir filestores/foo`) so the UI
-  // gracefully surfaces them with a generic description.
   | { kind: "filestores-list"; collections: { name: string; displayName: string; path: string; itemCount: number; itemNoun: string; description: string; isBuiltin: boolean }[] }
-  // `filestores/attachments/` view: introductory copy explaining the
-  // collection's purpose plus a list of per-ticket subfolders (each
-  // is a clickable card that jumps to the matching conversation
-  // thread). This is what surfaces when the admin clicks the
-  // attachments folder in the explorer.
-  | { kind: "attachments-folder"; tickets: { ticketId: string; path: string; fileCount: number }[] }
   // Legacy type kept for compat — no longer produced by the resolver.
   | { kind: "knowledge-list"; collections: { name: string; path: string; itemCount: number; description: string; isBuiltin: boolean }[] }
   // Tools — the tools catalog. Backed by `which` detection rather

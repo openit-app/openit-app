@@ -40,6 +40,7 @@ export interface WorkstationConfig {
 
 export const DEFAULT_WORKSTATION_CONFIG: WorkstationConfig = {
   main: [
+    { rel: "tasks" },
     { rel: "knowledge" },
     { rel: "filestores/commands" },
   ],
@@ -57,7 +58,6 @@ export const DEFAULT_WORKSTATION_CONFIG: WorkstationConfig = {
     { rel: "databases/assets" },
     { rel: "filestores/scripts" },
     { rel: "filestores/library" },
-    { rel: "filestores/attachments" },
     { rel: "agents" },
     { rel: "tools" },
     { rel: "traces" },
@@ -92,14 +92,17 @@ export async function saveWorkstationConfig(
 }
 
 /// Map legacy tile rels to their renamed counterparts. Used when
-/// loading a workstation config that was saved before the 2026-05
-/// layout rename so existing vaults keep their pinned tiles instead
-/// of going empty after the disk migration moves files to the new
-/// paths.
+/// loading a workstation config that was saved before a UI rename so
+/// existing vaults keep their pinned tiles instead of going empty
+/// after the underlying folder moves.
 const LEGACY_REL_REWRITES: Record<string, string> = {
   "filestores/skills": "filestores/commands",
   "knowledge-bases": "knowledge",
   ".openit/agent-traces": "traces",
+  // Ticket model removed in PIN-6605 → replaced by the simpler tasks
+  // model. Vaults that pinned the old Inbox tile keep their pin,
+  // pointing at the new tasks/ folder.
+  "databases/tickets": "tasks",
 };
 
 function rewriteLegacyRel(tile: TileConfig): TileConfig {
@@ -179,6 +182,7 @@ export interface DiscoveredTile {
 /// (People, Access, Scripts, Commands, ...) are surfaced as their
 /// own tiles instead, discovered below.
 const SYSTEM_TILES: DiscoveredTile[] = [
+  { rel: "tasks",  label: "Tasks",  defaultIcon: "inbox",  defaultTone: "accent",  countMode: "files" },
   { rel: "agents", label: "Agents", defaultIcon: "agents", defaultTone: "accent",  countMode: "files" },
   { rel: "tools",  label: "Tools",  defaultIcon: "tools",  defaultTone: "accent",  countMode: "custom" },
   { rel: "traces", label: "Traces", defaultIcon: "traces", defaultTone: "neutral", countMode: "dirs" },
@@ -189,7 +193,6 @@ const KNOWN_DB_DEFAULTS: Record<string, { label: string; icon: string; tone: Ton
   people:        { label: "People",   icon: "person",   tone: "sage" },
   access:        { label: "Access",   icon: "access",   tone: "sage" },
   assets:        { label: "Assets",   icon: "assets",   tone: "clay" },
-  tickets:       { label: "Inbox",    icon: "inbox",    tone: "accent" },
 };
 
 /** Well-known filestore collections with custom defaults. */
@@ -197,7 +200,6 @@ const KNOWN_FS_DEFAULTS: Record<string, { label: string; icon: string; tone: Ton
   commands:    { label: "Commands",    icon: "commands",    tone: "accent" },
   scripts:     { label: "Scripts",     icon: "scripts",     tone: "link" },
   library:     { label: "Library",     icon: "folder",      tone: "neutral" },
-  attachments: { label: "Attachments", icon: "attachments", tone: "neutral" },
 };
 
 /** Capitalize first letter. */
@@ -241,8 +243,12 @@ export async function discoverTiles(repo: string): Promise<DiscoveredTile[]> {
     const dbItems = await fsList(`${repo}/databases`);
     const dbDirs = directChildDirs(dbItems, `${repo}/databases`);
     for (const dir of dbDirs) {
-      if (dir.name === "conversations") continue; // hidden, tied to tickets
-      if (dir.name === "tickets") continue; // inbox hero card handles this
+      // Legacy ticket folders from older app versions stay on disk but
+      // are never surfaced as workstation tiles — the tasks station
+      // replaces them. The user can still navigate to the raw JSON via
+      // the file explorer if needed.
+      if (dir.name === "conversations") continue;
+      if (dir.name === "tickets") continue;
       const known = KNOWN_DB_DEFAULTS[dir.name];
       tiles.push({
         rel: `databases/${dir.name}`,

@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { fsList, fsRead, entityRemoveDir, type FileNode } from "../lib/api";
-import { scanEscalatedTickets, type TicketSummary } from "../lib/escalatedTickets";
+import { listTasks, tallyTasks, type TaskCounts } from "../lib/tasks";
 import { listInstalled as listInstalledTools } from "../lib/toolsInstall";
 import { iconForKey, type ToneKey } from "./entityIcons";
 import {
@@ -84,8 +84,8 @@ export function Workbench({
   // write by the getting-started tour fires normally.
   const highlightSeededRef = useRef(false);
   const [highlightedStations, setHighlightedStations] = useState<Set<string>>(new Set());
-  const [escalatedTickets, setEscalatedTickets] = useState<TicketSummary[]>([]);
-  const escalatedCount = escalatedTickets.length;
+  const [taskCounts, setTaskCounts] = useState<TaskCounts>({ todo: 0, inProgress: 0, complete: 0, total: 0 });
+  const openTaskCount = taskCounts.todo + taskCounts.inProgress;
   const [pickerOpen, setPickerOpen] = useState(false);
   const [layout, setLayout] = useState<GridLayout>("single");
   const [customizing, setCustomizing] = useState<ResolvedTile | null>(null);
@@ -100,7 +100,7 @@ export function Workbench({
   useEffect(() => {
     if (!repo) {
       setCounts({});
-      setEscalatedTickets([]);
+      setTaskCounts({ todo: 0, inProgress: 0, complete: 0, total: 0 });
       setMainTiles([]);
       setMoreTiles([]);
       return;
@@ -195,12 +195,12 @@ export function Workbench({
       prevCountsRef.current = next;
       setCounts(next);
 
-      // Escalated tickets
+      // Task counts for the hero card.
       try {
-        const esc = await scanEscalatedTickets(repo);
-        if (!cancelled) setEscalatedTickets(esc);
+        const tasks = await listTasks(repo);
+        if (!cancelled) setTaskCounts(tallyTasks(tasks));
       } catch {
-        if (!cancelled) setEscalatedTickets([]);
+        if (!cancelled) setTaskCounts({ todo: 0, inProgress: 0, complete: 0, total: 0 });
       }
 
       // Imperative tile highlight via .openit/highlight.json.
@@ -374,15 +374,15 @@ export function Workbench({
 
   // ── Derived state ────────────────────────────────────────────────
 
-  const openInbox = () => {
-    if (repo) onOpen(`${repo}/databases/tickets`);
+  const openTasks = () => {
+    if (repo) onOpen(`${repo}/tasks`);
   };
 
   // Tiles that can be deleted (have a folder on disk — not system
   // synthetics like "tools" or parent views like "databases").
   // Only the 5 primitives (top-level containers) and system entities
   // are non-deletable. Everything inside them is fair game.
-  const PRIMITIVES = new Set(["databases", "filestores", "knowledge", "reports", "agents"]);
+  const PRIMITIVES = new Set(["databases", "filestores", "knowledge", "reports", "agents", "tasks"]);
   const SYSTEM = new Set(["tools", "traces"]);
   const isDeletable = (rel: string) => {
     return !PRIMITIVES.has(rel) && !SYSTEM.has(rel);
@@ -390,19 +390,19 @@ export function Workbench({
 
   return (
     <div className="workbench">
-      {/* ── TODAY hero card ───────────────────────────────── */}
+      {/* ── TODAY hero card — count of open tasks (todo + in-progress) ── */}
       <div
-        className={`workbench-today${escalatedCount > 0 ? " has-escalated" : ""}`}
+        className={`workbench-today${openTaskCount > 0 ? " has-escalated" : ""}`}
       >
         <button
           type="button"
           className="workbench-today-main"
-          onClick={openInbox}
+          onClick={openTasks}
           disabled={!repo}
           title={
-            escalatedCount > 0
-              ? "Open the Tickets Inbox"
-              : "Open the Tickets Inbox (nothing waiting)"
+            openTaskCount > 0
+              ? "Open your task list"
+              : "Open your task list (nothing waiting)"
           }
         >
           <span className="workbench-today-topline">
@@ -411,15 +411,15 @@ export function Workbench({
               Open<em>IT</em>
             </span>
           </span>
-          {escalatedCount === 0 ? (
+          {openTaskCount === 0 ? (
             <span className="workbench-today-hero workbench-today-hero-clean">
-              <span className="workbench-today-clean">Clean inbox</span>
+              <span className="workbench-today-clean">Clean slate</span>
             </span>
           ) : (
             <span className="workbench-today-hero">
-              <span className="workbench-today-number">{escalatedCount}</span>
+              <span className="workbench-today-number">{openTaskCount}</span>
               <span className="workbench-today-label">
-                escalated ticket{escalatedCount === 1 ? "" : "s"}
+                open task{openTaskCount === 1 ? "" : "s"}
               </span>
             </span>
           )}

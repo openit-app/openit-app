@@ -31,8 +31,8 @@ const VARIANT_CLASS: Record<BannerVariant, string | undefined> = {
 };
 
 /** Inline banner. Always rendered in document flow — never floats.
- *  Replaces ConflictBanner, AgentActivityBanner, and the floating
- *  EscalatedTicketBanner. Parent it to the surface it concerns. */
+ *  Used by ConflictBanner and any future surface-level notices.
+ *  Parent it to the surface it concerns. */
 export function Banner({
   variant = "info",
   eyebrow,

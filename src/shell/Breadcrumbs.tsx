@@ -20,8 +20,9 @@ const TOP_LEVEL_FOLDERS: Record<string, { label: string; listPath: string }> = {
   databases:         { label: "Databases",   listPath: "databases" },
   agents:            { label: "Agents",      listPath: "agents" },
   workflows:         { label: "Workflows",   listPath: "workflows" },
-  "knowledge": { label: "Knowledge",   listPath: "knowledge" },
+  knowledge:         { label: "Knowledge",   listPath: "knowledge" },
   reports:           { label: "Reports",     listPath: "reports" },
+  tasks:             { label: "Tasks",       listPath: "tasks" },
 };
 
 /** Capitalize the first letter of a string. */
@@ -36,8 +37,6 @@ const DB_LABELS: Record<string, string> = {
   people:        "People",
   access:        "Access",
   assets:        "Assets",
-  tickets:       "Inbox",
-  conversations: "Inbox",
 };
 
 // ── Core: derive breadcrumb segments from a ViewerSource ──────────
@@ -60,11 +59,9 @@ export function breadcrumbSegments(
     case "filestores-list":
       return [{ label: "Filestores", navigateTo: null }];
 
-    case "attachments-folder":
-      return [
-        { label: "Filestores", navigateTo: "filestores" },
-        { label: "Attachments", navigateTo: null },
-      ];
+    // ── Tasks (new Inbox) ─────────────────────────────────────────
+    case "tasks-list":
+      return [{ label: "Tasks", navigateTo: null }];
 
     // ── Databases hierarchy ───────────────────────────────────────
     case "databases-list":
@@ -97,30 +94,15 @@ export function breadcrumbSegments(
       ];
     }
 
-    // ── Conversations (tickets) ───────────────────────────────────
-    case "conversations-list":
-      return [
-        { label: "Databases", navigateTo: "databases" },
-        { label: "Inbox", navigateTo: null },
-      ];
-
-    case "conversation-thread":
-      return [
-        { label: "Databases", navigateTo: "databases" },
-        { label: "Inbox", navigateTo: "databases/tickets" },
-        { label: source.ticketId, navigateTo: null },
-      ];
-
     // ── Entity folders (agents, workflows, knowledge, etc.) ──────
     case "entity-folder": {
       const entityLabel = entityFolderLabel(source.entity);
-      // If it's a sub-collection under filestores (library, skills, scripts,
-      // attachments-ticket), show Filestores as a parent.
+      // If it's a sub-collection under filestores (library, skills,
+      // scripts), show Filestores as a parent.
       if (
         source.entity === "library" ||
         source.entity === "skills" ||
-        source.entity === "scripts" ||
-        source.entity === "attachments-ticket"
+        source.entity === "scripts"
       ) {
         return [
           { label: "Filestores", navigateTo: "filestores" },
@@ -269,8 +251,7 @@ function entityFolderLabel(
     | "library"
     | "reports"
     | "skills"
-    | "scripts"
-    | "attachments-ticket",
+    | "scripts",
 ): string {
   switch (entity) {
     case "agents":             return "Agents";
@@ -281,7 +262,6 @@ function entityFolderLabel(
     case "reports":            return "Reports";
     case "skills":             return "Skills";
     case "scripts":            return "Scripts";
-    case "attachments-ticket": return "Attachments";
     default:                   return capitalize(entity);
   }
 }
