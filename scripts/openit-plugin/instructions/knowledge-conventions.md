@@ -1,6 +1,6 @@
 # Knowledge conventions
 
-Knowledge is for *employee-facing* answers — questions an employee might ask the admin, written so anyone can read them. The intake side of OpenIT reads from `knowledge/` when serving employees, so anything you write there is potentially employee-facing.
+Knowledge is for *employee-facing* answers — questions an employee might ask the admin, written so anyone can read them. Anything under `knowledge/` may be shared with employees verbatim, so write for that audience, not in admin-only shorthand.
 
 ## What belongs in knowledge
 

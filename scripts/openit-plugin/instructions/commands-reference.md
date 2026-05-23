@@ -1,6 +1,6 @@
 # Commands reference
 
-Commands prefixed with `ai-` are agent-facing (auto-loaded, not invoked by humans). All others are admin-facing, invoked via `/<name>` in the chat.
+Admin-facing commands the admin invokes via `/<name>` in the chat.
 
 | Command | What it does |
 |---|---|
@@ -13,9 +13,8 @@ Commands prefixed with `ai-` are agent-facing (auto-loaded, not invoked by human
 | `drive-search` | Search across Google Drive from a single place. |
 | `asset-tracking` | Query device or asset inventory. Who owns what. |
 | `pipeline-outreach` | Pull pipeline reports, draft emails, update CRM records. |
-| `report` | Generate custom helpdesk reports. |
+| `report` | Generate custom reports from vault data. |
 | `connect-slack` | Connect OpenIT to a Slack workspace. |
-| `share-intake` | Share the intake form via a public Cloudflare tunnel link. |
 | `getting-started` | Interactive guided tour. Experience the learning loop in 3 minutes. |
 | `load-sample-data` | Load sample data into the workspace across all tiles. |
 | `cleanup` | Remove all sample data from the vault. |
