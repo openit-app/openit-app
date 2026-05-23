@@ -11,11 +11,6 @@ import {
   resolveDatabasesList,
 } from "./resolvers/datastoreResolvers";
 import {
-  resolveAgentMd,
-  resolveAgentJson,
-  resolveWorkflow,
-} from "./resolvers/agentResolvers";
-import {
   resolveEntityFolder,
   resolveFilestoresList,
 } from "./resolvers/filestoreResolvers";
@@ -112,27 +107,11 @@ export async function resolvePathToSource(
     return resolveDatastoreTable(path, dirMatch[1]);
   }
 
-  // ── Agent & workflow resolvers ──
-
-  // agents/<name>.md -> render as a regular file
-  const agentMdMatch = rel.match(/^agents\/([^/]+)\.md$/);
-  if (agentMdMatch) {
-    return resolveAgentMd(path);
-  }
-
-  // agents/<name>.json -> agent (legacy V1/V2)
-  const agentJsonMatch = rel.match(/^agents\/(.+)\.json$/);
-  if (agentJsonMatch) {
-    return resolveAgentJson(path);
-  }
-
-  // workflows/<name>.json -> workflow
-  const workflowMatch = rel.match(/^workflows\/(.+)\.json$/);
-  if (workflowMatch) {
-    return resolveWorkflow(path);
-  }
-
   // ── Filestore resolvers ──
+  // (agents/ and workflows/ no longer have dedicated viewers — files
+  // under those folders fall through to the generic file viewer. The
+  // backend still reads `agents/triage.md` as the triage system prompt;
+  // it just isn't surfaced as a primitive in the workstation.)
 
   // Top-level entity folders
   const filestoreCollectionMatch = rel.match(/^filestores\/([^/]+)$/);
@@ -145,8 +124,6 @@ export async function resolvePathToSource(
   const filestoreSubdir = filestoreCollectionMatch ? filestoreCollectionMatch[1] : null;
   const entityFolderEntry: {
     entity:
-      | "agents"
-      | "workflows"
       | "knowledge"
       | "knowledge-base"
       | "library"
@@ -154,21 +131,17 @@ export async function resolvePathToSource(
       | "skills"
       | "scripts";
   } | null =
-    rel === "agents"
-      ? { entity: "agents" }
-      : rel === "workflows"
-        ? { entity: "workflows" }
-        : rel === "knowledge"
-          ? { entity: "knowledge" }
-          : filestoreSubdir === "commands"
-            ? { entity: "skills" }
-            : filestoreSubdir === "scripts"
-              ? { entity: "scripts" }
-              : filestoreSubdir
-                ? { entity: "library" }
-                : rel === "reports"
-                  ? { entity: "reports" }
-                  : null;
+    rel === "knowledge"
+      ? { entity: "knowledge" }
+      : filestoreSubdir === "commands"
+        ? { entity: "skills" }
+        : filestoreSubdir === "scripts"
+          ? { entity: "scripts" }
+          : filestoreSubdir
+            ? { entity: "library" }
+            : rel === "reports"
+              ? { entity: "reports" }
+              : null;
   if (entityFolderEntry) {
     return resolveEntityFolder(path, rel, repo, entityFolderEntry.entity);
   }

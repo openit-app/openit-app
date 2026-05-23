@@ -1,4 +1,4 @@
-import type { DataCollection, MemoryItem, Agent, Workflow } from "../lib/localTypes";
+import type { DataCollection, MemoryItem } from "../lib/localTypes";
 import type { TaskSummary } from "../lib/tasks";
 
 /// Mirrors `agent_trace::TraceEvent` on the Rust side. Persisted at
@@ -92,13 +92,6 @@ export type ViewerSource =
   | { kind: "datastore-table"; collection: DataCollection; items?: MemoryItem[]; hasMore?: boolean; onLoadMore?: () => void }
   | { kind: "datastore-row"; collection: DataCollection; item: MemoryItem }
   | { kind: "datastore-schema"; collection: DataCollection }
-  // path is the on-disk JSON file (`agents/<name>.json` /
-  // `workflows/<name>.json`) the resolver matched. Carried through so
-  // the file explorer can highlight the matching row when the agent /
-  // workflow card is open on the canvas — without it, sourceToTreePath
-  // has no way to derive the path from AgentRow/WorkflowRow alone.
-  | { kind: "agent"; agent: Agent; path: string }
-  | { kind: "workflow"; workflow: Workflow; path: string }
   // Tasks — the new Inbox. Linear-style flat list with three statuses
   // (todo / in-progress / complete). Replaces the bespoke ticket model.
   // Resolved when the user opens `tasks/` (workstation tile or file
@@ -156,7 +149,7 @@ export type ViewerSource =
       subject: string;
       docs: { name: string; doc: TraceDoc | null }[];
     }
-  // Top-level entity folder (agents/, workflows/, knowledge/, etc.).
+  // Top-level entity folder (knowledge-base/, filestore/).
   // Carries the files inside so the viewer can either show a list or a
   // friendly empty-state notice.
   | {
@@ -168,8 +161,6 @@ export type ViewerSource =
       // markdown reports — sorted newest-first by filename instead of
       // alphabetically.
       entity:
-        | "agents"
-        | "workflows"
         | "knowledge"
         | "knowledge-base"
         | "library"
@@ -179,9 +170,9 @@ export type ViewerSource =
       // Repo-relative path the resolver matched.
       path: string;
       // displayName drops the file extension and falls back to the
-      // entity's own `name` field when readable (agents/workflows JSON);
-      // description is the entity's `description` field, or the first
-      // markdown heading for knowledge-base, or empty for library.
+      // filename; description is the entity's `description` field, or
+      // the first markdown heading for knowledge-base, or empty for
+      // library.
       files: {
         name: string;
         displayName: string;

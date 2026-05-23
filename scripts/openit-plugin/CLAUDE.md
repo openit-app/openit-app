@@ -24,7 +24,6 @@ The admin's vault is a folder on disk. Everything is a file or folder. No databa
 | `filestores/library/` | Reference docs the admin keeps handy (runbooks, templates). |
 | `knowledge/<slug>.md` | Reusable knowledge articles. |
 | `reports/<slug>.md` | Generated reports. |
-| `agents/` | Optional Claude agent definitions for custom workflows. |
 | `traces/<id>/` | Auto-recorded session logs. You don't write these; the system does. |
 
 We ship sensible defaults inside each (schemas, the starter commands). The admin can delete, rename, or create whatever they want. This is a folder; everything is editable.

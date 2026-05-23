@@ -1,8 +1,7 @@
 /// Entity-folder sub-viewer extracted from Viewer.tsx.
 /// Handles `entity-folder` rendering — the generic top-level folder
-/// view for agents, workflows, knowledge-base, library, reports,
-/// skills, scripts, and per-ticket attachments.
-/// No behavior changes — purely structural extraction.
+/// view for knowledge-base, library, reports, skills, scripts, and
+/// per-ticket attachments.
 
 import { useEffect, useState } from "react";
 import { fsReveal } from "../../lib/api";
@@ -145,8 +144,6 @@ export function EntityFolderBody({
       onAddToClaude: (() => {
         const rel = repo ? toRepoRelative(repo, f.path) : f.name;
         switch (source.entity) {
-          case "agents":
-            return () => { void writeToActiveSession(`Read and follow the agent instructions in ${rel}\r`); };
           case "skills":
             return () => { void writeToActiveSession(`/${f.displayName}\r`); };
           case "knowledge-base":
