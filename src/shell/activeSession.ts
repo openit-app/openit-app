@@ -12,6 +12,17 @@ export function clearActiveSession(id: string) {
   }
 }
 
+// Serializes PTY writes so two concurrent `writeToActiveSession`
+// callers don't interleave their body+enter pairs at the terminal.
+// Without this, two back-to-back calls would race:
+//   ptyWrite(bodyA) → ptyWrite(bodyB) → sleep(50) → enter for A →
+//   sleep(50) → enter for B
+// producing `bodyA + bodyB + \r + \r` at the prompt — one garbled
+// merged submission plus an empty newline. Chain everything off a
+// single shared promise so the second call sees the first's enter
+// before starting its body. (Independent reviewer finding, PIN-6607.)
+let writeChain: Promise<unknown> = Promise.resolve();
+
 /// Write text into whatever PTY is currently active (the visible Claude session).
 /// Resolves silently when no session is active so UI never crashes from a bubble click.
 /// Returns true if a session was active and the write was issued.
@@ -22,6 +33,9 @@ export function clearActiveSession(id: string) {
 /// contains both body and Enter as a paste with embedded newline —
 /// leaving the command staged at the prompt instead of submitting.
 /// Splitting it makes the Enter look like a real keypress.
+///
+/// Concurrent callers are serialized via an internal promise chain —
+/// see `writeChain` above.
 export async function writeToActiveSession(text: string): Promise<boolean> {
   if (!activeSessionId) {
     console.warn(
@@ -29,16 +43,28 @@ export async function writeToActiveSession(text: string): Promise<boolean> {
     );
     return false;
   }
-  const m = text.match(/^([\s\S]*?)([\r\n]+)$/);
-  if (m) {
-    const [, body, enter] = m;
-    if (body.length > 0) {
-      await ptyWrite(activeSessionId, body);
-      await new Promise((r) => setTimeout(r, 50));
+  // Capture the session id at queue time, not at run time. If the
+  // active session changes mid-queue, this write still targets the
+  // session the caller intended.
+  const sessionId = activeSessionId;
+  const run = async (): Promise<boolean> => {
+    const m = text.match(/^([\s\S]*?)([\r\n]+)$/);
+    if (m) {
+      const [, body, enter] = m;
+      if (body.length > 0) {
+        await ptyWrite(sessionId, body);
+        await new Promise((r) => setTimeout(r, 50));
+      }
+      await ptyWrite(sessionId, enter);
+      return true;
     }
-    await ptyWrite(activeSessionId, enter);
+    await ptyWrite(sessionId, text);
     return true;
-  }
-  await ptyWrite(activeSessionId, text);
-  return true;
+  };
+  // Chain off the previous write so body+enter pair runs without
+  // interleaving. Swallow any rejection inside the chain itself so
+  // one caller's failure doesn't poison the chain for the next.
+  const result = writeChain.then(run, run);
+  writeChain = result.catch(() => undefined);
+  return result;
 }

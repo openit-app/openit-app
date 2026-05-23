@@ -170,12 +170,18 @@ export function CommandsStation({
   // re-render in the middle of the async body — `useRef` is what we
   // want for "set true, do work, set false" semantics.
   const creatingRef = useRef(false);
+  // Per-pipeline cancellation token. cancelNewCommand bumps this; the
+  // inner pipeline checks at every async boundary and bails before
+  // mutating disk or the PTY. (BugBot finding — Escape/Cancel during
+  // the live re-list otherwise still went on to write the file.)
+  const createGenRef = useRef(0);
 
   const createNewCommand = async () => {
     if (creatingRef.current) return;
     creatingRef.current = true;
+    const myGen = ++createGenRef.current;
     try {
-      await createNewCommandInner();
+      await createNewCommandInner(myGen);
     } catch (err) {
       // Any throw inside the inner pipeline — entityWriteFile failing
       // permission checks, a Tauri IPC error from writeToActiveSession,
@@ -200,7 +206,10 @@ export function CommandsStation({
   const canSubmitNewCommand = (): boolean =>
     newName.trim().length > 0 && newIntent.trim().length > 0;
 
-  const createNewCommandInner = async () => {
+  const createNewCommandInner = async (gen: number) => {
+    // Helper: true if the user cancelled this submission since we
+    // started. Called at every async boundary below.
+    const cancelled = () => createGenRef.current !== gen;
     const slug = newName.trim().toLowerCase().replace(/\s+/g, "-").replace(/[^a-z0-9-]/g, "");
     // Names that strip to nothing (non-ASCII, punctuation-only, etc.)
     // must surface as an error — silently no-op'ing here was the
@@ -246,7 +255,12 @@ export function CommandsStation({
       (c) => c.name.toLowerCase() === slug,
     );
     if (collidesWith) {
-      const isSystem = collidesWith.path.includes("/.claude/skills/");
+      // Normalise backslashes → forward slashes before the substring
+      // check. fsList on Windows returns paths with `\\`, so the
+      // bare `/.claude/skills/` check misclassifies system commands
+      // as user commands there. (BugBot finding.)
+      const normPath = collidesWith.path.replace(/\\/g, "/");
+      const isSystem = normPath.includes("/.claude/skills/");
       showToast({
         title: isSystem
           ? `/${slug} is a system command`
@@ -311,6 +325,7 @@ Before signing off, re-read this command body. If the admin's choices narrowed a
     // the file while the user was typing the intent.
     try {
       const live = await fsList(`${repo}/filestores/commands`);
+      if (cancelled()) return;
       // Case-insensitive compare: HFS+/NTFS treat `Foo.md` and
       // `foo.md` as the same file. Strict equality would let us
       // overwrite a case-variant on those volumes.
@@ -329,9 +344,19 @@ Before signing off, re-read this command body. If the admin's choices narrowed a
       }
     } catch {
       // `filestores/commands` may not exist yet — that's fine, the
-      // write below will create it. Fall through.
+      // write below will create it. But ANY other fsList failure
+      // (permissions, transient IO) shouldn't silently skip the
+      // collision check — fall back on the cached `commands` state
+      // we already inspected above. That cache might be stale, but
+      // it's strictly better than nothing.
+      if (cancelled()) return;
+      // (The cached check at the top of the function already ran;
+      //  we'd have early-returned if it found a collision. Nothing
+      //  more we can do here without a richer fs API.)
     }
+    if (cancelled()) return;
     await entityWriteFile(repo, "filestores/commands", `${slug}.md`, boilerplate);
+    if (cancelled()) return;
     setShowNewInput(false);
     setNewName("");
     setNewIntent("");
@@ -376,6 +401,9 @@ Before signing off, re-read this command body. If the admin's choices narrowed a
   };
 
   const cancelNewCommand = () => {
+    // Bump the generation so any in-flight createNewCommandInner
+    // (mid-fsList, mid-write) bails before mutating disk or the PTY.
+    createGenRef.current += 1;
     setShowNewInput(false);
     setNewName("");
     setNewIntent("");

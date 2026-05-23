@@ -250,6 +250,83 @@ describe("CommandsStation + New flow", () => {
     expect(activeSessionMock.writeToActiveSession).not.toHaveBeenCalled();
   });
 
+  it("cancels an in-flight create when the user hits Cancel during fsList", async () => {
+    // Hold the live re-list in suspense so the user can Cancel
+    // between the cached collision check and the disk write.
+    let resolveList: ((nodes: { name: string; path: string; is_dir: boolean }[]) => void) | null = null;
+    apiMock.fsList.mockImplementation(
+      () =>
+        new Promise((res) => {
+          resolveList = res;
+        }),
+    );
+
+    renderInToastProvider(<CommandsStation repo="/tmp/repo" onOpen={() => {}} />);
+    fireEvent.click(screen.getByRole("button", { name: "+ New" }));
+    await screen.findByRole("dialog", { name: /create new command/i });
+
+    fireEvent.change(screen.getByPlaceholderText("command-name"), {
+      target: { value: "racey" },
+    });
+    fireEvent.change(
+      screen.getByPlaceholderText(/what should this command do/i),
+      { target: { value: "About to be cancelled." } },
+    );
+    fireEvent.click(screen.getByRole("button", { name: /^create$/i }));
+
+    // Cancel mid-flight (the dialog is still up while fsList hangs;
+    // hitting Cancel must abort the inner pipeline).
+    await new Promise((r) => setTimeout(r, 0));
+    fireEvent.click(screen.getByRole("button", { name: /cancel/i }));
+
+    // Release the suspended fsList → the pipeline must NOT proceed
+    // to entityWriteFile because the generation has bumped.
+    resolveList?.([]);
+    await new Promise((r) => setTimeout(r, 0));
+    await new Promise((r) => setTimeout(r, 0));
+    expect(apiMock.entityWriteFile).not.toHaveBeenCalled();
+    expect(activeSessionMock.writeToActiveSession).not.toHaveBeenCalled();
+  });
+
+  it("normalises Windows backslash paths when classifying system vs user collisions", async () => {
+    apiMock.fsList.mockImplementation(async (path: string) => {
+      if (path.endsWith("/.claude/skills")) {
+        return [{ name: "winskill", path: `${path}/winskill`, is_dir: true }];
+      }
+      // Simulate fsList returning backslash-style paths the way it
+      // does on Windows.
+      if (path.endsWith("/.claude/skills/winskill")) {
+        return [{
+          name: "SKILL.md",
+          path: "C:\\Users\\me\\repo\\.claude\\skills\\winskill\\SKILL.md",
+          is_dir: false,
+        }];
+      }
+      return [];
+    });
+    apiMock.fsRead.mockResolvedValue("---\ndescription: \"Win system skill\"\n---\n");
+
+    renderInToastProvider(<CommandsStation repo="/tmp/repo" onOpen={() => {}} />);
+    await screen.findByText(/win system skill/i);
+
+    fireEvent.click(screen.getByRole("button", { name: "+ New" }));
+    await screen.findByRole("dialog", { name: /create new command/i });
+    fireEvent.change(screen.getByPlaceholderText("command-name"), {
+      target: { value: "winskill" },
+    });
+    fireEvent.change(
+      screen.getByPlaceholderText(/what should this command do/i),
+      { target: { value: "Custom win." } },
+    );
+    fireEvent.click(screen.getByRole("button", { name: /^create$/i }));
+
+    await waitFor(() =>
+      expect(
+        screen.getByText(/system command/i),
+      ).toBeInTheDocument(),
+    );
+  });
+
   it("catches case-variant collisions (HFS+/NTFS are case-insensitive)", async () => {
     apiMock.fsList.mockImplementation(async (path: string) => {
       if (path.endsWith("/filestores/commands")) {
