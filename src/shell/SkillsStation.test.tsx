@@ -169,6 +169,48 @@ describe("CommandsStation + New flow", () => {
     expect(mdBody).not.toContain("```");
   });
 
+  it("guards against a double-click on Create — only one file write + one Claude handoff per submit", async () => {
+    // Keep entityWriteFile pending so a fast second click lands
+    // while the first is still in flight.
+    let resolveWrite: (() => void) | null = null;
+    apiMock.entityWriteFile.mockImplementation(
+      () =>
+        new Promise<void>((res) => {
+          resolveWrite = res;
+        }),
+    );
+
+    renderInToastProvider(<CommandsStation repo="/tmp/repo" onOpen={() => {}} />);
+    fireEvent.click(screen.getByRole("button", { name: "+ New" }));
+    await screen.findByRole("dialog", { name: /create new command/i });
+
+    fireEvent.change(screen.getByPlaceholderText("command-name"), {
+      target: { value: "racey" },
+    });
+    fireEvent.change(
+      screen.getByPlaceholderText(/what should this command do/i),
+      { target: { value: "Race." } },
+    );
+
+    const createBtn = screen.getByRole("button", { name: /^create$/i });
+    // Double-click as fast as React can dispatch — second click must
+    // be absorbed by the in-flight guard.
+    fireEvent.click(createBtn);
+    fireEvent.click(createBtn);
+    fireEvent.click(createBtn);
+
+    // Let microtasks flush so all three click handlers' async bodies
+    // hit the guard.
+    await new Promise((r) => setTimeout(r, 0));
+    expect(apiMock.entityWriteFile).toHaveBeenCalledTimes(1);
+
+    // Finish the write and let writeToActiveSession run.
+    resolveWrite?.();
+    await waitFor(() =>
+      expect(activeSessionMock.writeToActiveSession).toHaveBeenCalledTimes(1),
+    );
+  });
+
   it("refuses to clobber an existing command and toasts a collision warning", async () => {
     // Seed an existing /deploy command — fsList returns the dir,
     // fsRead returns the body so it shows up in the panel state.

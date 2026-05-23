@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { fsList, fsRead, entityWriteFile } from "../lib/api";
 import { isDirectChild } from "../lib/paths";
 import { writeToActiveSession } from "./activeSession";
@@ -162,8 +162,26 @@ export function CommandsStation({
   const visible = q || showAll ? filtered : filtered.slice(0, foldAt);
   const hiddenCount = filtered.length - foldAt;
   const [showNewInput, setShowNewInput] = useState(false);
+  // In-flight guard: a fast double-click on Create (or Enter +
+  // immediate second Enter) could otherwise launch two write
+  // pipelines back-to-back, each ending in a `writeToActiveSession`
+  // call. Claude would receive two build-out prompts for the same
+  // command. (BugBot finding.) Plain `useState` would cause a
+  // re-render in the middle of the async body — `useRef` is what we
+  // want for "set true, do work, set false" semantics.
+  const creatingRef = useRef(false);
 
   const createNewCommand = async () => {
+    if (creatingRef.current) return;
+    creatingRef.current = true;
+    try {
+      await createNewCommandInner();
+    } finally {
+      creatingRef.current = false;
+    }
+  };
+
+  const createNewCommandInner = async () => {
     const slug = newName.trim().toLowerCase().replace(/\s+/g, "-").replace(/[^a-z0-9-]/g, "");
     // Names that strip to nothing (non-ASCII, punctuation-only, etc.)
     // must surface as an error — silently no-op'ing here was the

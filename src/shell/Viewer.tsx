@@ -615,7 +615,18 @@ export function Viewer({
           // Skip the update if the file content didn't actually
           // change — the watcher fires on metadata-only touches too
           // (chmod, atime) and re-rendering for those is just churn.
-          setContent((prev) => (prev === c ? prev : c));
+          // We also short-circuit the scroll restore in that case: a
+          // no-op setContent doesn't re-render the markdown subtree,
+          // so there's nothing to compensate for and restoring would
+          // just clobber any scrolling the user has done since the
+          // debounce fired. (BugBot finding.)
+          let didUpdate = false;
+          setContent((prev) => {
+            if (prev === c) return prev;
+            didUpdate = true;
+            return c;
+          });
+          if (!didUpdate) return;
           // Restore the scroll position on the next frame, after
           // React has committed the new markdown subtree. Without
           // rAF the scrollHeight is still stale and the restore lands
