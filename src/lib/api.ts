@@ -56,10 +56,18 @@ export type AppPersistedState = {
   pane_sizes: number[] | null;
   pinned_bubbles: string[] | null;
   onboarding_complete: boolean;
+  /// Whether the left sidebar is collapsed to an icon-only rail.
+  /// `null` = first launch (default expanded). Once the user toggles,
+  /// the choice is persisted so it survives app restarts.
+  sidebar_collapsed: boolean | null;
 };
 
 export async function stateLoad(): Promise<AppPersistedState> {
   return invoke("state_load");
+}
+
+export async function stateSave(state: AppPersistedState): Promise<void> {
+  return invoke("state_save", { state });
 }
 
 

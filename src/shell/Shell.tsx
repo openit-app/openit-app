@@ -6,6 +6,7 @@ import {
   fsDelete,
   fsRead,
   stateLoad,
+  stateSave,
   type AppPersistedState,
 } from "../lib/api";
 import { fsWatchStart, fsWatchStop, onFsChanged } from "../lib/fsWatcher";
@@ -21,6 +22,7 @@ import { PaneDragHandle } from "./PaneDragHandle";
 // window is pure cream gutter, fixing the "panes look chipped off"
 // feedback. The StatusChips export is consumed there.
 import { Workbench } from "./Workbench";
+import { LeftSidebarRail } from "./LeftSidebarRail";
 import { ConflictBanner } from "./ConflictBanner";
 import { FileExplorer } from "./FileExplorer";
 import { EscalatedTicketBanner } from "./EscalatedTicketBanner";
@@ -31,6 +33,7 @@ import { Viewer, type ViewerSource } from "./Viewer";
 // Tab, TabStrip, PaneBody removed — left pane is now just FileExplorer.
 import type { DockKind } from "../lib/skillState";
 import { resolvePathToSource } from "./entityRouting";
+import { selectedRelFromSource } from "./sidebarSelection";
 import { sourceToTreePath } from "./sourceToTreePath";
 import { SkillActionDock } from "./SkillActionDock";
 
@@ -271,6 +274,11 @@ export function Shell({
   const [dragOverPaneId, setDragOverPaneId] = useState<PaneId | null>(null);
   const [chatSessionKey, setChatSessionKey] = useState(0);
   const [chatResume, setChatResume] = useState(false);
+  /// Left sidebar collapse state. `null` until the first state_load
+  /// resolves — we hold off on rendering the panes row so we don't
+  /// flash expanded → collapsed (or vice versa) on cold start. Default
+  /// is expanded on first launch (state.sidebar_collapsed === null).
+  const [sidebarCollapsed, setSidebarCollapsed] = useState<boolean | null>(null);
   const bumpFs = useCallback(() => setFsTick((t) => t + 1), []);
 
   // ── Tell Claude what the user is looking at ──────────────────────
@@ -390,7 +398,44 @@ export function Shell({
   }, [repo, pulling, bumpFs, onSyncLine]);
 
   useEffect(() => {
-    stateLoad().then(setState).catch(console.error);
+    stateLoad()
+      .then((s) => {
+        setState(s);
+        // Seed the sidebar collapse flag from the persisted state.
+        // `null` ≡ first launch → expanded by design (PIN-6613).
+        setSidebarCollapsed(s.sidebar_collapsed ?? false);
+      })
+      .catch(console.error);
+  }, []);
+
+  /// Persist the user's collapse choice across app restarts. Per-user
+  /// (lives in the Tauri app data dir's state.json), NOT per-vault.
+  /// We track the latest loaded state in a ref so the persistor can
+  /// merge — `stateSave` writes the full struct, so we'd clobber
+  /// `last_repo` / `pane_sizes` / `pinned_bubbles` / `onboarding_complete`
+  /// if we wrote a struct built only from the toggle. The ref pattern
+  /// mirrors `configRef` in Workbench.tsx for the same reason.
+  const stateRef = useRef<AppPersistedState | null>(state);
+  useEffect(() => {
+    stateRef.current = state;
+  }, [state]);
+  const toggleSidebarCollapsed = useCallback(() => {
+    setSidebarCollapsed((prev) => {
+      const next = !(prev ?? false);
+      // Optimistic local update; persist asynchronously. If the write
+      // fails (disk full, perms), we keep the in-memory toggle so the
+      // current session still works — the warn lands in devtools.
+      const base = stateRef.current;
+      if (base) {
+        const merged: AppPersistedState = { ...base, sidebar_collapsed: next };
+        stateRef.current = merged;
+        setState(merged);
+        stateSave(merged).catch((e) =>
+          console.warn("[shell] sidebar_collapsed persist failed:", e),
+        );
+      }
+      return next;
+    });
   }, []);
 
   // Expose the manual-pull and tab-switch handlers up to App so the
@@ -692,7 +737,8 @@ export function Shell({
     };
   }, [repo, bumpFs, onSyncLine]);
 
-  if (!state) return <div className="shell-loading">Loading…</div>;
+  if (!state || sidebarCollapsed === null)
+    return <div className="shell-loading">Loading…</div>;
 
   return (
     <div className="shell">
@@ -767,6 +813,7 @@ export function Shell({
                     setSource(resolved);
                   }}
                   onShowFiles={() => setShowFiles(true)}
+                  onCollapse={toggleSidebarCollapsed}
                 />
               )}
             </div>
@@ -844,16 +891,44 @@ export function Shell({
         // its own clean key and no cross-bleed. End result: once the
         // user resizes a pane, the size sticks across page changes
         // AND across app restarts.
-        const autoSaveId = `openit-shell-panes-${paneOrder.join("-")}`;
+        //
+        // When the sidebar is collapsed, "left" is rendered as a
+        // fixed-width rail OUTSIDE the PanelGroup (icon-only, ~52px).
+        // The remaining panes share the PanelGroup with their own
+        // saved sizes — a separate autoSaveId so collapsed and
+        // expanded layouts don't clobber each other's persisted sizes.
+        const panelPaneOrder = sidebarCollapsed
+          ? paneOrder.filter((id) => id !== "left")
+          : paneOrder;
+        const autoSaveId = `openit-shell-panes-${
+          sidebarCollapsed ? "collapsed-" : ""
+        }${panelPaneOrder.join("-")}`;
+        const railSelectedRel = selectedRelFromSource(source, repo);
         return (
           // Wrapper enforces the panes-row geometry: takes all
           // available vertical space inside .shell, leaving room for
           // any banners above and the StatusBar below. Without
           // flex:1 the PanelGroup collapses in some cases when the
           // shell uses padded gutters.
-          <div className="shell-panes-row">
+          <div
+            className={`shell-panes-row${
+              sidebarCollapsed ? " shell-panes-row-collapsed-left" : ""
+            }`}
+          >
+            {sidebarCollapsed && (
+              <LeftSidebarRail
+                repo={repo}
+                fsTick={fsTick}
+                selectedRel={railSelectedRel}
+                onExpand={toggleSidebarCollapsed}
+                onOpen={async (path) => {
+                  const resolved = await resolvePathToSource(path, repo);
+                  setSource(resolved);
+                }}
+              />
+            )}
             <PanelGroup direction="horizontal" autoSaveId={autoSaveId}>
-              {paneOrder.map((id, idx) => (
+              {panelPaneOrder.map((id, idx) => (
                 <Fragment key={id}>
                   <Panel
                     id={id}
@@ -863,7 +938,7 @@ export function Shell({
                   >
                     {paneContent[id]}
                   </Panel>
-                  {idx < paneOrder.length - 1 && (
+                  {idx < panelPaneOrder.length - 1 && (
                     <PanelResizeHandle className="resize-handle" />
                   )}
                 </Fragment>

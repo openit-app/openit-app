@@ -1,0 +1,122 @@
+import { useCallback, useEffect, useState } from "react";
+import { fsList } from "../lib/api";
+import {
+  loadWorkstationConfig,
+  discoverTiles,
+  mergeConfigWithDiscovery,
+  type ResolvedTile,
+} from "../lib/workstationConfig";
+import { iconForKey } from "./entityIcons";
+
+/// Collapsed left-sidebar rail — an icon-only column rendered when the
+/// user clicks the collapse toggle. Mirrors the Workbench's tile set
+/// (main tiles only — "more" stays hidden in collapsed mode) so the
+/// user can still jump to any pinned station with a single click.
+/// Selected tile is highlighted; tooltip on hover shows the full label.
+///
+/// Persistence of the collapsed/expanded choice itself lives in Shell.tsx
+/// (it's a per-user app-state field, not per-vault), so this component
+/// is purely presentational — it owns no toggle state.
+export function LeftSidebarRail({
+  repo,
+  fsTick,
+  selectedRel,
+  onOpen,
+  onExpand,
+}: {
+  repo: string | null;
+  fsTick: number;
+  /// Repo-relative path of the currently-open station (e.g. "databases/tickets"),
+  /// used to highlight the matching icon. `null` when no station is active.
+  selectedRel: string | null;
+  onOpen: (path: string) => void;
+  /// Click handler for the expand-toggle button at the top of the rail.
+  onExpand: () => void;
+}) {
+  const [mainTiles, setMainTiles] = useState<ResolvedTile[]>([]);
+
+  useEffect(() => {
+    if (!repo) {
+      setMainTiles([]);
+      return;
+    }
+    let cancelled = false;
+    (async () => {
+      try {
+        const [cfg, discovered] = await Promise.all([
+          loadWorkstationConfig(repo),
+          discoverTiles(repo),
+        ]);
+        if (cancelled) return;
+        const { main } = mergeConfigWithDiscovery(cfg, discovered);
+        // Touch fsList once so the auto-watcher path stays warm — same
+        // pattern Workbench uses, just without count surfacing. We don't
+        // need counts in the rail (no labels mean nowhere to render them).
+        void fsList(repo).catch(() => {});
+        setMainTiles(main);
+      } catch (err) {
+        console.warn("[left-sidebar-rail] tile load failed:", err);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [repo, fsTick]);
+
+  const openTile = useCallback(
+    (tile: ResolvedTile) => {
+      if (!repo) return;
+      onOpen(`${repo}/${tile.openRel ?? tile.rel}`);
+    },
+    [repo, onOpen],
+  );
+
+  return (
+    <aside
+      className="sidebar-rail"
+      aria-label="Workstation (collapsed)"
+    >
+      <button
+        type="button"
+        className="sidebar-rail-toggle"
+        onClick={onExpand}
+        title="Expand sidebar"
+        aria-label="Expand sidebar"
+        aria-expanded={false}
+      >
+        <svg width="14" height="14" viewBox="0 0 14 14" fill="none" aria-hidden="true">
+          <path
+            d="M5 3l4 4-4 4"
+            stroke="currentColor"
+            strokeWidth="1.5"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          />
+        </svg>
+      </button>
+      <div className="sidebar-rail-tiles">
+        {mainTiles.map((t) => {
+          const tileIcon = iconForKey(t.icon);
+          const isSelected = selectedRel !== null && selectedRel === t.rel;
+          return (
+            <button
+              key={t.rel}
+              type="button"
+              className={`sidebar-rail-tile entity-tone-${t.tone}${
+                isSelected ? " sidebar-rail-tile-selected" : ""
+              }`}
+              onClick={() => openTile(t)}
+              title={t.label}
+              aria-label={t.label}
+              aria-current={isSelected ? "page" : undefined}
+            >
+              <span className="sidebar-rail-glyph" aria-hidden>
+                {tileIcon}
+              </span>
+            </button>
+          );
+        })}
+      </div>
+    </aside>
+  );
+}

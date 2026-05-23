@@ -4778,6 +4778,128 @@ input.viewer-title.viewer-title-rename {
    in src/ui/Button.tsx. Consumers in src/App.tsx now use those. */
 
 /* ─────────────────────────────────────────────────────────────────
+   Collapsible left sidebar (PIN-6613)
+   When collapsed, the workstation tiles shrink to an icon-only rail
+   anchored to the left of the shell. The rail sits OUTSIDE the
+   resizable PanelGroup so its width is fixed in pixels — much more
+   predictable than percentage-based pane sizing across screen sizes.
+   ───────────────────────────────────────────────────────────────── */
+
+.shell-panes-row-collapsed-left {
+  gap: 8px;
+}
+
+.sidebar-rail {
+  flex: 0 0 auto;
+  width: 52px;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 6px;
+  padding: 8px 6px;
+  background: var(--bg-canvas);
+  border-radius: var(--r-pane);
+  overflow: hidden;
+}
+
+.sidebar-rail-toggle {
+  all: unset;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: 28px;
+  border-radius: 8px;
+  color: var(--text-faint);
+  transition:
+    color var(--t-fast) var(--ease),
+    background var(--t-fast) var(--ease);
+}
+
+.sidebar-rail-toggle:hover,
+.sidebar-rail-toggle:focus-visible {
+  color: var(--accent);
+  background: var(--accent-faint);
+}
+
+.sidebar-rail-tiles {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  overflow-y: auto;
+  overflow-x: hidden;
+  min-height: 0;
+  padding: 2px;
+}
+
+.sidebar-rail-tile {
+  all: unset;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+  background: var(--tone-bg, var(--accent-faint));
+  color: var(--tone-color, var(--accent));
+  border: 1px solid transparent;
+  transition:
+    background var(--t-fast) var(--ease),
+    border-color var(--t-fast) var(--ease),
+    transform var(--t-fast) var(--ease);
+}
+
+.sidebar-rail-tile:hover,
+.sidebar-rail-tile:focus-visible {
+  border-color: var(--tone-border, var(--accent-soft));
+  transform: translateY(-1px);
+}
+
+.sidebar-rail-tile-selected {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 2px var(--accent-faint);
+}
+
+.sidebar-rail-glyph {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+}
+
+/* Collapse toggle inside the expanded Workbench — a small chevron
+   bar that mirrors the rail's expand button. Right-aligned so it
+   doesn't compete with the TODAY hero card's eyebrow text. */
+.workbench-collapse-bar {
+  display: flex;
+  justify-content: flex-end;
+  margin: -4px -4px 0;
+}
+
+.workbench-collapse-btn {
+  all: unset;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  border-radius: 6px;
+  color: var(--text-faint);
+  transition:
+    color var(--t-fast) var(--ease),
+    background var(--t-fast) var(--ease);
+}
+
+.workbench-collapse-btn:hover,
+.workbench-collapse-btn:focus-visible {
+  color: var(--accent);
+  background: var(--accent-faint);
+}
+
+/* ─────────────────────────────────────────────────────────────────
    Pane drag-and-drop reorder
    ───────────────────────────────────────────────────────────────── */
 
@@ -5028,17 +5150,13 @@ input.viewer-title.viewer-title-rename {
   top: 50%;
   right: 43px;
   transform: translateY(-50%);
-  opacity: 0;
-  pointer-events: none;
-  z-index: 10;
-}
-
-.entity-card-wrapper:hover .entity-card-run,
-.entity-card-wrapper:focus-within .entity-card-run,
-.entity-card-run:hover,
-.entity-card-run:focus {
+  /* Always visible — Ben feedback (PIN-6611): the hover-only Run
+     button was invisible on first paint, so users didn't know they
+     could run a script. Click-on-tile still triggers run; the button
+     is the explicit affordance for it. */
   opacity: 1;
   pointer-events: auto;
+  z-index: 10;
 }
 
 /* When a card has run-only (no delete), pull the run slot back to the
