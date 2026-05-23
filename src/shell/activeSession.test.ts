@@ -68,6 +68,40 @@ describe("writeToActiveSession", () => {
     expect(aEnterIdx).toBeLessThan(bBodyIdx);
   });
 
+  it("re-dispatches a queued write to the NEW session when the user swaps sessions mid-queue", async () => {
+    // Regression for the misleading "Claude session not active"
+    // toast when the user swapped chat sessions while another PTY
+    // write was still running. Old behaviour: captured sessionId
+    // at enqueue and returned false on any mismatch — even when a
+    // new session was live. New behaviour: dispatch to whatever
+    // session is active at run time.
+    setActiveSession("session-A");
+    let resolveFirst: (() => void) | null = null;
+    ptyMock.ptyWrite.mockImplementationOnce(
+      () =>
+        new Promise<void>((res) => {
+          resolveFirst = res;
+        }),
+    );
+    ptyMock.ptyWrite.mockImplementation(async (sessionId: string, data: string) => {
+      ptyMock.events.push({ sessionId, data, at: Date.now() });
+    });
+
+    const a = writeToActiveSession("first\r");
+    const b = writeToActiveSession("second\r");
+
+    // User swaps sessions while the first write is suspended.
+    await new Promise((r) => setTimeout(r, 0));
+    setActiveSession("session-B");
+    resolveFirst?.();
+
+    expect(await a).toBe(true);
+    expect(await b).toBe(true);
+    // The second write went to session-B, not session-A. The user
+    // sees their /command build-out land in the new chat.
+    expect(ptyMock.events.find((e) => e.data === "second")?.sessionId).toBe("session-B");
+  });
+
   it("drops a queued write if the active session is cleared before it runs", async () => {
     setActiveSession("doomed");
     // Hold the first write so the chain queues the second behind it.

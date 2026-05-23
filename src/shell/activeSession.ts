@@ -43,19 +43,20 @@ export async function writeToActiveSession(text: string): Promise<boolean> {
     );
     return false;
   }
-  // Capture the session id at queue time. If the chat pane clears
-  // the active session between enqueue and run (Claude was killed,
-  // user closed the chat pane, etc.), the write must NOT proceed
-  // against the stale id — that would either hit a dead PTY or, on
-  // session-id reuse, scribble into a different Claude turn. Drop
-  // the write and return false so the caller's "no active session"
-  // branch fires. (BugBot iter-8 finding.)
-  const sessionId = activeSessionId;
+  // Dispatch to whatever session is active when this queued job
+  // actually runs — NOT the session captured at enqueue. The
+  // user's intent is "send to the current Claude session," and if
+  // they swapped sessions while another write was in flight, the
+  // new session is the right target. Only return false if NO
+  // session is active at run time. (BugBot iter-10 finding —
+  // previous behaviour returned false on any id mismatch, even
+  // when a new session was live, which surfaced a misleading
+  // "Claude session not active" toast.)
   const run = async (): Promise<boolean> => {
-    // Re-check at the moment we start running, not at enqueue time.
-    if (activeSessionId !== sessionId) {
+    const liveSessionId = activeSessionId;
+    if (!liveSessionId) {
       console.warn(
-        "[activeSession] active session changed between enqueue and run — dropping queued write.",
+        "[activeSession] active session cleared between enqueue and run — dropping queued write.",
       );
       return false;
     }
@@ -63,13 +64,13 @@ export async function writeToActiveSession(text: string): Promise<boolean> {
     if (m) {
       const [, body, enter] = m;
       if (body.length > 0) {
-        await ptyWrite(sessionId, body);
+        await ptyWrite(liveSessionId, body);
         await new Promise((r) => setTimeout(r, 50));
       }
-      await ptyWrite(sessionId, enter);
+      await ptyWrite(liveSessionId, enter);
       return true;
     }
-    await ptyWrite(sessionId, text);
+    await ptyWrite(liveSessionId, text);
     return true;
   };
   // Chain off the previous write so body+enter pair runs without
