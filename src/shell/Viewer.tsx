@@ -138,6 +138,15 @@ export function Viewer({
   // the viewer header (PIN-6612). The card-grid delete buttons get
   // this for free from EntityCardGrid, but the header button is a
   // plain <Button> and would re-fire on rapid clicks.
+  //
+  // Two parallel structures: `commandDeletingRef` is the synchronous
+  // truth used by the click handler — it must be set BEFORE we await
+  // confirmDelete, otherwise two rapid clicks can each open a confirm
+  // dialog and a double-confirm fires two `entityDeleteFile` calls
+  // (BugBot Round 2 finding). `commandDeleting` mirrors the ref into
+  // state so the button's `disabled`/`aria-busy` attributes update on
+  // the next render.
+  const commandDeletingRef = useRef(false);
   const [commandDeleting, setCommandDeleting] = useState(false);
 
   // Self-loaded table data for datastore-table
@@ -2511,16 +2520,22 @@ export function Viewer({
             aria-busy={commandDeleting}
             onClick={async () => {
               if (source.kind !== "file") return;
-              if (commandDeleting) return;
+              // Synchronous ref check + claim BEFORE any await — two
+              // rapid clicks both pass a React-state guard (the
+              // setState hasn't committed yet) and end up each
+              // opening a confirm dialog. The ref is updated
+              // immediately so the second click bails.
+              if (commandDeletingRef.current) return;
+              commandDeletingRef.current = true;
+              setCommandDeleting(true);
               const filename = basename(source.path) || "";
               const dir = dirname(source.path);
-              const ok = await confirmDelete(
-                `Delete command "${filename.replace(/\.md$/, "")}"?\n\nThis cannot be undone.`,
-                "Delete command?",
-              );
-              if (!ok) return;
-              setCommandDeleting(true);
               try {
+                const ok = await confirmDelete(
+                  `Delete command "${filename.replace(/\.md$/, "")}"?\n\nThis cannot be undone.`,
+                  "Delete command?",
+                );
+                if (!ok) return;
                 await entityDeleteFile(repo, toRepoRelative(repo, dir), filename);
                 showToast(`Deleted ${filename.replace(/\.md$/, "")}`);
                 // Navigate back to commands list
@@ -2534,6 +2549,7 @@ export function Viewer({
                   tone: "critical",
                 });
               } finally {
+                commandDeletingRef.current = false;
                 setCommandDeleting(false);
               }
             }}
