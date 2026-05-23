@@ -232,8 +232,28 @@ export function ChatPane({ cwd, resume }: { cwd: string | null; resume?: boolean
       const SETTLE_MS = 80;
       let rafScheduled = false;
       let settleTimer: ReturnType<typeof setTimeout> | null = null;
-      let lastCols = term.cols;
-      let lastRows = term.rows;
+      // Baseline geometry. We *don't* seed from `term.cols`/`term.rows`
+      // here — the initial `fit.fit()` at mount ran before the
+      // container settled into its post-layout size, so the first
+      // ResizeObserver fire would otherwise see a spurious delta and
+      // wipe Claude's startup banner. Instead we baseline lazily on
+      // the first settle (see `baselined` below).
+      let lastCols = -1;
+      let lastRows = -1;
+      let baselined = false;
+
+      // Wrap `fit.fit()` because it can throw on degenerate geometry
+      // (zero or NaN width when the pane is collapsed to nothing
+      // during a drag). The throw would propagate out of the rAF /
+      // setTimeout callback as an unhandled error — we'd rather log
+      // and continue at the prior size.
+      const safeFit = () => {
+        try {
+          fit.fit();
+        } catch (e) {
+          console.warn("fit.fit failed (probably zero-size pane):", e);
+        }
+      };
 
       const sendResize = () => {
         ptyResize(SESSION_ID, term.cols, term.rows).catch((e) =>
@@ -244,25 +264,36 @@ export function ChatPane({ cwd, resume }: { cwd: string | null; resume?: boolean
       const settle = () => {
         if (disposed) return;
         // Final fit in case the last live-phase fit was stale.
-        fit.fit();
-        // Always re-emit the final size — even if cols/rows didn't
-        // change since the last live tick, the child may have missed
-        // a SIGWINCH while busy painting.
-        sendResize();
-        // Only clear the display when geometry actually changed.
-        // Resize-during-streaming users would otherwise lose
-        // their scrollback to a no-op settle (e.g. focus change).
-        if (term.cols !== lastCols || term.rows !== lastRows) {
-          // \x1b[3J → clear scrollback
-          // \x1b[2J → clear entire visible viewport
-          // \x1b[H  → move cursor to home (1,1)
-          // Claude's next paint lands on a blank canvas. We do NOT
-          // forward this to the PTY — the child manages its own
-          // framebuffer; we only clear xterm's local copy.
-          term.write("\x1b[3J\x1b[2J\x1b[H");
-          lastCols = term.cols;
-          lastRows = term.rows;
+        safeFit();
+        const cols = term.cols;
+        const rows = term.rows;
+        const changed = cols !== lastCols || rows !== lastRows;
+        if (!baselined) {
+          // First settle after mount: don't treat the initial layout
+          // as a "resize" — capture it as the baseline and skip both
+          // the redundant SIGWINCH and the buffer clear.
+          lastCols = cols;
+          lastRows = rows;
+          baselined = true;
+          return;
         }
+        if (!changed) {
+          // Spurious settle (focus change, scrollbar toggle, devtools
+          // open). Skip ptyResize so Claude doesn't repaint on
+          // every layout perturbation.
+          return;
+        }
+        // Geometry really did change. Re-emit the final size — the
+        // child may have missed a SIGWINCH mid-frame — then wipe the
+        // xterm buffer so Claude's next paint lands on a blank canvas.
+        sendResize();
+        // \x1b[3J → clear scrollback
+        // \x1b[2J → clear entire visible viewport
+        // \x1b[H  → move cursor to home (1,1)
+        // We write to xterm only; the child manages its own framebuffer.
+        term.write("\x1b[3J\x1b[2J\x1b[H");
+        lastCols = cols;
+        lastRows = rows;
       };
 
       const scheduleSettle = () => {
@@ -281,7 +312,7 @@ export function ChatPane({ cwd, resume }: { cwd: string | null; resume?: boolean
         requestAnimationFrame(() => {
           rafScheduled = false;
           if (disposed) return;
-          fit.fit();
+          safeFit();
           sendResize();
           scheduleSettle();
         });
