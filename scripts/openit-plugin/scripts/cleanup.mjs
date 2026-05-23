@@ -7,8 +7,15 @@
 // `load-sample-data.mjs` copies into the vault. For each seed file
 // the matching vault destination is deleted only if its bytes equal
 // the seed (pristine sample data). Files the admin has edited keep
-// their custom version. Conversation subfolders are pruned when they
-// end up empty.
+// their custom version. Empty parent directories are pruned after
+// deletes.
+//
+// PIN-6605: tickets and conversations were removed from the bundled
+// seed set when the ticket UI was ripped. Pristine `sample-*` ticket
+// and conversation files left over from a pre-PIN-6605 install are
+// also cleaned up here via the legacy TARGETS entries — without them
+// the user's vault keeps stale samples that the cleanup command
+// promised to remove.
 //
 // Idempotent: safe to run multiple times.
 
@@ -18,16 +25,23 @@ import { dirname, join, relative } from "node:path";
 const cwd = process.cwd();
 const SEED_ROOT = join(cwd, ".claude", "seed");
 
-// Mirror of TARGETS in load-sample-data.mjs. Keep them in sync.
+// Mirror of TARGETS in load-sample-data.mjs, plus legacy ticket/
+// conversation entries kept around so a pre-PIN-6605 vault can still
+// be cleaned up after the upgrade. New installs never have the seed
+// files for those targets, so the per-target existence check at the
+// top of the loop simply skips them.
 const TARGETS = {
-  tickets: "databases/tickets",
   people: "databases/people",
   access: "databases/access",
   assets: "databases/assets",
-  conversations: "databases/conversations",
   knowledge: "knowledge",
   reports: "reports",
   scripts: "filestores/scripts",
+  // Legacy targets (no longer in the manifest; cleanup still removes
+  // pristine pre-existing copies on disk if any seed bytes survive
+  // from an older plugin sync).
+  tickets: "databases/tickets",
+  conversations: "databases/conversations",
 };
 
 async function exists(path) {
@@ -102,6 +116,31 @@ for (const [target, destBase] of Object.entries(TARGETS)) {
       await pruneEmptyDirs(dirname(dest), destRoot);
     } else {
       preserved++;
+    }
+  }
+}
+
+// PIN-6605 fallback: pre-PIN-6605 installs may have synced sample
+// ticket / conversation files into the vault, but the new plugin no
+// longer ships those seed bytes — so the bytes-equal loop above can't
+// match them. Walk the two legacy folders explicitly and unlink any
+// file whose name starts with `sample-` (the bundled prefix). Users
+// who renamed their samples or wrote their own ticket files keep
+// theirs untouched.
+const LEGACY_SAMPLE_DIRS = ["databases/tickets", "databases/conversations"];
+for (const rel of LEGACY_SAMPLE_DIRS) {
+  const root = join(cwd, rel);
+  if (!(await exists(root))) continue;
+  const files = await walk(root);
+  for (const file of files) {
+    const base = file.split("/").pop() ?? "";
+    if (!base.startsWith("sample-")) continue;
+    try {
+      await unlink(file);
+      deleted++;
+      await pruneEmptyDirs(dirname(file), root);
+    } catch {
+      /* swallow — already gone or unreadable */
     }
   }
 }

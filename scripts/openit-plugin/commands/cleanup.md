@@ -9,7 +9,7 @@ Remove all the sample data that shipped with OpenIT so the admin starts with a c
 
 ## How to run
 
-Confirm with the admin first: "I'll remove all sample tickets, people, conversations, access logs, assets, KB articles, and reports. Your custom data will be kept. Go ahead?"
+Confirm with the admin first: "I'll remove all sample people, access logs, assets, KB articles, and reports — plus any leftover sample tickets/conversations from older versions. Your custom data stays put. Go ahead?"
 
 Then run the cleanup script:
 
@@ -17,7 +17,12 @@ Then run the cleanup script:
 node .claude/scripts/cleanup.mjs
 ```
 
-The script deletes all files matching `sample-*` patterns across tickets, people, access, assets, knowledge, reports, and conversations. It prints a JSON result with the count of deleted files.
+The script deletes:
+
+- Files that byte-match the bundled seed for people / access / assets / knowledge / reports / scripts.
+- Any file in `databases/tickets/` or `databases/conversations/` whose filename starts with `sample-` (legacy cleanup for pre-PIN-6605 vaults — the ticket UI was removed but pristine sample files may still be on disk).
+
+It prints a JSON result with the count of deleted files.
 
 ## What it does NOT delete
 

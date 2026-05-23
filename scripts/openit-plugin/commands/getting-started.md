@@ -1,6 +1,6 @@
 ---
 name: getting-started
-description: Interactive guided tour — experience the OpenIT learning loop. File a ticket as an employee, teach the agent as an admin, then watch it handle the next one on its own.
+description: Interactive guided tour — meet the OpenIT workstation. File a task, watch the status flow, then explore the commands that automate the second loop.
 ---
 
 ## When to use
@@ -13,166 +13,93 @@ You are a friendly guide. One instruction per message. These are IT admins who m
 
 ## Before you start
 
-1. Read `.openit/intake.json` via Bash to get the intake URL:
-   ```bash
-   cat .openit/intake.json
-   ```
-   Extract the `url` field. If the file doesn't exist or has no URL, tell the admin: "The intake server isn't running — try restarting the app." and stop.
-
-2. Glob `databases/tickets/*.json` to note any existing ticket filenames so you can identify new ones later.
+1. Glob `tasks/*.md` to note any existing task filenames so you can identify a new one later. If the folder doesn't exist yet, that's fine — it'll be created on first write.
 
 ---
 
-## Act 1 — File a ticket as an employee
+## Act 1 — File your first task
 
-Don't open anything yet. Explain the setup and what they'll need to do, all in one message.
+Open with one short message that introduces the workstation in plain English.
 
 Tell the admin:
 
-> We're going to simulate an employee asking for IT help. You'll play the employee first, then switch back to the admin seat to see how OpenIT handles it.
+> OpenIT is your personal IT workstation. Two loops drive it:
 >
-> I'm going to open the intake form in your browser — that's what your employees see when they need help. Here's what to do:
+> 1. **Tasks** — a Linear-style task list for things you want to track for yourself.
+> 2. **Commands** — reusable workflows you (or I) can run.
 >
-> 1. **Enter any email** — like alex@example.com — and **hit Submit**
-> 2. **Click the "VPN issues" bubble** to send a question
+> Let's start with tasks. **Click the Tasks tile** in the left panel — it's the one that says "TODAY" at the top.
+
+Wait for acknowledgment (any response — "yes", "done", "open", "clicked", etc.).
+
+Once they're on the Tasks view, tell them:
+
+> Type a quick task in the box at the top — something simple, like **"audit slack access"** — and hit **Enter**.
 >
-> After that, **come back to OpenIT** — you'll see the agent start working.
->
-> Ready?
+> You should see it appear under **Todo**.
 
-Wait for acknowledgment (any response — "yes", "ready", "ok", "go", etc.).
-
-Once they acknowledge, open the intake form:
-```bash
-open "<intake-url>"
-```
-
-Then immediately tell the admin (don't wait — give them this while the form loads):
-
-> Once you've sent the question, **come back to OpenIT**. The app will pull itself to the front.
->
-> You'll see an orange banner at the very top that says **"Agent is responding"** with **"Click to view →"** on the right.
->
-> **Click that banner** to watch the agent work in real time.
-
-Do NOT wait for the admin to reply here. Instead, immediately start polling the ticket state in the background:
-
-1. `Glob "databases/tickets/*.json"` — find the newest ticket (not in your earlier list).
-2. `Read` the ticket. If `status` is `agent-responding`, wait a few seconds and re-read.
-3. Once the status is **no longer** `agent-responding`, proceed — but **check what the status actually is**:
-   - If `escalated` — perfect, proceed as planned.
-   - If `open` or `resolved` — the agent answered instead of escalating (it may have found a pre-existing KB match). Tell the admin: "The agent answered this one on its own — looks like there was already relevant knowledge. Let's try a different question." Then re-open the intake form and ask them to type a unique question the KB definitely can't answer (e.g. "How do I connect to the office printer on floor 3?"). Resume polling.
-   - **Do NOT silently continue if the status isn't `escalated`** — the notification card only appears for escalated tickets.
-
-Read the conversation: `Glob "databases/conversations/<ticketId>/msg-*.json"`, read the turns.
-
-Now tell the admin (this should appear right as the escalation notification pops up):
-
-> The agent searched the knowledge base, found nothing, and escalated the ticket to you.
->
-> You should see a **notification card** in the top-right corner with a pulsing orange dot that says **"Needs your reply"** and **"Click to respond →"**.
->
-> **Click that notification.** It will open the conversation AND automatically run `/answer-ticket` in Claude Code so I can help you respond.
-
-Wait for the admin to click the notification. When they do, `/answer-ticket` will auto-run in this Claude Code session. **You will receive the `/answer-ticket` command.** When you do, execute it — but with these overrides for the tour:
-
-**Tour overrides for `/answer-ticket`:**
-- **Drafting the reply:** Show the draft and ask "Want me to send this, or would you like to change it?" — this is fine, it's going to the employee.
-- **Sending the reply:** On approval, send immediately. Mark the ticket as `resolved` automatically — do NOT ask the admin whether to set `open` or `resolved`. Just resolve it.
-- **Capturing the KB article:** Write the KB article immediately. Do NOT ask "Good to save?" — just create it. This is a guided tour; every answer should become knowledge.
-- **After the KB article is created:** Flash the Knowledge tile so the admin notices it:
-  ```bash
-  node -e "require('fs').writeFileSync('.openit/highlight.json',JSON.stringify({tiles:['knowledge'],ts:Date.now()}))"
-  ```
-  Then tell the admin:
-
-> Done. I replied to the employee, resolved the ticket, and captured your answer as a **knowledge base article**.
->
-> Click on the **Knowledge** tile in the left panel — it should be glowing. You should see the article I just created. **Click on it to read it. Do you see it?**
-
-Wait for the admin to confirm (e.g. "yes", "I see it", "yep"). This is a direct question — expect a direct answer before moving on.
+Wait for acknowledgment that the task appeared.
 
 ---
 
-## Act 3 — Prove it learned
-
-Once the admin confirms they've seen the KB article:
+## Act 2 — Cycle a task through its statuses
 
 Tell the admin:
 
-> Now let's see if the agent actually learned. I'm going to open the intake form again.
+> Each task has a **status pill** on the left — "Todo", "In progress", or "Complete". Click it.
 >
-> This time, pretend you're a **different employee**:
->
-> 1. **Enter a different email** — like jordan@example.com — and **hit Submit**
-> 2. **Click the "VPN issues" bubble** again
->
-> After that, **come back to OpenIT** to see what happens.
->
-> Ready?
-
-Wait for acknowledgment, then open the intake form:
-```bash
-open "<intake-url>"
-```
-
-Do NOT say anything else after opening the form. Wait for them to come back.
-
-When they come back (the app will auto-focus when the ticket arrives), check the new ticket:
-
-1. `Glob "databases/tickets/*.json"` — find the newest ticket (different from the one in Act 1).
-2. `Read` it. Wait for `status` to leave `agent-responding` if needed.
-3. Read the conversation.
-
-If the ticket status is `open` (not `escalated`) — the agent answered from KB:
-
-> The agent answered on its own this time. **No escalation.**
->
-> It found the knowledge base article you created and used it to answer Jordan's question.
->
-> **You taught it once, and now it handles VPN questions without you.** That's the self-learning loop.
-
-If the ticket was `escalated` instead (edge case — keyword overlap didn't match), say:
-
-> The agent escalated this one — the keyword search didn't match closely enough. But the knowledge is saved, and the more articles you add, the smarter it gets.
-
-Either way, flash the Commands tile and continue immediately in the same message — do NOT wait for acknowledgment:
-
-```bash
-node -e "require('fs').writeFileSync('.openit/highlight.json',JSON.stringify({tiles:['filestores/commands'],ts:Date.now()}))"
-```
-
-> Now — during this tour, you already used two **commands** without realizing it:
->
-> - `/getting-started` — this tour
-> - `/answer-ticket` — which helped you respond and captured the answer as knowledge
->
-> Commands are reusable workflows you can run anytime by typing `/` followed by the name. You can also create your own.
->
-> **Click the Commands tile** in the left panel — it should be glowing. See the first command — **load-sample-data**? **Click Run** next to it to fill the workspace with sample data.
-
-Wait for the admin to click Run. When they do, the `/load-sample-data` command will run in Claude Code and create sample data. Once it completes, continue:
-
-> The workspace is now full of sample data. Click **MORE** in the left panel and explore each tile:
->
-> - **People** — click it to see the sample contacts
-> - **Access** — onboard/offboard logs
-> - **Assets** — device and equipment inventory
-> - **Scripts** — automation scripts
->
-> Everything in OpenIT is just files in a folder. You can open, edit, and organize them however you want.
->
-> One more thing — **click on Tools**. That's where you connect your existing systems like Slack, Google Drive, and more. **Have you clicked on it?**
+> Watch what happens. Click it a couple more times.
 
 Wait for acknowledgment.
 
-Then:
+> That's it — three statuses, one click each. No assignees, no due dates, no escalations. Just `todo → in-progress → complete`. You own the list.
+
+Pulse the Tasks tile so the admin can find their way back:
+
+```bash
+node -e "require('fs').writeFileSync('.openit/highlight.json',JSON.stringify({tiles:['tasks'],ts:Date.now()}))"
+```
+
+---
+
+## Act 3 — The commands loop
+
+Tell the admin:
+
+> Now the other half. **Click the Commands tile** in the left panel.
+
+Wait for acknowledgment.
+
+> Commands are reusable workflows — anything from "run the weekly backup" to "audit who has access to Slack." You invoke them by typing `/` followed by the name in the chat.
+>
+> You already used one without realising — `/getting-started` is this tour.
+>
+> Let's run another. See **load-sample-data** in the list? **Click Run** next to it to fill the workspace with sample people, access logs, assets, and a couple of knowledge articles.
+
+Wait for the admin to click Run. The `/load-sample-data` command will run in Claude Code and create sample data. Once it completes, continue:
+
+> The workspace is now full of sample data. Click **MORE** in the left panel and explore each tile:
+>
+> - **People** — sample contacts
+> - **Access** — onboard/offboard logs
+> - **Assets** — device and equipment inventory
+> - **Scripts** — runnable scripts
+>
+> Everything in OpenIT is a file or folder on disk. You can open, edit, and organize them however you want.
+>
+> One more thing — **click Tools**. That's where you connect your existing systems like Slack, Google Drive, and more. **Have you clicked on it?**
+
+Wait for acknowledgment.
+
+---
+
+## Wrap-up
 
 > That's OpenIT.
 >
-> Every ticket you answer teaches the system. Knowledge base articles, scripts, commands — they all compound. The more you use it, the less you have to do.
+> Two loops: a personal task list for things you want to track, and a growing library of commands for the work you do over and over. The commands you capture, the knowledge articles you save, the scripts you write — they all compound. The more you use it, the less you have to do.
 >
-> When you're ready to clean up all the sample data, you can run the **cleanup** command from the Commands tile — or type `/cleanup` here.
+> When you're ready to clear the sample data, you can run the **cleanup** command from the Commands tile — or type `/cleanup` here.
 >
 > **What would you like to do next?**
 
@@ -180,13 +107,12 @@ Then:
 
 ## Rules
 
-- **Every message must end with an action or a question.** Never leave the admin with nothing to do. If you're done explaining something, ask them to click something, confirm something, or tell them what's next. A dead-end message kills the tour.
+- **Every message must end with an action or a question.** Never leave the admin with nothing to do. A dead-end message kills the tour.
 - **One instruction at a time.** Never give the admin two things to do in one message.
-- **Don't narrate mechanics.** Don't say "I'm going to glob the tickets directory." Just do it and talk about the result in plain language.
+- **Don't narrate mechanics.** Don't say "I'm going to glob the tasks directory." Just do it and talk about the result in plain language.
 - **Wait for acknowledgment.** After each instruction, wait for the admin to respond before proceeding.
 - **Be flexible with responses.** "done", "ok", "next", "I see it", "yes", or just hitting enter — all mean proceed.
-- **Don't skip acts.** The full arc matters.
-- **Handle errors gracefully.** If the intake server isn't running, if no ticket appears, if the agent crashes — say what happened plainly and suggest restarting.
-- **No ticket creation for the tour itself.** This is a guided tour, not a working session.
-- **Reference UI elements by name.** Say "the orange banner at the top" not "a notification." Say "the VPN issues bubble" not "one of the prompts."
-- **Acknowledge the context switch.** The admin jumps between the browser and the macOS app. Explicitly say "come back to OpenIT" when they need to switch.
+- **Don't skip acts.** The full arc matters: file a task → cycle status → meet the commands tile.
+- **Handle errors gracefully.** If the Tasks station doesn't appear, if the task doesn't show up, if a command fails to run — say what happened plainly and suggest restarting.
+- **No auto-filing of tasks for the tour itself.** This is a guided tour, not a working session. The admin files their own task in Act 1.
+- **Reference UI elements by name.** Say "the status pill on the left of the row" not "the button." Say "the Tasks tile with TODAY at the top" not "the inbox."
