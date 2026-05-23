@@ -428,6 +428,23 @@ export async function scriptRun(
   return invoke("script_run", { repo, scriptPath });
 }
 
+/// Resolve the absolute filesystem path to an interpreter binary
+/// (`node`, `python3`, ...) so seed-time can bake the result into a
+/// script's shebang line. Returns `null` when the interpreter isn't
+/// installed on this machine — callers should leave the script's
+/// `#!/usr/bin/env <interpreter>` line untouched in that case.
+///
+/// Why this exists: macOS GUI apps launched from Finder / Dock
+/// inherit a restricted PATH that excludes Homebrew (`/opt/homebrew/bin`
+/// on Apple Silicon, `/usr/local/bin` on Intel). The OS-level spawn
+/// in `script_run` then fails with `os error 2`. Resolving here and
+/// rewriting the shebang sidesteps the PATH problem entirely.
+export async function scriptResolveInterpreter(
+  interpreter: string,
+): Promise<string | null> {
+  return invoke("script_resolve_interpreter", { interpreter });
+}
+
 import type { TraceDoc } from "../shell/viewerTypes";
 
 /// Latest persisted agent-trace doc for a ticket, or null if none yet.

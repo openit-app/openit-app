@@ -124,6 +124,20 @@ fn sanitize_bundled_relpath(rel: &str) -> Result<String, String> {
     Ok(format!("openit-plugin/{}", trimmed))
 }
 
+/// Extract environment root URL from the platform API URL.
+/// Strips the `app-api.` prefix to derive the environment root.
+fn extract_env_root(app_api_url: &str) -> Result<String, String> {
+    let url =
+        reqwest::Url::parse(app_api_url).map_err(|e| format!("Invalid app-api URL: {}", e))?;
+
+    let host = url.host_str().ok_or_else(|| "No host in URL".to_string())?;
+
+    // Replace "app-api." prefix if present
+    let env_host = host.strip_prefix("app-api.").unwrap_or(host);
+
+    Ok(format!("{}://{}", url.scheme(), env_host))
+}
+
 #[cfg(test)]
 mod tests {
     use super::sanitize_bundled_relpath;
@@ -212,18 +226,4 @@ mod tests {
         assert!(sanitize_bundled_relpath("skills/..foo.md").is_ok());
         assert!(sanitize_bundled_relpath("skills/..").is_err());
     }
-}
-
-/// Extract environment root URL from the platform API URL.
-/// Strips the `app-api.` prefix to derive the environment root.
-fn extract_env_root(app_api_url: &str) -> Result<String, String> {
-    let url =
-        reqwest::Url::parse(app_api_url).map_err(|e| format!("Invalid app-api URL: {}", e))?;
-
-    let host = url.host_str().ok_or_else(|| "No host in URL".to_string())?;
-
-    // Replace "app-api." prefix if present
-    let env_host = host.strip_prefix("app-api.").unwrap_or(host);
-
-    Ok(format!("{}://{}", url.scheme(), env_host))
 }

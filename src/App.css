@@ -5284,17 +5284,13 @@ input.viewer-title.viewer-title-rename {
   top: 50%;
   right: 43px;
   transform: translateY(-50%);
-  opacity: 0;
-  pointer-events: none;
-  z-index: 10;
-}
-
-.entity-card-wrapper:hover .entity-card-run,
-.entity-card-wrapper:focus-within .entity-card-run,
-.entity-card-run:hover,
-.entity-card-run:focus {
+  /* Always visible — Ben feedback (PIN-6611): the hover-only Run
+     button was invisible on first paint, so users didn't realize
+     they could run a script. Click-on-tile still triggers run; the
+     button is the explicit affordance for it. */
   opacity: 1;
   pointer-events: auto;
+  z-index: 10;
 }
 
 /* When a card has run-only (no delete), pull the run slot back to the
@@ -5413,6 +5409,18 @@ input.viewer-title.viewer-title-rename {
      so text doesn't sit under the icons. */
   padding-right: 40px;
 }
+
+/* Scripts cards carry BOTH delete (right: 10px) and run (right: 43px,
+   now always-visible per PIN-6611). Reserve enough right-side padding
+   for both so long script names get ellipsised before they collide
+   with the run glyph. */
+.entity-card-wrapper:has(.entity-card-run) .entity-card-body {
+  padding-right: 76px;
+}
+
+/* Run-only cards (no delete) — the run slot is pulled to right: 10px,
+   so the single-icon 40px reservation already used by `.entity-card-body`
+   is still correct. No additional rule needed. */
 
 .entity-card-row {
   display: flex;
