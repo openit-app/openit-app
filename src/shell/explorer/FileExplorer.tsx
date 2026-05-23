@@ -25,6 +25,7 @@ import {
 } from "./helpers";
 import { ContextMenu, type ContextMenuState } from "./ContextMenu";
 import { useTreeState } from "./useTreeState";
+import { useToast } from "../../Toast";
 
 /**
  * COLLECTION LOADING & SYNC PROCESS
@@ -90,6 +91,14 @@ export function FileExplorer({
   // scaffolding the user usually doesn't want to see. Default off;
   // toolbar icon toggles.
   const [showSystemFiles, setShowSystemFiles] = useState(false);
+  // Per-path in-flight delete tracking (PIN-6612). Repeated trash
+  // clicks on the same KB row collapse into a single backend call; a
+  // failure surfaces via toast instead of silently logging to the
+  // devtools console.
+  const [deletingPaths, setDeletingPaths] = useState<ReadonlySet<string>>(
+    () => new Set(),
+  );
+  const { show: showToast } = useToast();
 
   // Virtual resource state
   const [datastores] = useState<DataCollection[]>([]);
@@ -223,10 +232,33 @@ export function FileExplorer({
 
   const handleDelete = async (node: { is_dir: boolean; path: string; name: string }) => {
     if (!isDeletable(node) || !repo) return;
+    if (deletingPaths.has(node.path)) return;
     const filename = relPath(repo, node.path).slice(KB_PREFIX.length);
-    await kbDeleteFile(repo, filename);
-    reload();
-    onFsChange?.();
+    setDeletingPaths((prev) => {
+      const next = new Set(prev);
+      next.add(node.path);
+      return next;
+    });
+    try {
+      await kbDeleteFile(repo, filename);
+      reload();
+      onFsChange?.();
+      showToast({ message: `Deleted ${node.name}`, tone: "success" });
+    } catch (err) {
+      const reason = err instanceof Error ? err.message : String(err);
+      console.error(`[kb-delete] failed for ${filename}:`, err);
+      showToast({
+        title: `Failed to delete ${node.name}`,
+        message: reason,
+        tone: "critical",
+      });
+    } finally {
+      setDeletingPaths((prev) => {
+        const next = new Set(prev);
+        next.delete(node.path);
+        return next;
+      });
+    }
   };
 
   // Icon mirrors the cycle state: collapse-all when fully expanded,
@@ -398,10 +430,16 @@ export function FileExplorer({
                   size="sm"
                   iconOnly
                   className="tree-delete-btn"
-                  title={`Delete ${n.name}`}
+                  title={
+                    deletingPaths.has(n.path)
+                      ? `Deleting ${n.name}…`
+                      : `Delete ${n.name}`
+                  }
+                  aria-busy={deletingPaths.has(n.path)}
+                  disabled={deletingPaths.has(n.path)}
                   onClick={(e) => {
                     e.stopPropagation();
-                    handleDelete(n);
+                    void handleDelete(n);
                   }}
                 >
                   ✕

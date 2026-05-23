@@ -134,6 +134,11 @@ export function Viewer({
   const [binaryData, setBinaryData] = useState<Uint8Array | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [mode, setMode] = useState<ViewMode>("rendered");
+  // In-flight guard for the standalone Command-file Delete button in
+  // the viewer header (PIN-6612). The card-grid delete buttons get
+  // this for free from EntityCardGrid, but the header button is a
+  // plain <Button> and would re-fire on rapid clicks.
+  const [commandDeleting, setCommandDeleting] = useState(false);
 
   // Self-loaded table data for datastore-table
   const [tableItems, setTableItems] = useState<MemoryItem[]>([]);
@@ -1787,7 +1792,13 @@ export function Viewer({
                   showToast(`Deleted filestore ${c.displayName}`);
                   onFsChange?.();
                 } catch (err) {
+                  const reason = err instanceof Error ? err.message : String(err);
                   console.error("[filestore-delete] failed:", err);
+                  showToast({
+                    title: `Failed to delete filestore ${c.displayName}`,
+                    message: reason,
+                    tone: "critical",
+                  });
                 }
               } : undefined,
             };
@@ -2014,7 +2025,13 @@ export function Viewer({
                   showToast(`Deleted database ${dbLabel}`);
                   onFsChange?.();
                 } catch (err) {
+                  const reason = err instanceof Error ? err.message : String(err);
                   console.error("[db-delete] failed:", err);
+                  showToast({
+                    title: `Failed to delete database ${dbLabel}`,
+                    message: reason,
+                    tone: "critical",
+                  });
                 }
               } : undefined,
             };
@@ -2490,8 +2507,11 @@ export function Viewer({
             variant="ghost"
             tone="destructive"
             size="sm"
+            disabled={commandDeleting}
+            aria-busy={commandDeleting}
             onClick={async () => {
               if (source.kind !== "file") return;
+              if (commandDeleting) return;
               const filename = basename(source.path) || "";
               const dir = dirname(source.path);
               const ok = await confirmDelete(
@@ -2499,17 +2519,27 @@ export function Viewer({
                 "Delete command?",
               );
               if (!ok) return;
+              setCommandDeleting(true);
               try {
                 await entityDeleteFile(repo, toRepoRelative(repo, dir), filename);
+                showToast(`Deleted ${filename.replace(/\.md$/, "")}`);
                 // Navigate back to commands list
                 if (onOpenPath) void onOpenPath(`${repo}/filestores/commands`);
               } catch (err) {
+                const reason = err instanceof Error ? err.message : String(err);
                 console.error("[command-delete] failed:", err);
+                showToast({
+                  title: `Failed to delete ${filename}`,
+                  message: reason,
+                  tone: "critical",
+                });
+              } finally {
+                setCommandDeleting(false);
               }
             }}
-            title="Delete this command"
+            title={commandDeleting ? "Deleting command…" : "Delete this command"}
           >
-            Delete
+            {commandDeleting ? "Deleting…" : "Delete"}
           </Button>
         )}
         {showRowTabs && (
