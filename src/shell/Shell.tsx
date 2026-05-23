@@ -6,6 +6,7 @@ import {
   fsDelete,
   fsRead,
   stateLoad,
+  stateSave,
   type AppPersistedState,
 } from "../lib/api";
 import { fsWatchStart, fsWatchStop, onFsChanged } from "../lib/fsWatcher";
@@ -19,6 +20,7 @@ import { PaneDragHandle } from "./PaneDragHandle";
 // status chips (project, cloud, intake, slack, changes) now live in
 // the TitleRail at the top — see src/App.tsx.
 import { Workbench } from "./Workbench";
+import { LeftSidebarRail } from "./LeftSidebarRail";
 import { ConflictBanner } from "./ConflictBanner";
 import { FileExplorer } from "./FileExplorer";
 // EscalatedTicketBanner and AgentActivityBanner were removed alongside
@@ -29,6 +31,7 @@ import { Viewer, type ViewerSource } from "./Viewer";
 // Tab, TabStrip, PaneBody removed — left pane is now just FileExplorer.
 import type { DockKind } from "../lib/skillState";
 import { resolvePathToSource } from "./entityRouting";
+import { selectedRelFromSource } from "./sidebarSelection";
 import { sourceToTreePath } from "./sourceToTreePath";
 import { SkillActionDock } from "./SkillActionDock";
 
@@ -255,6 +258,11 @@ export function Shell({
   const [dragOverPaneId, setDragOverPaneId] = useState<PaneId | null>(null);
   const [chatSessionKey, setChatSessionKey] = useState(0);
   const [chatResume, setChatResume] = useState(false);
+  /// Left sidebar collapse state. `null` until the first state_load
+  /// resolves — we hold off on rendering the panes row so we don't
+  /// flash expanded → collapsed (or vice versa) on cold start. Default
+  /// is expanded on first launch (state.sidebar_collapsed === null).
+  const [sidebarCollapsed, setSidebarCollapsed] = useState<boolean | null>(null);
   const bumpFs = useCallback(() => setFsTick((t) => t + 1), []);
 
   // ── Tell Claude what the user is looking at ──────────────────────
@@ -373,9 +381,103 @@ export function Shell({
     setPulling(false);
   }, [repo, pulling, bumpFs, onSyncLine]);
 
+  /// Tracks whether the most recent `stateLoad` succeeded. When
+  /// `stateLoad` fails (corrupt state.json, perms, partial write from
+  /// an OS crash) we seed the in-memory state with safe defaults so
+  /// the shell can still render — but we must NOT persist those
+  /// defaults, because that would overwrite the on-disk file and
+  /// destroy `last_repo` / `pinned_bubbles` / `onboarding_complete`
+  /// that we couldn't parse. While this flag is true, in-memory
+  /// toggles still work (current session) but `stateSave` is skipped
+  /// (BugBot finding on PIN-6613, sha 0f07641).
+  const stateLoadFailedRef = useRef(false);
+  /// Canonical state for persistence handlers. Mirrors `state` but is
+  /// written SYNCHRONOUSLY in the stateLoad callback (vs. waiting for
+  /// the `setState → useEffect` round-trip), so a sidebar click that
+  /// lands in the very first frame after load still sees a fresh
+  /// snapshot. Without the synchronous seed, the click would hit
+  /// `stateRef.current === null` (the initial-render value) and skip
+  /// the persist — the toggle would flip in-session but the next
+  /// restart would revert (BugBot "Collapse toggle skips early
+  /// persist" on PIN-6613 sha a0cef77).
+  const stateRef = useRef<AppPersistedState | null>(state);
   useEffect(() => {
-    stateLoad().then(setState).catch(console.error);
+    stateLoad()
+      .then((s) => {
+        stateLoadFailedRef.current = false;
+        stateRef.current = s;
+        setState(s);
+        // Seed the sidebar collapse flag from the persisted state.
+        // `null` ≡ first launch → expanded by design (PIN-6613).
+        setSidebarCollapsed(s.sidebar_collapsed ?? false);
+      })
+      .catch((e) => {
+        console.error("[shell] stateLoad failed, falling back to defaults:", e);
+        stateLoadFailedRef.current = true;
+        // Render-only defaults — see `stateLoadFailedRef` doc above.
+        // Writes are gated on `!stateLoadFailedRef.current` so we
+        // don't clobber a recoverable disk file with the placeholder.
+        const fallback: AppPersistedState = {
+          last_repo: null,
+          pane_sizes: null,
+          pinned_bubbles: null,
+          onboarding_complete: false,
+          sidebar_collapsed: null,
+        };
+        stateRef.current = fallback;
+        setState(fallback);
+        setSidebarCollapsed(false);
+      });
   }, []);
+
+  /// Persist the user's collapse choice across app restarts. Per-user
+  /// (lives in the Tauri app data dir's state.json), NOT per-vault.
+  /// `stateSave` writes the full struct, so we merge against the
+  /// latest known state (tracked in a ref) to avoid clobbering other
+  /// persisted fields (`last_repo` etc).
+  ///
+  /// Writes are serialized through a single in-flight chain so rapid
+  /// double-toggles don't issue concurrent disk writes whose order on
+  /// disk is undefined — last-wins via queue rather than racing
+  /// `std::fs::write` calls.
+  useEffect(() => {
+    stateRef.current = state;
+  }, [state]);
+  const persistChainRef = useRef<Promise<void>>(Promise.resolve());
+  const persistAppState = useCallback((next: AppPersistedState) => {
+    stateRef.current = next;
+    setState(next);
+    if (stateLoadFailedRef.current) {
+      // Don't write fallback-defaults back to disk — see
+      // `stateLoadFailedRef` doc. The toggle still works in-session;
+      // it just won't survive a restart until the corrupt state file
+      // is repaired (or a future write from another code path
+      // succeeds, at which point we could clear the flag — but no
+      // such path exists yet, so we stay conservative).
+      return;
+    }
+    persistChainRef.current = persistChainRef.current
+      .catch(() => {
+        // Swallow earlier failures so one bad write doesn't permanently
+        // block subsequent writes — each call gets its own catch below.
+      })
+      .then(() =>
+        stateSave(next).catch((e) =>
+          console.warn("[shell] state_save failed:", e),
+        ),
+      );
+  }, []);
+  const toggleSidebarCollapsed = useCallback(() => {
+    // Compute the next value from the canonical ref (NOT a setter
+    // updater), so the call is a pure event handler and React
+    // StrictMode's double-invocation of updater functions can't fire
+    // two disk writes per click.
+    const base = stateRef.current;
+    if (!base) return;
+    const next = !(base.sidebar_collapsed ?? false);
+    setSidebarCollapsed(next);
+    persistAppState({ ...base, sidebar_collapsed: next });
+  }, [persistAppState]);
 
   // Expose the manual-pull and tab-switch handlers up to App so the
   // command palette can call them. Re-register on every render so the
@@ -654,7 +756,8 @@ export function Shell({
     };
   }, [repo, bumpFs, onSyncLine]);
 
-  if (!state) return <div className="shell-loading">Loading…</div>;
+  if (!state || sidebarCollapsed === null)
+    return <div className="shell-loading">Loading…</div>;
 
   return (
     <div className="shell">
@@ -689,6 +792,7 @@ export function Shell({
                   selectedPath={sourceToTreePath(source, repo)}
                   active={true}
                   onBack={() => setShowFiles(false)}
+                  onCollapse={toggleSidebarCollapsed}
                 />
               ) : (
                 <Workbench
@@ -699,6 +803,7 @@ export function Shell({
                     setSource(resolved);
                   }}
                   onShowFiles={() => setShowFiles(true)}
+                  onCollapse={toggleSidebarCollapsed}
                 />
               )}
             </div>
@@ -776,26 +881,78 @@ export function Shell({
         // its own clean key and no cross-bleed. End result: once the
         // user resizes a pane, the size sticks across page changes
         // AND across app restarts.
-        const autoSaveId = `openit-shell-panes-${paneOrder.join("-")}`;
+        //
+        // When the sidebar is collapsed, "left" is rendered as a
+        // fixed-width rail OUTSIDE the PanelGroup (icon-only, ~52px).
+        // The remaining panes share the PanelGroup with their own
+        // saved sizes — a separate autoSaveId so collapsed and
+        // expanded layouts don't clobber each other's persisted sizes.
+        const panelPaneOrder = sidebarCollapsed
+          ? paneOrder.filter((id) => id !== "left")
+          : paneOrder;
+        // Rescale defaults so they sum to 100 — react-resizable-panels
+        // requires it and otherwise emits "Invalid panel group
+        // configuration; default panel sizes should total 100%" and
+        // silently rescales. Pre-scaling makes the first paint match
+        // the intended ratios (e.g. center:right ≈ 40:36 in collapsed
+        // mode → 52.6:47.4 after rescale) instead of whatever the
+        // library picks on its own.
+        const defaultsTotal = panelPaneOrder.reduce(
+          (acc, id) => acc + PANE_DEFAULT[id],
+          0,
+        );
+        const scaledDefault = (id: PaneId) =>
+          defaultsTotal === 0
+            ? PANE_DEFAULT[id]
+            : (PANE_DEFAULT[id] * 100) / defaultsTotal;
+        // autoSaveId key:
+        //  - expanded mode: full paneOrder so each reordering has its
+        //    own saved widths (no cross-bleed on drop).
+        //  - collapsed mode: only the panes inside the PanelGroup
+        //    (left is rendered as the fixed-width rail OUTSIDE the
+        //    group). Reordering left↔center↔right while collapsed has
+        //    no visible effect on the two remaining panes, so keying
+        //    on panelPaneOrder avoids spawning a fresh storage key
+        //    that would drop the user's previously-saved widths.
+        const autoSaveId = `openit-shell-panes-${
+          sidebarCollapsed ? "collapsed-" : ""
+        }${(sidebarCollapsed ? panelPaneOrder : paneOrder).join("-")}`;
+        const railSelectedRel = selectedRelFromSource(source, repo);
         return (
           // Wrapper enforces the panes-row geometry: takes all
           // available vertical space inside .shell, leaving room for
           // any banners above and the StatusBar below. Without
           // flex:1 the PanelGroup collapses in some cases when the
           // shell uses padded gutters.
-          <div className="shell-panes-row">
+          <div
+            className={`shell-panes-row${
+              sidebarCollapsed ? " shell-panes-row-collapsed-left" : ""
+            }`}
+          >
+            {sidebarCollapsed && (
+              <LeftSidebarRail
+                repo={repo}
+                fsTick={fsTick}
+                selectedRel={railSelectedRel}
+                onExpand={toggleSidebarCollapsed}
+                onOpen={async (path) => {
+                  const resolved = await resolvePathToSource(path, repo);
+                  setSource(resolved);
+                }}
+              />
+            )}
             <PanelGroup direction="horizontal" autoSaveId={autoSaveId}>
-              {paneOrder.map((id, idx) => (
+              {panelPaneOrder.map((id, idx) => (
                 <Fragment key={id}>
                   <Panel
                     id={id}
                     order={idx}
-                    defaultSize={PANE_DEFAULT[id]}
+                    defaultSize={scaledDefault(id)}
                     minSize={PANE_MIN[id]}
                   >
                     {paneContent[id]}
                   </Panel>
-                  {idx < paneOrder.length - 1 && (
+                  {idx < panelPaneOrder.length - 1 && (
                     <PanelResizeHandle className="resize-handle" />
                   )}
                 </Fragment>

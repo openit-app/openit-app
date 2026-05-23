@@ -56,11 +56,16 @@ export function Workbench({
   fsTick,
   onOpen,
   onShowFiles,
+  onCollapse,
 }: {
   repo: string | null;
   fsTick: number;
   onOpen: (path: string) => void;
   onShowFiles: () => void;
+  /// Optional collapse-sidebar handler. When provided, a small chevron
+  /// button appears next to the TODAY hero card. Omit to hide the
+  /// toggle (e.g. embeds that don't own sidebar layout).
+  onCollapse?: () => void;
 }) {
   const [config, setConfig] = useState<WorkstationConfig | null>(null);
   const [mainTiles, setMainTiles] = useState<ResolvedTile[]>([]);
@@ -394,6 +399,29 @@ export function Workbench({
 
   return (
     <div className="workbench">
+      {/* ── Collapse toggle ───────────────────────────────── */}
+      {onCollapse && (
+        <div className="workbench-collapse-bar">
+          <button
+            type="button"
+            className="workbench-collapse-btn"
+            onClick={onCollapse}
+            title="Collapse sidebar"
+            aria-label="Collapse sidebar"
+            aria-expanded={true}
+          >
+            <svg width="14" height="14" viewBox="0 0 14 14" fill="none" aria-hidden="true">
+              <path
+                d="M9 3l-4 4 4 4"
+                stroke="currentColor"
+                strokeWidth="1.5"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              />
+            </svg>
+          </button>
+        </div>
+      )}
       {/* ── TODAY hero card — count of open tasks (todo + in-progress) ── */}
       <div
         className={`workbench-today${openTaskCount > 0 ? " has-escalated" : ""}`}

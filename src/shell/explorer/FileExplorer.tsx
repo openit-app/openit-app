@@ -62,6 +62,7 @@ export function FileExplorer({
   selectedPath,
   active,
   onBack,
+  onCollapse,
 }: {
   repo: string | null;
   onSelect: (path: string) => void;
@@ -81,6 +82,11 @@ export function FileExplorer({
    *  Workbench overview. Omit when the explorer is the only left-pane
    *  view (future full-time explorer mode). */
   onBack?: () => void;
+  /** When set, a collapse-sidebar chevron renders in the toolbar so the
+   *  user can shrink the left pane to an icon rail without first having
+   *  to navigate back to the Workbench. Optional — omit in embeds that
+   *  don't own sidebar layout (PIN-6613). */
+  onCollapse?: () => void;
 }) {
   const [dragOver, setDragOver] = useState(false);
   const [dropTargetPath, setDropTargetPath] = useState<string | null>(null);
@@ -256,6 +262,21 @@ export function FileExplorer({
             title="Back to overview"
           >
             <svg width={14} height={14} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" aria-hidden><path d="M19 12H5"/><path d="M12 19l-7-7 7-7"/></svg>
+          </Button>
+        )}
+        {onCollapse && (
+          <Button
+            variant="ghost"
+            size="sm"
+            iconOnly
+            onClick={onCollapse}
+            title="Collapse sidebar"
+            aria-label="Collapse sidebar"
+            aria-expanded={true}
+          >
+            <svg width={14} height={14} viewBox="0 0 14 14" fill="none" aria-hidden>
+              <path d="M9 3l-4 4 4 4" stroke="currentColor" strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round" />
+            </svg>
           </Button>
         )}
         <Button

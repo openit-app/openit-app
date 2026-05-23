@@ -1,0 +1,90 @@
+import type { ViewerSource } from "./Viewer";
+
+/// Map the open ViewerSource → repo-relative path of the workstation
+/// tile that owns it, so the collapsed left rail can highlight the
+/// matching icon. Returns null for views that don't correspond to a
+/// pinned station.
+///
+/// IMPORTANT: the returned string must match the tile's `rel` from
+/// `workstationConfig.discoverTiles()` — NOT the on-disk folder path.
+/// In particular:
+///  - knowledge tiles use rel `"knowledge"` (the on-disk folder is
+///    `knowledge/`, NOT `knowledge-bases/`)
+///  - traces tiles use rel `"traces"` (folder is `.openit/agent-traces/`)
+///  - tickets/conversations have NO tile (handled by the TODAY hero
+///    card); we return null so the rail doesn't try to pulse a tile
+///    that doesn't exist.
+export function selectedRelFromSource(
+  s: ViewerSource,
+  repo: string | null,
+): string | null {
+  if (!s || !repo) return null;
+  switch (s.kind) {
+    case "entity-folder":
+      // Includes user-pinned stores (`databases/people`, `filestores/scripts`,
+      // anything else mkdir-ed under a primitive). The Workbench tile
+      // identity is exactly s.path.
+      return s.path;
+    case "databases-list":
+      return "databases";
+    case "filestores-list":
+      return "filestores";
+    case "knowledge-list":
+      return "knowledge";
+    case "people-list":
+      return "databases/people";
+    case "access-list":
+      return "databases/access";
+    case "assets-list":
+      return "databases/assets";
+    case "tasks-list":
+      // Tasks are a top-level primitive (PIN-6605) with their own tile.
+      return "tasks";
+    case "datastore-table":
+    case "datastore-row":
+    case "datastore-schema":
+      return `databases/${s.collection.name}`;
+    case "tools":
+      return "tools";
+    case "skills-station":
+      return "filestores/skills";
+    case "commands-station":
+      return "filestores/commands";
+    case "scripts-station":
+      return "filestores/scripts";
+    case "traces-list":
+    case "agent-trace":
+    case "agent-trace-list":
+      return "traces";
+    case "file": {
+      // Best-effort fallback: walk the path back to the first folder
+      // under the repo root. Useful for files opened directly from
+      // the file explorer (knowledge articles, reports, etc.) so the
+      // owning station still pulses.
+      //
+      // Path separator differs across platforms (Windows `\` vs
+      // Unix `/`), and Tauri commands may return mixed-separator
+      // paths. Normalize both to forward slashes before the
+      // prefix/segment slicing — same pattern Workbench.tsx uses for
+      // its tile-count walks (PIN-6613 BugBot finding on sha
+      // d088355).
+      const repoN = repo.replace(/\\/g, "/");
+      const pathN = s.path.replace(/\\/g, "/");
+      const prefix = `${repoN}/`;
+      const rel = pathN.startsWith(prefix) ? pathN.slice(prefix.length) : null;
+      if (!rel) return null;
+      const firstSlash = rel.indexOf("/");
+      if (firstSlash < 0) return null;
+      const top = rel.slice(0, firstSlash);
+      // For databases/filestores, the tile is the second segment.
+      if (top === "databases" || top === "filestores") {
+        const rest = rel.slice(firstSlash + 1);
+        const second = rest.indexOf("/");
+        return `${top}/${second < 0 ? rest : rest.slice(0, second)}`;
+      }
+      return top;
+    }
+    default:
+      return null;
+  }
+}
