@@ -288,6 +288,60 @@ describe("CommandsStation + New flow", () => {
     expect(activeSessionMock.writeToActiveSession).not.toHaveBeenCalled();
   });
 
+  it("cancel-mid-create releases the double-submit guard so a follow-up create still works", async () => {
+    // Regression for the high-severity 9942cb0 issue: gen-gating the
+    // outer finally meant a cancel-mid-fsList path skipped the
+    // guard release entirely. creatingRef would stay true forever,
+    // silently blocking every future + New. Cancel must clear the
+    // guard explicitly so the follow-up create still goes through.
+    let resolveList: ((nodes: { name: string; path: string; is_dir: boolean }[]) => void) | null = null;
+    apiMock.fsList.mockImplementation(
+      () =>
+        new Promise((res) => {
+          resolveList = res;
+        }),
+    );
+
+    renderInToastProvider(<CommandsStation repo="/tmp/repo" onOpen={() => {}} />);
+    fireEvent.click(screen.getByRole("button", { name: "+ New" }));
+    await screen.findByRole("dialog", { name: /create new command/i });
+    fireEvent.change(screen.getByPlaceholderText("command-name"), {
+      target: { value: "first" },
+    });
+    fireEvent.change(
+      screen.getByPlaceholderText(/what should this command do/i),
+      { target: { value: "Will be cancelled." } },
+    );
+    fireEvent.click(screen.getByRole("button", { name: /^create$/i }));
+    await new Promise((r) => setTimeout(r, 0));
+
+    // Cancel the in-flight create.
+    fireEvent.click(screen.getByRole("button", { name: /cancel/i }));
+    resolveList?.([]);
+    await new Promise((r) => setTimeout(r, 0));
+    await new Promise((r) => setTimeout(r, 0));
+    expect(apiMock.entityWriteFile).not.toHaveBeenCalled();
+
+    // Now swap the impl back to a normal sync resolve so the second
+    // attempt actually goes through.
+    apiMock.fsList.mockResolvedValue([]);
+
+    // Second attempt — this is what was broken. If creatingRef
+    // leaked, this click would silently no-op at `if (creatingRef.current) return`.
+    fireEvent.click(screen.getByRole("button", { name: "+ New" }));
+    await screen.findByRole("dialog", { name: /create new command/i });
+    fireEvent.change(screen.getByPlaceholderText("command-name"), {
+      target: { value: "second" },
+    });
+    fireEvent.change(
+      screen.getByPlaceholderText(/what should this command do/i),
+      { target: { value: "Goes through." } },
+    );
+    fireEvent.click(screen.getByRole("button", { name: /^create$/i }));
+    await waitFor(() => expect(apiMock.entityWriteFile).toHaveBeenCalledTimes(1));
+    expect(apiMock.entityWriteFile.mock.calls[0][2]).toBe("second.md");
+  });
+
   it("clicking + New to dismiss an open composer cancels an in-flight create", async () => {
     let resolveList: ((nodes: { name: string; path: string; is_dir: boolean }[]) => void) | null = null;
     apiMock.fsList.mockImplementation(

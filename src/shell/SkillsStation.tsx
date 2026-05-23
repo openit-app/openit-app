@@ -428,6 +428,15 @@ Before signing off, re-read this command body. If the admin's choices narrowed a
     // Bump the generation so any in-flight createNewCommandInner
     // (mid-fsList, mid-write) bails before mutating disk or the PTY.
     createGenRef.current += 1;
+    // Release the double-submit guard too — without this, an inner
+    // pipeline that hits the post-fsList `cancelled()` early-return
+    // skips the inline release at the point-of-no-return, and the
+    // outer finally's gen-equality check now refuses to clear the
+    // guard (gen has been bumped past this pipeline). Result:
+    // creatingRef stays true for the lifetime of the component and
+    // every subsequent Create silently no-ops. (BugBot iter-7 and
+    // independent reviewer iter-7 both caught this regression.)
+    creatingRef.current = false;
     setShowNewInput(false);
     setNewName("");
     setNewIntent("");
