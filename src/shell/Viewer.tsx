@@ -581,12 +581,11 @@ export function Viewer({
       if (!liveSource || liveSource.kind !== "file") return;
       if (liveMode !== "rendered" || !isMarkdown(liveSource.path)) return;
       const path = liveSource.path;
-      // Snapshot the scroll position of the nearest scrollable
-      // ancestor before we re-render. PaneBody is the actual scroll
-      // container per `.viewer-content` styling, so we walk up the
-      // tree the same way the sync auto-scroll effect does.
+      // Walk the scroll-ancestor tree up front (we need the
+      // reference) but DEFER the scrollTop snapshot until just
+      // before setContent. A slow fsRead would otherwise clobber any
+      // user scrolling that happened during the read.
       let scrollAncestor: HTMLElement | null = null;
-      let savedScrollTop = 0;
       const el = mdScrollRef.current;
       if (el) {
         let p: HTMLElement | null = el.parentElement;
@@ -594,7 +593,6 @@ export function Viewer({
           const overflowY = window.getComputedStyle(p).overflowY;
           if (overflowY === "auto" || overflowY === "scroll") {
             scrollAncestor = p;
-            savedScrollTop = p.scrollTop;
             break;
           }
           p = p.parentElement;
@@ -610,6 +608,10 @@ export function Viewer({
           if (!stillSource || stillSource.kind !== "file" || stillSource.path !== path) {
             return;
           }
+          // Snapshot scrollTop NOW (post-await) so any scrolling the
+          // user did during the read is the position we restore to,
+          // not the position at debounce-fire time.
+          const savedScrollTop = scrollAncestor ? scrollAncestor.scrollTop : 0;
           // Skip the update if the file content didn't actually
           // change — the watcher fires on metadata-only touches too
           // (chmod, atime) and re-rendering for those is just churn.
@@ -617,10 +619,21 @@ export function Viewer({
           // Restore the scroll position on the next frame, after
           // React has committed the new markdown subtree. Without
           // rAF the scrollHeight is still stale and the restore lands
-          // at the old offset.
+          // at the old offset. Re-check the path inside rAF too —
+          // the user can navigate between setContent and the next
+          // frame, and restoring on the wrong viewer's scroll
+          // ancestor would snap them to a stale offset.
           if (scrollAncestor) {
             const target = scrollAncestor;
             window.requestAnimationFrame(() => {
+              const afterFrameSource = mdSourceRef.current;
+              if (
+                !afterFrameSource ||
+                afterFrameSource.kind !== "file" ||
+                afterFrameSource.path !== path
+              ) {
+                return;
+              }
               target.scrollTop = savedScrollTop;
             });
           }

@@ -6,14 +6,16 @@ import { Button } from "../ui";
 import { useToast } from "../Toast";
 import styles from "./ToolsPanel.module.css";
 
-// Triple-backtick collapses to a zero-width space + the original
-// backticks. The user's intent gets dropped into a markdown body
-// verbatim, and a paste containing ``` would close the implicit code
-// fence above it and corrupt the rest of the doc until the next ```
-// (or EOF). Inserting a ZWSP between every backtick run defuses the
-// fence without changing how the text reads in any UI.
+// Defuse CommonMark fences in user-provided intent before it lands
+// in the markdown body. A pasted ``` (backtick) or ~~~ (tilde) run
+// of length ≥ 3 would open a fenced code block that swallows the
+// rest of the doc until the next matching fence or EOF. Splitting
+// every run with a zero-width space keeps the visible characters
+// intact but prevents the lexer from treating them as a fence.
 function escapeMarkdownFences(s: string): string {
-  return s.replace(/```/g, "`​`​`");
+  return s
+    .replace(/`{3,}/g, (run) => run.split("").join("​"))
+    .replace(/~{3,}/g, (run) => run.split("").join("​"));
 }
 
 type CommandEntry = {
@@ -163,18 +165,48 @@ export function CommandsStation({
 
   const createNewCommand = async () => {
     const slug = newName.trim().toLowerCase().replace(/\s+/g, "-").replace(/[^a-z0-9-]/g, "");
-    if (!slug) return;
+    // Names that strip to nothing (non-ASCII, punctuation-only, etc.)
+    // must surface as an error — silently no-op'ing here was the
+    // cause of "I clicked Create three times and nothing happened"
+    // reports. (Independent reviewer finding.)
+    if (!slug) {
+      showToast({
+        title: "Name required",
+        message:
+          "Use letters, numbers, and dashes for the command name. Non-ASCII names aren't supported as slash-command identifiers.",
+        tone: "warn",
+      });
+      return;
+    }
     // Intent is required — captured before any file is written or any
     // Claude call is made. The single text field carries the user's
     // ask through to Claude's initial turn so it stops guessing from
     // the filename alone. (PIN-6607.)
     const intent = newIntent.trim();
     if (!intent) return;
+    // Refuse to overwrite an existing command — the previous shape
+    // happily clobbered `filestores/commands/<slug>.md` with the
+    // fresh boilerplate, taking the user's accumulated body with it.
+    const collidesWith = commands.find((c) => c.name === slug);
+    if (collidesWith) {
+      showToast({
+        title: `/${slug} already exists`,
+        message:
+          "Pick a different name, or open the existing command and edit it instead.",
+        tone: "warn",
+      });
+      return;
+    }
     // One-line description for the YAML frontmatter — keep the user's
     // exact phrasing so it round-trips through the commands list and
-    // Claude has it in its working set.
+    // Claude has it in its working set. Backslash and double-quote
+    // both need escaping in a YAML double-quoted scalar; without the
+    // backslash escape, a Windows path like `C:\Users\me\` produces
+    // an unterminated quoted string and downstream YAML parsers drop
+    // or error on the file.
     const safeIntentForFrontmatter = intent
       .replace(/\r?\n/g, " ")
+      .replace(/\\/g, "\\\\")
       .replace(/"/g, '\\"');
     // Body needs separate escaping: frontmatter is YAML-quoted (so
     // backticks are safe inside), but the body is raw markdown — a
@@ -228,9 +260,9 @@ Before signing off, re-read this command body. If the admin's choices narrowed a
       // out loud so the user doesn't sit waiting for Claude to fill
       // in the template that will never get filled. (PIN-6607.)
       showToast({
-        title: `Created /${slug}`,
+        title: "Claude session not active",
         message:
-          "No Claude session is active in the chat pane, so the build-out request was not sent. Start a Claude session, then ask it to build out the new command.",
+          `Created /${slug} on disk, but no Claude session is running in the chat pane — the build-out request was not sent. Start a Claude session, then ask it to build out the new command.`,
         tone: "warn",
       });
     }

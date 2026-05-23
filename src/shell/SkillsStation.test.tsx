@@ -169,6 +169,115 @@ describe("CommandsStation + New flow", () => {
     expect(mdBody).not.toContain("```");
   });
 
+  it("refuses to clobber an existing command and toasts a collision warning", async () => {
+    // Seed an existing /deploy command — fsList returns the dir,
+    // fsRead returns the body so it shows up in the panel state.
+    apiMock.fsList.mockImplementation(async (path: string) => {
+      if (path.endsWith("/filestores/commands")) {
+        return [
+          { name: "deploy.md", path: `${path}/deploy.md`, is_dir: false },
+        ];
+      }
+      return [];
+    });
+    apiMock.fsRead.mockResolvedValue("# /deploy\n\nDescribe.");
+
+    renderInToastProvider(<CommandsStation repo="/tmp/repo" onOpen={() => {}} />);
+    // Wait for the panel to enumerate the existing command.
+    await screen.findByText(/deploy/);
+
+    fireEvent.click(screen.getByRole("button", { name: "+ New" }));
+    await screen.findByRole("dialog", { name: /create new command/i });
+
+    fireEvent.change(screen.getByPlaceholderText("command-name"), {
+      target: { value: "deploy" },
+    });
+    fireEvent.change(
+      screen.getByPlaceholderText(/what should this command do/i),
+      { target: { value: "Different goal." } },
+    );
+    fireEvent.click(screen.getByRole("button", { name: /^create$/i }));
+
+    // No write to disk, no Claude handoff — existing /deploy is safe.
+    await waitFor(() =>
+      expect(
+        screen.getByText(/already exists/i),
+      ).toBeInTheDocument(),
+    );
+    expect(apiMock.entityWriteFile).not.toHaveBeenCalled();
+    expect(activeSessionMock.writeToActiveSession).not.toHaveBeenCalled();
+  });
+
+  it("toasts a warning when the name slugs to empty (non-ASCII, punctuation)", async () => {
+    renderInToastProvider(<CommandsStation repo="/tmp/repo" onOpen={() => {}} />);
+
+    fireEvent.click(screen.getByRole("button", { name: "+ New" }));
+    await screen.findByRole("dialog", { name: /create new command/i });
+
+    fireEvent.change(screen.getByPlaceholderText("command-name"), {
+      target: { value: "中文" },
+    });
+    fireEvent.change(
+      screen.getByPlaceholderText(/what should this command do/i),
+      { target: { value: "Translate." } },
+    );
+    fireEvent.click(screen.getByRole("button", { name: /^create$/i }));
+
+    await waitFor(() =>
+      expect(
+        screen.getByText(/letters, numbers, and dashes/i),
+      ).toBeInTheDocument(),
+    );
+    expect(apiMock.entityWriteFile).not.toHaveBeenCalled();
+  });
+
+  it("escapes backslashes in the frontmatter description so YAML stays valid", async () => {
+    renderInToastProvider(<CommandsStation repo="/tmp/repo" onOpen={() => {}} />);
+    fireEvent.click(screen.getByRole("button", { name: "+ New" }));
+    await screen.findByRole("dialog", { name: /create new command/i });
+
+    fireEvent.change(screen.getByPlaceholderText("command-name"), {
+      target: { value: "winpath" },
+    });
+    // Trailing backslash is the killer — it'd escape the closing
+    // quote and produce an unterminated YAML scalar.
+    fireEvent.change(
+      screen.getByPlaceholderText(/what should this command do/i),
+      { target: { value: "Sync C:\\Users\\me\\Desktop\\" } },
+    );
+    fireEvent.click(screen.getByRole("button", { name: /^create$/i }));
+    await waitFor(() => expect(apiMock.entityWriteFile).toHaveBeenCalledTimes(1));
+
+    const body = apiMock.entityWriteFile.mock.calls[0][3];
+    // Pull out just the description line of the frontmatter.
+    const m = body.match(/^description:\s*"((?:[^"\\]|\\.)*)"\s*$/m);
+    expect(m).not.toBeNull();
+    // The closing `"` must be present — the regex above already
+    // proves it parses as a complete double-quoted scalar.
+  });
+
+  it("escapes tilde fences in the intent body too (not just backticks)", async () => {
+    renderInToastProvider(<CommandsStation repo="/tmp/repo" onOpen={() => {}} />);
+    fireEvent.click(screen.getByRole("button", { name: "+ New" }));
+    await screen.findByRole("dialog", { name: /create new command/i });
+
+    fireEvent.change(screen.getByPlaceholderText("command-name"), {
+      target: { value: "tilded" },
+    });
+    fireEvent.change(
+      screen.getByPlaceholderText(/what should this command do/i),
+      { target: { value: "Run ~~~bash echo hi~~~ and report." } },
+    );
+    fireEvent.click(screen.getByRole("button", { name: /^create$/i }));
+    await waitFor(() => expect(apiMock.entityWriteFile).toHaveBeenCalledTimes(1));
+
+    const body = apiMock.entityWriteFile.mock.calls[0][3];
+    const fmCloseIdx = body.indexOf("\n---\n", 4);
+    const mdBody = body.slice(fmCloseIdx + 5);
+    // No three-in-a-row tildes survive in the body.
+    expect(mdBody).not.toMatch(/~{3,}/);
+  });
+
   it("surfaces a toast when there is no active Claude session", async () => {
     activeSessionMock.writeToActiveSession.mockResolvedValue(false);
     renderInToastProvider(<CommandsStation repo="/tmp/repo" onOpen={() => {}} />);
@@ -190,11 +299,16 @@ describe("CommandsStation + New flow", () => {
     await waitFor(() => expect(apiMock.entityWriteFile).toHaveBeenCalledTimes(1));
 
     // Toast surfaces the failed handoff so the user knows to start a
-    // Claude session before expecting the template to fill in.
+    // Claude session before expecting the template to fill in. The
+    // title must lead with the warning condition (not "Created /…")
+    // so users skimming by tone+title don't dismiss it as success.
     await waitFor(() =>
       expect(
-        screen.getByText(/no claude session is active/i),
+        screen.getByText(/claude session not active/i),
       ).toBeInTheDocument(),
     );
+    expect(
+      screen.getByText(/no claude session is running/i),
+    ).toBeInTheDocument();
   });
 });
