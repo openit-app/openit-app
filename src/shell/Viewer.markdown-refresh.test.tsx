@@ -46,19 +46,28 @@ function MarkdownAutoRefreshHarness({
   source,
   mode,
   fsTick,
+  scrollRestoreProbe,
 }: {
   source: Source;
   mode: "rendered" | "edit" | "raw";
   fsTick: number;
+  // Test injects a counter that the scroll-restore rAF bumps. Lets
+  // us assert the restore ran (or didn't) without faking actual DOM
+  // scroll behaviour in jsdom.
+  scrollRestoreProbe?: { count: number };
 }) {
-  const [, setContent] = useState("");
+  const [content, setContent] = useState("");
   const mdScrollRef = useRef<HTMLDivElement | null>(null);
   const mdSourceRef = useRef(source);
   const mdModeRef = useRef(mode);
+  const mdContentRef = useRef(content);
   useEffect(() => {
     mdSourceRef.current = source;
     mdModeRef.current = mode;
   }, [source, mode]);
+  useEffect(() => {
+    mdContentRef.current = content;
+  }, [content]);
   const [appliedContent, setAppliedContent] = useState("");
   useEffect(() => {
     if (fsTick === 0) return;
@@ -78,8 +87,23 @@ function MarkdownAutoRefreshHarness({
             return;
           }
           if (stillMode !== "rendered") return;
-          setContent((prev) => (prev === c ? prev : c));
+          // Synchronous equality check via the content mirror — the
+          // earlier "let didUpdate inside the updater" pattern was
+          // broken because React applies functional updaters during
+          // the next render pass, so reading the flag immediately
+          // after `setContent(...)` always saw `false`.
+          if (mdContentRef.current === c) return;
+          setContent(c);
           setAppliedContent(c);
+          // The real Viewer uses requestAnimationFrame here to wait
+          // for the markdown subtree to commit before restoring
+          // scroll. We just bump a probe counter so tests can assert
+          // the restore path was reached at all.
+          if (scrollRestoreProbe) {
+            window.requestAnimationFrame(() => {
+              scrollRestoreProbe.count += 1;
+            });
+          }
         })
         .catch(() => {});
     }, 250);
@@ -87,10 +111,7 @@ function MarkdownAutoRefreshHarness({
       cancelled = true;
       window.clearTimeout(t);
     };
-  }, [fsTick]);
-  // Expose a probe so tests can observe whether the re-read actually
-  // landed (setContent fires from inside the .then). Hidden from
-  // visual a11y queries.
+  }, [fsTick, scrollRestoreProbe]);
   return (
     <>
       <div ref={mdScrollRef} />
@@ -107,6 +128,56 @@ describe("markdown viewer auto-refresh", () => {
   afterEach(() => {
     cleanup();
     vi.useRealTimers();
+  });
+
+  it("scroll restore runs when content actually changed (and not when unchanged)", async () => {
+    // Regression for BugBot iter-4: the original `let didUpdate =
+    // false; setContent(updater)` pattern read `didUpdate`
+    // synchronously after setContent — React applies functional
+    // updaters in the next render pass, so the flag stayed false
+    // even when content had changed, and rAF never ran.
+    apiMock.fsRead.mockResolvedValue("changed");
+    const probe = { count: 0 };
+
+    const { rerender } = render(
+      <MarkdownAutoRefreshHarness
+        source={{ kind: "file", path: "/repo/kb/a.md" }}
+        mode="rendered"
+        fsTick={0}
+        scrollRestoreProbe={probe}
+      />,
+    );
+    rerender(
+      <MarkdownAutoRefreshHarness
+        source={{ kind: "file", path: "/repo/kb/a.md" }}
+        mode="rendered"
+        fsTick={1}
+        scrollRestoreProbe={probe}
+      />,
+    );
+    vi.advanceTimersByTime(300);
+    await Promise.resolve();
+    await Promise.resolve();
+    // Drain the rAF queue.
+    vi.advanceTimersByTime(20);
+    expect(probe.count).toBe(1);
+
+    // Second fsTick with the SAME content on disk — equality short-
+    // circuit should fire and the restore should NOT run.
+    apiMock.fsRead.mockResolvedValue("changed");
+    rerender(
+      <MarkdownAutoRefreshHarness
+        source={{ kind: "file", path: "/repo/kb/a.md" }}
+        mode="rendered"
+        fsTick={2}
+        scrollRestoreProbe={probe}
+      />,
+    );
+    vi.advanceTimersByTime(300);
+    await Promise.resolve();
+    await Promise.resolve();
+    vi.advanceTimersByTime(20);
+    expect(probe.count).toBe(1);
   });
 
   it("re-reads the open markdown file when fsTick bumps", async () => {

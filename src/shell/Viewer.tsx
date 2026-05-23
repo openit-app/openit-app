@@ -560,10 +560,18 @@ export function Viewer({
   const mdScrollRef = useRef<HTMLDivElement | null>(null);
   const mdSourceRef = useRef(source);
   const mdModeRef = useRef(mode);
+  const mdContentRef = useRef(content);
   useEffect(() => {
     mdSourceRef.current = source;
     mdModeRef.current = mode;
   }, [source, mode]);
+  // Mirror `content` into a ref so the fsTick effect (which closes
+  // over the initial render's `content`) can compare against the
+  // currently-rendered value without taking `content` into its dep
+  // array — that would defeat the [fsTick]-only debouncing.
+  useEffect(() => {
+    mdContentRef.current = content;
+  }, [content]);
   useEffect(() => {
     if (fsTick === 0) return;
     let cancelled = false;
@@ -625,13 +633,17 @@ export function Viewer({
           // so there's nothing to compensate for and restoring would
           // just clobber any scrolling the user has done since the
           // debounce fired. (BugBot finding.)
-          let didUpdate = false;
-          setContent((prev) => {
-            if (prev === c) return prev;
-            didUpdate = true;
-            return c;
-          });
-          if (!didUpdate) return;
+          //
+          // Read the current content from the mirror ref so we can
+          // make the equality decision synchronously, BEFORE setting
+          // state. A previous attempt used `let didUpdate = false;
+          // setContent((prev) => { didUpdate = true; ... })` then
+          // read `didUpdate` immediately after — React applies
+          // functional updaters during the next render pass, so
+          // the flag stayed false even when content had changed,
+          // and the scroll restore never ran. (BugBot iter-4.)
+          if (mdContentRef.current === c) return;
+          setContent(c);
           // Restore the scroll position on the next frame, after
           // React has committed the new markdown subtree. Without
           // rAF the scrollHeight is still stale and the restore lands
