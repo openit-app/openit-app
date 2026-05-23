@@ -250,6 +250,40 @@ describe("CommandsStation + New flow", () => {
     expect(activeSessionMock.writeToActiveSession).not.toHaveBeenCalled();
   });
 
+  it("catches case-variant collisions (HFS+/NTFS are case-insensitive)", async () => {
+    apiMock.fsList.mockImplementation(async (path: string) => {
+      if (path.endsWith("/filestores/commands")) {
+        // Existing entry is uppercase — on macOS HFS+ this is the
+        // same file as the lowercased slug, so the write must be
+        // refused even though strict equality would let it through.
+        return [{ name: "Backup.md", path: `${path}/Backup.md`, is_dir: false }];
+      }
+      return [];
+    });
+    apiMock.fsRead.mockResolvedValue("---\ndescription: \"Existing backup\"\n---\n");
+
+    renderInToastProvider(<CommandsStation repo="/tmp/repo" onOpen={() => {}} />);
+    await screen.findByText(/existing backup/i);
+
+    fireEvent.click(screen.getByRole("button", { name: "+ New" }));
+    await screen.findByRole("dialog", { name: /create new command/i });
+    fireEvent.change(screen.getByPlaceholderText("command-name"), {
+      target: { value: "backup" },
+    });
+    fireEvent.change(
+      screen.getByPlaceholderText(/what should this command do/i),
+      { target: { value: "New backup." } },
+    );
+    fireEvent.click(screen.getByRole("button", { name: /^create$/i }));
+
+    await waitFor(() =>
+      expect(
+        screen.getByText(/already exists/i),
+      ).toBeInTheDocument(),
+    );
+    expect(apiMock.entityWriteFile).not.toHaveBeenCalled();
+  });
+
   it("distinguishes a system-command collision from a user-command collision in the toast", async () => {
     apiMock.fsList.mockImplementation(async (path: string) => {
       if (path.endsWith("/.claude/skills")) {

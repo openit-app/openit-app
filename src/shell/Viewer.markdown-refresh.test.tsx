@@ -17,7 +17,7 @@
  * in Phase 4.
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { cleanup, render } from "@testing-library/react";
+import { cleanup, render, screen } from "@testing-library/react";
 import { useEffect, useRef, useState } from "react";
 
 const apiMock = vi.hoisted(() => ({
@@ -59,6 +59,7 @@ function MarkdownAutoRefreshHarness({
     mdSourceRef.current = source;
     mdModeRef.current = mode;
   }, [source, mode]);
+  const [appliedContent, setAppliedContent] = useState("");
   useEffect(() => {
     if (fsTick === 0) return;
     let cancelled = false;
@@ -72,10 +73,13 @@ function MarkdownAutoRefreshHarness({
         .then((c) => {
           if (cancelled) return;
           const stillSource = mdSourceRef.current;
+          const stillMode = mdModeRef.current;
           if (!stillSource || stillSource.kind !== "file" || stillSource.path !== path) {
             return;
           }
+          if (stillMode !== "rendered") return;
           setContent((prev) => (prev === c ? prev : c));
+          setAppliedContent(c);
         })
         .catch(() => {});
     }, 250);
@@ -84,7 +88,15 @@ function MarkdownAutoRefreshHarness({
       window.clearTimeout(t);
     };
   }, [fsTick]);
-  return <div ref={mdScrollRef} />;
+  // Expose a probe so tests can observe whether the re-read actually
+  // landed (setContent fires from inside the .then). Hidden from
+  // visual a11y queries.
+  return (
+    <>
+      <div ref={mdScrollRef} />
+      <div data-testid="applied-content">{appliedContent}</div>
+    </>
+  );
 }
 
 describe("markdown viewer auto-refresh", () => {
@@ -240,6 +252,51 @@ describe("markdown viewer auto-refresh", () => {
     );
     vi.advanceTimersByTime(500);
     expect(apiMock.fsRead).not.toHaveBeenCalled();
+  });
+
+  it("aborts the re-read if the user switches to edit mode WHILE fsRead is in flight", async () => {
+    // Hold fsRead in suspense so we can flip mode between the
+    // pre-await gate and the resolution. Without the post-await
+    // mode recheck, the resolved content would land in setContent
+    // and clobber the user's edit draft. (BugBot finding.)
+    let resolveRead: ((s: string) => void) | null = null;
+    apiMock.fsRead.mockImplementation(
+      () =>
+        new Promise<string>((res) => {
+          resolveRead = res;
+        }),
+    );
+
+    const { rerender } = render(
+      <MarkdownAutoRefreshHarness
+        source={{ kind: "file", path: "/repo/kb/a.md" }}
+        mode="rendered"
+        fsTick={1}
+      />,
+    );
+    // Trigger the debounce → fsRead is now in flight.
+    vi.advanceTimersByTime(300);
+    expect(apiMock.fsRead).toHaveBeenCalledTimes(1);
+
+    // User switches into edit mode BEFORE the read resolves.
+    rerender(
+      <MarkdownAutoRefreshHarness
+        source={{ kind: "file", path: "/repo/kb/a.md" }}
+        mode="edit"
+        fsTick={1}
+      />,
+    );
+
+    // Resolve the read.
+    resolveRead?.("new disk content");
+
+    // Let the .then microtask flush.
+    await Promise.resolve();
+    await Promise.resolve();
+
+    // The probe shows the empty initial value — meaning setContent
+    // was NOT called, the user's edit draft is safe.
+    expect(screen.getByTestId("applied-content").textContent).toBe("");
   });
 
   it("aborts the re-read if the user navigates away mid-debounce", async () => {

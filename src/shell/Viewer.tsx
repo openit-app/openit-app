@@ -601,13 +601,18 @@ export function Viewer({
       fsRead(path)
         .then((c) => {
           if (cancelled) return;
-          // Bail if the user navigated to a different file while the
-          // read was in flight — applying this content to the new
-          // pane would render the wrong document.
+          // Bail if the user navigated to a different file OR
+          // switched into edit mode while the read was in flight.
+          // Applying disk content to a viewer whose user just started
+          // typing into the textarea would silently clobber their
+          // draft. The pre-await `liveMode` check above can't catch
+          // this — mode can flip during the fsRead. (BugBot finding.)
           const stillSource = mdSourceRef.current;
+          const stillMode = mdModeRef.current;
           if (!stillSource || stillSource.kind !== "file" || stillSource.path !== path) {
             return;
           }
+          if (stillMode !== "rendered") return;
           // Snapshot scrollTop NOW (post-await) so any scrolling the
           // user did during the read is the position we restore to,
           // not the position at debounce-fire time.
@@ -638,10 +643,12 @@ export function Viewer({
             const target = scrollAncestor;
             window.requestAnimationFrame(() => {
               const afterFrameSource = mdSourceRef.current;
+              const afterFrameMode = mdModeRef.current;
               if (
                 !afterFrameSource ||
                 afterFrameSource.kind !== "file" ||
-                afterFrameSource.path !== path
+                afterFrameSource.path !== path ||
+                afterFrameMode !== "rendered"
               ) {
                 return;
               }

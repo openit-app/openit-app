@@ -237,8 +237,14 @@ export function CommandsStation({
     // fresh boilerplate, taking the user's accumulated body with it.
     // Distinguish system commands (under `.claude/skills/`) from
     // user commands (under `filestores/commands/`) so the toast
-    // points the user at the right next action.
-    const collidesWith = commands.find((c) => c.name === slug);
+    // points the user at the right next action. Compare
+    // case-insensitively because macOS HFS+ and Windows NTFS treat
+    // `Backup.md` and `backup.md` as the same file — a strict
+    // equality check would let us write `backup.md` on top of an
+    // existing `Backup.md`. (BugBot finding.)
+    const collidesWith = commands.find(
+      (c) => c.name.toLowerCase() === slug,
+    );
     if (collidesWith) {
       const isSystem = collidesWith.path.includes("/.claude/skills/");
       showToast({
@@ -305,8 +311,12 @@ Before signing off, re-read this command body. If the admin's choices narrowed a
     // the file while the user was typing the intent.
     try {
       const live = await fsList(`${repo}/filestores/commands`);
+      // Case-insensitive compare: HFS+/NTFS treat `Foo.md` and
+      // `foo.md` as the same file. Strict equality would let us
+      // overwrite a case-variant on those volumes.
+      const target = `${slug}.md`;
       const collide = live.some(
-        (n) => !n.is_dir && n.name === `${slug}.md`,
+        (n) => !n.is_dir && n.name.toLowerCase() === target,
       );
       if (collide) {
         showToast({
