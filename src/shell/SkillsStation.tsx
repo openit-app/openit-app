@@ -136,6 +136,7 @@ export function CommandsStation({
 
   const [search, setSearch] = useState("");
   const [newName, setNewName] = useState("");
+  const [newIntent, setNewIntent] = useState("");
 
   // When searching, show all matches (ignore fold). Otherwise fold at featured.
   const q = search.toLowerCase();
@@ -151,8 +152,20 @@ export function CommandsStation({
   const createNewCommand = async () => {
     const slug = newName.trim().toLowerCase().replace(/\s+/g, "-").replace(/[^a-z0-9-]/g, "");
     if (!slug) return;
+    // Intent is required — captured before any file is written or any
+    // Claude call is made. The single text field carries the user's
+    // ask through to Claude's initial turn so it stops guessing from
+    // the filename alone. (PIN-6607.)
+    const intent = newIntent.trim();
+    if (!intent) return;
+    // One-line description for the YAML frontmatter — keep the user's
+    // exact phrasing so it round-trips through the commands list and
+    // Claude has it in its working set.
+    const safeIntentForFrontmatter = intent
+      .replace(/\r?\n/g, " ")
+      .replace(/"/g, '\\"');
     const boilerplate = `---
-description: "Describe what this command does in one sentence."
+description: "${safeIntentForFrontmatter}"
 ---
 
 # /${slug}
@@ -162,7 +175,7 @@ description: "Describe what this command does in one sentence."
 
 ## What this command does
 
-Describe the goal here.
+${intent}
 
 ## Steps
 
@@ -178,10 +191,26 @@ Describe the goal here.
 
 Before signing off, re-read this command body. If the admin's choices narrowed any defaults this run, rewrite the relevant sections to match — and snapshot the prior body to \`filestores/commands/${slug}/_history/<ms>.md\` first. Tell the admin in one line what changed.
 `;
+    const relPath = `filestores/commands/${slug}.md`;
+    const absPath = `${repo}/${relPath}`;
     await entityWriteFile(repo, "filestores/commands", `${slug}.md`, boilerplate);
     setShowNewInput(false);
     setNewName("");
-    onOpen(`${repo}/filestores/commands/${slug}.md`);
+    setNewIntent("");
+    onOpen(absPath);
+    // Hand the intent off to Claude alongside the file path. Building
+    // this prompt server-side (here) instead of relying on the
+    // template means Claude gets the user's ask verbatim in its first
+    // turn, even if it never reads the file. The file watcher in the
+    // viewer then re-renders as Claude writes.
+    const ccPrompt = `I just created a new slash command at \`${relPath}\`. Please build it out so it does the following:\n\n${intent}\n\nRead the file first to see the scaffold I dropped (YAML frontmatter, Steps, Notes), then rewrite the body so /${slug} actually does the above. Keep the frontmatter \`description\` matching the goal. When you're done, tell me in one line what /${slug} now does.\r`;
+    await writeToActiveSession(ccPrompt);
+  };
+
+  const cancelNewCommand = () => {
+    setShowNewInput(false);
+    setNewName("");
+    setNewIntent("");
   };
 
   return (
@@ -208,7 +237,11 @@ Before signing off, re-read this command body. If the admin's choices narrowed a
       />
 
       {showNewInput && (
-        <div style={{ display: "flex", gap: 8, alignItems: "center", marginBottom: 4 }}>
+        <div
+          style={{ display: "flex", flexDirection: "column", gap: 6, marginBottom: 8 }}
+          role="dialog"
+          aria-label="Create new command"
+        >
           <input
             className={styles.search}
             type="text"
@@ -216,14 +249,45 @@ Before signing off, re-read this command body. If the admin's choices narrowed a
             value={newName}
             onChange={(e) => setNewName(e.target.value)}
             onKeyDown={(e) => {
-              if (e.key === "Enter") void createNewCommand();
-              if (e.key === "Escape") { setShowNewInput(false); setNewName(""); }
+              if (e.key === "Escape") cancelNewCommand();
             }}
             autoFocus
           />
-          <Button variant="secondary" size="sm" onClick={() => void createNewCommand()}>
-            Create
-          </Button>
+          <textarea
+            className={styles.search}
+            placeholder="What should this command do? Describe the goal."
+            value={newIntent}
+            onChange={(e) => setNewIntent(e.target.value)}
+            onKeyDown={(e) => {
+              // Submit on Cmd/Ctrl+Enter so plain Enter still inserts
+              // a newline inside the textarea — matches the modern
+              // chat-input convention.
+              if ((e.metaKey || e.ctrlKey) && e.key === "Enter") {
+                e.preventDefault();
+                void createNewCommand();
+              }
+              if (e.key === "Escape") cancelNewCommand();
+            }}
+            rows={3}
+            style={{ resize: "vertical", minHeight: 64, fontFamily: "inherit" }}
+            aria-label="What should this command do? Describe the goal."
+          />
+          <div style={{ display: "flex", gap: 8, justifyContent: "flex-end", alignItems: "center" }}>
+            <span style={{ fontSize: 11, color: "var(--text-muted)", marginRight: "auto" }}>
+              Cmd/Ctrl+Enter to create
+            </span>
+            <Button variant="ghost" size="sm" onClick={cancelNewCommand}>
+              Cancel
+            </Button>
+            <Button
+              variant="secondary"
+              size="sm"
+              onClick={() => void createNewCommand()}
+              disabled={!newName.trim() || !newIntent.trim()}
+            >
+              Create
+            </Button>
+          </div>
         </div>
       )}
 
