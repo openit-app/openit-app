@@ -59,6 +59,9 @@ vi.mock("@xterm/xterm", () => {
     onData(h: DataHandler) {
       xtermCapture.onDataHandler = h;
     }
+    onTitleChange(_h: (title: string) => void) {
+      return { dispose() {} };
+    }
     input(data: string) {
       xtermCapture.inputCalls.push(data);
       // Mirror real xterm: input() fans out through onData if user input.

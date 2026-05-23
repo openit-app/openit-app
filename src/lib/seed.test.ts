@@ -254,11 +254,14 @@ describe("rewriteShebangForSeed (PIN-6611)", () => {
 });
 
 describe("seedIfEmpty — script shebang rewrite (PIN-6611)", () => {
+  // Ticket seeds were removed in PIN-6605 — use a still-existing
+  // non-script seed file (people sample) to exercise the
+  // "non-script" branch of the shebang-rewrite path.
   const SCRIPTS_MANIFEST = {
     version: "v1",
     files: [
       { path: "seed/scripts/hello-world.mjs" },
-      { path: "seed/tickets/sample-ticket-1.json" },
+      { path: "seed/people/sample-person-1.json" },
     ],
   };
 
@@ -291,13 +294,13 @@ describe("seedIfEmpty — script shebang rewrite (PIN-6611)", () => {
 
     await seedIfEmpty({ repo: "/repo" });
 
-    const ticketWrite = mockInvoke.mock.calls.find(
+    const personWrite = mockInvoke.mock.calls.find(
       ([cmd, args]) =>
         cmd === "entity_write_file" &&
-        (args as any).filename === "sample-ticket-1.json",
+        (args as any).filename === "sample-person-1.json",
     );
-    expect(ticketWrite).toBeDefined();
-    expect((ticketWrite![1] as any).content).toBe('{"status":"open"}');
+    expect(personWrite).toBeDefined();
+    expect((personWrite![1] as any).content).toBe('{"status":"open"}');
   });
 
   it("falls back to the unrewritten shebang when node isn't installed", async () => {

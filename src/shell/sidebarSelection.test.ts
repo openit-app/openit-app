@@ -162,30 +162,17 @@ describe("selectedRelFromSource", () => {
     ).toBe("traces");
   });
 
-  it("maps agent viewers to agents and workflow viewers to workflows", () => {
-    // Workflows live in workflows/, not agents/ — mapping them to
-    // 'agents' would mislead the rail highlight (BugBot finding on
-    // PIN-6613 sha 0f07641).
+  it("maps tasks-list viewer to the tasks primitive tile", () => {
+    // The Tasks primitive (PIN-6605) gets its own pinned tile in the
+    // workstation; the collapsed rail should highlight it whenever the
+    // tasks list is open. Agent / workflow source kinds were retired
+    // in PIN-6606 — Claude Code is the only agent now.
     expect(
       selectedRelFromSource(
-        {
-          kind: "agent",
-          agent: { name: "x" },
-          path: "agents/x.md",
-        } as never,
+        { kind: "tasks-list", tasks: [] } as never,
         REPO,
       ),
-    ).toBe("agents");
-    expect(
-      selectedRelFromSource(
-        {
-          kind: "workflow",
-          workflow: { name: "y" },
-          path: "workflows/y.json",
-        } as never,
-        REPO,
-      ),
-    ).toBe("workflows");
+    ).toBe("tasks");
   });
 
   it("returns null for unknown source kinds (sync, diff)", () => {
