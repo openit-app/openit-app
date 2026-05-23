@@ -407,10 +407,21 @@ export function Shell({
   /// toggles still work (current session) but `stateSave` is skipped
   /// (BugBot finding on PIN-6613, sha 0f07641).
   const stateLoadFailedRef = useRef(false);
+  /// Canonical state for persistence handlers. Mirrors `state` but is
+  /// written SYNCHRONOUSLY in the stateLoad callback (vs. waiting for
+  /// the `setState → useEffect` round-trip), so a sidebar click that
+  /// lands in the very first frame after load still sees a fresh
+  /// snapshot. Without the synchronous seed, the click would hit
+  /// `stateRef.current === null` (the initial-render value) and skip
+  /// the persist — the toggle would flip in-session but the next
+  /// restart would revert (BugBot "Collapse toggle skips early
+  /// persist" on PIN-6613 sha a0cef77).
+  const stateRef = useRef<AppPersistedState | null>(state);
   useEffect(() => {
     stateLoad()
       .then((s) => {
         stateLoadFailedRef.current = false;
+        stateRef.current = s;
         setState(s);
         // Seed the sidebar collapse flag from the persisted state.
         // `null` ≡ first launch → expanded by design (PIN-6613).
@@ -422,13 +433,15 @@ export function Shell({
         // Render-only defaults — see `stateLoadFailedRef` doc above.
         // Writes are gated on `!stateLoadFailedRef.current` so we
         // don't clobber a recoverable disk file with the placeholder.
-        setState({
+        const fallback: AppPersistedState = {
           last_repo: null,
           pane_sizes: null,
           pinned_bubbles: null,
           onboarding_complete: false,
           sidebar_collapsed: null,
-        });
+        };
+        stateRef.current = fallback;
+        setState(fallback);
         setSidebarCollapsed(false);
       });
   }, []);
@@ -443,7 +456,6 @@ export function Shell({
   /// double-toggles don't issue concurrent disk writes whose order on
   /// disk is undefined — last-wins via queue rather than racing
   /// `std::fs::write` calls.
-  const stateRef = useRef<AppPersistedState | null>(state);
   useEffect(() => {
     stateRef.current = state;
   }, [state]);
