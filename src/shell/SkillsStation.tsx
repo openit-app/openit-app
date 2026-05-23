@@ -176,10 +176,29 @@ export function CommandsStation({
     creatingRef.current = true;
     try {
       await createNewCommandInner();
+    } catch (err) {
+      // Any throw inside the inner pipeline — entityWriteFile failing
+      // permission checks, a Tauri IPC error from writeToActiveSession,
+      // etc. — needs to land in a user-visible toast. Without this the
+      // user sees the dialog close (or not) and the file is in an
+      // unknown state, with only the dev console as a clue.
+      console.error("[commands] +New failed:", err);
+      showToast({
+        title: "Couldn't create command",
+        message: err instanceof Error ? err.message : String(err),
+        tone: "critical",
+      });
     } finally {
       creatingRef.current = false;
     }
   };
+
+  // Inputs are valid for submit: name slugs to something, intent is
+  // non-empty after trim. Exposed so the keyboard-shortcut handlers
+  // can short-circuit before calling createNewCommand — symmetric
+  // with the Create button's `disabled` prop.
+  const canSubmitNewCommand = (): boolean =>
+    newName.trim().length > 0 && newIntent.trim().length > 0;
 
   const createNewCommandInner = async () => {
     const slug = newName.trim().toLowerCase().replace(/\s+/g, "-").replace(/[^a-z0-9-]/g, "");
@@ -201,16 +220,34 @@ export function CommandsStation({
     // ask through to Claude's initial turn so it stops guessing from
     // the filename alone. (PIN-6607.)
     const intent = newIntent.trim();
-    if (!intent) return;
+    if (!intent) {
+      // The disabled-button and Enter-on-name gates already block this
+      // path, but Cmd/Ctrl+Enter on the textarea bypasses them — guard
+      // here with the same toast shape as the empty-slug case so the
+      // failure isn't silent. (Independent reviewer finding.)
+      showToast({
+        title: "Intent required",
+        message: "Describe what this command should do before submitting.",
+        tone: "warn",
+      });
+      return;
+    }
     // Refuse to overwrite an existing command — the previous shape
     // happily clobbered `filestores/commands/<slug>.md` with the
     // fresh boilerplate, taking the user's accumulated body with it.
+    // Distinguish system commands (under `.claude/skills/`) from
+    // user commands (under `filestores/commands/`) so the toast
+    // points the user at the right next action.
     const collidesWith = commands.find((c) => c.name === slug);
     if (collidesWith) {
+      const isSystem = collidesWith.path.includes("/.claude/skills/");
       showToast({
-        title: `/${slug} already exists`,
-        message:
-          "Pick a different name, or open the existing command and edit it instead.",
+        title: isSystem
+          ? `/${slug} is a system command`
+          : `/${slug} already exists`,
+        message: isSystem
+          ? "This name is reserved by a built-in command. Pick a different name for your custom command."
+          : "Pick a different name, or open the existing command and edit it instead.",
         tone: "warn",
       });
       return;
@@ -260,23 +297,65 @@ Before signing off, re-read this command body. If the admin's choices narrowed a
 `;
     const relPath = `filestores/commands/${slug}.md`;
     const absPath = `${repo}/${relPath}`;
+    // Last-chance TOCTOU narrowing — re-list the commands dir and
+    // refuse the write if the file appeared between the cached check
+    // above and now. We can't fully close the race without a
+    // create-new flag on the Rust side (followup ticket), but this
+    // catches the realistic case where Claude in the chat pane wrote
+    // the file while the user was typing the intent.
+    try {
+      const live = await fsList(`${repo}/filestores/commands`);
+      const collide = live.some(
+        (n) => !n.is_dir && n.name === `${slug}.md`,
+      );
+      if (collide) {
+        showToast({
+          title: `/${slug} already exists`,
+          message:
+            "Another process created this command while you were typing. Pick a different name or open the existing file.",
+          tone: "warn",
+        });
+        return;
+      }
+    } catch {
+      // `filestores/commands` may not exist yet — that's fine, the
+      // write below will create it. Fall through.
+    }
     await entityWriteFile(repo, "filestores/commands", `${slug}.md`, boilerplate);
     setShowNewInput(false);
     setNewName("");
     setNewIntent("");
     onOpen(absPath);
+    // Release the double-submit guard NOW — the dialog has closed,
+    // the file is on disk, and the user might immediately click
+    // `+ New` again to create a second command. Holding the ref
+    // through the PTY write below would silently block that second
+    // submit until Claude finished acknowledging the first one (PTY
+    // writes can stall for hundreds of ms on a busy session).
+    // (Independent reviewer finding.)
+    creatingRef.current = false;
     // Hand the intent off to Claude alongside the file path. Building
     // this prompt server-side (here) instead of relying on the
     // template means Claude gets the user's ask verbatim in its first
     // turn, even if it never reads the file. The file watcher in the
     // viewer then re-renders as Claude writes.
     const ccPrompt = `I just created a new slash command at \`${relPath}\`. Please build it out so it does the following:\n\n${intent}\n\nRead the file first to see the scaffold I dropped (YAML frontmatter, Steps, Notes), then rewrite the body so /${slug} actually does the above. Keep the frontmatter \`description\` matching the goal. When you're done, tell me in one line what /${slug} now does.\r`;
-    const handed = await writeToActiveSession(ccPrompt);
+    // Wrap the handoff so a thrown PTY/IPC error gets the same warn
+    // toast as the "no active session" branch — without this, the
+    // user sees the dialog vanish and waits forever for Claude to
+    // fill in the template.
+    let handed = false;
+    try {
+      handed = await writeToActiveSession(ccPrompt);
+    } catch (err) {
+      console.error("[commands] writeToActiveSession threw:", err);
+    }
     if (!handed) {
       // The file is on disk and the viewer is open — but Claude was
-      // not invoked because no PTY session is active. Surface that
-      // out loud so the user doesn't sit waiting for Claude to fill
-      // in the template that will never get filled. (PIN-6607.)
+      // not invoked because no PTY session is active (or the write
+      // failed). Surface that out loud so the user doesn't sit
+      // waiting for Claude to fill in the template that will never
+      // get filled. (PIN-6607.)
       showToast({
         title: "Claude session not active",
         message:
@@ -334,9 +413,7 @@ Before signing off, re-read this command body. If the admin's choices narrowed a
               // intent textarea below.
               if (e.key === "Enter") {
                 e.preventDefault();
-                if (newName.trim() && newIntent.trim()) {
-                  void createNewCommand();
-                }
+                if (canSubmitNewCommand()) void createNewCommand();
               }
               if (e.key === "Escape") cancelNewCommand();
             }}
@@ -350,10 +427,12 @@ Before signing off, re-read this command body. If the admin's choices narrowed a
             onKeyDown={(e) => {
               // Submit on Cmd/Ctrl+Enter so plain Enter still inserts
               // a newline inside the textarea — matches the modern
-              // chat-input convention.
+              // chat-input convention. Gate on the same validity
+              // check the Create button uses so a stray keypress on a
+              // half-filled form doesn't reach the inner pipeline.
               if ((e.metaKey || e.ctrlKey) && e.key === "Enter") {
                 e.preventDefault();
-                void createNewCommand();
+                if (canSubmitNewCommand()) void createNewCommand();
               }
               if (e.key === "Escape") cancelNewCommand();
             }}
@@ -372,7 +451,7 @@ Before signing off, re-read this command body. If the admin's choices narrowed a
               variant="secondary"
               size="sm"
               onClick={() => void createNewCommand()}
-              disabled={!newName.trim() || !newIntent.trim()}
+              disabled={!canSubmitNewCommand()}
             >
               Create
             </Button>

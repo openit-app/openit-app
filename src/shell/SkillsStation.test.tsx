@@ -250,6 +250,159 @@ describe("CommandsStation + New flow", () => {
     expect(activeSessionMock.writeToActiveSession).not.toHaveBeenCalled();
   });
 
+  it("distinguishes a system-command collision from a user-command collision in the toast", async () => {
+    apiMock.fsList.mockImplementation(async (path: string) => {
+      if (path.endsWith("/.claude/skills")) {
+        // System command — directory containing a SKILL.md.
+        return [{ name: "onboard", path: `${path}/onboard`, is_dir: true }];
+      }
+      if (path.endsWith("/.claude/skills/onboard")) {
+        return [{ name: "SKILL.md", path: `${path}/SKILL.md`, is_dir: false }];
+      }
+      return [];
+    });
+    apiMock.fsRead.mockResolvedValue("---\ndescription: \"System onboard\"\n---\n");
+
+    renderInToastProvider(<CommandsStation repo="/tmp/repo" onOpen={() => {}} />);
+    // Wait for the panel to enumerate the (system) command — the
+    // description text is unique enough to disambiguate from the
+    // bare `onboard` slug that appears in the card title too.
+    await screen.findByText(/system onboard/i);
+
+    fireEvent.click(screen.getByRole("button", { name: "+ New" }));
+    await screen.findByRole("dialog", { name: /create new command/i });
+    fireEvent.change(screen.getByPlaceholderText("command-name"), {
+      target: { value: "onboard" },
+    });
+    fireEvent.change(
+      screen.getByPlaceholderText(/what should this command do/i),
+      { target: { value: "Custom onboard." } },
+    );
+    fireEvent.click(screen.getByRole("button", { name: /^create$/i }));
+
+    // Toast must call out the system-command-reserved case so the
+    // user doesn't go hunting under filestores/commands/ for a file
+    // that doesn't exist there.
+    await waitFor(() =>
+      expect(
+        screen.getByText(/system command/i),
+      ).toBeInTheDocument(),
+    );
+    expect(apiMock.entityWriteFile).not.toHaveBeenCalled();
+  });
+
+  it("catches a TOCTOU collision created between the cached check and the disk write", async () => {
+    // The cached commands state is empty (initial fsList for `.claude/skills`
+    // and `filestores/commands` both return nothing). When the live
+    // re-list runs inside createNewCommand, it returns the slug as if
+    // another process created it in the meantime.
+    let writeCheckCount = 0;
+    apiMock.fsList.mockImplementation(async (path: string) => {
+      if (path.endsWith("/filestores/commands")) {
+        writeCheckCount += 1;
+        // Initial load returns nothing; the in-flight re-list returns
+        // a freshly-created file.
+        if (writeCheckCount > 1) {
+          return [{ name: "claimed.md", path: `${path}/claimed.md`, is_dir: false }];
+        }
+      }
+      return [];
+    });
+
+    renderInToastProvider(<CommandsStation repo="/tmp/repo" onOpen={() => {}} />);
+    fireEvent.click(screen.getByRole("button", { name: "+ New" }));
+    await screen.findByRole("dialog", { name: /create new command/i });
+    fireEvent.change(screen.getByPlaceholderText("command-name"), {
+      target: { value: "claimed" },
+    });
+    fireEvent.change(
+      screen.getByPlaceholderText(/what should this command do/i),
+      { target: { value: "Race with Claude." } },
+    );
+    fireEvent.click(screen.getByRole("button", { name: /^create$/i }));
+
+    await waitFor(() =>
+      expect(
+        screen.getByText(/another process created/i),
+      ).toBeInTheDocument(),
+    );
+    expect(apiMock.entityWriteFile).not.toHaveBeenCalled();
+  });
+
+  it("toasts a warning when Cmd/Ctrl+Enter is fired with empty intent (textarea bypass)", async () => {
+    // Pre-fill the name so the validity gate on the keyboard shortcut
+    // is the only thing standing between an empty intent and submit.
+    renderInToastProvider(<CommandsStation repo="/tmp/repo" onOpen={() => {}} />);
+    fireEvent.click(screen.getByRole("button", { name: "+ New" }));
+    await screen.findByRole("dialog", { name: /create new command/i });
+
+    fireEvent.change(screen.getByPlaceholderText("command-name"), {
+      target: { value: "named" },
+    });
+    const textarea = screen.getByPlaceholderText(/what should this command do/i);
+
+    // Cmd+Enter with no intent → the textarea handler's canSubmit
+    // gate refuses to invoke createNewCommand. No file, no toast yet.
+    fireEvent.keyDown(textarea, { key: "Enter", metaKey: true });
+    await new Promise((r) => setTimeout(r, 0));
+    expect(apiMock.entityWriteFile).not.toHaveBeenCalled();
+  });
+
+  it("propagates entityWriteFile errors as a critical toast", async () => {
+    apiMock.entityWriteFile.mockRejectedValue(new Error("disk full"));
+    renderInToastProvider(<CommandsStation repo="/tmp/repo" onOpen={() => {}} />);
+    fireEvent.click(screen.getByRole("button", { name: "+ New" }));
+    await screen.findByRole("dialog", { name: /create new command/i });
+
+    fireEvent.change(screen.getByPlaceholderText("command-name"), {
+      target: { value: "doomed" },
+    });
+    fireEvent.change(
+      screen.getByPlaceholderText(/what should this command do/i),
+      { target: { value: "Try and fail." } },
+    );
+    // Silence the expected console.error so test output stays clean.
+    const errSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+    fireEvent.click(screen.getByRole("button", { name: /^create$/i }));
+
+    await waitFor(() =>
+      expect(
+        screen.getByText(/disk full/i),
+      ).toBeInTheDocument(),
+    );
+    errSpy.mockRestore();
+  });
+
+  it("treats a writeToActiveSession throw the same as a no-session return", async () => {
+    activeSessionMock.writeToActiveSession.mockRejectedValue(
+      new Error("pty channel closed"),
+    );
+    renderInToastProvider(<CommandsStation repo="/tmp/repo" onOpen={() => {}} />);
+    fireEvent.click(screen.getByRole("button", { name: "+ New" }));
+    await screen.findByRole("dialog", { name: /create new command/i });
+
+    fireEvent.change(screen.getByPlaceholderText("command-name"), {
+      target: { value: "threw" },
+    });
+    fireEvent.change(
+      screen.getByPlaceholderText(/what should this command do/i),
+      { target: { value: "Test." } },
+    );
+    const errSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+    fireEvent.click(screen.getByRole("button", { name: /^create$/i }));
+
+    // File still lands on disk — the failure is in the handoff, not
+    // the write — and the user sees the same warn toast they would
+    // for the "no active session" branch.
+    await waitFor(() => expect(apiMock.entityWriteFile).toHaveBeenCalledTimes(1));
+    await waitFor(() =>
+      expect(
+        screen.getByText(/claude session not active/i),
+      ).toBeInTheDocument(),
+    );
+    errSpy.mockRestore();
+  });
+
   it("toasts a warning when the name slugs to empty (non-ASCII, punctuation)", async () => {
     renderInToastProvider(<CommandsStation repo="/tmp/repo" onOpen={() => {}} />);
 
