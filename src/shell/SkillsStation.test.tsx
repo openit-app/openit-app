@@ -288,6 +288,50 @@ describe("CommandsStation + New flow", () => {
     expect(activeSessionMock.writeToActiveSession).not.toHaveBeenCalled();
   });
 
+  it("completes the create when Cancel fires AFTER the file is written (point of no return)", async () => {
+    // Hold entityWriteFile in suspense so Cancel can land between
+    // the pre-write cancelled() check and the post-write commit
+    // section.
+    let resolveWrite: (() => void) | null = null;
+    apiMock.entityWriteFile.mockImplementation(
+      () =>
+        new Promise<void>((res) => {
+          resolveWrite = res;
+        }),
+    );
+
+    const onOpen = vi.fn();
+    renderInToastProvider(<CommandsStation repo="/tmp/repo" onOpen={onOpen} />);
+    fireEvent.click(screen.getByRole("button", { name: "+ New" }));
+    await screen.findByRole("dialog", { name: /create new command/i });
+    fireEvent.change(screen.getByPlaceholderText("command-name"), {
+      target: { value: "commit" },
+    });
+    fireEvent.change(
+      screen.getByPlaceholderText(/what should this command do/i),
+      { target: { value: "Crosses the no-return line." } },
+    );
+    fireEvent.click(screen.getByRole("button", { name: /^create$/i }));
+
+    // Let the pre-write checks run. entityWriteFile is now suspended.
+    await new Promise((r) => setTimeout(r, 0));
+    // User mashes Cancel WHILE entityWriteFile is in flight. The
+    // bump should NOT abort the post-write actions — the file write
+    // is already committed once entityWriteFile resolves.
+    fireEvent.click(screen.getByRole("button", { name: /cancel/i }));
+
+    // Release the write. The post-commit path (onOpen + Claude
+    // handoff) must run, leaving the user with a viewer + Claude
+    // turn — not an orphan file.
+    resolveWrite?.();
+    await waitFor(() =>
+      expect(onOpen).toHaveBeenCalledWith("/tmp/repo/filestores/commands/commit.md"),
+    );
+    await waitFor(() =>
+      expect(activeSessionMock.writeToActiveSession).toHaveBeenCalledTimes(1),
+    );
+  });
+
   it("normalises Windows backslash paths when classifying system vs user collisions", async () => {
     apiMock.fsList.mockImplementation(async (path: string) => {
       if (path.endsWith("/.claude/skills")) {

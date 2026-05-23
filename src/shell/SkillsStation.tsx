@@ -356,7 +356,11 @@ Before signing off, re-read this command body. If the admin's choices narrowed a
     }
     if (cancelled()) return;
     await entityWriteFile(repo, "filestores/commands", `${slug}.md`, boilerplate);
-    if (cancelled()) return;
+    // POINT OF NO RETURN — the file is committed to disk. From here
+    // on, ignore the cancel token: a late Cancel/Escape would only
+    // strand an orphan file with no viewer + no Claude handoff,
+    // which is worse than completing the action the user explicitly
+    // started. (BugBot iter-5 finding.)
     setShowNewInput(false);
     setNewName("");
     setNewIntent("");
