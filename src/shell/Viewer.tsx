@@ -427,6 +427,146 @@ export function Viewer({
     }
   }, [source]);
 
+  // Re-read open Markdown files when fsTick fires. Mirrors the
+  // datastore-row pattern below but for the markdown body — Claude
+  // (or any external process) writing to the open file re-renders
+  // the viewer within ~250ms of the watcher firing, no manual reopen.
+  //
+  // Gated to `rendered` mode so an in-flight edit-mode draft is never
+  // clobbered out from under the user. Scroll position is preserved
+  // by snapshotting the nearest scrollable ancestor's scrollTop
+  // before setContent and restoring it after the render frame.
+  // (PIN-6607.)
+  //
+  // Depends on `[fsTick]` only — NOT on `source` or `mode`. Opening a
+  // different file already triggers the source-loading effect above,
+  // so re-running this effect on source/mode change would queue a
+  // redundant fsRead 250ms later for every navigation. The current
+  // source and mode are read via refs at fire time so the timer sees
+  // the live state instead of a stale closure capture.
+  const mdScrollRef = useRef<HTMLDivElement | null>(null);
+  const mdSourceRef = useRef(source);
+  const mdModeRef = useRef(mode);
+  const mdContentRef = useRef(content);
+  useEffect(() => {
+    mdSourceRef.current = source;
+    mdModeRef.current = mode;
+  }, [source, mode]);
+  // Mirror `content` into a ref so the fsTick effect (which closes
+  // over the initial render's `content`) can compare against the
+  // currently-rendered value without taking `content` into its dep
+  // array — that would defeat the [fsTick]-only debouncing.
+  useEffect(() => {
+    mdContentRef.current = content;
+  }, [content]);
+  useEffect(() => {
+    if (fsTick === 0) return;
+    let cancelled = false;
+    // 250ms debounce so a Claude burst (Edit followed by Edit) doesn't
+    // tear the markdown subtree apart between writes. The watcher
+    // itself already coalesces at 500ms in Rust; this is a second
+    // layer that smooths out tick → render contention on the React
+    // side.
+    const t = window.setTimeout(() => {
+      // Re-evaluate the source/mode gates at fire time so a
+      // mid-debounce navigation to a non-markdown viewer cleanly
+      // aborts (no stale fsRead, no scroll restore on the wrong pane).
+      const liveSource = mdSourceRef.current;
+      const liveMode = mdModeRef.current;
+      if (!liveSource || liveSource.kind !== "file") return;
+      if (liveMode !== "rendered" || !isMarkdown(liveSource.path)) return;
+      const path = liveSource.path;
+      // Walk the scroll-ancestor tree up front (we need the
+      // reference) but DEFER the scrollTop snapshot until just
+      // before setContent. A slow fsRead would otherwise clobber any
+      // user scrolling that happened during the read.
+      let scrollAncestor: HTMLElement | null = null;
+      const el = mdScrollRef.current;
+      if (el) {
+        let p: HTMLElement | null = el.parentElement;
+        while (p) {
+          const overflowY = window.getComputedStyle(p).overflowY;
+          if (overflowY === "auto" || overflowY === "scroll") {
+            scrollAncestor = p;
+            break;
+          }
+          p = p.parentElement;
+        }
+      }
+      fsRead(path)
+        .then((c) => {
+          if (cancelled) return;
+          // Bail if the user navigated to a different file OR
+          // switched into edit mode while the read was in flight.
+          // Applying disk content to a viewer whose user just started
+          // typing into the textarea would silently clobber their
+          // draft. The pre-await `liveMode` check above can't catch
+          // this — mode can flip during the fsRead. (BugBot finding.)
+          const stillSource = mdSourceRef.current;
+          const stillMode = mdModeRef.current;
+          if (!stillSource || stillSource.kind !== "file" || stillSource.path !== path) {
+            return;
+          }
+          if (stillMode !== "rendered") return;
+          // Snapshot scrollTop NOW (post-await) so any scrolling the
+          // user did during the read is the position we restore to,
+          // not the position at debounce-fire time.
+          const savedScrollTop = scrollAncestor ? scrollAncestor.scrollTop : 0;
+          // Skip the update if the file content didn't actually
+          // change — the watcher fires on metadata-only touches too
+          // (chmod, atime) and re-rendering for those is just churn.
+          // We also short-circuit the scroll restore in that case: a
+          // no-op setContent doesn't re-render the markdown subtree,
+          // so there's nothing to compensate for and restoring would
+          // just clobber any scrolling the user has done since the
+          // debounce fired. (BugBot finding.)
+          //
+          // Read the current content from the mirror ref so we can
+          // make the equality decision synchronously, BEFORE setting
+          // state. A previous attempt used `let didUpdate = false;
+          // setContent((prev) => { didUpdate = true; ... })` then
+          // read `didUpdate` immediately after — React applies
+          // functional updaters during the next render pass, so
+          // the flag stayed false even when content had changed,
+          // and the scroll restore never ran. (BugBot iter-4.)
+          if (mdContentRef.current === c) return;
+          setContent(c);
+          // Restore the scroll position on the next frame, after
+          // React has committed the new markdown subtree. Without
+          // rAF the scrollHeight is still stale and the restore lands
+          // at the old offset. Re-check the path inside rAF too —
+          // the user can navigate between setContent and the next
+          // frame, and restoring on the wrong viewer's scroll
+          // ancestor would snap them to a stale offset.
+          if (scrollAncestor) {
+            const target = scrollAncestor;
+            window.requestAnimationFrame(() => {
+              const afterFrameSource = mdSourceRef.current;
+              const afterFrameMode = mdModeRef.current;
+              if (
+                !afterFrameSource ||
+                afterFrameSource.kind !== "file" ||
+                afterFrameSource.path !== path ||
+                afterFrameMode !== "rendered"
+              ) {
+                return;
+              }
+              target.scrollTop = savedScrollTop;
+            });
+          }
+        })
+        .catch((e) => {
+          // File may have been moved or deleted — leave the existing
+          // content rather than throwing the user into an error pane.
+          console.warn("[Viewer] markdown reload failed:", e);
+        });
+    }, 250);
+    return () => {
+      cancelled = true;
+      window.clearTimeout(t);
+    };
+  }, [fsTick]);
+
   // Re-read the single-row file from disk when fsTick fires. Lets edits
   // by Claude (or any process touching the .json file) reflect in the
   // viewer without the user having to re-click the row.
@@ -1043,7 +1183,11 @@ export function Viewer({
         const flashClass =
           welcomeFlashKey && welcomeFlashKey > 0 ? "viewer-md-flash" : "";
         return (
-          <div className={`viewer-md ${flashClass}`} key={`md-${welcomeFlashKey ?? 0}`}>
+          <div
+            ref={mdScrollRef}
+            className={`viewer-md ${flashClass}`}
+            key={`md-${welcomeFlashKey ?? 0}`}
+          >
             <ReactMarkdown
               remarkPlugins={[remarkGfm]}
               components={{ a: ExternalAnchor }}
