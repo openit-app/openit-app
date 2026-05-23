@@ -95,27 +95,44 @@ export function LeftSidebarRail({
         </svg>
       </button>
       <div className="sidebar-rail-tiles">
-        {mainTiles.map((t) => {
-          const tileIcon = iconForKey(t.icon);
-          const isSelected = selectedRel !== null && selectedRel === t.rel;
-          return (
-            <button
-              key={t.rel}
-              type="button"
-              className={`sidebar-rail-tile entity-tone-${t.tone}${
-                isSelected ? " sidebar-rail-tile-selected" : ""
-              }`}
-              onClick={() => openTile(t)}
-              title={t.label}
-              aria-label={t.label}
-              aria-current={isSelected ? "page" : undefined}
-            >
-              <span className="sidebar-rail-glyph" aria-hidden>
-                {tileIcon}
-              </span>
-            </button>
-          );
-        })}
+        {(() => {
+          // Pre-compute the longest-prefix-match so a more specific
+          // tile (`databases/people`) wins over its primitive parent
+          // (`databases`) when both are pinned. Without this both rows
+          // would highlight when the user opens `databases/people/x.json`.
+          const selectedTileRel =
+            selectedRel === null
+              ? null
+              : (mainTiles
+                  .map((t) => t.rel)
+                  .filter(
+                    (rel) =>
+                      selectedRel === rel ||
+                      selectedRel.startsWith(`${rel}/`),
+                  )
+                  .sort((a, b) => b.length - a.length)[0] ?? null);
+          return mainTiles.map((t) => {
+            const tileIcon = iconForKey(t.icon);
+            const isSelected = selectedTileRel === t.rel;
+            return (
+              <button
+                key={t.rel}
+                type="button"
+                className={`sidebar-rail-tile entity-tone-${t.tone}${
+                  isSelected ? " sidebar-rail-tile-selected" : ""
+                }`}
+                onClick={() => openTile(t)}
+                title={t.label}
+                aria-label={t.label}
+                aria-current={isSelected ? "page" : undefined}
+              >
+                <span className="sidebar-rail-glyph" aria-hidden>
+                  {tileIcon}
+                </span>
+              </button>
+            );
+          });
+        })()}
       </div>
     </aside>
   );

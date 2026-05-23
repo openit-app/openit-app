@@ -3,7 +3,17 @@ import type { ViewerSource } from "./Viewer";
 /// Map the open ViewerSource → repo-relative path of the workstation
 /// tile that owns it, so the collapsed left rail can highlight the
 /// matching icon. Returns null for views that don't correspond to a
-/// pinned station (welcome page, agent traces, etc.).
+/// pinned station.
+///
+/// IMPORTANT: the returned string must match the tile's `rel` from
+/// `workstationConfig.discoverTiles()` — NOT the on-disk folder path.
+/// In particular:
+///  - knowledge tiles use rel `"knowledge"` (the on-disk folder is
+///    `knowledge/`, NOT `knowledge-bases/`)
+///  - traces tiles use rel `"traces"` (folder is `.openit/agent-traces/`)
+///  - tickets/conversations have NO tile (handled by the TODAY hero
+///    card); we return null so the rail doesn't try to pulse a tile
+///    that doesn't exist.
 export function selectedRelFromSource(
   s: ViewerSource,
   repo: string | null,
@@ -20,7 +30,7 @@ export function selectedRelFromSource(
     case "filestores-list":
       return "filestores";
     case "knowledge-list":
-      return "knowledge-bases";
+      return "knowledge";
     case "people-list":
       return "databases/people";
     case "access-list":
@@ -31,7 +41,10 @@ export function selectedRelFromSource(
       return "filestores/attachments";
     case "conversations-list":
     case "conversation-thread":
-      return "databases/tickets";
+      // Tickets/conversations don't have their own pinned tile —
+      // they're surfaced via the TODAY hero card. Returning null so
+      // no rail tile lights up (vs. lying about a non-existent tile).
+      return null;
     case "datastore-table":
     case "datastore-row":
     case "datastore-schema":
@@ -47,7 +60,13 @@ export function selectedRelFromSource(
     case "traces-list":
     case "agent-trace":
     case "agent-trace-list":
-      return ".openit/agent-traces";
+      return "traces";
+    case "agent":
+    case "workflow":
+      // Both viewer kinds live under the `agents/` primitive (workflows
+      // are agent definitions of a different shape). Keep them mapped
+      // to the same tile so an open .md highlights the agents row.
+      return "agents";
     case "file": {
       // Best-effort fallback: walk the path back to the first folder
       // under the repo root. Useful for files opened directly from

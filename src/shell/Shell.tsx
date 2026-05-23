@@ -405,38 +405,64 @@ export function Shell({
         // `null` ≡ first launch → expanded by design (PIN-6613).
         setSidebarCollapsed(s.sidebar_collapsed ?? false);
       })
-      .catch(console.error);
+      .catch((e) => {
+        console.error("[shell] stateLoad failed, falling back to defaults:", e);
+        // A corrupt state.json (malformed JSON, perms, partial write
+        // from an OS crash) would otherwise hang the shell on the
+        // "Loading…" placeholder forever. Seed a safe default so the
+        // user can still launch — the next successful save overwrites
+        // the corrupt file with a clean serialization.
+        setState({
+          last_repo: null,
+          pane_sizes: null,
+          pinned_bubbles: null,
+          onboarding_complete: false,
+          sidebar_collapsed: null,
+        });
+        setSidebarCollapsed(false);
+      });
   }, []);
 
   /// Persist the user's collapse choice across app restarts. Per-user
   /// (lives in the Tauri app data dir's state.json), NOT per-vault.
-  /// We track the latest loaded state in a ref so the persistor can
-  /// merge — `stateSave` writes the full struct, so we'd clobber
-  /// `last_repo` / `pane_sizes` / `pinned_bubbles` / `onboarding_complete`
-  /// if we wrote a struct built only from the toggle. The ref pattern
-  /// mirrors `configRef` in Workbench.tsx for the same reason.
+  /// `stateSave` writes the full struct, so we merge against the
+  /// latest known state (tracked in a ref) to avoid clobbering other
+  /// persisted fields (`last_repo` etc).
+  ///
+  /// Writes are serialized through a single in-flight chain so rapid
+  /// double-toggles don't issue concurrent disk writes whose order on
+  /// disk is undefined — last-wins via queue rather than racing
+  /// `std::fs::write` calls.
   const stateRef = useRef<AppPersistedState | null>(state);
   useEffect(() => {
     stateRef.current = state;
   }, [state]);
-  const toggleSidebarCollapsed = useCallback(() => {
-    setSidebarCollapsed((prev) => {
-      const next = !(prev ?? false);
-      // Optimistic local update; persist asynchronously. If the write
-      // fails (disk full, perms), we keep the in-memory toggle so the
-      // current session still works — the warn lands in devtools.
-      const base = stateRef.current;
-      if (base) {
-        const merged: AppPersistedState = { ...base, sidebar_collapsed: next };
-        stateRef.current = merged;
-        setState(merged);
-        stateSave(merged).catch((e) =>
-          console.warn("[shell] sidebar_collapsed persist failed:", e),
-        );
-      }
-      return next;
-    });
+  const persistChainRef = useRef<Promise<void>>(Promise.resolve());
+  const persistAppState = useCallback((next: AppPersistedState) => {
+    stateRef.current = next;
+    setState(next);
+    persistChainRef.current = persistChainRef.current
+      .catch(() => {
+        // Swallow earlier failures so one bad write doesn't permanently
+        // block subsequent writes — each call gets its own catch below.
+      })
+      .then(() =>
+        stateSave(next).catch((e) =>
+          console.warn("[shell] state_save failed:", e),
+        ),
+      );
   }, []);
+  const toggleSidebarCollapsed = useCallback(() => {
+    // Compute the next value from the canonical ref (NOT a setter
+    // updater), so the call is a pure event handler and React
+    // StrictMode's double-invocation of updater functions can't fire
+    // two disk writes per click.
+    const base = stateRef.current;
+    if (!base) return;
+    const next = !(base.sidebar_collapsed ?? false);
+    setSidebarCollapsed(next);
+    persistAppState({ ...base, sidebar_collapsed: next });
+  }, [persistAppState]);
 
   // Expose the manual-pull and tab-switch handlers up to App so the
   // command palette can call them. Re-register on every render so the
@@ -803,6 +829,7 @@ export function Shell({
                   selectedPath={sourceToTreePath(source, repo)}
                   active={true}
                   onBack={() => setShowFiles(false)}
+                  onCollapse={toggleSidebarCollapsed}
                 />
               ) : (
                 <Workbench
@@ -900,9 +927,31 @@ export function Shell({
         const panelPaneOrder = sidebarCollapsed
           ? paneOrder.filter((id) => id !== "left")
           : paneOrder;
+        // Rescale defaults so they sum to 100 — react-resizable-panels
+        // requires it and otherwise emits "Invalid panel group
+        // configuration; default panel sizes should total 100%" and
+        // silently rescales. Pre-scaling makes the first paint match
+        // the intended ratios (e.g. center:right ≈ 40:36 in collapsed
+        // mode → 52.6:47.4 after rescale) instead of whatever the
+        // library picks on its own.
+        const defaultsTotal = panelPaneOrder.reduce(
+          (acc, id) => acc + PANE_DEFAULT[id],
+          0,
+        );
+        const scaledDefault = (id: PaneId) =>
+          defaultsTotal === 0
+            ? PANE_DEFAULT[id]
+            : (PANE_DEFAULT[id] * 100) / defaultsTotal;
+        // autoSaveId includes the FULL paneOrder (not just the panes
+        // inside the PanelGroup) so different reorderings get
+        // independent saved layouts even when they reduce to the same
+        // collapsed configuration. Without this, paneOrder
+        // ["center","left","right"] and ["left","center","right"]
+        // would share the same collapsed key and clobber each other's
+        // remembered widths.
         const autoSaveId = `openit-shell-panes-${
           sidebarCollapsed ? "collapsed-" : ""
-        }${panelPaneOrder.join("-")}`;
+        }${paneOrder.join("-")}`;
         const railSelectedRel = selectedRelFromSource(source, repo);
         return (
           // Wrapper enforces the panes-row geometry: takes all
@@ -933,7 +982,7 @@ export function Shell({
                   <Panel
                     id={id}
                     order={idx}
-                    defaultSize={PANE_DEFAULT[id]}
+                    defaultSize={scaledDefault(id)}
                     minSize={PANE_MIN[id]}
                   >
                     {paneContent[id]}

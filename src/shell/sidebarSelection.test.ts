@@ -6,9 +6,7 @@ const REPO = "/vault";
 describe("selectedRelFromSource", () => {
   it("returns null for empty source or missing repo", () => {
     expect(selectedRelFromSource(null, REPO)).toBeNull();
-    expect(
-      selectedRelFromSource({ kind: "tools" }, null),
-    ).toBeNull();
+    expect(selectedRelFromSource({ kind: "tools" }, null)).toBeNull();
   });
 
   it("maps top-level list views to their primitive tile rel", () => {
@@ -18,22 +16,25 @@ describe("selectedRelFromSource", () => {
     expect(selectedRelFromSource({ kind: "filestores-list" }, REPO)).toBe(
       "filestores",
     );
+    // Knowledge tile rel is "knowledge" (NOT "knowledge-bases" — the
+    // on-disk folder is `knowledge/`, see workstationConfig
+    // discoverTiles).
     expect(selectedRelFromSource({ kind: "knowledge-list" }, REPO)).toBe(
-      "knowledge-bases",
+      "knowledge",
     );
     expect(selectedRelFromSource({ kind: "tools" }, REPO)).toBe("tools");
   });
 
-  it("maps inbox-style views to databases/tickets", () => {
+  it("returns null for inbox-style views (no pinned tile — hero card handles them)", () => {
     expect(
       selectedRelFromSource({ kind: "conversations-list" }, REPO),
-    ).toBe("databases/tickets");
+    ).toBeNull();
     expect(
       selectedRelFromSource(
         { kind: "conversation-thread", ticketId: "t-123" },
         REPO,
       ),
-    ).toBe("databases/tickets");
+    ).toBeNull();
   });
 
   it("maps datastore-table to databases/<collection>", () => {
@@ -63,19 +64,39 @@ describe("selectedRelFromSource", () => {
   it("returns the entity-folder path verbatim", () => {
     expect(
       selectedRelFromSource(
-        { kind: "entity-folder", entity: "knowledge", path: "knowledge-bases/runbooks" } as never,
+        {
+          kind: "entity-folder",
+          entity: "knowledge",
+          path: "knowledge/runbooks",
+        } as never,
         REPO,
       ),
-    ).toBe("knowledge-bases/runbooks");
+    ).toBe("knowledge/runbooks");
+  });
+
+  it("returns the user-pinned store path for entity-folder under a primitive", () => {
+    expect(
+      selectedRelFromSource(
+        {
+          kind: "entity-folder",
+          entity: "databases",
+          path: "databases/vendors",
+        } as never,
+        REPO,
+      ),
+    ).toBe("databases/vendors");
   });
 
   it("falls back to the owning top-folder for raw file paths", () => {
     expect(
       selectedRelFromSource(
-        { kind: "file", path: `${REPO}/knowledge-bases/runbooks/onboarding.md` },
+        {
+          kind: "file",
+          path: `${REPO}/knowledge/runbooks/onboarding.md`,
+        },
         REPO,
       ),
-    ).toBe("knowledge-bases");
+    ).toBe("knowledge");
   });
 
   it("uses two-segment owner for files under databases/ or filestores/", () => {
@@ -102,18 +123,48 @@ describe("selectedRelFromSource", () => {
     ).toBeNull();
   });
 
-  it("returns null for trace views (no station tile pulses)", () => {
+  it("maps trace views to the traces tile rel (not the on-disk folder path)", () => {
+    // The Traces tile's rel is "traces" — the on-disk folder is
+    // `.openit/agent-traces/` but the workstation tile's identity is
+    // the short form.
     expect(selectedRelFromSource({ kind: "traces-list" }, REPO)).toBe(
-      ".openit/agent-traces",
+      "traces",
     );
+    expect(
+      selectedRelFromSource(
+        { kind: "agent-trace", ticketId: "t-1" } as never,
+        REPO,
+      ),
+    ).toBe("traces");
   });
 
-  it("returns null for unknown source kinds (sync, diff, workflow)", () => {
+  it("maps agent and workflow viewers to the agents tile", () => {
+    expect(
+      selectedRelFromSource(
+        {
+          kind: "agent",
+          agent: { name: "x" },
+          path: "agents/x.md",
+        } as never,
+        REPO,
+      ),
+    ).toBe("agents");
+    expect(
+      selectedRelFromSource(
+        {
+          kind: "workflow",
+          workflow: { name: "y" },
+          path: "agents/y.md",
+        } as never,
+        REPO,
+      ),
+    ).toBe("agents");
+  });
+
+  it("returns null for unknown source kinds (sync, diff)", () => {
     expect(
       selectedRelFromSource({ kind: "sync", lines: [] } as never, REPO),
     ).toBeNull();
-    expect(
-      selectedRelFromSource({ kind: "diff" } as never, REPO),
-    ).toBeNull();
+    expect(selectedRelFromSource({ kind: "diff" } as never, REPO)).toBeNull();
   });
 });
