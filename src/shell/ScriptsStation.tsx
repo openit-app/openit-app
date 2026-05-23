@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { fsList, fsRead, scriptRun, entityWriteFile } from "../lib/api";
 import { isDirectChild } from "../lib/paths";
 import { Button } from "../ui";
@@ -39,6 +39,13 @@ export function ScriptsStation({
   const [search, setSearch] = useState("");
   // Per-script "is currently running" flag, keyed by absolute path.
   // Used to swap the play glyph for a spinner and gate re-entry.
+  //
+  // Two parallel stores: a ref for the *synchronous* read/add inside
+  // `runScript` (state updates would only land on the next render, so
+  // two rapid-fire clicks both pass an `if (state.has(path)) return`
+  // guard and spawn two concurrent runs), and a state set for the UI
+  // render trigger. Always mutate the ref first, then mirror to state.
+  const runningRef = useRef<Set<string>>(new Set());
   const [runningPaths, setRunningPaths] = useState<Set<string>>(new Set());
   // Last-run error keyed by absolute path. Cleared whenever the same
   // script is re-run successfully. Shown as a one-liner under the
@@ -74,11 +81,14 @@ export function ScriptsStation({
   }, [repo, fsTick]);
 
   const runScript = async (script: ScriptEntry) => {
-    // Guard against double-fires: clicking the tile while the play
-    // button click is already in flight (or vice versa) used to
-    // enqueue a second run. First user signal wins; subsequent
-    // clicks until completion are no-ops.
-    if (runningPaths.has(script.path)) return;
+    // Synchronous guard against double-fires: rapid tile+button
+    // clicks both used to pass an `if (state.has(path)) return`
+    // check because React batches state updates. The ref is read
+    // and mutated atomically (single JS turn), so the second
+    // invocation here sees the path already present and bails
+    // before reaching `scriptRun`.
+    if (runningRef.current.has(script.path)) return;
+    runningRef.current.add(script.path);
     setRunningPaths((prev) => {
       const next = new Set(prev);
       next.add(script.path);
@@ -107,6 +117,7 @@ export function ScriptsStation({
       console.error("[scripts] run failed:", e);
       setErrors((prev) => ({ ...prev, [script.path]: reason }));
     } finally {
+      runningRef.current.delete(script.path);
       setRunningPaths((prev) => {
         const next = new Set(prev);
         next.delete(script.path);

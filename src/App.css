@@ -5154,6 +5154,18 @@ input.viewer-title.viewer-title-rename {
   padding-right: 40px;
 }
 
+/* Scripts cards carry BOTH delete (right: 10px) and run (right: 43px,
+   now always-visible per PIN-6611). Reserve enough right-side padding
+   for both so long script names get ellipsised before they collide
+   with the run glyph. */
+.entity-card-wrapper:has(.entity-card-run) .entity-card-body {
+  padding-right: 76px;
+}
+
+/* Run-only cards (no delete) — the run slot is pulled to right: 10px,
+   so the single-icon 40px reservation already used by `.entity-card-body`
+   is still correct. No additional rule needed. */
+
 .entity-card-row {
   display: flex;
   align-items: baseline;

@@ -39,17 +39,29 @@ export async function rewriteShebangForSeed(
   filename: string,
   content: string,
 ): Promise<string> {
-  // Match the canonical "env"-style shebang on the first line only.
-  // Anything more exotic (custom path, explicit absolute path
-  // already, multi-arg) is intentionally untouched.
-  // Capture the trailing newline (`\r\n` on Windows, `\n` elsewhere)
-  // so we can preserve the original line ending in the output.
-  // Using `[\t ]*` instead of `\s*` for the optional trailing
-  // whitespace so `\s*` doesn't gobble the `\r` and leave only `\n`
-  // in the capture group.
-  const match = content.match(/^#!\/usr\/bin\/env[\t ]+(\S+)[\t ]*(\r?\n)/);
+  // Match `#!/usr/bin/env [-S ]<interpreter>[ args]<newline>` on the
+  // first line. The optional `-S` flag is the modern way to pass
+  // args through `env` (e.g. `#!/usr/bin/env -S node --no-warnings`).
+  // Trailing args after the interpreter are captured so we can
+  // preserve them verbatim in the rewritten shebang — only the
+  // `env <interpreter>` prefix needs to become the absolute path.
+  //
+  // Capture groups:
+  //   1: optional `-S ` flag (kept on the rewritten line if present)
+  //   2: interpreter name (e.g. `node`)
+  //   3: trailing args + spaces, possibly empty (preserved verbatim)
+  //   4: line ending (`\n` or `\r\n` — preserved as-is)
+  //
+  // Using `[\t ]*` for inter-token whitespace so `\s*` doesn't gobble
+  // the `\r` and leave only `\n` in the line-ending capture.
+  const match = content.match(
+    /^#!\/usr\/bin\/env[\t ]+(-S[\t ]+)?(\S+)([\t ]+[^\r\n]*)?(\r?\n)/,
+  );
   if (!match) return content;
-  const interpreter = match[1];
+  const dashS = match[1] ?? "";
+  const interpreter = match[2];
+  const trailingArgs = match[3] ?? "";
+  const newline = match[4];
   // Restrict the rewrite to interpreters we actually run from the
   // app's "Run" affordance. Anything else (bash, ruby, perl, ...) is
   // a script the admin manages themselves; don't touch their shebang.
@@ -61,7 +73,24 @@ export async function rewriteShebangForSeed(
     py: "python3",
   };
   const expected = allowedByExt[ext];
-  if (!expected || expected !== interpreter) return content;
+  if (!expected) {
+    // Extension doesn't nominate a known runnable interpreter
+    // (e.g. `.sh`, `.rb`). Stay silent — the admin owns these.
+    return content;
+  }
+  if (expected !== interpreter) {
+    // Extension says one thing, shebang says another. That's a real
+    // anomaly worth surfacing so the next person adding a seed
+    // script notices their file wasn't rewritten. Runtime still
+    // falls back to PATH (and to the friendly "Node.js not found"
+    // message if that fails), so this stays dev-facing only.
+    console.warn(
+      `[seed] env-style shebang found in ${filename} but not rewritten ` +
+        `(interpreter='${interpreter}', ext='${ext}'); will fall back ` +
+        `to PATH at run time`,
+    );
+    return content;
+  }
   let abs: string | null = null;
   try {
     abs = await scriptResolveInterpreter(interpreter);
@@ -70,9 +99,12 @@ export async function rewriteShebangForSeed(
     return content;
   }
   if (!abs) return content;
-  const newline = match[2]; // preserve LF vs CRLF
+  // The `-S` flag is meaningless once we've inlined the absolute
+  // interpreter path (it tells `env` to split args, but `env` is no
+  // longer in the picture). Drop it; preserve any trailing args.
+  void dashS;
   const rest = content.slice(match[0].length);
-  return `#!${abs}${newline}${rest}`;
+  return `#!${abs}${trailingArgs}${newline}${rest}`;
 }
 
 /// Map a `seed/<target>/<...>` manifest path to its workspace destination.

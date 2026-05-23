@@ -122,6 +122,12 @@ fn run_blocking(repo: &str, script_path: &str) -> Result<ScriptRunOutput, String
     // Homebrew paths, which is why `os error 2` was so common). When
     // nothing resolves, return the friendly "install Node.js"
     // message before reaching `Command::spawn`.
+    //
+    // Note: the friendly message is keyed off the extension-derived
+    // interpreter, so a `.mjs` file that's actually Python (mis-
+    // renamed by the user) surfaces "Node.js not found" even though
+    // the script never needed node. Acceptable for now — the ticket
+    // scope is fixing the real PATH bug, not extension sniffing.
     let interpreter_path = resolve_interpreter_path(interpreter)
         .ok_or_else(|| missing_interpreter_message(interpreter))?;
     let started = Instant::now();

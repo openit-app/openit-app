@@ -208,6 +208,49 @@ describe("rewriteShebangForSeed (PIN-6611)", () => {
     const src = "#!/usr/bin/env node\n//\n";
     expect(await rewriteShebangForSeed("a.mjs", src)).toBe(src);
   });
+
+  it("handles `env -S node …` shebangs and preserves trailing args", async () => {
+    mockResolveInterpreter.mockResolvedValueOnce("/opt/homebrew/bin/node");
+    const src = "#!/usr/bin/env -S node --no-warnings\nconsole.log(1);\n";
+    const out = await rewriteShebangForSeed("a.mjs", src);
+    expect(out.startsWith("#!/opt/homebrew/bin/node --no-warnings\n")).toBe(true);
+    expect(out).toContain("console.log(1);");
+  });
+
+  it("preserves trailing args without `-S` too", async () => {
+    mockResolveInterpreter.mockResolvedValueOnce("/usr/local/bin/node");
+    const src = "#!/usr/bin/env node --enable-source-maps\n//\n";
+    const out = await rewriteShebangForSeed("a.mjs", src);
+    expect(out.startsWith("#!/usr/local/bin/node --enable-source-maps\n")).toBe(true);
+  });
+
+  it("logs a [seed] warning when ext nominates an interpreter but the shebang names a different one", async () => {
+    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+    try {
+      // .mjs file but shebang says python3 — mismatch worth warning about.
+      const src = "#!/usr/bin/env python3\nprint('hi')\n";
+      const out = await rewriteShebangForSeed("oddball.mjs", src);
+      expect(out).toBe(src);
+      const warned = warnSpy.mock.calls.some(
+        ([msg]) => typeof msg === "string" && msg.includes("[seed]") && msg.includes("oddball.mjs"),
+      );
+      expect(warned).toBe(true);
+    } finally {
+      warnSpy.mockRestore();
+    }
+  });
+
+  it("does NOT warn when the extension simply doesn't nominate a known interpreter (.sh, .rb, etc.)", async () => {
+    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+    try {
+      const src = "#!/usr/bin/env bash\necho hi\n";
+      const out = await rewriteShebangForSeed("setup.sh", src);
+      expect(out).toBe(src);
+      expect(warnSpy).not.toHaveBeenCalled();
+    } finally {
+      warnSpy.mockRestore();
+    }
+  });
 });
 
 describe("seedIfEmpty — script shebang rewrite (PIN-6611)", () => {

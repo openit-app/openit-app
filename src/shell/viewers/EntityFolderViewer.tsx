@@ -4,7 +4,7 @@
 /// skills, scripts, and per-ticket attachments.
 /// No behavior changes — purely structural extraction.
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { fsReveal } from "../../lib/api";
 import type { ViewerSource } from "../viewerTypes";
 import { EntityCardGrid } from "../EntityCardGrid";
@@ -52,8 +52,17 @@ export function EntityFolderBody({
   // the scripts-folder cards swap their play glyph for a spinner so
   // long-running runs don't look frozen. Reset when the folder path
   // changes.
+  //
+  // Two parallel stores: a ref for the *synchronous* guard inside
+  // the onRun handler (state updates would only land on the next
+  // render, so two rapid-fire clicks both pass an
+  // `if (state.has(path)) return` check and spawn two concurrent
+  // runs), and a state set for the UI render trigger. Always mutate
+  // the ref first, then mirror to state.
+  const runningRef = useRef<Set<string>>(new Set());
   const [runningScripts, setRunningScripts] = useState<Set<string>>(new Set());
   useEffect(() => {
+    runningRef.current = new Set();
     setRunningScripts(new Set());
   }, [source.path]);
 
@@ -134,7 +143,13 @@ export function EntityFolderBody({
         /\.(mjs|js|cjs|py)$/i.test(f.path) &&
         onShowSource
           ? async () => {
-              if (runningScripts.has(f.path)) return;
+              // Synchronous guard via ref — rapid double-clicks
+              // both used to pass `if (state.has(path)) return`
+              // because React batches state updates. The ref read
+              // + add happen in a single JS turn, so the second
+              // invocation bails before reaching `scriptRun`.
+              if (runningRef.current.has(f.path)) return;
+              runningRef.current.add(f.path);
               setRunningScripts((prev) => {
                 const next = new Set(prev);
                 next.add(f.path);
@@ -156,6 +171,7 @@ export function EntityFolderBody({
                 console.error(`[script-run] ${f.name} failed:`, err);
                 showToast(`Run failed: ${reason}`);
               } finally {
+                runningRef.current.delete(f.path);
                 setRunningScripts((prev) => {
                   const next = new Set(prev);
                   next.delete(f.path);
