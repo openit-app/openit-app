@@ -1,0 +1,315 @@
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { ChatPane } from "./ChatPane";
+
+/// Per-tab metadata. The PTY lives in the Rust process keyed by `id`;
+/// React only persists `{id, label}` so labels survive across reloads
+/// and the parent can re-mount panes with stable session ids.
+///
+/// Note: the PTY itself does NOT survive an app restart — Rust kills its
+/// child processes when the Tauri process exits. On restart we rebuild
+/// fresh PTYs under the saved ids, so the tab list and last-known labels
+/// come back but each session is a new CC process. This matches the
+/// success criteria: "restores the tab list and reconnects to running
+/// sessions where possible (or cleanly shows them as new sessions if not)".
+export interface ChatSessionMeta {
+  id: string;
+  /** User-visible tab label. Initialized to "Session N" and overwritten
+   *  whenever CC emits a terminal title (auto-name + after `/rename`). */
+  label: string;
+  /** Whether this session should spawn with `--resume`. New sessions are
+   *  fresh; restored-from-restart sessions stay fresh too — `--resume`
+   *  is currently only set via the explicit Resume button. */
+  resume: boolean;
+}
+
+/// localStorage key. Scoped per-repo so two vaults don't share tab lists.
+function storageKey(cwd: string | null): string | null {
+  if (!cwd) return null;
+  return `openit:chat-tabs:${cwd}`;
+}
+
+export function loadTabs(cwd: string | null): ChatSessionMeta[] {
+  const key = storageKey(cwd);
+  if (!key) return [];
+  try {
+    const raw = localStorage.getItem(key);
+    if (!raw) return [];
+    const parsed = JSON.parse(raw);
+    if (!Array.isArray(parsed)) return [];
+    return parsed
+      .filter(
+        (t: unknown): t is ChatSessionMeta =>
+          typeof t === "object" &&
+          t !== null &&
+          typeof (t as ChatSessionMeta).id === "string" &&
+          typeof (t as ChatSessionMeta).label === "string",
+      )
+      .map((t) => ({ id: t.id, label: t.label, resume: false }));
+  } catch (err) {
+    console.warn("[ChatSessionTabs] failed to load persisted tabs:", err);
+    return [];
+  }
+}
+
+export function persistTabs(cwd: string | null, tabs: ChatSessionMeta[]): void {
+  const key = storageKey(cwd);
+  if (!key) return;
+  try {
+    // Drop `resume` from persistence: it's a one-shot spawn arg that
+    // only applies on the next mount; persisting it would cause every
+    // restart of a resumed tab to re-resume forever.
+    const serializable = tabs.map((t) => ({ id: t.id, label: t.label }));
+    localStorage.setItem(key, JSON.stringify(serializable));
+  } catch (err) {
+    console.warn("[ChatSessionTabs] failed to persist tabs:", err);
+  }
+}
+
+export function newSessionId(): string {
+  // Keep the `main-` prefix the rest of the app's tests/logs expect for
+  // backwards compatibility with the single-pane era.
+  return `main-${crypto.randomUUID()}`;
+}
+
+/// Derive the next "Session N" label, picking the smallest N not already
+/// in use among labels that still match the default pattern. This keeps
+/// numbering tight even after closes — closing Session 2 then opening
+/// a new one reuses "Session 2" instead of jumping to "Session 4".
+export function nextDefaultLabel(existing: ChatSessionMeta[]): string {
+  const used = new Set<number>();
+  for (const t of existing) {
+    const m = /^Session (\d+)$/.exec(t.label);
+    if (m) used.add(Number(m[1]));
+  }
+  let n = 1;
+  while (used.has(n)) n++;
+  return `Session ${n}`;
+}
+
+export interface ChatSessionTabsHandle {
+  newSession: () => void;
+  resumeSession: () => void;
+}
+
+export interface ChatSessionTabsProps {
+  cwd: string | null;
+  /** Imperative hook exposed so the existing ChatShellHeader buttons
+   *  (and any future command-palette entries) can drive new/resume
+   *  without lifting the tab state up to Shell.tsx. */
+  registerHandle?: (h: ChatSessionTabsHandle | null) => void;
+}
+
+export function ChatSessionTabs({ cwd, registerHandle }: ChatSessionTabsProps) {
+  const [tabs, setTabs] = useState<ChatSessionMeta[]>(() => loadTabs(cwd));
+  const [activeId, setActiveId] = useState<string | null>(() => {
+    const initial = loadTabs(cwd);
+    return initial[0]?.id ?? null;
+  });
+
+  // When the repo changes (project switch), reload tabs for the new repo
+  // and ensure we always have at least one session so the user never
+  // stares at an empty tab strip.
+  useEffect(() => {
+    if (!cwd) {
+      setTabs([]);
+      setActiveId(null);
+      return;
+    }
+    const loaded = loadTabs(cwd);
+    if (loaded.length === 0) {
+      const seed: ChatSessionMeta = {
+        id: newSessionId(),
+        label: "Session 1",
+        resume: false,
+      };
+      setTabs([seed]);
+      setActiveId(seed.id);
+      persistTabs(cwd, [seed]);
+    } else {
+      setTabs(loaded);
+      setActiveId(loaded[0].id);
+    }
+  }, [cwd]);
+
+  // Persist on every change. Keep this effect-driven (rather than baked
+  // into every setTabs call) so all mutation paths — add, close, rename
+  // — automatically pick up persistence.
+  useEffect(() => {
+    if (!cwd) return;
+    persistTabs(cwd, tabs);
+  }, [cwd, tabs]);
+
+  const addSession = useCallback(
+    (opts: { resume?: boolean } = {}) => {
+      setTabs((prev) => {
+        const next: ChatSessionMeta = {
+          id: newSessionId(),
+          label: nextDefaultLabel(prev),
+          resume: !!opts.resume,
+        };
+        const updated = [...prev, next];
+        setActiveId(next.id);
+        return updated;
+      });
+    },
+    [],
+  );
+
+  const closeSession = useCallback((id: string) => {
+    setTabs((prev) => {
+      const idx = prev.findIndex((t) => t.id === id);
+      if (idx === -1) return prev;
+      const updated = prev.filter((t) => t.id !== id);
+      // Guarantee at least one tab — closing the last tab spawns a
+      // fresh Session 1 so the right pane is never empty.
+      if (updated.length === 0) {
+        const fresh: ChatSessionMeta = {
+          id: newSessionId(),
+          label: "Session 1",
+          resume: false,
+        };
+        setActiveId(fresh.id);
+        return [fresh];
+      }
+      setActiveId((current) => {
+        if (current !== id) return current;
+        // Activate the neighbour to the left, or the new first tab.
+        const fallback = updated[Math.max(0, idx - 1)];
+        return fallback.id;
+      });
+      return updated;
+    });
+  }, []);
+
+  const setLabel = useCallback((id: string, label: string) => {
+    setTabs((prev) => {
+      // Sanitize: trim, collapse whitespace, cap at 60 chars so the tab
+      // strip can't be blown out by a stray multi-line title.
+      const cleaned = label.replace(/\s+/g, " ").trim().slice(0, 60);
+      if (!cleaned) return prev;
+      let changed = false;
+      const next = prev.map((t) => {
+        if (t.id !== id) return t;
+        if (t.label === cleaned) return t;
+        changed = true;
+        return { ...t, label: cleaned };
+      });
+      return changed ? next : prev;
+    });
+  }, []);
+
+  // Imperative API for the legacy ChatShellHeader "+" / "↺" buttons.
+  // Kept as a registered handle (instead of lifting full state up) so
+  // ChatSessionTabs owns its own internal state and Shell.tsx just gets
+  // a handle to call.
+  const newSession = useCallback(() => addSession({ resume: false }), [addSession]);
+  const resumeSession = useCallback(() => addSession({ resume: true }), [addSession]);
+
+  const handleRef = useRef<ChatSessionTabsHandle>({ newSession, resumeSession });
+  useEffect(() => {
+    handleRef.current = { newSession, resumeSession };
+  }, [newSession, resumeSession]);
+
+  useEffect(() => {
+    if (!registerHandle) return;
+    registerHandle(handleRef.current);
+    return () => registerHandle(null);
+  }, [registerHandle]);
+
+  // Cmd+1..9 / Ctrl+1..9 to switch tabs. Hooked at document level so
+  // the shortcut works even when focus is inside xterm (which swallows
+  // most keys for the running TUI).
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      const mod = e.metaKey || e.ctrlKey;
+      if (!mod || e.altKey || e.shiftKey) return;
+      const n = Number(e.key);
+      if (!Number.isInteger(n) || n < 1 || n > 9) return;
+      const target = tabs[n - 1];
+      if (!target) return;
+      e.preventDefault();
+      setActiveId(target.id);
+    };
+    window.addEventListener("keydown", onKey, true);
+    return () => window.removeEventListener("keydown", onKey, true);
+  }, [tabs]);
+
+  const onTitleChangeFor = useMemo(() => {
+    // Stable per-id callbacks so panes don't see a new callback identity
+    // every render (the ref inside ChatPane reads through, but this also
+    // keeps React DevTools and any future memo boundaries clean).
+    const cache: Record<string, (title: string) => void> = {};
+    for (const t of tabs) {
+      cache[t.id] = (title: string) => setLabel(t.id, title);
+    }
+    return cache;
+  }, [tabs, setLabel]);
+
+  // When there's no repo yet, render the empty-state ChatPane (it shows
+  // the "Open a project folder" placeholder) without any tab chrome.
+  if (!cwd) {
+    return <ChatPane cwd={null} />;
+  }
+
+  return (
+    <>
+      <div className="chat-tabs-strip" role="tablist" aria-label="Claude sessions">
+        {tabs.map((t) => {
+          const active = t.id === activeId;
+          return (
+            <div
+              key={t.id}
+              className={`chat-tab${active ? " chat-tab-active" : ""}`}
+              role="tab"
+              aria-selected={active}
+            >
+              <button
+                type="button"
+                className="chat-tab-label"
+                onClick={() => setActiveId(t.id)}
+                title={t.label}
+              >
+                {t.label}
+              </button>
+              {tabs.length > 1 && (
+                <button
+                  type="button"
+                  className="chat-tab-close"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    closeSession(t.id);
+                  }}
+                  title="Close session"
+                  aria-label={`Close ${t.label}`}
+                >
+                  ×
+                </button>
+              )}
+            </div>
+          );
+        })}
+        <button
+          type="button"
+          className="chat-tab-add"
+          onClick={() => addSession()}
+          title="New Claude session"
+          aria-label="New Claude session"
+        >
+          +
+        </button>
+      </div>
+      <div className="chat-area">
+        {tabs.map((t) => (
+          <ChatPane
+            key={t.id}
+            cwd={cwd}
+            sessionId={t.id}
+            visible={t.id === activeId}
+            resume={t.resume}
+            onTitleChange={onTitleChangeFor[t.id]}
+          />
+        ))}
+      </div>
+    </>
+  );
+}

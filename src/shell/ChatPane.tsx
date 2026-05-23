@@ -38,13 +38,53 @@ async function saveAndPasteDroppedFiles(files: FileList, sessionId: string) {
   }
 }
 
-export function ChatPane({ cwd, resume }: { cwd: string | null; resume?: boolean }) {
+export interface ChatPaneProps {
+  cwd: string | null;
+  /** Stable PTY/session identifier. When supplied by a parent (e.g.
+   *  ChatSessionTabs) the parent controls the session lifetime and the
+   *  pane sticks to that id across re-renders. When omitted, the pane
+   *  auto-generates `main-<uuid>` for the single-session legacy path. */
+  sessionId?: string;
+  /** Whether this pane is the currently-visible tab. Inactive panes stay
+   *  mounted (display:none) so PTY state and xterm scrollback survive
+   *  tab switches, but only the visible one is registered as the
+   *  paste/skill target via setActiveSession. */
+  visible?: boolean;
+  resume?: boolean;
+  /** Fires whenever the embedded program emits an OSC 0/2 title change
+   *  (Claude Code does this on auto-name and after `/rename`). Used by
+   *  ChatSessionTabs to mirror the CC session name into the tab label. */
+  onTitleChange?: (title: string) => void;
+}
+
+export function ChatPane({
+  cwd,
+  sessionId,
+  visible = true,
+  resume,
+  onTitleChange,
+}: ChatPaneProps) {
   const containerRef = useRef<HTMLDivElement | null>(null);
+  // Keep the latest onTitleChange in a ref so the spawn effect — which we
+  // intentionally don't re-run on every render — always calls the freshest
+  // callback without re-spawning the PTY.
+  const titleCbRef = useRef<typeof onTitleChange>(onTitleChange);
+  useEffect(() => {
+    titleCbRef.current = onTitleChange;
+  }, [onTitleChange]);
+
+  // Re-fit + refocus when this tab becomes visible. Hidden panes don't get
+  // ResizeObserver/window resize events that match their actual geometry,
+  // so on first reveal we explicitly nudge xterm.
+  const fitRef = useRef<FitAddon | null>(null);
+  const termRef = useRef<Terminal | null>(null);
+  const stableSessionIdRef = useRef<string | null>(null);
 
   useEffect(() => {
     if (!containerRef.current) return;
     if (!cwd) return; // Don't spawn until we have a project folder
-    const SESSION_ID = `main-${crypto.randomUUID()}`;
+    const SESSION_ID = sessionId ?? `main-${crypto.randomUUID()}`;
+    stableSessionIdRef.current = SESSION_ID;
 
     const term = new Terminal({
       fontFamily:
@@ -108,6 +148,8 @@ export function ChatPane({ cwd, resume }: { cwd: string | null; resume?: boolean
     });
     const fit = new FitAddon();
     term.loadAddon(fit);
+    fitRef.current = fit;
+    termRef.current = term;
     // Web-links addon: detects http(s):// URLs in terminal output
     // and makes them clickable. Routed through Tauri's openUrl so
     // links open in the user's default browser, not inside the
@@ -122,9 +164,17 @@ export function ChatPane({ cwd, resume }: { cwd: string | null; resume?: boolean
     );
     term.open(containerRef.current);
     fit.fit();
-    term.focus();
+    if (visible) term.focus();
     const focusOnClick = () => term.focus();
     containerRef.current.addEventListener("click", focusOnClick);
+
+    // Mirror CC's session name into the tab label. CC sets the
+    // terminal title via OSC 0/2 when it auto-names a session and
+    // again after `/rename`. xterm's onTitleChange fires for both.
+    const titleDisposable = term.onTitleChange((newTitle) => {
+      const cb = titleCbRef.current;
+      if (cb) cb(newTitle);
+    });
 
     // Drag-drop: accept in-app drags (file explorer, entity refs) AND OS
     // file drops (Finder / Desktop). We keep `dragDropEnabled: false` in
@@ -189,7 +239,7 @@ export function ChatPane({ cwd, resume }: { cwd: string | null; resume?: boolean
         return;
       }
 
-      setActiveSession(SESSION_ID);
+      if (visible) setActiveSession(SESSION_ID);
 
       const unlistenData = await onPtyData(SESSION_ID, (chunk) => term.write(chunk));
       const unlistenExit = await onPtyExit(SESSION_ID, (code) => {
@@ -242,14 +292,48 @@ export function ChatPane({ cwd, resume }: { cwd: string | null; resume?: boolean
     return () => {
       disposed = true;
       clearActiveSession(SESSION_ID);
+      titleDisposable.dispose();
       containerRef.current?.removeEventListener("click", focusOnClick);
       containerRef.current?.removeEventListener("dragover", onDragOver, true);
       containerRef.current?.removeEventListener("drop", onInPageDrop, true);
       for (const fn of unlistens) fn();
       ptyKill(SESSION_ID).catch((e) => console.error("pty bridge error:", e));
       term.dispose();
+      fitRef.current = null;
+      termRef.current = null;
+      stableSessionIdRef.current = null;
     };
-  }, [cwd]);
+    // We intentionally exclude `visible` and `onTitleChange` from this
+    // effect's deps: switching tabs or swapping the title callback must
+    // NEVER tear down and re-spawn the PTY (that would kill the running
+    // process and wipe scrollback). Visibility changes are handled by
+    // the separate effect below; title-callback changes are read through
+    // titleCbRef.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [cwd, sessionId, resume]);
+
+  // Visibility transitions: when this pane becomes the active tab, hand
+  // it the global active-session pointer (so paste/skill-action writes
+  // land here), refit (its container just gained real dimensions), and
+  // refocus. When it loses visibility, release the pointer if we still
+  // hold it.
+  useEffect(() => {
+    const id = stableSessionIdRef.current;
+    if (!id) return;
+    if (visible) {
+      setActiveSession(id);
+      // Defer the fit until after the parent's display:none toggle has
+      // actually painted — otherwise xterm measures zero and clamps to
+      // 1 column. requestAnimationFrame is enough since the toggle is
+      // a synchronous style change.
+      requestAnimationFrame(() => {
+        fitRef.current?.fit();
+        termRef.current?.focus();
+      });
+    } else {
+      clearActiveSession(id);
+    }
+  }, [visible]);
 
   if (!cwd) {
     return (
@@ -259,5 +343,14 @@ export function ChatPane({ cwd, resume }: { cwd: string | null; resume?: boolean
     );
   }
 
-  return <div ref={containerRef} style={{ width: "100%", height: "100%" }} />;
+  return (
+    <div
+      ref={containerRef}
+      style={{
+        width: "100%",
+        height: "100%",
+        display: visible ? "block" : "none",
+      }}
+    />
+  );
 }

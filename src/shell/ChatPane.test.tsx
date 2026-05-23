@@ -76,4 +76,24 @@ describe("ChatPane", () => {
     unmount();
     expect(ptyMock.ptyKill).toHaveBeenCalledWith(sessionIdMatcher);
   });
+
+  it("uses the provided sessionId when supplied by parent", async () => {
+    render(<ChatPane cwd="/tmp/test-repo" sessionId="main-custom-id" />);
+    await new Promise((r) => setTimeout(r, 0));
+    expect(ptyMock.ptySpawn).toHaveBeenCalledTimes(1);
+    const args = ptyMock.ptySpawn.mock.calls[0][0];
+    expect(args.sessionId).toBe("main-custom-id");
+  });
+
+  it("renders display:none when visible=false but still spawns the pty", async () => {
+    const { container } = render(
+      <ChatPane cwd="/tmp/test-repo" sessionId="main-bg" visible={false} />,
+    );
+    await new Promise((r) => setTimeout(r, 0));
+    // Spawn must happen regardless of visibility so background sessions
+    // keep running — switching tabs only changes display.
+    expect(ptyMock.ptySpawn).toHaveBeenCalledTimes(1);
+    const root = container.firstChild as HTMLElement | null;
+    expect(root?.style.display).toBe("none");
+  });
 });
