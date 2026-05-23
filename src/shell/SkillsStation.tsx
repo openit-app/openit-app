@@ -195,7 +195,18 @@ export function CommandsStation({
         tone: "critical",
       });
     } finally {
-      creatingRef.current = false;
+      // Only clear the guard if THIS pipeline still owns it. After
+      // the early release at the point-of-no-return, the user can
+      // start a second pipeline while this one's PTY write is still
+      // pending. When the await unblocks and `finally` fires, P2 is
+      // mid-flight and owns the guard — clearing it here would let
+      // a third concurrent click slip through. The inner release
+      // already covers the success path, so finally only matters on
+      // the early-return / throw branches where this pipeline still
+      // owns the guard. (Independent reviewer iter-6 finding.)
+      if (createGenRef.current === myGen) {
+        creatingRef.current = false;
+      }
     }
   };
 
@@ -357,13 +368,22 @@ Before signing off, re-read this command body. If the admin's choices narrowed a
     if (cancelled()) return;
     await entityWriteFile(repo, "filestores/commands", `${slug}.md`, boilerplate);
     // POINT OF NO RETURN — the file is committed to disk. From here
-    // on, ignore the cancel token: a late Cancel/Escape would only
-    // strand an orphan file with no viewer + no Claude handoff,
-    // which is worse than completing the action the user explicitly
-    // started. (BugBot iter-5 finding.)
-    setShowNewInput(false);
-    setNewName("");
-    setNewIntent("");
+    // on, ignore the cancel token FOR THIS pipeline's disk + PTY
+    // actions (a late Cancel would strand an orphan file with no
+    // viewer and no Claude handoff, worse than completing).
+    //
+    // BUT: only mutate the dialog form state if no LATER pipeline
+    // has started. The realistic race: user clicks Create on
+    // 'alpha' → entityWriteFile in flight → user Cancels → opens
+    // dialog again → types 'beta'. When alpha's write resolves we
+    // must not wipe 'beta'. The gen check is symmetric with the
+    // pre-write guards and surfaced as part of the same token.
+    // (Independent reviewer iter-6 finding.)
+    if (!cancelled()) {
+      setShowNewInput(false);
+      setNewName("");
+      setNewIntent("");
+    }
     onOpen(absPath);
     // Release the double-submit guard NOW — the dialog has closed,
     // the file is on disk, and the user might immediately click
@@ -371,7 +391,7 @@ Before signing off, re-read this command body. If the admin's choices narrowed a
     // through the PTY write below would silently block that second
     // submit until Claude finished acknowledging the first one (PTY
     // writes can stall for hundreds of ms on a busy session).
-    // (Independent reviewer finding.)
+    // (Independent reviewer iter-4 finding.)
     creatingRef.current = false;
     // Hand the intent off to Claude alongside the file path. Building
     // this prompt server-side (here) instead of relying on the
@@ -422,7 +442,16 @@ Before signing off, re-read this command body. If the admin's choices narrowed a
         <Button
           variant="ghost"
           size="sm"
-          onClick={() => setShowNewInput((v) => !v)}
+          onClick={() => {
+            // Toggling + New must dismiss in-flight creation the same
+            // way Cancel does — otherwise clicking + New to "close"
+            // the composer while a create is mid-fsList still lands
+            // on disk and fires Claude. Route the toggle-off branch
+            // through cancelNewCommand so the gen token bumps and
+            // the form clears consistently. (BugBot iter-6 finding.)
+            if (showNewInput) cancelNewCommand();
+            else setShowNewInput(true);
+          }}
         >
           + New
         </Button>

@@ -288,6 +288,89 @@ describe("CommandsStation + New flow", () => {
     expect(activeSessionMock.writeToActiveSession).not.toHaveBeenCalled();
   });
 
+  it("clicking + New to dismiss an open composer cancels an in-flight create", async () => {
+    let resolveList: ((nodes: { name: string; path: string; is_dir: boolean }[]) => void) | null = null;
+    apiMock.fsList.mockImplementation(
+      () =>
+        new Promise((res) => {
+          resolveList = res;
+        }),
+    );
+
+    renderInToastProvider(<CommandsStation repo="/tmp/repo" onOpen={() => {}} />);
+    fireEvent.click(screen.getByRole("button", { name: "+ New" }));
+    await screen.findByRole("dialog", { name: /create new command/i });
+    fireEvent.change(screen.getByPlaceholderText("command-name"), {
+      target: { value: "racey" },
+    });
+    fireEvent.change(
+      screen.getByPlaceholderText(/what should this command do/i),
+      { target: { value: "Mid-flight." } },
+    );
+    fireEvent.click(screen.getByRole("button", { name: /^create$/i }));
+    await new Promise((r) => setTimeout(r, 0));
+
+    // User clicks + New to dismiss the dialog (the toggle path) —
+    // this MUST cancel the in-flight create the same way the
+    // explicit Cancel button does.
+    fireEvent.click(screen.getByRole("button", { name: "+ New" }));
+
+    // Release fsList → pipeline checks cancelled() and bails.
+    resolveList?.([]);
+    await new Promise((r) => setTimeout(r, 0));
+    await new Promise((r) => setTimeout(r, 0));
+    expect(apiMock.entityWriteFile).not.toHaveBeenCalled();
+  });
+
+  it("does not clobber the dialog state of a SECOND open composer when first pipeline finishes", async () => {
+    // Realistic race: P1 (alpha) write in flight → user Cancels →
+    // opens dialog again → types beta. When alpha's write resolves
+    // and the post-commit branch runs, it must NOT overwrite the
+    // beta form state with empty strings.
+    let resolveWrite: (() => void) | null = null;
+    apiMock.entityWriteFile.mockImplementation(
+      () =>
+        new Promise<void>((res) => {
+          resolveWrite = res;
+        }),
+    );
+
+    renderInToastProvider(<CommandsStation repo="/tmp/repo" onOpen={() => {}} />);
+    fireEvent.click(screen.getByRole("button", { name: "+ New" }));
+    await screen.findByRole("dialog", { name: /create new command/i });
+
+    fireEvent.change(screen.getByPlaceholderText("command-name"), {
+      target: { value: "alpha" },
+    });
+    fireEvent.change(
+      screen.getByPlaceholderText(/what should this command do/i),
+      { target: { value: "First." } },
+    );
+    fireEvent.click(screen.getByRole("button", { name: /^create$/i }));
+    await new Promise((r) => setTimeout(r, 0));
+
+    // User cancels alpha (bumps gen, closes dialog) and reopens.
+    fireEvent.click(screen.getByRole("button", { name: /cancel/i }));
+    fireEvent.click(screen.getByRole("button", { name: "+ New" }));
+    await screen.findByRole("dialog", { name: /create new command/i });
+
+    // User starts typing beta.
+    const nameInput = screen.getByPlaceholderText("command-name");
+    fireEvent.change(nameInput, { target: { value: "beta" } });
+    const intentInput = screen.getByPlaceholderText(/what should this command do/i);
+    fireEvent.change(intentInput, { target: { value: "Second." } });
+
+    // Alpha's entityWriteFile now resolves — the post-commit
+    // cleanup branch must NOT wipe the beta form state because the
+    // generation token has been bumped.
+    resolveWrite?.();
+    await new Promise((r) => setTimeout(r, 0));
+    await new Promise((r) => setTimeout(r, 0));
+
+    expect((nameInput as HTMLInputElement).value).toBe("beta");
+    expect((intentInput as HTMLTextAreaElement).value).toBe("Second.");
+  });
+
   it("completes the create when Cancel fires AFTER the file is written (point of no return)", async () => {
     // Hold entityWriteFile in suspense so Cancel can land between
     // the pre-write cancelled() check and the post-write commit
