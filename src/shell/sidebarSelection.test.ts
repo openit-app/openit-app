@@ -138,7 +138,10 @@ describe("selectedRelFromSource", () => {
     ).toBe("traces");
   });
 
-  it("maps agent and workflow viewers to the agents tile", () => {
+  it("maps agent viewers to agents and workflow viewers to workflows", () => {
+    // Workflows live in workflows/, not agents/ — mapping them to
+    // 'agents' would mislead the rail highlight (BugBot finding on
+    // PIN-6613 sha 0f07641).
     expect(
       selectedRelFromSource(
         {
@@ -154,11 +157,11 @@ describe("selectedRelFromSource", () => {
         {
           kind: "workflow",
           workflow: { name: "y" },
-          path: "agents/y.md",
+          path: "workflows/y.json",
         } as never,
         REPO,
       ),
-    ).toBe("agents");
+    ).toBe("workflows");
   });
 
   it("returns null for unknown source kinds (sync, diff)", () => {

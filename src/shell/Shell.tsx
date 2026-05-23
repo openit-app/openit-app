@@ -397,9 +397,20 @@ export function Shell({
     setPulling(false);
   }, [repo, pulling, bumpFs, onSyncLine]);
 
+  /// Tracks whether the most recent `stateLoad` succeeded. When
+  /// `stateLoad` fails (corrupt state.json, perms, partial write from
+  /// an OS crash) we seed the in-memory state with safe defaults so
+  /// the shell can still render — but we must NOT persist those
+  /// defaults, because that would overwrite the on-disk file and
+  /// destroy `last_repo` / `pinned_bubbles` / `onboarding_complete`
+  /// that we couldn't parse. While this flag is true, in-memory
+  /// toggles still work (current session) but `stateSave` is skipped
+  /// (BugBot finding on PIN-6613, sha 0f07641).
+  const stateLoadFailedRef = useRef(false);
   useEffect(() => {
     stateLoad()
       .then((s) => {
+        stateLoadFailedRef.current = false;
         setState(s);
         // Seed the sidebar collapse flag from the persisted state.
         // `null` ≡ first launch → expanded by design (PIN-6613).
@@ -407,11 +418,10 @@ export function Shell({
       })
       .catch((e) => {
         console.error("[shell] stateLoad failed, falling back to defaults:", e);
-        // A corrupt state.json (malformed JSON, perms, partial write
-        // from an OS crash) would otherwise hang the shell on the
-        // "Loading…" placeholder forever. Seed a safe default so the
-        // user can still launch — the next successful save overwrites
-        // the corrupt file with a clean serialization.
+        stateLoadFailedRef.current = true;
+        // Render-only defaults — see `stateLoadFailedRef` doc above.
+        // Writes are gated on `!stateLoadFailedRef.current` so we
+        // don't clobber a recoverable disk file with the placeholder.
         setState({
           last_repo: null,
           pane_sizes: null,
@@ -441,6 +451,15 @@ export function Shell({
   const persistAppState = useCallback((next: AppPersistedState) => {
     stateRef.current = next;
     setState(next);
+    if (stateLoadFailedRef.current) {
+      // Don't write fallback-defaults back to disk — see
+      // `stateLoadFailedRef` doc. The toggle still works in-session;
+      // it just won't survive a restart until the corrupt state file
+      // is repaired (or a future write from another code path
+      // succeeds, at which point we could clear the flag — but no
+      // such path exists yet, so we stay conservative).
+      return;
+    }
     persistChainRef.current = persistChainRef.current
       .catch(() => {
         // Swallow earlier failures so one bad write doesn't permanently

@@ -62,11 +62,15 @@ export function selectedRelFromSource(
     case "agent-trace-list":
       return "traces";
     case "agent":
-    case "workflow":
-      // Both viewer kinds live under the `agents/` primitive (workflows
-      // are agent definitions of a different shape). Keep them mapped
-      // to the same tile so an open .md highlights the agents row.
       return "agents";
+    case "workflow":
+      // Workflows live in a separate `workflows/` folder, NOT under
+      // agents/, so highlighting the agents tile when a workflow is
+      // open would mislead the user. There's no default workflows
+      // tile in DEFAULT_WORKSTATION_CONFIG, but a power user can pin
+      // one — return the canonical primitive rel so the rail's
+      // longest-prefix match can still find it.
+      return "workflows";
     case "file": {
       // Best-effort fallback: walk the path back to the first folder
       // under the repo root. Useful for files opened directly from
