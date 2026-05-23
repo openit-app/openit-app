@@ -147,8 +147,17 @@ export async function listTasks(repo: string): Promise<TaskSummary[]> {
   }
   // Newest first by createdAt; ties broken by filename so the order is
   // deterministic even when two tasks land in the same millisecond.
+  //
+  // Empty `createdAt` (hand-edited tasks missing the frontmatter line)
+  // sorts to the bottom — without the explicit guard, `"".localeCompare`
+  // returns negative against any timestamp string, which would float
+  // ancient unmarked tasks above today's freshly-filed ones.
   summaries.sort((a, b) => {
-    if (a.createdAt !== b.createdAt) return b.createdAt.localeCompare(a.createdAt);
+    if (a.createdAt !== b.createdAt) {
+      if (!a.createdAt) return 1;
+      if (!b.createdAt) return -1;
+      return b.createdAt.localeCompare(a.createdAt);
+    }
     return b.filename.localeCompare(a.filename);
   });
   return summaries;
@@ -175,54 +184,81 @@ export async function readTask(repo: string, filename: string): Promise<TaskSumm
   };
 }
 
-/// Generate a new task filename. Format: `task-<unix-ms>-<4 hex>.md`.
-/// Random suffix prevents collisions when two tasks land in the same
-/// millisecond (rare in practice but the cost of guarding is one
-/// `Math.random` call).
+/// Generate a new task filename. Format: `task-<unix-ms>-<8 hex>.md`.
+/// 32 bits of randomness brings the same-millisecond collision odds
+/// to ~1 / 4 billion, which holds up under burst-creation loops
+/// (MCP-driven captures, auto-import scripts, the user mashing Enter
+/// in the composer). Two `Math.random` calls beat the prior 16-bit
+/// version's 1/65536 race that could silently overwrite the prior
+/// task — `entityWriteFile` truncates on existing paths, so a
+/// collision destroys one task without surfacing an error.
 export function newTaskFilename(now: number = Date.now()): string {
-  const rand = Math.floor(Math.random() * 0x10000).toString(16).padStart(4, "0");
-  return `task-${now}-${rand}.md`;
+  const hi = Math.floor(Math.random() * 0x10000).toString(16).padStart(4, "0");
+  const lo = Math.floor(Math.random() * 0x10000).toString(16).padStart(4, "0");
+  return `task-${now}-${hi}${lo}.md`;
 }
 
 /// Create a new task on disk. Returns the resulting summary so callers
-/// can navigate to it immediately.
+/// can navigate to it immediately. Throws on empty / whitespace-only
+/// title — the parser falls back to the filename stem when title is
+/// absent, so an empty title round-trips to a hex-ish filename rather
+/// than the empty string the caller passed in. Forcing the error up
+/// here keeps the create/read contract self-consistent.
 export async function createTask(
   repo: string,
   args: { title: string; status?: TaskStatus; body?: string },
 ): Promise<TaskSummary> {
+  const title = args.title.trim();
+  if (!title) {
+    throw new Error("Task title cannot be empty");
+  }
   const status = args.status ?? "todo";
   const createdAt = new Date().toISOString().replace(/\.\d+Z$/, "Z");
   const body = args.body ?? "";
   const filename = newTaskFilename();
-  const content = serialiseTaskMarkdown({ status, title: args.title, createdAt, body });
+  const content = serialiseTaskMarkdown({ status, title, createdAt, body });
   await entityWriteFile(repo, TASKS_SUBDIR, filename, content);
   return {
     path: `${tasksDir(repo)}/${filename}`,
     filename,
-    title: args.title,
+    title,
     status,
     createdAt,
     body,
   };
 }
 
-/// Overwrite the entire task with a new status. Re-reads the file first
-/// so a status flip preserves any body edits the user made in the
-/// markdown viewer between renders.
+/// Overwrite the task with the resolved next status. Re-reads from disk
+/// first, then derives the next status via `resolveNext(current)`. This
+/// closes the rapid-click race where the caller would otherwise pass in
+/// a stale "current" snapshot — three quick clicks on `todo` all hand
+/// the same stale `todo` in, all derive `in-progress`, and the user's
+/// expected todo→in-progress→complete advancement silently collapses to
+/// one transition. Reading current state on the write side guarantees
+/// each call advances from the true on-disk status.
+///
+/// Throws when the file is missing so the caller (the TasksViewer pill
+/// click handler) can surface a "task no longer exists" toast instead
+/// of silently shrugging.
 export async function updateTaskStatus(
   repo: string,
   filename: string,
-  nextStatus: TaskStatus,
-): Promise<void> {
+  resolveNext: TaskStatus | ((current: TaskStatus) => TaskStatus),
+): Promise<TaskSummary> {
   const existing = await readTask(repo, filename);
-  if (!existing) return;
+  if (!existing) {
+    throw new Error(`Task ${filename} no longer exists`);
+  }
+  const next =
+    typeof resolveNext === "function" ? resolveNext(existing.status) : resolveNext;
   const content = serialiseTaskMarkdown({
-    status: nextStatus,
+    status: next,
     title: existing.title,
     createdAt: existing.createdAt,
     body: existing.body,
   });
   await entityWriteFile(repo, TASKS_SUBDIR, filename, content);
+  return { ...existing, status: next };
 }
 
 /// Delete a task file. No confirm — the caller (Viewer / TasksViewer)

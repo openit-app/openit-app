@@ -1,6 +1,7 @@
 import { Fragment, useCallback, useEffect, useRef, useState } from "react";
 import { Panel, PanelGroup, PanelResizeHandle } from "react-resizable-panels";
 import {
+  agentTraceLatest,
   entityWriteFile,
   fsDelete,
   fsRead,
@@ -519,6 +520,41 @@ export function Shell({
         if (!cancelled) setSource(s);
       })
       .catch((e) => console.warn("[shell] re-resolve failed:", e));
+    return () => {
+      cancelled = true;
+    };
+  }, [fsTick, repo]);
+
+  // Re-fetch the live agent trace whenever the fs watcher ticks. The
+  // chat-intake server writes a partial trace file after each event
+  // during a turn (see `LiveTracePersister` in `intake.rs`); this
+  // effect pulls the latest snapshot in so the timeline animates
+  // through the agent's actions instead of waiting for the turn to
+  // finish. The Ben-feedback batch removed the ticket-shaped UI but
+  // kept the intake server, which still writes traces — anyone who
+  // navigates to a `traces/<id>/<stamp>.json` file via the file
+  // explorer should still get the live animation.
+  useEffect(() => {
+    if (!repo || fsTick === 0) return;
+    const current = sourceRef.current;
+    if (!current || current.kind !== "agent-trace") return;
+    const ticketId = current.ticketId;
+    const subject = current.subject;
+    let cancelled = false;
+    agentTraceLatest(repo, ticketId)
+      .then((doc) => {
+        if (cancelled) return;
+        // Only update if events actually changed — comparing
+        // lengths is a cheap proxy that avoids re-rendering the
+        // viewer for unrelated fs ticks when the trace file itself
+        // hasn't grown.
+        const currentLen = current.doc?.events.length ?? -1;
+        const nextLen = doc?.events.length ?? -1;
+        const outcomeChanged = (current.doc?.outcome ?? "") !== (doc?.outcome ?? "");
+        if (currentLen === nextLen && !outcomeChanged) return;
+        setSource({ kind: "agent-trace", ticketId, subject, doc });
+      })
+      .catch((e) => console.warn("[shell] agent-trace reload failed:", e));
     return () => {
       cancelled = true;
     };

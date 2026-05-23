@@ -175,7 +175,7 @@ describe("createTask", () => {
     expect(mockedWrite).toHaveBeenCalledTimes(1);
     const [, subdir, filename, content] = mockedWrite.mock.calls[0];
     expect(subdir).toBe("tasks");
-    expect(filename).toMatch(/^task-\d+-[0-9a-f]{4}\.md$/);
+    expect(filename).toMatch(/^task-\d+-[0-9a-f]{8}\.md$/);
     expect(content).toContain('status: todo');
     expect(content).toContain('title: "Ship it"');
     expect(summary.title).toBe("Ship it");
@@ -189,6 +189,18 @@ describe("createTask", () => {
     expect(content).toContain("status: complete");
     expect(content).toContain("done.");
   });
+
+  it("rejects an empty or whitespace-only title", async () => {
+    await expect(createTask("/r", { title: "" })).rejects.toThrow(/empty/);
+    await expect(createTask("/r", { title: "   " })).rejects.toThrow(/empty/);
+    expect(mockedWrite).not.toHaveBeenCalled();
+  });
+
+  it("trims surrounding whitespace from the title", async () => {
+    mockedWrite.mockResolvedValueOnce(undefined);
+    const s = await createTask("/r", { title: "   Ship   " });
+    expect(s.title).toBe("Ship");
+  });
 });
 
 describe("updateTaskStatus", () => {
@@ -197,16 +209,34 @@ describe("updateTaskStatus", () => {
       `---\nstatus: todo\ntitle: "Keep me"\ncreatedAt: 2026-05-23T00:00:00Z\n---\n\nimportant body\n`,
     );
     mockedWrite.mockResolvedValueOnce(undefined);
-    await updateTaskStatus("/r", "task-1.md", "in-progress");
+    const result = await updateTaskStatus("/r", "task-1.md", "in-progress");
     const [, , , content] = mockedWrite.mock.calls[0];
     expect(content).toContain("status: in-progress");
     expect(content).toContain('title: "Keep me"');
     expect(content).toContain("important body");
+    expect(result.status).toBe("in-progress");
   });
 
-  it("no-ops when the file does not exist", async () => {
+  it("re-reads current status from disk when given a resolver function", async () => {
+    // The on-disk status has already advanced to "in-progress" since
+    // the caller's snapshot was rendered. Re-resolving from the real
+    // disk state must yield "complete", not "in-progress" (which is
+    // what a stale closure over the prop snapshot would produce).
+    mockedFsRead.mockResolvedValueOnce(
+      `---\nstatus: in-progress\ntitle: "x"\ncreatedAt: 2026-05-23T00:00:00Z\n---\n`,
+    );
+    mockedWrite.mockResolvedValueOnce(undefined);
+    const result = await updateTaskStatus("/r", "task-1.md", nextStatus);
+    expect(result.status).toBe("complete");
+    const [, , , content] = mockedWrite.mock.calls[0];
+    expect(content).toContain("status: complete");
+  });
+
+  it("throws when the file does not exist so the caller can surface a toast", async () => {
     mockedFsRead.mockRejectedValueOnce(new Error("ENOENT"));
-    await updateTaskStatus("/r", "missing.md", "complete");
+    await expect(updateTaskStatus("/r", "missing.md", "complete")).rejects.toThrow(
+      /no longer exists/,
+    );
     expect(mockedWrite).not.toHaveBeenCalled();
   });
 });
@@ -240,8 +270,25 @@ describe("tallyTasks", () => {
 });
 
 describe("newTaskFilename", () => {
-  it("produces a sortable filename containing the timestamp", () => {
+  it("produces a sortable filename containing the timestamp and 8 hex chars", () => {
     const a = newTaskFilename(1716480000000);
-    expect(a).toMatch(/^task-1716480000000-[0-9a-f]{4}\.md$/);
+    expect(a).toMatch(/^task-1716480000000-[0-9a-f]{8}\.md$/);
+  });
+});
+
+describe("listTasks — createdAt sort", () => {
+  it("places tasks without createdAt at the bottom (not the top)", async () => {
+    mockedFsList.mockResolvedValueOnce([
+      file("hand-edited.md", "/r/tasks/hand-edited.md"),
+      file("task-recent.md", "/r/tasks/task-recent.md"),
+    ]);
+    mockedFsRead
+      // No createdAt — empty string falls back from the parser.
+      .mockResolvedValueOnce(`---\nstatus: todo\ntitle: "Ancient"\n---\n`)
+      .mockResolvedValueOnce(
+        `---\nstatus: todo\ntitle: "Recent"\ncreatedAt: 2026-05-23T00:00:00Z\n---\n`,
+      );
+    const out = await listTasks("/r");
+    expect(out.map((t) => t.title)).toEqual(["Recent", "Ancient"]);
   });
 });

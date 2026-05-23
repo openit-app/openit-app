@@ -67,10 +67,17 @@ export function TasksViewer({ tasks, repo, onOpenTask, onChanged }: TasksViewerP
 
   const cycleStatus = async (task: TaskSummary) => {
     try {
-      await updateTaskStatus(repo, task.filename, nextStatus(task.status));
+      // Hand `nextStatus` itself in as the resolver so the write side
+      // re-reads the current status from disk before advancing. Without
+      // this, three rapid clicks on a `todo` row all close over the
+      // stale `task.status === "todo"` prop snapshot and all collapse
+      // into a single `in-progress` transition — the second and third
+      // clicks "vanish".
+      await updateTaskStatus(repo, task.filename, nextStatus);
       onChanged();
     } catch (err) {
       console.error("[tasks] status update failed:", err);
+      onChanged();
     }
   };
 
