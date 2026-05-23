@@ -3,7 +3,18 @@ import { fsList, fsRead, entityWriteFile } from "../lib/api";
 import { isDirectChild } from "../lib/paths";
 import { writeToActiveSession } from "./activeSession";
 import { Button } from "../ui";
+import { useToast } from "../Toast";
 import styles from "./ToolsPanel.module.css";
+
+// Triple-backtick collapses to a zero-width space + the original
+// backticks. The user's intent gets dropped into a markdown body
+// verbatim, and a paste containing ``` would close the implicit code
+// fence above it and corrupt the rest of the doc until the next ```
+// (or EOF). Inserting a ZWSP between every backtick run defuses the
+// fence without changing how the text reads in any UI.
+function escapeMarkdownFences(s: string): string {
+  return s.replace(/```/g, "`​`​`");
+}
 
 type CommandEntry = {
   name: string;
@@ -48,6 +59,7 @@ export function CommandsStation({
 }) {
   const [commands, setCommands] = useState<CommandEntry[]>([]);
   const [showAll, setShowAll] = useState(false);
+  const { show: showToast } = useToast();
 
   useEffect(() => {
     let cancelled = false;
@@ -164,6 +176,11 @@ export function CommandsStation({
     const safeIntentForFrontmatter = intent
       .replace(/\r?\n/g, " ")
       .replace(/"/g, '\\"');
+    // Body needs separate escaping: frontmatter is YAML-quoted (so
+    // backticks are safe inside), but the body is raw markdown — a
+    // pasted ``` would close the doc's code fences and corrupt the
+    // first paint until Claude rewrites the file.
+    const safeIntentForBody = escapeMarkdownFences(intent);
     const boilerplate = `---
 description: "${safeIntentForFrontmatter}"
 ---
@@ -175,7 +192,7 @@ description: "${safeIntentForFrontmatter}"
 
 ## What this command does
 
-${intent}
+${safeIntentForBody}
 
 ## Steps
 
@@ -204,7 +221,19 @@ Before signing off, re-read this command body. If the admin's choices narrowed a
     // turn, even if it never reads the file. The file watcher in the
     // viewer then re-renders as Claude writes.
     const ccPrompt = `I just created a new slash command at \`${relPath}\`. Please build it out so it does the following:\n\n${intent}\n\nRead the file first to see the scaffold I dropped (YAML frontmatter, Steps, Notes), then rewrite the body so /${slug} actually does the above. Keep the frontmatter \`description\` matching the goal. When you're done, tell me in one line what /${slug} now does.\r`;
-    await writeToActiveSession(ccPrompt);
+    const handed = await writeToActiveSession(ccPrompt);
+    if (!handed) {
+      // The file is on disk and the viewer is open — but Claude was
+      // not invoked because no PTY session is active. Surface that
+      // out loud so the user doesn't sit waiting for Claude to fill
+      // in the template that will never get filled. (PIN-6607.)
+      showToast({
+        title: `Created /${slug}`,
+        message:
+          "No Claude session is active in the chat pane, so the build-out request was not sent. Start a Claude session, then ask it to build out the new command.",
+        tone: "warn",
+      });
+    }
   };
 
   const cancelNewCommand = () => {
@@ -249,6 +278,16 @@ Before signing off, re-read this command body. If the admin's choices narrowed a
             value={newName}
             onChange={(e) => setNewName(e.target.value)}
             onKeyDown={(e) => {
+              // Enter on the name input submits when both fields are
+              // filled — restores the pre-PIN-6607 muscle memory
+              // without overriding plain-Enter-as-newline inside the
+              // intent textarea below.
+              if (e.key === "Enter") {
+                e.preventDefault();
+                if (newName.trim() && newIntent.trim()) {
+                  void createNewCommand();
+                }
+              }
               if (e.key === "Escape") cancelNewCommand();
             }}
             autoFocus

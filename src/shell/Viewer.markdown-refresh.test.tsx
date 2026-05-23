@@ -8,7 +8,8 @@
  * changes and the open source is a rendered Markdown file, fsRead is
  * called for the open path (after a ~250ms debounce). When the source
  * is in edit mode, or when the path is not Markdown, fsRead is not
- * called.
+ * called. Source/mode are tracked via refs so navigation alone
+ * doesn't queue redundant disk reads.
  *
  * If the real Viewer effect drifts away from this shape, this test
  * will keep passing — which is the right tradeoff for a 100+KB
@@ -34,9 +35,13 @@ function isMarkdown(path: string): boolean {
 
 type Source = { kind: "file"; path: string } | null;
 
-/** Reproduces the exact useEffect SkillsStation -> Viewer ships, minus
- *  the React-Markdown render tree. Keeps the gates explicit so any
- *  drift on the real effect surfaces in code review. */
+/** Reproduces the exact useEffect Viewer ships, minus the
+ *  React-Markdown render tree. Keeps the gates explicit so any drift
+ *  on the real effect surfaces in code review.
+ *
+ *  Note: the timer effect depends on `[fsTick]` ONLY — source/mode are
+ *  read via refs at fire time so navigating between files doesn't
+ *  trigger a redundant disk read on every viewer change. */
 function MarkdownAutoRefreshHarness({
   source,
   mode,
@@ -48,16 +53,28 @@ function MarkdownAutoRefreshHarness({
 }) {
   const [, setContent] = useState("");
   const mdScrollRef = useRef<HTMLDivElement | null>(null);
+  const mdSourceRef = useRef(source);
+  const mdModeRef = useRef(mode);
   useEffect(() => {
-    if (!source || source.kind !== "file") return;
-    if (mode !== "rendered" || !isMarkdown(source.path)) return;
+    mdSourceRef.current = source;
+    mdModeRef.current = mode;
+  }, [source, mode]);
+  useEffect(() => {
     if (fsTick === 0) return;
-    const path = source.path;
     let cancelled = false;
     const t = window.setTimeout(() => {
+      const liveSource = mdSourceRef.current;
+      const liveMode = mdModeRef.current;
+      if (!liveSource || liveSource.kind !== "file") return;
+      if (liveMode !== "rendered" || !isMarkdown(liveSource.path)) return;
+      const path = liveSource.path;
       fsRead(path)
         .then((c) => {
           if (cancelled) return;
+          const stillSource = mdSourceRef.current;
+          if (!stillSource || stillSource.kind !== "file" || stillSource.path !== path) {
+            return;
+          }
           setContent((prev) => (prev === c ? prev : c));
         })
         .catch(() => {});
@@ -66,7 +83,7 @@ function MarkdownAutoRefreshHarness({
       cancelled = true;
       window.clearTimeout(t);
     };
-  }, [fsTick, source, mode]);
+  }, [fsTick]);
   return <div ref={mdScrollRef} />;
 }
 
@@ -171,5 +188,80 @@ describe("markdown viewer auto-refresh", () => {
     // effect (which clears the previous timeout).
     vi.advanceTimersByTime(300);
     expect(apiMock.fsRead).toHaveBeenCalledTimes(1);
+  });
+
+  it("does NOT fire fsRead when only source changes (fsTick stable)", async () => {
+    // Regression for the redundant-read finding: navigating between
+    // markdown files while fsTick is non-zero should not queue a
+    // second disk read — the source-loading effect handles the
+    // initial paint, and the watcher will fire its own tick if the
+    // new file changes later.
+    const { rerender } = render(
+      <MarkdownAutoRefreshHarness
+        source={{ kind: "file", path: "/repo/kb/a.md" }}
+        mode="rendered"
+        fsTick={7}
+      />,
+    );
+    vi.advanceTimersByTime(500);
+    expect(apiMock.fsRead).toHaveBeenCalledTimes(1);
+    apiMock.fsRead.mockClear();
+
+    // Same fsTick, different file — must NOT cause a second fsRead.
+    rerender(
+      <MarkdownAutoRefreshHarness
+        source={{ kind: "file", path: "/repo/kb/b.md" }}
+        mode="rendered"
+        fsTick={7}
+      />,
+    );
+    vi.advanceTimersByTime(500);
+    expect(apiMock.fsRead).not.toHaveBeenCalled();
+  });
+
+  it("does NOT fire fsRead when only mode changes (fsTick stable)", async () => {
+    const { rerender } = render(
+      <MarkdownAutoRefreshHarness
+        source={{ kind: "file", path: "/repo/kb/a.md" }}
+        mode="edit"
+        fsTick={3}
+      />,
+    );
+    vi.advanceTimersByTime(500);
+    expect(apiMock.fsRead).not.toHaveBeenCalled();
+
+    // Save → mode flips to rendered. With fsTick stable, no read.
+    rerender(
+      <MarkdownAutoRefreshHarness
+        source={{ kind: "file", path: "/repo/kb/a.md" }}
+        mode="rendered"
+        fsTick={3}
+      />,
+    );
+    vi.advanceTimersByTime(500);
+    expect(apiMock.fsRead).not.toHaveBeenCalled();
+  });
+
+  it("aborts the re-read if the user navigates away mid-debounce", async () => {
+    // Open a markdown file, fsTick fires, then before the 250ms
+    // debounce elapses the user switches to a non-markdown viewer.
+    // The fire-time gate should refuse to fsRead.
+    const { rerender } = render(
+      <MarkdownAutoRefreshHarness
+        source={{ kind: "file", path: "/repo/kb/a.md" }}
+        mode="rendered"
+        fsTick={1}
+      />,
+    );
+    vi.advanceTimersByTime(100);
+    rerender(
+      <MarkdownAutoRefreshHarness
+        source={{ kind: "file", path: "/repo/filestores/scripts/s.mjs" }}
+        mode="rendered"
+        fsTick={1}
+      />,
+    );
+    vi.advanceTimersByTime(500);
+    expect(apiMock.fsRead).not.toHaveBeenCalled();
   });
 });

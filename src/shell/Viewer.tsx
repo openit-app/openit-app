@@ -550,12 +550,22 @@ export function Viewer({
   // by snapshotting the nearest scrollable ancestor's scrollTop
   // before setContent and restoring it after the render frame.
   // (PIN-6607.)
+  //
+  // Depends on `[fsTick]` only — NOT on `source` or `mode`. Opening a
+  // different file already triggers the source-loading effect above,
+  // so re-running this effect on source/mode change would queue a
+  // redundant fsRead 250ms later for every navigation. The current
+  // source and mode are read via refs at fire time so the timer sees
+  // the live state instead of a stale closure capture.
   const mdScrollRef = useRef<HTMLDivElement | null>(null);
+  const mdSourceRef = useRef(source);
+  const mdModeRef = useRef(mode);
   useEffect(() => {
-    if (!source || source.kind !== "file") return;
-    if (mode !== "rendered" || !isMarkdown(source.path)) return;
+    mdSourceRef.current = source;
+    mdModeRef.current = mode;
+  }, [source, mode]);
+  useEffect(() => {
     if (fsTick === 0) return;
-    const path = source.path;
     let cancelled = false;
     // 250ms debounce so a Claude burst (Edit followed by Edit) doesn't
     // tear the markdown subtree apart between writes. The watcher
@@ -563,6 +573,14 @@ export function Viewer({
     // layer that smooths out tick → render contention on the React
     // side.
     const t = window.setTimeout(() => {
+      // Re-evaluate the source/mode gates at fire time so a
+      // mid-debounce navigation to a non-markdown viewer cleanly
+      // aborts (no stale fsRead, no scroll restore on the wrong pane).
+      const liveSource = mdSourceRef.current;
+      const liveMode = mdModeRef.current;
+      if (!liveSource || liveSource.kind !== "file") return;
+      if (liveMode !== "rendered" || !isMarkdown(liveSource.path)) return;
+      const path = liveSource.path;
       // Snapshot the scroll position of the nearest scrollable
       // ancestor before we re-render. PaneBody is the actual scroll
       // container per `.viewer-content` styling, so we walk up the
@@ -585,6 +603,13 @@ export function Viewer({
       fsRead(path)
         .then((c) => {
           if (cancelled) return;
+          // Bail if the user navigated to a different file while the
+          // read was in flight — applying this content to the new
+          // pane would render the wrong document.
+          const stillSource = mdSourceRef.current;
+          if (!stillSource || stillSource.kind !== "file" || stillSource.path !== path) {
+            return;
+          }
           // Skip the update if the file content didn't actually
           // change — the watcher fires on metadata-only touches too
           // (chmod, atime) and re-rendering for those is just churn.
@@ -610,7 +635,7 @@ export function Viewer({
       cancelled = true;
       window.clearTimeout(t);
     };
-  }, [fsTick, source, mode]);
+  }, [fsTick]);
 
   // Re-read the single-row file from disk when fsTick fires. Lets edits
   // by Claude (or any process touching the .json file) reflect in the
