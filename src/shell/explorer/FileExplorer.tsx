@@ -321,16 +321,13 @@ export function FileExplorer({
                   //   - top-level datastore dirs (databases/<col>/) → table
                   //   - conversation thread subfolders
                   //     (databases/conversations/<ticketId>/) → chat thread
-                  //   - top-level entity dirs (agents, workflows,
-                  //     knowledge-base, filestore) → entity-folder view
-                  //     so empty folders show a friendly notice instead
-                  //     of nothing.
+                  //   - top-level entity dirs (knowledge-base,
+                  //     filestore) → entity-folder view so empty folders
+                  //     show a friendly notice instead of nothing.
                   if (
                     rel === "databases" ||
                     rel.match(/^databases\/[^/]+$/) ||
                     rel.match(/^databases\/conversations\/[^/]+$/) ||
-                    rel === "agents" ||
-                    rel === "workflows" ||
                     // Flat KB directory: all articles in knowledge/
                     rel === "knowledge" ||
                     // 2026-04-27 filestore split:

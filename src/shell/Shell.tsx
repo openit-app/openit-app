@@ -79,10 +79,6 @@ function sourceKey(s: ViewerSource): string {
       return `datastore-row:${s.collection.name}:${(s.item as { key?: string }).key ?? ""}`;
     case "datastore-schema":
       return `datastore-schema:${s.collection.name}`;
-    case "agent":
-      return `agent:${(s.agent as { name?: string }).name ?? ""}`;
-    case "workflow":
-      return `workflow:${(s.workflow as { name?: string }).name ?? ""}`;
     case "conversation-thread":
       return `conversation-thread:${s.ticketId}`;
     case "conversations-list":
@@ -138,10 +134,6 @@ function sourceLabel(s: ViewerSource, repo: string): string | null {
       return `database row in ${s.collection.name}`;
     case "datastore-schema":
       return `database schema: ${s.collection.name}`;
-    case "agent":
-      return `agent: ${(s.agent as { name?: string }).name ?? "unknown"}`;
-    case "workflow":
-      return `workflow: ${(s.workflow as { name?: string }).name ?? "unknown"}`;
     case "conversation-thread":
       return `ticket: ${s.ticketId}`;
     case "conversations-list":

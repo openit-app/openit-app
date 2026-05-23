@@ -8,7 +8,7 @@
 // The `rel` field on each tile is the repo-relative path that doubles as
 // the tile's identity (e.g. `databases/people`, `filestores/commands`,
 // `knowledge`). System primitives use their canonical paths too
-// (`agents`, `tools`, `traces`).
+// (`tools`, `traces`).
 
 import { fsRead, fsList, entityWriteFile, type FileNode } from "./api";
 import { isDirectChild } from "./paths";
@@ -58,7 +58,6 @@ export const DEFAULT_WORKSTATION_CONFIG: WorkstationConfig = {
     { rel: "filestores/scripts" },
     { rel: "filestores/library" },
     { rel: "filestores/attachments" },
-    { rel: "agents" },
     { rel: "tools" },
     { rel: "traces" },
     { rel: "reports" },
@@ -113,9 +112,15 @@ function rewriteLegacyRel(tile: TileConfig): TileConfig {
 /// pinned them before the change had them auto-discovered in `more`;
 /// after the change those tiles render with no data and confuse the
 /// admin. Strip on load instead of forcing a manual edit.
+///
+/// `agents` is also stripped — the workstation no longer surfaces
+/// agents as a primitive (CC is the only agent). The folder may still
+/// exist on disk (used by the backend intake server for the triage
+/// system prompt), but it's not a tile users browse.
 const DROPPED_PRIMITIVE_RELS = new Set([
   "databases",
   "filestores",
+  "agents",
 ]);
 
 function parseWorkstationConfig(raw: unknown): WorkstationConfig {
@@ -178,8 +183,12 @@ export interface DiscoveredTile {
 /// file explorer, not features they click on. Their sub-stores
 /// (People, Access, Scripts, Commands, ...) are surfaced as their
 /// own tiles instead, discovered below.
+///
+/// `agents` is intentionally absent — Claude Code is the only agent;
+/// the standalone Agents primitive was retired in the May 2026 tile
+/// reorg (PIN-6606). The `agents/` folder may still exist on disk
+/// for the backend triage prompt, but it has no tile.
 const SYSTEM_TILES: DiscoveredTile[] = [
-  { rel: "agents", label: "Agents", defaultIcon: "agents", defaultTone: "accent",  countMode: "files" },
   { rel: "tools",  label: "Tools",  defaultIcon: "tools",  defaultTone: "accent",  countMode: "custom" },
   { rel: "traces", label: "Traces", defaultIcon: "traces", defaultTone: "neutral", countMode: "dirs" },
 ];

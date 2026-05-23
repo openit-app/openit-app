@@ -52,18 +52,11 @@ export function sourceToTreePath(
     // Kinds without a stable tree node — leave the highlight cleared
     // rather than pin it to a stale row:
     //   - sync / diff: transient overlays
-    //   - agent / workflow / datastore-row / datastore-schema: row-level
-    //     detail views; the underlying file path isn't carried on the
     //   - agent-trace / agent-trace-list: live under the hidden
-    //     `traces/` directory which the explorer never
-    //     surfaces.
+    //     `traces/` directory which the explorer never surfaces.
     //   - datastore-row / datastore-schema: row-level detail views; the
     //     underlying file path isn't carried on the source.
     //   - tools: synthetic panel, no on-disk folder.
-    case "agent":
-    case "workflow":
-      return source.path;
-
     case "sync":
     case "diff":
     case "datastore-row":

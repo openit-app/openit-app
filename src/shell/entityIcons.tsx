@@ -20,9 +20,7 @@ export type EntityKind =
   | "filestores"
   | "library"
   | "attachments"
-  | "agents"
   | "databases"
-  | "workflows"
   | "tools"
   | "skills"
   | "commands"
@@ -371,9 +369,7 @@ export const ENTITY_META: Record<EntityKind, EntityMetaEntry> = {
   filestores:        { icon: FilesIcon,       tone: "neutral", label: "Filestores" },
   library:           { icon: FilesIcon,       tone: "neutral", label: "Library" },
   attachments:       { icon: AttachmentsIcon, tone: "neutral", label: "Attachments" },
-  agents:            { icon: AgentsIcon,      tone: "accent",  label: "Agents" },
   databases:         { icon: DatabasesIcon,   tone: "link",    label: "Databases" },
-  workflows:         { icon: WorkflowsIcon,   tone: "sage",    label: "Workflows" },
   tools:             { icon: ToolsIcon,       tone: "accent",  label: "Tools" },
   skills:            { icon: SkillsIcon,      tone: "ochre",   label: "Skills" },
   commands:          { icon: CommandsIcon,    tone: "accent",  label: "Commands" },

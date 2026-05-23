@@ -15,24 +15,9 @@ import { relUnderRepo } from "../../lib/paths";
 export const BRACKETED_PASTE_OPEN = "\x1b[200~";
 export const BRACKETED_PASTE_CLOSE = "\x1b[201~";
 
-/// Default model dropdown options. Mirrors the platform's set
-/// (`sonnet`, `haiku`, `opus`, `opus-low`); blank means "preserve cloud
-/// value" (omit-when-absent on push).
-export const AGENT_MODEL_OPTIONS = [
-  { value: "", label: "(use cloud default)" },
-  { value: "haiku", label: "haiku" },
-  { value: "sonnet", label: "sonnet" },
-  { value: "opus", label: "opus" },
-  { value: "opus-low", label: "opus-low" },
-];
-
-export const AGENT_TRIAGE_SUBDIR = "agents/triage";
-
 /// Title labels for the entity-folder view. Capital case for the title
 /// bar; the explorer rows use the lowercase folder names directly.
 export const ENTITY_FOLDER_LABELS: Record<
-  | "agents"
-  | "workflows"
   | "knowledge"
   | "knowledge-base"
   | "library"
@@ -42,8 +27,6 @@ export const ENTITY_FOLDER_LABELS: Record<
   | "attachments-ticket",
   string
 > = {
-  agents: "Agents",
-  workflows: "Workflows",
   knowledge: "Knowledge",
   "knowledge-base": "Knowledge",
   library: "Library",
@@ -57,8 +40,6 @@ export const ENTITY_FOLDER_LABELS: Record<
 /// conversations-list notice. Each message says what lives here, why it
 /// is empty, and the natural way to populate it.
 export const ENTITY_FOLDER_EMPTY_COPY: Record<
-  | "agents"
-  | "workflows"
   | "knowledge"
   | "knowledge-base"
   | "library"
@@ -68,10 +49,6 @@ export const ENTITY_FOLDER_EMPTY_COPY: Record<
   | "attachments-ticket",
   string
 > = {
-  agents:
-    "No agents yet. Agents are reusable Claude prompts (triage, onboarding, audits) that drive the workflows in this project. Ask Claude in the chat — \"draft an agent that triages tickets by urgency\" — and it will scaffold one here.",
-  workflows:
-    "No workflows yet. Workflows orchestrate agents and connections to automate IT work end-to-end. Ask Claude — \"build a workflow that escalates SLA breaches\" — and it will land a workflow file here.",
   knowledge:
     "No articles yet. This is your knowledge base — Claude reads these when answering tickets. Drop in markdown files, or ask Claude to write one.",
   "knowledge-base":

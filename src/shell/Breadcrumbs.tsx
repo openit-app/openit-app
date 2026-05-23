@@ -18,8 +18,6 @@ export type BreadcrumbSegment = {
 const TOP_LEVEL_FOLDERS: Record<string, { label: string; listPath: string }> = {
   filestores:        { label: "Filestores",  listPath: "filestores" },
   databases:         { label: "Databases",   listPath: "databases" },
-  agents:            { label: "Agents",      listPath: "agents" },
-  workflows:         { label: "Workflows",   listPath: "workflows" },
   "knowledge": { label: "Knowledge",   listPath: "knowledge" },
   reports:           { label: "Reports",     listPath: "reports" },
 };
@@ -111,7 +109,7 @@ export function breadcrumbSegments(
         { label: source.ticketId, navigateTo: null },
       ];
 
-    // ── Entity folders (agents, workflows, knowledge, etc.) ──────
+    // ── Entity folders (knowledge, reports, skills, scripts, etc.) ──────
     case "entity-folder": {
       const entityLabel = entityFolderLabel(source.entity);
       // If it's a sub-collection under filestores (library, skills, scripts,
@@ -129,20 +127,6 @@ export function breadcrumbSegments(
       }
       return [{ label: entityLabel, navigateTo: null }];
     }
-
-    // ── Agents ────────────────────────────────────────────────────
-    case "agent":
-      return [
-        { label: "Agents", navigateTo: "agents" },
-        { label: source.agent?.name ?? "Agent", navigateTo: null },
-      ];
-
-    // ── Workflows ─────────────────────────────────────────────────
-    case "workflow":
-      return [
-        { label: "Workflows", navigateTo: "workflows" },
-        { label: source.workflow?.name ?? "Workflow", navigateTo: null },
-      ];
 
     // ── People / Access / Assets (children of Databases primitive) ─
     case "people-list":
@@ -262,8 +246,6 @@ function filePathSegments(absPath: string, repo: string): BreadcrumbSegment[] {
 
 function entityFolderLabel(
   entity:
-    | "agents"
-    | "workflows"
     | "knowledge"
     | "knowledge-base"
     | "library"
@@ -273,8 +255,6 @@ function entityFolderLabel(
     | "attachments-ticket",
 ): string {
   switch (entity) {
-    case "agents":             return "Agents";
-    case "workflows":          return "Workflows";
     case "knowledge":
     case "knowledge-base":     return "Knowledge";
     case "library":            return "Library";

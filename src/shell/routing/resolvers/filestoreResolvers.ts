@@ -52,8 +52,6 @@ export async function resolveEntityFolder(
   rel: string,
   repo: string,
   entityType:
-    | "agents"
-    | "workflows"
     | "knowledge"
     | "knowledge-base"
     | "library"
@@ -70,37 +68,6 @@ export async function resolveEntityFolder(
       path: string;
       size: number | null;
     }[] = [];
-    // V3 agents: each agent is a single .md file in agents/.
-    // Display name = filename without extension. Description =
-    // first non-empty, non-heading line from the markdown.
-    if (rel === "agents") {
-      for (const n of nodes) {
-        if (n.is_dir) continue;
-        if (!isDirectChild(path, n.path)) continue;
-        if (!n.name.endsWith(".md")) continue;
-        if (n.name.includes(".server.")) continue;
-        const displayName = n.name.replace(/\.md$/, "");
-        let description = "";
-        try {
-          const raw = await fsRead(n.path);
-          // First non-empty line that isn't a heading
-          for (const line of raw.split("\n")) {
-            const trimmed = line.trim();
-            if (!trimmed || trimmed.startsWith("#")) continue;
-            description = trimmed.slice(0, 120);
-            break;
-          }
-        } catch { /* unreadable */ }
-        files.push({
-          name: n.name,
-          displayName,
-          description,
-          path: n.path,
-          size: null,
-        });
-      }
-      return { kind: "entity-folder", entity: entityType, files, path };
-    }
     for (const n of nodes) {
       if (n.is_dir) continue;
       // fs_list walks recursively (depth 6); keep only direct
@@ -112,26 +79,9 @@ export async function resolveEntityFolder(
       // would duplicate every entry under "<name>.server.json" /
       // "<name>.server.md" and aren't meant for direct viewing.
       if (n.name.includes(".server.")) continue;
-      let displayName = n.name.replace(/\.(json|md)$/, "");
+      const displayName = n.name.replace(/\.(json|md)$/, "");
       let description = "";
-      if (rel === "agents" || rel === "workflows") {
-        if (n.name.endsWith(".json")) {
-          try {
-            const raw = await fsRead(n.path);
-            const parsed = JSON.parse(raw);
-            if (parsed && typeof parsed === "object") {
-              if (typeof parsed.name === "string" && parsed.name.trim()) {
-                displayName = parsed.name.trim();
-              }
-              if (typeof parsed.description === "string") {
-                description = parsed.description.trim();
-              }
-            }
-          } catch {
-            /* unparseable -- keep filename-derived display name */
-          }
-        }
-      } else if (entityType === "knowledge-base" || entityType === "reports") {
+      if (entityType === "knowledge-base" || entityType === "reports") {
         // Pull the first heading or first non-empty line as a
         // description preview. Markdown files are the common case;
         // for non-markdown files we fall back to just the name.

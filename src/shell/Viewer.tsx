@@ -3,7 +3,7 @@ import ReactMarkdown, { defaultUrlTransform } from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { fsRead, fsReadBytes, fsList, fsReveal, reportOverviewRun, entityDeleteFile, entityRemoveDir } from "../lib/api";
 import { isUnderRepo, relUnderRepo, basename, dirname, fsNorm } from "../lib/paths";
-import type { MemoryItem, Agent } from "../lib/localTypes";
+import type { MemoryItem } from "../lib/localTypes";
 import { EntityCardGrid } from "./EntityCardGrid";
 import { EntityBadge, type EntityKind } from "./entityIcons";
 import { ToolsPanel } from "./ToolsPanel";
@@ -17,11 +17,6 @@ import {
   PdfViewer,
   SpreadsheetViewer,
   OfficeViewer,
-  AgentRenderedView,
-  AgentEditForm,
-  AgentRawView,
-  loadAgentEditState,
-  saveAgentEditDraft,
   BRACKETED_PASTE_OPEN,
   BRACKETED_PASTE_CLOSE,
   ENTITY_FOLDER_LABELS,
@@ -202,59 +197,6 @@ export function Viewer({
   // booleans, etc. round-trip without coercion until save.
   const [rowEditDraft, setRowEditDraft] = useState<Record<string, unknown>>({});
 
-  // Agent-edit draft + post-save override. Mirrors the rowEditDraft /
-  // rowOverride pattern but for the agent panel: draft holds the
-  // in-flight form values, override flips the rendered/raw view to the
-  // saved content without waiting for the FS watcher to re-read disk.
-  //
-  // V2 fans the draft across structured fields plus the three .md
-  // instruction blocks (common / cloud / local). The full triage.json
-  // payload is captured in `loadedJson` so `unknown array entries`
-  // (extra MCP servers, extra resources added on web) round-trip
-  // unchanged through Save.
-  const [agentEditDraft, setAgentEditDraft] = useState<{
-    description: string;
-    common: string;
-    cloud: string;
-    local: string;
-    selectedModel: string;
-    isShared: boolean;
-    promptExamples: string;
-    introMessage: string;
-    knowledgeBases: { name: string; canRead: boolean; canWrite: boolean; canDelete: boolean }[];
-    datastores: { name: string; canRead: boolean; canWrite: boolean; canDelete: boolean }[];
-    filestores: { name: string; canRead: boolean; canWrite: boolean; canDelete: boolean }[];
-    servers: { name: string; allTools: boolean }[];
-  }>({
-    description: "",
-    common: "",
-    cloud: "",
-    local: "",
-    selectedModel: "",
-    isShared: false,
-    promptExamples: "",
-    introMessage: "",
-    knowledgeBases: [],
-    datastores: [],
-    filestores: [],
-    servers: [],
-  });
-  // Snapshot of the original disk state at Edit-tab open. Save uses it
-  // to diff form fields against loaded values and write only changed
-  // files. Holds the full parsed JSON + each .md verbatim.
-  const [agentEditLoaded, setAgentEditLoaded] = useState<{
-    json: Record<string, unknown>;
-    common: string;
-    cloud: string;
-    local: string;
-  } | null>(null);
-  // Lists of cloud collections for the resource pickers — fetched on
-  // Edit-tab open. Empty until loaded.
-  const [agentEditKbs, setAgentEditKbs] = useState<string[] | null>(null);
-  const [agentEditDss, setAgentEditDss] = useState<string[] | null>(null);
-  const [agentEditFss, setAgentEditFss] = useState<string[] | null>(null);
-  const [agentOverride, setAgentOverride] = useState<Agent | null>(null);
-
   // Admin email for the conversation thread sub-viewer.
   const [adminEmail, setAdminEmail] = useState<string | null>(null);
   const [folderUploadError, setFolderUploadError] = useState<string | null>(null);
@@ -340,7 +282,6 @@ export function Viewer({
   }, [source]);
   // Reset on source change so a new click clears the previous override.
   useEffect(() => setRowOverride(null), [source]);
-  useEffect(() => setAgentOverride(null), [source]);
 
   useEffect(() => {
     setError(null);
@@ -446,16 +387,6 @@ export function Viewer({
     if (source.kind === "datastore-schema") {
       setMode("raw");
       setContent(JSON.stringify(source.collection.schema, null, 2));
-      return;
-    }
-    if (source.kind === "agent") {
-      setMode("rendered");
-      setContent("");
-      return;
-    }
-    if (source.kind === "workflow") {
-      setMode("rendered");
-      setContent("");
       return;
     }
     if (source.kind === "conversation-thread") {
@@ -626,7 +557,6 @@ export function Viewer({
     knowledge: "knowledge", "knowledge-base": "knowledge",
     reports: "reports", library: "filestores/library",
     scripts: "filestores/scripts", skills: "filestores/commands",
-    agents: "agents", workflows: "workflows",
     attachments: "filestores/attachments",
   };
   const sourceRel: string | null = (() => {
@@ -671,8 +601,6 @@ export function Viewer({
       case "datastore-schema":
         return "Schema";
       case "datastore-row": return `${source.item?.key || source.item?.id || "Row"}.json`;
-      case "agent": return source.agent?.name ?? "Agent";
-      case "workflow": return source.workflow?.name ?? "Workflow";
       case "conversation-thread": return source.ticketId;
       case "conversations-list": return "Inbox";
       case "entity-folder": {
@@ -717,7 +645,6 @@ export function Viewer({
     (source.path.includes("/filestores/commands/") ||
       source.path.includes("/.claude/skills/"));
   const showRowTabs = source.kind === "datastore-row";
-  const showAgentTabs = source.kind === "agent";
   const showPeopleTabs = source.kind === "people-list";
   const showAccessTabs = source.kind === "access-list";
   const showAssetsTabs = source.kind === "assets-list";
@@ -746,10 +673,9 @@ export function Viewer({
     if (source.kind === "datastore-schema")
       return `${repo}/databases/${source.collection.name}/_schema.json`;
     if (source.kind === "entity-folder") {
-      // Reports and agents don't need "add to chat" on the list view.
-      // Reports has its own header actions; agents' "add to chat"
-      // belongs on the individual agent file view, not the list.
-      if (source.entity === "reports" || source.entity === "agents") return null;
+      // Reports doesn't need "add to chat" on the list view — it has
+      // its own header actions.
+      if (source.entity === "reports") return null;
       return `${repo}/${source.path}`;
     }
     if (source.kind === "people-list") return null;
@@ -763,10 +689,6 @@ export function Viewer({
       return `${repo}/filestores`;
     if (source.kind === "conversations-list")
       return `${repo}/databases/conversations`;
-    if (source.kind === "agent")
-      return source.path;
-    if (source.kind === "workflow")
-      return `${repo}/workflows/${source.workflow.id || source.workflow.name}.json`;
     return null;
   })();
 
@@ -824,7 +746,7 @@ export function Viewer({
   // nothing behind).
   const newFileAffordance: { onCreate: () => void; title: string } | null =
     source && source.kind === "entity-folder" && repo &&
-    (source.entity === "scripts" || source.entity === "skills" || source.entity === "agents" || source.entity === "knowledge" || source.entity === "knowledge-base" || source.entity === "library")
+    (source.entity === "scripts" || source.entity === "skills" || source.entity === "knowledge" || source.entity === "knowledge-base" || source.entity === "library")
       ? (() => {
           const ext: "mjs" | "md" = source.entity === "scripts" ? "mjs" : "md";
           const subdirAbs = source.path;
@@ -833,13 +755,11 @@ export function Viewer({
             title:
               source.entity === "scripts"
                 ? "Draft a new script"
-                : source.entity === "agents"
-                  ? "Draft a new agent"
-                  : source.entity === "knowledge" || source.entity === "knowledge-base"
-                    ? "Draft a new article"
-                    : source.entity === "library"
-                      ? "Draft a new file"
-                      : "Draft a new skill",
+                : source.entity === "knowledge" || source.entity === "knowledge-base"
+                  ? "Draft a new article"
+                  : source.entity === "library"
+                    ? "Draft a new file"
+                    : "Draft a new skill",
             onCreate: () => {
               if (!onShowSource) return;
               // Pick the first free `untitled[-N].<ext>` against the
@@ -1450,129 +1370,6 @@ export function Viewer({
     }
 
 
-    // Agent viewer — raw JSON / edit form / rendered read-only view.
-    if (source.kind === "agent") {
-      const a: Agent = agentOverride ?? source.agent;
-
-      if (mode === "raw") {
-        return <AgentRawView agent={a} />;
-      }
-
-      if (mode === "edit") {
-        const onSave = async () => {
-          if (!repo) {
-            setEditError("Cannot save: no repo open.");
-            return;
-          }
-          setEditSaving(true);
-          setEditError(null);
-          try {
-            await saveAgentEditDraft({
-              repo,
-              draft: agentEditDraft,
-              loaded: agentEditLoaded,
-              agent: a,
-            });
-            setAgentOverride({
-              ...a,
-              description: agentEditDraft.description,
-              selectedModel: agentEditDraft.selectedModel || undefined,
-              isShared: agentEditDraft.isShared,
-              promptExamples: agentEditDraft.promptExamples
-                .split("\n")
-                .map((s) => s.trim())
-                .filter((s) => s.length > 0),
-              introMessage: agentEditDraft.introMessage || undefined,
-            });
-            setMode("rendered");
-          } catch (err) {
-            setEditError(
-              `Save failed: ${err instanceof Error ? err.message : String(err)}`,
-            );
-          } finally {
-            setEditSaving(false);
-          }
-        };
-        const onCancel = () => {
-          setEditError(null);
-          setMode("rendered");
-        };
-        return (
-          <AgentEditForm
-            draft={agentEditDraft}
-            onChange={setAgentEditDraft}
-            onSave={onSave}
-            onCancel={onCancel}
-            editSaving={editSaving}
-            editError={editError}
-            agentEditKbs={agentEditKbs}
-            agentEditDss={agentEditDss}
-            agentEditFss={agentEditFss}
-          />
-        );
-      }
-
-      // Default: rendered (read-only beautiful view).
-      return <AgentRenderedView agent={a} repo={repo} />;
-    }
-
-    // Workflow summary
-    if (source.kind === "workflow") {
-      const w = source.workflow;
-      return (
-        <div className="viewer-summary">
-          <h2>{w.name}</h2>
-          {w.description && <p className="summary-desc">{w.description}</p>}
-          {(() => {
-            const inputs = w.inputs as Array<{ name: string; type: string; required?: boolean }> | undefined;
-            return inputs && inputs.length > 0 ? (
-            <div className="summary-section">
-              <h3>Inputs</h3>
-              <table className="summary-table">
-                <thead>
-                  <tr><th>Name</th><th>Type</th><th>Required</th></tr>
-                </thead>
-                <tbody>
-                  {inputs.map((inp: { name: string; type: string; required?: boolean }, i: number) => (
-                    <tr key={i}>
-                      <td>{inp.name}</td>
-                      <td><code>{inp.type}</code></td>
-                      <td>{inp.required ? "Yes" : "No"}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-            ) : null;
-          })()}
-          {(() => {
-            const triggers = w.triggers as Array<{ name: string; url?: string }> | undefined;
-            return triggers && triggers.length > 0 ? (
-            <div className="summary-section">
-              <h3>Triggers</h3>
-              <ul>
-                {triggers.map((t: { name: string; url?: string }, i: number) => (
-                  <li key={i}>
-                    {t.name}
-                    {t.url && <code className="trigger-url">{t.url}</code>}
-                  </li>
-                ))}
-              </ul>
-            </div>
-            ) : null;
-          })()}
-          <div className="summary-section">
-            <h3>Details</h3>
-            <table className="summary-table">
-              <tbody>
-                <tr><td>ID</td><td><code>{w.id}</code></td></tr>
-              </tbody>
-            </table>
-          </div>
-        </div>
-      );
-    }
-
     // Conversations list — one clickable card per thread, sorted by
     // most-recent activity.
     if (source.kind === "conversations-list") {
@@ -2024,8 +1821,8 @@ export function Viewer({
       );
     }
 
-    // Generic top-level entity folder (agents/, workflows/, knowledge-
-    // base/, filestore/). Rendering delegated to EntityFolderBody.
+    // Generic top-level entity folder (knowledge-base/, filestore/).
+    // Rendering delegated to EntityFolderBody.
     if (source.kind === "entity-folder") {
       return (
         <EntityFolderBody
@@ -2557,43 +2354,6 @@ export function Viewer({
                     }
                   }
                   setRowEditDraft(parsed);
-                }
-                setEditError(null);
-                setMode("edit");
-              }}
-            >
-              Edit
-            </Tab>
-            <Tab
-              active={mode === "raw"}
-              onClick={() => setMode("raw")}
-            >
-              Raw
-            </Tab>
-          </TabStrip>
-        )}
-        {showAgentTabs && (
-          <TabStrip variant="segmented">
-            <Tab
-              active={mode === "rendered"}
-              onClick={() => setMode("rendered")}
-            >
-              View
-            </Tab>
-            <Tab
-              active={mode === "edit"}
-              onClick={() => {
-                if (mode !== "edit" && source.kind === "agent" && repo) {
-                  void loadAgentEditState({
-                    repo,
-                    source,
-                    agentOverride,
-                    setDraft: setAgentEditDraft,
-                    setLoaded: setAgentEditLoaded,
-                    setKbs: setAgentEditKbs,
-                    setDss: setAgentEditDss,
-                    setFss: setAgentEditFss,
-                  });
                 }
                 setEditError(null);
                 setMode("edit");
