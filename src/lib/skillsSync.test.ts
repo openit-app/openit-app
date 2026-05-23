@@ -176,6 +176,44 @@ describe("routeFile", () => {
     });
   });
 
+  describe("instructions/", () => {
+    // PIN-6614: the plugin CLAUDE.md is now an index that links to per-
+    // topic files under `instructions/`. Those files must land at
+    // `<repo>/instructions/<file>.md` so the relative links in the
+    // CLAUDE.md index resolve when Claude Code reads from the user's
+    // vault. The default-path-preservation rule already produces that
+    // mapping; this test locks the behavior so a future refactor of
+    // routeFile can't silently route `instructions/` elsewhere.
+    it("routes instructions/<file>.md to <repo>/instructions/<file>.md", () => {
+      expect(routeFile("instructions/command-authoring.md", slug)).toEqual({
+        subdir: "instructions",
+        filename: "command-authoring.md",
+        substituteSlug: false,
+      });
+    });
+
+    it("routes every instructions/* topic file consistently", () => {
+      const topics = [
+        "vault-layout",
+        "command-authoring",
+        "knowledge-conventions",
+        "tool-calling",
+        "auto-vs-ask",
+        "communication-style",
+        "ui-side-channels",
+        "commands-reference",
+      ];
+      for (const topic of topics) {
+        const r = routeFile(`instructions/${topic}.md`, slug);
+        expect(r).toEqual({
+          subdir: "instructions",
+          filename: `${topic}.md`,
+          substituteSlug: false,
+        });
+      }
+    });
+  });
+
   describe("slug parameter", () => {
     it("ignores slug for schemas (output is slug-free)", () => {
       const r = routeFile("schemas/tickets._schema.json", "any-slug-here");
