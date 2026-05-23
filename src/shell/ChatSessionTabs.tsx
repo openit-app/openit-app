@@ -86,9 +86,12 @@ export function nextDefaultLabel(existing: ChatSessionMeta[]): string {
   return `Session ${n}`;
 }
 
-/// Build the initial tab state for a given cwd. Reused on first mount and
-/// on every cwd-change to keep the render output and the active session id
-/// strictly consistent with the cwd we're handing the ChatPane children.
+/// Build the initial tab state for a given cwd. Pure: no I/O beyond the
+/// localStorage read (`loadTabs`), no UUID generation, no persistence
+/// writes — those side effects move to a post-commit effect so render
+/// stays safe under StrictMode double-invocation and concurrent rendering.
+/// Returns `tabs: []` when the persisted set is empty; the seed effect
+/// fills it once on commit.
 function initTabState(cwd: string | null): {
   cwd: string | null;
   tabs: ChatSessionMeta[];
@@ -98,16 +101,11 @@ function initTabState(cwd: string | null): {
     return { cwd, tabs: [], activeId: null };
   }
   const loaded = loadTabs(cwd);
-  if (loaded.length === 0) {
-    const seed: ChatSessionMeta = {
-      id: newSessionId(),
-      label: "Session 1",
-      resume: false,
-    };
-    persistTabs(cwd, [seed]);
-    return { cwd, tabs: [seed], activeId: seed.id };
-  }
-  return { cwd, tabs: loaded, activeId: loaded[0].id };
+  return {
+    cwd,
+    tabs: loaded,
+    activeId: loaded[0]?.id ?? null,
+  };
 }
 
 export interface ChatSessionTabsHandle {
@@ -169,11 +167,35 @@ export function ChatSessionTabs({ cwd, registerHandle }: ChatSessionTabsProps) {
     [],
   );
 
+  // Seed effect: when a real cwd has no persisted tabs, mint a fresh
+  // Session 1 here (in commit phase) rather than during render. Side
+  // effects in initTabState (UUID generation, persistTabs write) would
+  // misbehave under React's contract for pure render — StrictMode dev
+  // double-invocation would mint two UUIDs and the rogue one would
+  // leak into localStorage on the wrong tick. Doing it here keeps
+  // render pure and idempotent.
+  useEffect(() => {
+    if (!cwd) return;
+    if (tabs.length > 0) return;
+    setTabState((prev) => {
+      // Re-check under the latest state to avoid double-seed if two
+      // commits race (e.g. cwd change immediately followed by a remount).
+      if (prev.cwd !== cwd || prev.tabs.length > 0) return prev;
+      const seed: ChatSessionMeta = {
+        id: newSessionId(),
+        label: "Session 1",
+        resume: false,
+      };
+      return { cwd, tabs: [seed], activeId: seed.id };
+    });
+  }, [cwd, tabs.length]);
+
   // Persist on every change. Keep this effect-driven (rather than baked
   // into every setTabs call) so all mutation paths — add, close, rename
   // — automatically pick up persistence.
   useEffect(() => {
     if (!cwd) return;
+    if (tabs.length === 0) return; // don't overwrite stored set with empty seed gap
     persistTabs(cwd, tabs);
   }, [cwd, tabs]);
 
@@ -279,13 +301,20 @@ export function ChatSessionTabs({ cwd, registerHandle }: ChatSessionTabsProps) {
       const target = tabs[n - 1];
       if (!target) return;
       e.preventDefault();
+      // Stop propagation so xterm's keydown handler (registered on the
+      // terminal element via term.attachCustomKeyEventHandler) never sees
+      // the digit and never forwards it as input to the running CC PTY.
+      e.stopPropagation();
       setActiveId(target.id);
     };
-    // Listen at bubble phase (not capture) so a focused editable that
-    // explicitly preventDefaults the key wins — matches every other app
-    // shortcut convention.
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
+    // Capture phase so xterm's own keydown listener never gets a chance
+    // to forward the digit into the running CC process. Without capture,
+    // pressing Cmd+1 while tab 2's xterm is focused fires the switch AND
+    // pipes a stray '1' into tab 2's prompt before we tear down. The
+    // editable-target guard above keeps the shortcut from hijacking a
+    // focused input/textarea/contenteditable elsewhere in the app.
+    window.addEventListener("keydown", onKey, true);
+    return () => window.removeEventListener("keydown", onKey, true);
   }, [tabs, setActiveId]);
 
   const onTitleChangeFor = useMemo(() => {
@@ -311,14 +340,19 @@ export function ChatSessionTabs({ cwd, registerHandle }: ChatSessionTabsProps) {
         {tabs.map((t) => {
           const active = t.id === activeId;
           return (
-            <div
+            // The tab itself MUST carry role="tab" + aria-selected and be
+            // the focusable element — per WAI-ARIA, putting role="tab" on a
+            // non-focusable wrapper breaks screen-reader tablist navigation
+            // (VoiceOver/NVDA arrow-key model). The close button sits next
+            // to the tab (not nested inside it) for the same reason.
+            <span
               key={t.id}
               className={`chat-tab${active ? " chat-tab-active" : ""}`}
-              role="tab"
-              aria-selected={active}
             >
               <button
                 type="button"
+                role="tab"
+                aria-selected={active}
                 className="chat-tab-label"
                 onClick={() => setActiveId(t.id)}
                 title={t.label}
@@ -339,7 +373,7 @@ export function ChatSessionTabs({ cwd, registerHandle }: ChatSessionTabsProps) {
                   ×
                 </button>
               )}
-            </div>
+            </span>
           );
         })}
         <button

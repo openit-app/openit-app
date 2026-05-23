@@ -78,6 +78,18 @@ describe("ChatSessionTabs persistence helpers", () => {
     localStorage.setItem(`openit:chat-tabs:${REPO}`, "{not json");
     expect(loadTabs(REPO)).toEqual([]);
   });
+
+  it("seeded Session 1 lands in localStorage after the post-commit effect", async () => {
+    // Seed is minted in an effect, not during render — so an immediate
+    // localStorage read after a fresh mount must reflect the seeded tab.
+    render(<ChatSessionTabs cwd={REPO} />);
+    await act(async () => {
+      await new Promise((r) => setTimeout(r, 0));
+    });
+    const stored = loadTabs(REPO);
+    expect(stored).toHaveLength(1);
+    expect(stored[0].label).toBe("Session 1");
+  });
 });
 
 describe("ChatSessionTabs component", () => {
