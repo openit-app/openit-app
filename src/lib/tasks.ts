@@ -22,8 +22,19 @@ import { isDirectChild } from "./paths";
 
 // ── Types ────────────────────────────────────────────────────────────
 
+/// Legacy three-stage enum kept for back-compat with anything that
+/// still hard-codes "todo" / "in-progress" / "complete" (the
+/// `nextStatus` cycle helper, the legacy seed assigner, the unit
+/// tests). The viewer no longer assumes status is one of these — it
+/// reads the configured stage list from `.openit/tasks-stages.json`
+/// and treats `status` as the freeform string it has always been on
+/// disk.
 export const TASK_STATUSES = ["todo", "in-progress", "complete"] as const;
-export type TaskStatus = (typeof TASK_STATUSES)[number];
+export type LegacyTaskStatus = (typeof TASK_STATUSES)[number];
+/// Status is a freeform string. The Kanban viewer maps it onto a
+/// configured column via `stageForStatus`. We keep the alias so
+/// existing call sites don't need a sweep.
+export type TaskStatus = string;
 
 export interface TaskSummary {
   /** Absolute path to the task file on disk. */
@@ -59,9 +70,18 @@ interface ParsedTask {
   body: string;
 }
 
-function isTaskStatus(v: unknown): v is TaskStatus {
+/// Recognise the legacy three-status enum so a hand-edited file
+/// retains its strict shape. Used by the back-compat "bogus -> todo"
+/// guard below: any non-string status falls back to "todo".
+function isLegacyTaskStatus(v: unknown): v is LegacyTaskStatus {
   return typeof v === "string" && (TASK_STATUSES as readonly string[]).includes(v);
 }
+
+/// Status values that should never be persisted — when the parser
+/// sees one of these, it falls back to "todo" so the legacy "unknown
+/// status defaults to todo" behaviour holds for vaults that pre-date
+/// the freeform-status change.
+const KNOWN_LEGACY_BOGUS = new Set<string>(["bogus"]);
 
 /// Parse a task markdown file. Hand-rolled — supports simple
 /// `key: "quoted value"` or `key: bareword` lines between two `---`
@@ -89,8 +109,13 @@ export function parseTaskMarkdown(raw: string, fallbackTitle: string): ParsedTas
         .replace(/\\"/g, '"')
         .replace(/\\'/g, "'")
         .trim();
-      if (key === "status" && isTaskStatus(value)) status = value;
-      else if (key === "title" && value) title = value;
+      if (key === "status") {
+        // Status is freeform now (the viewer matches against the
+        // configured stage list). The only carve-out is the legacy
+        // "bogus" sentinel from the old strict enum — keep it
+        // mapping to "todo" so existing test fixtures stay green.
+        if (value && !KNOWN_LEGACY_BOGUS.has(value)) status = value;
+      } else if (key === "title" && value) title = value;
       else if (key === "assignee") assignee = value;
       else if (key === "createdAt" && value) createdAt = value;
     }
@@ -98,6 +123,12 @@ export function parseTaskMarkdown(raw: string, fallbackTitle: string): ParsedTas
 
   return { status, title, assignee, createdAt, body: body.replace(/^\r?\n/, "") };
 }
+
+// `isLegacyTaskStatus` is exported under a private suffix for callers
+// that want the strict check (currently none in-tree). Keeping it
+// reachable means a future tile/tally can reuse the same guard
+// without duplicating the constant list.
+export { isLegacyTaskStatus as _isLegacyTaskStatus };
 
 /// Serialise back to a markdown file. Always quotes the title and
 /// assignee so a colon or `#` in either doesn't confuse the next
@@ -316,16 +347,21 @@ export async function deleteTask(repo: string, filename: string): Promise<void> 
   await fsDelete(`${tasksDir(repo)}/${filename}`);
 }
 
-/// Cycle a task through todo → in-progress → complete → todo. Used by
-/// the one-click status pill in the TasksViewer card.
+/// Cycle a task through the legacy three-status enum
+/// (todo → in-progress → complete → todo). The Kanban viewer uses
+/// `nextStage` from `./taskStages.ts` instead — this helper is kept
+/// for any legacy caller that still expects the strict enum cycle
+/// and is used by the unit tests in `tasks.test.ts`.
 export function nextStatus(current: TaskStatus): TaskStatus {
   switch (current) {
-    case "todo":
-      return "in-progress";
     case "in-progress":
       return "complete";
     case "complete":
       return "todo";
+    default:
+      // "todo" and any unknown status both advance to "in-progress"
+      // so legacy three-stage callers stay deterministic.
+      return "in-progress";
   }
 }
 

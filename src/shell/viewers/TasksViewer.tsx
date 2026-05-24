@@ -1,14 +1,17 @@
 /// TasksViewer — Kanban board for the Tasks primitive.
 ///
-/// Three columns (Todo / In Progress / Complete) holding cards. A top
-/// composer row creates new tasks; a chip row below it filters the
-/// board by assignee. Cards are keyboard-focusable, click to open in
-/// the markdown viewer, hover to reveal trash + status pill.
+/// Columns are driven by `.openit/tasks-stages.json` (loaded via
+/// `loadStages`). A top composer row creates new tasks; a chip row
+/// below it filters the board by assignee. Cards are draggable
+/// between columns to change status — native HTML5 drag-drop, no
+/// library — and clicking a card opens it in the markdown viewer.
 ///
-/// Replaces the prior flat-list grouping which had read as a regression
-/// from the older Tickets UI.
+/// Tasks whose `status` doesn't match any configured stage land in a
+/// synthetic "Unsorted" column appended on the right (only rendered
+/// when non-empty) so a typo or a deleted stage never silently drops
+/// a task from view.
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Button } from "../../ui";
 import { TrashIcon } from "../TrashIcon";
 import { confirmDelete } from "./viewerHelpers";
@@ -16,12 +19,16 @@ import { globalUserName } from "../../lib/api";
 import {
   createTask,
   deleteTask,
-  nextStatus,
   updateTaskAssignee,
   updateTaskStatus,
-  type TaskStatus,
   type TaskSummary,
 } from "../../lib/tasks";
+import {
+  DEFAULT_STAGES,
+  UNSORTED_STAGE,
+  loadStages,
+  stageForStatus,
+} from "../../lib/taskStages";
 
 interface TasksViewerProps {
   tasks: TaskSummary[];
@@ -31,14 +38,6 @@ interface TasksViewerProps {
   /** Re-fetch the list after a mutation (delete, status change, new). */
   onChanged: () => void;
 }
-
-const STATUS_LABEL: Record<TaskStatus, string> = {
-  "todo": "Todo",
-  "in-progress": "In Progress",
-  "complete": "Complete",
-};
-
-const STATUS_ORDER: TaskStatus[] = ["todo", "in-progress", "complete"];
 
 /// Module-level cache for the user's git name — read once per app
 /// session. The Tauri command shells out to git, which is fast but not
@@ -64,6 +63,17 @@ async function resolveDefaultAssignee(): Promise<string> {
 const FILTER_ALL = "__all__";
 const FILTER_MINE = "__mine__";
 
+/// Drag pixel threshold — pointer must move more than this between
+/// pointerdown and the corresponding click for the click to be
+/// suppressed. Five pixels is the conventional "is this a drag or a
+/// fidget" threshold; matches what most native UI toolkits use.
+const DRAG_SUPPRESS_THRESHOLD_PX = 5;
+
+/// MIME-ish key for the drag payload. `text/plain` is the safest
+/// fallback across browsers + Tauri's WebKit/WebView2 (custom MIME
+/// types occasionally drop on cross-frame drags).
+const DRAG_MIME = "text/plain";
+
 function formatTimestamp(iso: string): string {
   if (!iso) return "";
   const d = new Date(iso);
@@ -77,10 +87,32 @@ function formatTimestamp(iso: string): string {
 export function TasksViewer({ tasks, repo, onOpenTask, onChanged }: TasksViewerProps) {
   const [newTitle, setNewTitle] = useState("");
   const [newAssignee, setNewAssignee] = useState("");
-  const [newStatus, setNewStatus] = useState<TaskStatus>("todo");
   const [defaultAssignee, setDefaultAssignee] = useState("");
   const [creating, setCreating] = useState(false);
   const [assigneeFilter, setAssigneeFilter] = useState<string>(FILTER_ALL);
+  const [stages, setStages] = useState<string[]>(() => [...DEFAULT_STAGES]);
+  const [newStatus, setNewStatus] = useState<string>(DEFAULT_STAGES[0]);
+  const [dragHoverStage, setDragHoverStage] = useState<string | null>(null);
+
+  // Load the configured stage list on mount. Re-runs when `tasks`
+  // changes since the parent re-fetches on `fsTick` bumps — that
+  // already covers the "CC edited tasks-stages.json out-of-band" path
+  // because any file change in the vault flips `fsTick`. Cheaper than
+  // wiring `fsTick` through as a prop just to mirror the reload.
+  useEffect(() => {
+    let cancelled = false;
+    void loadStages(repo).then((loaded) => {
+      if (cancelled) return;
+      setStages(loaded);
+      // Keep the composer's default stage in sync — if the user has
+      // already picked a custom one that's still valid, leave it
+      // alone, otherwise snap to the first configured stage.
+      setNewStatus((current) => (loaded.includes(current) ? current : loaded[0] ?? DEFAULT_STAGES[0]));
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [repo, tasks]);
 
   // Resolve the default assignee once on mount. Once it lands, seed
   // the composer's assignee field (only if the user hasn't started
@@ -127,12 +159,24 @@ export function TasksViewer({ tasks, repo, onOpenTask, onChanged }: TasksViewerP
     return tasks.filter((t) => t.assignee.trim() === assigneeFilter);
   }, [tasks, assigneeFilter, defaultAssignee]);
 
-  const grouped: Record<TaskStatus, TaskSummary[]> = {
-    todo: [],
-    "in-progress": [],
-    complete: [],
-  };
-  for (const t of filteredTasks) grouped[t.status].push(t);
+  // Bucket filtered tasks into the configured stages plus the
+  // synthetic "Unsorted" overflow. We always allocate buckets for
+  // every configured stage so empty columns still render — that's
+  // what gives the user a drop target for stages they haven't filled
+  // yet. The "Unsorted" bucket is only shown when non-empty.
+  const buckets = useMemo(() => {
+    const map = new Map<string, TaskSummary[]>();
+    for (const stage of stages) map.set(stage, []);
+    map.set(UNSORTED_STAGE, []);
+    for (const t of filteredTasks) {
+      const stage = stageForStatus(t.status, stages);
+      const bucket = map.get(stage);
+      if (bucket) bucket.push(t);
+    }
+    return map;
+  }, [filteredTasks, stages]);
+
+  const unsortedCount = buckets.get(UNSORTED_STAGE)?.length ?? 0;
 
   const createNew = async () => {
     const title = newTitle.trim();
@@ -146,28 +190,12 @@ export function TasksViewer({ tasks, repo, onOpenTask, onChanged }: TasksViewerP
       // without the user re-typing. Don't blank it — that would force
       // the user to retype their own name for every task.
       setNewAssignee(defaultAssignee);
-      setNewStatus("todo");
+      setNewStatus(stages[0] ?? DEFAULT_STAGES[0]);
       onChanged();
     } catch (err) {
       console.error("[tasks] create failed:", err);
     } finally {
       setCreating(false);
-    }
-  };
-
-  const cycleStatus = async (task: TaskSummary) => {
-    try {
-      // Hand `nextStatus` itself in as the resolver so the write side
-      // re-reads the current status from disk before advancing. Without
-      // this, three rapid clicks on a `todo` row all close over the
-      // stale `task.status === "todo"` prop snapshot and all collapse
-      // into a single `in-progress` transition — the second and third
-      // clicks "vanish".
-      await updateTaskStatus(repo, task.filename, nextStatus);
-      onChanged();
-    } catch (err) {
-      console.error("[tasks] status update failed:", err);
-      onChanged();
     }
   };
 
@@ -184,6 +212,27 @@ export function TasksViewer({ tasks, repo, onOpenTask, onChanged }: TasksViewerP
       console.error("[tasks] delete failed:", err);
     }
   };
+
+  /// Drop handler — fires when the user releases a dragged card over
+  /// a stage column. Writes the new stage as the task's status and
+  /// triggers a parent re-fetch. No-op when the dropped task already
+  /// belongs to that stage (avoids a needless disk write + churn).
+  const handleDrop = useCallback(
+    async (stage: string, filename: string) => {
+      setDragHoverStage(null);
+      if (!filename) return;
+      const task = tasks.find((t) => t.filename === filename);
+      if (task && stageForStatus(task.status, stages) === stage) return;
+      try {
+        await updateTaskStatus(repo, filename, () => stage);
+        onChanged();
+      } catch (err) {
+        console.error("[tasks] drop status update failed:", err);
+        onChanged();
+      }
+    },
+    [tasks, stages, repo, onChanged],
+  );
 
   return (
     <div className="tasks-viewer">
@@ -226,12 +275,12 @@ export function TasksViewer({ tasks, repo, onOpenTask, onChanged }: TasksViewerP
           <select
             className="tasks-input tasks-input-status"
             value={newStatus}
-            onChange={(e) => setNewStatus(e.target.value as TaskStatus)}
+            onChange={(e) => setNewStatus(e.target.value)}
             disabled={creating}
             aria-label="Initial status for the new task"
           >
-            {STATUS_ORDER.map((s) => (
-              <option key={s} value={s}>{STATUS_LABEL[s]}</option>
+            {stages.map((s) => (
+              <option key={s} value={s}>{s}</option>
             ))}
           </select>
           <Button
@@ -292,45 +341,154 @@ export function TasksViewer({ tasks, repo, onOpenTask, onChanged }: TasksViewerP
         </div>
       </div>
 
-      {/* Kanban board — three equal-width columns, each independently
-         scrollable when content overflows. Empty columns show a greyed
-         "No tasks" line so the column never reads as a broken empty box. */}
+      {/* Kanban board — one column per configured stage. Each column
+         is its own drop target. Empty columns still render so the
+         user can drop a card into a stage that doesn't have anything
+         in it yet. The synthetic "Unsorted" column only appears when
+         non-empty (otherwise the board would have a permanently empty
+         column trailing every legitimate stage). */}
       <div className="tasks-kanban">
-        {STATUS_ORDER.map((status) => {
-          const items = grouped[status];
+        {stages.map((stage) => {
+          const items = buckets.get(stage) ?? [];
           return (
-            <section
-              key={status}
-              className={`tasks-column tasks-column-${status}`}
-              aria-label={`${STATUS_LABEL[status]} column`}
-            >
-              <header className="tasks-column-header">
-                <span className={`tasks-column-dot tasks-status-${status}`} aria-hidden />
-                <span className="tasks-column-title">{STATUS_LABEL[status]}</span>
-                <span className="tasks-column-count">{items.length}</span>
-              </header>
-              <div className="tasks-column-body">
-                {items.length === 0 ? (
-                  <p className="tasks-column-empty">No tasks</p>
-                ) : (
-                  items.map((task) => (
-                    <TaskCard
-                      key={task.filename}
-                      task={task}
-                      repo={repo}
-                      onOpen={() => void onOpenTask(task.path)}
-                      onCycle={() => void cycleStatus(task)}
-                      onAssigneeChanged={onChanged}
-                      onDelete={() => void remove(task)}
-                    />
-                  ))
-                )}
-              </div>
-            </section>
+            <StageColumn
+              key={stage}
+              stage={stage}
+              items={items}
+              repo={repo}
+              isDragHover={dragHoverStage === stage}
+              isDroppable
+              onDragEnter={() => setDragHoverStage(stage)}
+              onDragLeave={(target) => {
+                // Only clear when leaving the column itself, not when
+                // crossing between child cards (which fire dragleave
+                // on the column too).
+                if (target === stage) setDragHoverStage(null);
+              }}
+              onDrop={(filename) => void handleDrop(stage, filename)}
+              onOpenTask={onOpenTask}
+              onAssigneeChanged={onChanged}
+              onDeleteTask={(task) => void remove(task)}
+            />
           );
         })}
+        {unsortedCount > 0 && (
+          <StageColumn
+            key={UNSORTED_STAGE}
+            stage={UNSORTED_STAGE}
+            items={buckets.get(UNSORTED_STAGE) ?? []}
+            repo={repo}
+            isDragHover={false}
+            // Not droppable — dropping here would write the literal
+            // string "Unsorted" as a status, which isn't a real
+            // stage. Users should drop into a configured column.
+            isDroppable={false}
+            onDragEnter={() => undefined}
+            onDragLeave={() => undefined}
+            onDrop={() => undefined}
+            onOpenTask={onOpenTask}
+            onAssigneeChanged={onChanged}
+            onDeleteTask={(task) => void remove(task)}
+          />
+        )}
       </div>
     </div>
+  );
+}
+
+// ── StageColumn ──────────────────────────────────────────────────────
+
+interface StageColumnProps {
+  stage: string;
+  items: TaskSummary[];
+  repo: string;
+  isDragHover: boolean;
+  isDroppable: boolean;
+  onDragEnter: () => void;
+  onDragLeave: (stage: string) => void;
+  onDrop: (filename: string) => void;
+  onOpenTask: (path: string) => void | Promise<void>;
+  onAssigneeChanged: () => void;
+  onDeleteTask: (task: TaskSummary) => void;
+}
+
+function StageColumn({
+  stage,
+  items,
+  repo,
+  isDragHover,
+  isDroppable,
+  onDragEnter,
+  onDragLeave,
+  onDrop,
+  onOpenTask,
+  onAssigneeChanged,
+  onDeleteTask,
+}: StageColumnProps) {
+  return (
+    <section
+      className={`tasks-column${isDragHover ? " tasks-column-drop-target" : ""}`}
+      aria-label={`${stage} column`}
+    >
+      <header className="tasks-column-header">
+        <span className="tasks-column-title">{stage}</span>
+        <span className="tasks-column-count">{items.length}</span>
+      </header>
+      <div
+        className="tasks-column-body"
+        // Drag-drop wiring — `onDragOver` MUST call preventDefault
+        // for the drop event to fire at all (browser default is to
+        // refuse the drop). `onDragEnter` flips the hover highlight;
+        // `onDragLeave` clears it. We pass `stage` to onDragLeave so
+        // the parent can ignore leave events from child cards.
+        onDragOver={
+          isDroppable
+            ? (e) => {
+                e.preventDefault();
+                e.dataTransfer.dropEffect = "move";
+              }
+            : undefined
+        }
+        onDragEnter={isDroppable ? () => onDragEnter() : undefined}
+        onDragLeave={
+          isDroppable
+            ? (e) => {
+                // currentTarget is the column body; relatedTarget is
+                // wherever the pointer just entered. If it's still
+                // inside the column, ignore — we only want to clear
+                // when the pointer truly leaves.
+                const next = e.relatedTarget as Node | null;
+                if (next && e.currentTarget.contains(next)) return;
+                onDragLeave(stage);
+              }
+            : undefined
+        }
+        onDrop={
+          isDroppable
+            ? (e) => {
+                e.preventDefault();
+                const filename = e.dataTransfer.getData(DRAG_MIME);
+                onDrop(filename);
+              }
+            : undefined
+        }
+      >
+        {items.length === 0 ? (
+          <p className="tasks-column-empty">No tasks</p>
+        ) : (
+          items.map((task) => (
+            <TaskCard
+              key={task.filename}
+              task={task}
+              repo={repo}
+              onOpen={() => void onOpenTask(task.path)}
+              onAssigneeChanged={onAssigneeChanged}
+              onDelete={() => onDeleteTask(task)}
+            />
+          ))
+        )}
+      </div>
+    </section>
   );
 }
 
@@ -340,38 +498,79 @@ interface TaskCardProps {
   task: TaskSummary;
   repo: string;
   onOpen: () => void;
-  onCycle: () => void;
   onAssigneeChanged: () => void;
   onDelete: () => void;
 }
 
-function TaskCard({ task, repo, onOpen, onCycle, onAssigneeChanged, onDelete }: TaskCardProps) {
+function TaskCard({ task, repo, onOpen, onAssigneeChanged, onDelete }: TaskCardProps) {
   const ts = formatTimestamp(task.createdAt);
+  // Track where the pointer was when the user pressed down so we can
+  // distinguish a click (open the task) from a drag (move it). If the
+  // pointer moves more than DRAG_SUPPRESS_THRESHOLD_PX between down
+  // and up, we treat the gesture as a drag and suppress the click —
+  // without this, every drop also opens the task in the markdown
+  // viewer, which is noisy and breaks the user's mental model.
+  const pointerDown = useRef<{ x: number; y: number } | null>(null);
+  const [isDragging, setIsDragging] = useState(false);
+  const suppressClick = useRef(false);
+
   return (
-    <div className="tasks-card-wrapper">
+    <div
+      className={`tasks-card-wrapper${isDragging ? " tasks-card-dragging" : ""}`}
+      // `draggable` on the wrapper (rather than the inner button)
+      // because the wrapper hosts the trash button + assignee chip
+      // as siblings of the card — we want the whole card surface to
+      // be a drag handle, including the area around the chip.
+      draggable
+      onDragStart={(e) => {
+        e.dataTransfer.setData(DRAG_MIME, task.filename);
+        e.dataTransfer.effectAllowed = "move";
+        setIsDragging(true);
+        // Always suppress the next click after a drag start — even
+        // if the pointer barely moved, the drag itself is the
+        // intent. Cleared on the next pointerdown.
+        suppressClick.current = true;
+      }}
+      onDragEnd={() => {
+        setIsDragging(false);
+        // Clear the suppression flag a tick later so the click
+        // event (which fires after dragend) sees it set.
+        setTimeout(() => {
+          suppressClick.current = false;
+        }, 0);
+      }}
+      onPointerDown={(e) => {
+        pointerDown.current = { x: e.clientX, y: e.clientY };
+        suppressClick.current = false;
+      }}
+      onPointerUp={(e) => {
+        const start = pointerDown.current;
+        pointerDown.current = null;
+        if (!start) return;
+        const dx = e.clientX - start.x;
+        const dy = e.clientY - start.y;
+        if (Math.hypot(dx, dy) > DRAG_SUPPRESS_THRESHOLD_PX) {
+          suppressClick.current = true;
+        }
+      }}
+    >
       <button
         type="button"
-        className={`tasks-card${task.status === "complete" ? " tasks-card-done" : ""}`}
-        onClick={onOpen}
-        title="Open this task"
+        className="tasks-card"
+        onClick={(e) => {
+          if (suppressClick.current) {
+            e.preventDefault();
+            return;
+          }
+          onOpen();
+        }}
+        title="Open this task (drag to change status)"
       >
         <span className="tasks-card-title">{task.title}</span>
         <span className="tasks-card-meta">
           <AssigneeChip task={task} repo={repo} onChanged={onAssigneeChanged} />
           {ts && <span className="tasks-card-ts">{ts}</span>}
         </span>
-      </button>
-      <button
-        type="button"
-        className={`tasks-card-status tasks-status-${task.status}`}
-        onClick={(e) => {
-          e.stopPropagation();
-          onCycle();
-        }}
-        title="Click to advance status"
-        aria-label={`Status: ${STATUS_LABEL[task.status]}. Click to cycle.`}
-      >
-        {STATUS_LABEL[task.status]}
       </button>
       <Button
         variant="ghost"
