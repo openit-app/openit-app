@@ -37,24 +37,28 @@ beforeEach(() => {
 });
 
 describe("default config", () => {
-  it("ships exactly the 8 primitives in main with empty more", () => {
+  it("ships 3 primitives in main and the other 5 in more by default", () => {
     expect(DEFAULT_WORKSTATION_CONFIG.main.map((t) => t.rel)).toEqual([
       "tasks",
       "knowledge",
       "filestores/commands",
+    ]);
+    expect(DEFAULT_WORKSTATION_CONFIG.more.map((t) => t.rel)).toEqual([
       "reports",
       "filestores",
       "databases",
       "tools",
       "traces",
     ]);
-    expect(DEFAULT_WORKSTATION_CONFIG.more).toEqual([]);
+    // Default-more primitives ship as userPinned so they survive resets.
+    expect(DEFAULT_WORKSTATION_CONFIG.more.every((t) => t.userPinned === true)).toBe(true);
   });
 
-  it("PRIMITIVE_RELS matches the default main", () => {
-    expect([...PRIMITIVE_RELS]).toEqual(
-      DEFAULT_WORKSTATION_CONFIG.main.map((t) => t.rel),
-    );
+  it("PRIMITIVE_RELS is the union of main + more primitives", () => {
+    expect([...PRIMITIVE_RELS]).toEqual([
+      ...DEFAULT_WORKSTATION_CONFIG.main.map((t) => t.rel),
+      ...DEFAULT_WORKSTATION_CONFIG.more.map((t) => t.rel),
+    ]);
   });
 
   it("isPrimitiveRel rejects sub-store rels", () => {
@@ -88,23 +92,22 @@ describe("loadWorkstationConfig — reset triggers", () => {
     mockedFsRead.mockResolvedValue(JSON.stringify(legacy));
 
     const cfg = await loadWorkstationConfig("/repo");
-    expect(cfg.main.map((t) => t.rel)).toEqual([...PRIMITIVE_RELS]);
+    expect(cfg.main.map((t) => t.rel)).toEqual(
+      DEFAULT_WORKSTATION_CONFIG.main.map((t) => t.rel),
+    );
     // Persisted so subsequent loads skip the migration.
     expect(mockedEntityWriteFile).toHaveBeenCalledTimes(1);
   });
 
-  it("appends missing primitives without wiping the existing order", async () => {
+  it("appends missing main primitives without wiping the existing order", async () => {
     // User had a subset of primitives (no `tools`, no `traces`). They
     // didn't add anything weird, just lost a few — fill the gaps while
     // preserving their order.
+    // User had a subset of MAIN primitives (missing `filestores/commands`).
     const partial: WorkstationConfig = {
       main: [
         { rel: "tasks" },
         { rel: "knowledge" },
-        { rel: "filestores/commands" },
-        { rel: "reports" },
-        { rel: "filestores" },
-        { rel: "databases" },
       ],
       more: [],
     };
@@ -114,13 +117,8 @@ describe("loadWorkstationConfig — reset triggers", () => {
     expect(cfg.main.map((t) => t.rel)).toEqual([
       "tasks",
       "knowledge",
+      // appended in PRIMITIVE_MAIN_RELS order
       "filestores/commands",
-      "reports",
-      "filestores",
-      "databases",
-      // appended in PRIMITIVE_RELS order
-      "tools",
-      "traces",
     ]);
     expect(mockedEntityWriteFile).toHaveBeenCalledTimes(1);
   });

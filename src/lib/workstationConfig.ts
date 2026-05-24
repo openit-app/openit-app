@@ -57,15 +57,31 @@ export interface WorkstationConfig {
 /// `filestores/commands` is treated as a primitive even though on disk
 /// it lives under `filestores/` — Commands is the IT admin's daily
 /// driver and earned its own top-level tile.
-export const PRIMITIVE_RELS: ReadonlyArray<string> = [
+/// Primitives that ship pinned to MAIN by default. The IT admin sees
+/// these three tiles the moment they open a fresh vault; everything
+/// else lives in MORE so the front page stays scannable.
+export const PRIMITIVE_MAIN_RELS: ReadonlyArray<string> = [
   "tasks",
   "knowledge",
   "filestores/commands",
+];
+
+/// Primitives that ship pinned to MORE by default. Still primitives —
+/// the user can move them into MAIN if they want, and they're not
+/// strippable by the auto-discovery cleanup.
+export const PRIMITIVE_MORE_RELS: ReadonlyArray<string> = [
   "reports",
   "filestores",
   "databases",
   "tools",
   "traces",
+];
+
+/// All eight primitives. Used by the "is this a primitive?" check and
+/// by the reset logic that rejects non-primitive tiles in MAIN.
+export const PRIMITIVE_RELS: ReadonlyArray<string> = [
+  ...PRIMITIVE_MAIN_RELS,
+  ...PRIMITIVE_MORE_RELS,
 ];
 
 const PRIMITIVE_SET: ReadonlySet<string> = new Set(PRIMITIVE_RELS);
@@ -76,12 +92,13 @@ export function isPrimitiveRel(rel: string): boolean {
 
 // ── Defaults ─────────────────────────────────────────────────────────
 
-/// Default workstation = exactly the eight primitives in order.
-/// MORE is empty on a fresh vault — sub-stores stay invisible until the
-/// user explicitly pins them.
+/// Default workstation = three primitives in MAIN
+/// (Tasks / Knowledge / Commands), the remaining five primitives in
+/// MORE. Sub-stores (Access, Assets, Scripts, etc.) stay invisible
+/// until the user explicitly pins them via right-click.
 export const DEFAULT_WORKSTATION_CONFIG: WorkstationConfig = {
-  main: PRIMITIVE_RELS.map((rel) => ({ rel })),
-  more: [],
+  main: PRIMITIVE_MAIN_RELS.map((rel) => ({ rel })),
+  more: PRIMITIVE_MORE_RELS.map((rel) => ({ rel, userPinned: true })),
 };
 
 // ── Load / Save ──────────────────────────────────────────────────────
@@ -101,7 +118,7 @@ function mainHasNonPrimitive(main: TileConfig[]): boolean {
 /// before a new primitive was introduced) get filled out.
 function mainMissingPrimitive(main: TileConfig[]): boolean {
   const present = new Set(main.map((t) => t.rel));
-  return PRIMITIVE_RELS.some((p) => !present.has(p));
+  return PRIMITIVE_MAIN_RELS.some((p) => !present.has(p));
 }
 
 /// Append any missing primitives to `main`, preserving the user's
@@ -111,7 +128,7 @@ function mainMissingPrimitive(main: TileConfig[]): boolean {
 function appendMissingPrimitives(main: TileConfig[]): TileConfig[] {
   const present = new Set(main.map((t) => t.rel));
   const out = [...main];
-  for (const rel of PRIMITIVE_RELS) {
+  for (const rel of PRIMITIVE_MAIN_RELS) {
     if (!present.has(rel)) out.push({ rel });
   }
   return out;
@@ -122,7 +139,7 @@ function appendMissingPrimitives(main: TileConfig[]): TileConfig[] {
 /// entry without it was auto-discovered into MORE by the pre-2026-05-24
 /// merge logic and should be removed so a fresh vault shows MORE empty.
 function stripAutoDiscoveredMore(more: TileConfig[]): TileConfig[] {
-  return more.filter((t) => t.userPinned === true);
+  return more.filter((t) => t.userPinned === true || PRIMITIVE_SET.has(t.rel));
 }
 
 export async function loadWorkstationConfig(
