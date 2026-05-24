@@ -232,6 +232,23 @@ describe("ChatPane", () => {
     expect(root?.style.display).toBe("none");
   });
 
+  it("hidden panes ignore resize events (don't blank a backgrounded session)", async () => {
+    // Reproduces the regression where opening a new tab caused the
+    // previously-active terminal to appear blanked: the old pane went
+    // display:none, ResizeObserver fired with (0,0), settle() wiped the
+    // xterm buffer. Hidden panes must NOT forward resize to the pty.
+    const { rerender } = render(
+      <ChatPane cwd="/tmp/test-repo" sessionId="main-bg" visible={true} />,
+    );
+    await new Promise((r) => setTimeout(r, 0));
+    // Flip to hidden — mirrors a sibling tab becoming the active one.
+    rerender(<ChatPane cwd="/tmp/test-repo" sessionId="main-bg" visible={false} />);
+    ptyMock.ptyResize.mockClear();
+    window.dispatchEvent(new Event("resize"));
+    await new Promise((r) => requestAnimationFrame(() => r(null)));
+    expect(ptyMock.ptyResize).not.toHaveBeenCalled();
+  });
+
   it("cancels the queued requestAnimationFrame on rapid visible→hidden flip", async () => {
     const cancelSpy = vi.spyOn(window, "cancelAnimationFrame");
     const { rerender, unmount } = render(

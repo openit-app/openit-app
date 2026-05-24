@@ -428,6 +428,10 @@ export function ChatPane({
 
       const settle = () => {
         if (disposed) return;
+        // If the pane became hidden between schedule and settle, bail —
+        // we don't want a queued settle to wipe the buffer of a now-hidden
+        // pane while the user is looking at a sibling tab.
+        if (!visibleRef.current) return;
         // Final fit in case the last live-phase fit was stale.
         safeFit();
         const cols = term.cols;
@@ -468,6 +472,16 @@ export function ChatPane({
 
       const onResize = () => {
         if (disposed) return;
+        // Skip resize handling for hidden panes. When a new tab is added,
+        // the previously-active pane flips to display:none, which fires
+        // ResizeObserver with a (0, 0) measurement. Running fit.fit() on
+        // a zero-size container clamps xterm to degenerate cols/rows, and
+        // the subsequent `settle()` then wipes the buffer with
+        // \x1b[3J\x1b[2J\x1b[H — so when the user switches back to the
+        // original tab, their Claude Code session appears blanked out.
+        // The visible-pane's own visibility effect already handles the
+        // post-reveal refit, so hidden panes don't need to track size at all.
+        if (!visibleRef.current) return;
         if (rafScheduled) {
           // Live tick already queued; just extend the settle window.
           scheduleSettle();
@@ -477,6 +491,10 @@ export function ChatPane({
         requestAnimationFrame(() => {
           rafScheduled = false;
           if (disposed) return;
+          // Re-check visibility inside the rAF — a tab switch between
+          // schedule and frame would otherwise still fit+resize on a
+          // now-hidden pane.
+          if (!visibleRef.current) return;
           safeFit();
           sendResize();
           scheduleSettle();

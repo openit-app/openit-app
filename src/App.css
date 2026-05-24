@@ -4130,6 +4130,23 @@ input.viewer-title.viewer-title-rename {
   max-width: 170px;
 }
 
+.chat-tab-rename {
+  appearance: none;
+  background: var(--color-surface-dark);
+  border: 1px solid var(--color-border-dark);
+  border-radius: 3px;
+  margin: 2px 0;
+  padding: 2px 4px;
+  color: var(--text);
+  font: inherit;
+  outline: none;
+  width: 160px;
+  max-width: 170px;
+}
+.chat-tab-rename:focus {
+  border-color: color-mix(in srgb, var(--color-text) 30%, transparent);
+}
+
 .chat-tab-close {
   appearance: none;
   background: transparent;
