@@ -231,6 +231,29 @@ pub fn project_bootstrap(vault_path: Option<String>) -> Result<BootstrapResult, 
         let _ = fs::remove_dir(&legacy_skills);
     }
 
+    // Legacy migration: top-level `instructions/` → `.openit/instructions/`.
+    // PIN-6614 first shipped the per-topic instruction files at the vault
+    // root, but they clutter the user-visible file tree alongside the
+    // admin's own content (`databases/`, `filestores/`, ...). The follow-up
+    // moves them into `.openit/instructions/` where they sit next to the
+    // other system files. Migrate any vault that was bootstrapped during
+    // the window where the old layout shipped so a fresh re-sync from the
+    // bundled plugin doesn't leave stale duplicates at the root.
+    let legacy_instructions = path.join("instructions");
+    if legacy_instructions.is_dir() {
+        let dest_instructions = path.join(".openit").join("instructions");
+        let _ = fs::create_dir_all(&dest_instructions);
+        if let Ok(entries) = fs::read_dir(&legacy_instructions) {
+            for entry in entries.flatten() {
+                let from = entry.path();
+                let name = entry.file_name();
+                let to = unique_legacy_dest(&dest_instructions, &name);
+                let _ = fs::rename(&from, &to);
+            }
+        }
+        let _ = fs::remove_dir(&legacy_instructions);
+    }
+
     // Legacy migration: `.openit/agent-traces/` → top-level `traces/`.
     // The 2026-05 restructure promoted trace storage out of the
     // hidden runtime dir so admins (and CC) can browse audit logs

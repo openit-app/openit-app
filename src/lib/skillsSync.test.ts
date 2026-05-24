@@ -177,16 +177,15 @@ describe("routeFile", () => {
   });
 
   describe("instructions/", () => {
-    // PIN-6614: the plugin CLAUDE.md is now an index that links to per-
-    // topic files under `instructions/`. Those files must land at
-    // `<repo>/instructions/<file>.md` so the relative links in the
-    // CLAUDE.md index resolve when Claude Code reads from the user's
-    // vault. The default-path-preservation rule already produces that
-    // mapping; this test locks the behavior so a future refactor of
-    // routeFile can't silently route `instructions/` elsewhere.
-    it("routes instructions/<file>.md to <repo>/instructions/<file>.md", () => {
+    // PIN-6614 follow-up: per-topic instruction files seeded by the
+    // plugin are Claude system files, not user content. They live
+    // under `.openit/instructions/` (alongside `config.json`,
+    // `workstation.json`, etc.) so they don't clutter the user-visible
+    // file explorer next to `databases/`, `filestores/`, etc. The
+    // CLAUDE.md index at the vault root links into this hidden dir.
+    it("routes instructions/<file>.md to <repo>/.openit/instructions/<file>.md", () => {
       expect(routeFile("instructions/command-authoring.md", slug)).toEqual({
-        subdir: "instructions",
+        subdir: ".openit/instructions",
         filename: "command-authoring.md",
         substituteSlug: false,
       });
@@ -206,7 +205,7 @@ describe("routeFile", () => {
       for (const topic of topics) {
         const r = routeFile(`instructions/${topic}.md`, slug);
         expect(r).toEqual({
-          subdir: "instructions",
+          subdir: ".openit/instructions",
           filename: `${topic}.md`,
           substituteSlug: false,
         });
