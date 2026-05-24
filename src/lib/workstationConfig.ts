@@ -253,7 +253,7 @@ const SYSTEM_TILES: DiscoveredTile[] = [
   { rel: "reports",    label: "Reports",    defaultIcon: "reports",   defaultTone: "link",    countMode: "files" },
   // Tasks is the post-PIN-6605 replacement for the ticket model — surfaced as
   // a top-level workstation primitive backed by `tasks/` on disk.
-  { rel: "tasks",  label: "Tasks",  defaultIcon: "inbox",  defaultTone: "accent",  countMode: "files" },
+  { rel: "tasks",  label: "Tasks",  defaultIcon: "checklist",  defaultTone: "accent",  countMode: "files" },
   // Traces backs onto the top-level `traces/` folder (the legacy
   // `.openit/agent-traces/` is migrated by project_bootstrap).
   { rel: "traces", label: "Traces", defaultIcon: "traces", defaultTone: "neutral", countMode: "dirs" },
