@@ -5916,26 +5916,6 @@ input.viewer-title.viewer-title-rename {
   flex: 0 0 auto;
 }
 
-.tasks-column-dot {
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  display: inline-block;
-  flex: 0 0 auto;
-}
-
-.tasks-column-dot.tasks-status-todo {
-  background: var(--color-text-faint, #978d76);
-}
-
-.tasks-column-dot.tasks-status-in-progress {
-  background: var(--color-accent, #c75a2c);
-}
-
-.tasks-column-dot.tasks-status-complete {
-  background: var(--color-success, #6f8f6a);
-}
-
 .tasks-column-title {
   font-size: 12px;
   font-weight: 700;
@@ -5977,11 +5957,45 @@ input.viewer-title.viewer-title-rename {
 
 /* Card chrome — borrows directly from .entity-card so the Kanban
    reads as the same surface as the workstation grids. The wrapper is
-   relatively positioned so the status pill + trash button can absolute
-   into its top-right without disturbing the card's flex layout. */
+   relatively positioned so the trash button can absolute into its
+   bottom-right without disturbing the card's flex layout. The
+   wrapper itself is the drag handle (`draggable` on the element);
+   `cursor: grab` advertises that and flips to `grabbing` while a
+   drag is in flight (signalled by the .tasks-card-dragging class
+   the React component toggles on dragstart / dragend). */
 .tasks-card-wrapper {
   position: relative;
   isolation: isolate;
+  cursor: grab;
+}
+
+.tasks-card-wrapper:active {
+  cursor: grabbing;
+}
+
+/* Dragging state — the wrapper class flips while a drag is in flight.
+   Drop the opacity so the user can see the drop target underneath,
+   and remove the hover lift so the floating drag image doesn't carry
+   a stale "hovered" shadow into the drop target. */
+.tasks-card-dragging .tasks-card {
+  opacity: 0.45;
+  box-shadow: none;
+}
+
+/* Column drop-target highlight — the React component flips
+   .tasks-column-drop-target on the section while a dragged card is
+   over it. Subtle accent ring + soft background so the user knows
+   "release here". */
+.tasks-column-drop-target {
+  border-color: var(--color-accent, var(--accent));
+  background: var(--color-accent-faint, var(--accent-faint));
+}
+
+.tasks-column-drop-target .tasks-column-body {
+  /* Slightly tinted body so a column with cards inside still reads
+     as the active drop target — the border alone gets visually lost
+     once the column is full. */
+  background: var(--color-accent-faint, transparent);
 }
 
 .tasks-card {
@@ -6016,18 +6030,15 @@ input.viewer-title.viewer-title-rename {
   outline-offset: 2px;
 }
 
-.tasks-card-done .tasks-card-title {
-  text-decoration: line-through;
-  color: var(--color-text-faint, var(--text-faint));
-}
-
 .tasks-card-title {
   font-size: 14px;
-  font-weight: 500;
+  font-weight: 600;
   line-height: 1.35;
-  /* Leave room on the right for the absolute-positioned status pill
-     so a long title doesn't run under it. */
-  padding-right: 86px;
+  /* Leave room on the right for the absolute-positioned trash button
+     so a long title doesn't run under it. The status pill is gone
+     now (the column header conveys status) so the reservation can
+     shrink — only the trash needs ~32px. */
+  padding-right: 32px;
   word-break: break-word;
 }
 
@@ -6045,55 +6056,11 @@ input.viewer-title.viewer-title-rename {
   font-variant-numeric: tabular-nums;
 }
 
-/* Status pill — pinned to the top-right of the card. Click cycles
-   through statuses; sits above the underlying card-button so the
-   click event doesn't bubble (handler calls stopPropagation). */
-.tasks-card-status {
-  position: absolute;
-  top: 10px;
-  right: 10px;
-  appearance: none;
-  border: 1px solid var(--color-border, var(--border));
-  background: var(--color-surface, var(--surface));
-  border-radius: 999px;
-  padding: 2px 9px;
-  font-size: 10px;
-  font-weight: 700;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-  cursor: pointer;
-  color: var(--color-text-muted, var(--text-muted));
-  white-space: nowrap;
-  z-index: 2;
-  transition:
-    background var(--t-fast) var(--ease),
-    border-color var(--t-fast) var(--ease),
-    color var(--t-fast) var(--ease);
-}
-
-.tasks-card-status:hover {
-  border-color: var(--color-border-strong, var(--border));
-}
-
-.tasks-card-status.tasks-status-todo {
-  color: var(--color-text-muted, var(--text-muted));
-  background: var(--color-surface, var(--surface));
-}
-
-.tasks-card-status.tasks-status-in-progress {
-  color: var(--color-accent, var(--accent));
-  background: var(--color-accent-faint, var(--accent-faint));
-  border-color: var(--color-accent-soft, rgba(199, 90, 44, 0.35));
-}
-
-.tasks-card-status.tasks-status-complete {
-  color: var(--color-success-deep, #2c4d27);
-  background: var(--color-success-soft, var(--surface-soft));
-  border-color: rgba(111, 143, 106, 0.4);
-}
-
-/* Hover-revealed delete — sits in the card's bottom-right so it
-   doesn't fight the status pill in the top-right. */
+/* Hover-revealed delete — sits in the card's bottom-right. The
+   prior design had a status pill in the top-right of the card; that
+   pill is gone now (the column header conveys status, and drag-drop
+   between columns moves a task), so the trash button has the corner
+   to itself. */
 .tasks-card-delete {
   position: absolute !important;
   bottom: 6px;
