@@ -317,17 +317,19 @@ export function TasksViewer({ tasks, repo, onOpenTask, onChanged }: TasksViewerP
               Mine
             </button>
           )}
-          {assignees.map((a) => (
-            <button
-              key={a}
-              type="button"
-              className={`tasks-filter-chip${assigneeFilter === a ? " tasks-filter-chip-active" : ""}`}
-              onClick={() => setAssigneeFilter(a)}
-              aria-pressed={assigneeFilter === a}
-            >
-              {a}
-            </button>
-          ))}
+          {assignees
+            .filter((a) => a !== defaultAssignee)
+            .map((a) => (
+              <button
+                key={a}
+                type="button"
+                className={`tasks-filter-chip${assigneeFilter === a ? " tasks-filter-chip-active" : ""}`}
+                onClick={() => setAssigneeFilter(a)}
+                aria-pressed={assigneeFilter === a}
+              >
+                {a}
+              </button>
+            ))}
           {hasUnassigned && (
             <button
               type="button"
