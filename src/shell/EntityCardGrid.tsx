@@ -99,19 +99,26 @@ export function EntityCardGrid({
 
   const runDelete = useCallback(
     async (cardKey: string, fn: () => void | Promise<void>) => {
-      if (deletingRef.current.has(cardKey)) return;
+      console.warn("[DELETE-DEBUG] entity-card-grid:runDelete enter", { cardKey });
+      if (deletingRef.current.has(cardKey)) {
+        console.warn("[DELETE-DEBUG] entity-card-grid:runDelete guarded — already in-flight for", cardKey);
+        return;
+      }
       deletingRef.current.add(cardKey);
       setDeleting(new Set(deletingRef.current));
       try {
+        console.warn("[DELETE-DEBUG] entity-card-grid:runDelete calling handler", { cardKey });
         await fn();
+        console.warn("[DELETE-DEBUG] entity-card-grid:runDelete handler resolved", { cardKey });
       } catch (err) {
         // Handlers own user-visible error surfacing (toast). Logging
         // here is a backstop so a handler that forgets isn't fully
         // silent in the devtools console.
-        console.error(`[entity-card-grid] delete handler threw for ${cardKey}:`, err);
+        console.error(`[DELETE-DEBUG] entity-card-grid:runDelete handler threw for ${cardKey}:`, err);
       } finally {
         deletingRef.current.delete(cardKey);
         setDeleting(new Set(deletingRef.current));
+        console.warn("[DELETE-DEBUG] entity-card-grid:runDelete finally — released lock for", cardKey);
       }
     },
     [],
@@ -202,12 +209,16 @@ export function EntityCardGrid({
                 className="context-menu-item"
                 disabled={activeDeleting}
                 onClick={() => {
+                  console.warn("[DELETE-DEBUG] entity-card-grid:contextMenu Delete clicked", { cardKey: activeCard.key });
                   // The onDelete handler runs its own window.confirm()
                   // — duplicating it here with an arm-twice click
                   // forced three clicks to delete from the menu. Drop
                   // straight into the handler.
                   const handler = activeCard.onDelete;
-                  if (!handler) return;
+                  if (!handler) {
+                    console.warn("[DELETE-DEBUG] entity-card-grid:contextMenu Delete — no handler bound");
+                    return;
+                  }
                   void runDelete(activeCard.key, handler);
                   setMenu(null);
                 }}
@@ -376,8 +387,16 @@ function EntityCardItem({
           onMouseDown={(e) => {
             e.stopPropagation();
             e.preventDefault();
+            console.warn("[DELETE-DEBUG] entity-card-grid:trashButton mousedown", { cardKey: c.key, isDeleting });
             const handler = c.onDelete;
-            if (!handler || isDeleting) return;
+            if (!handler) {
+              console.warn("[DELETE-DEBUG] entity-card-grid:trashButton — no handler bound");
+              return;
+            }
+            if (isDeleting) {
+              console.warn("[DELETE-DEBUG] entity-card-grid:trashButton guarded — already deleting", c.key);
+              return;
+            }
             void runDelete(c.key, handler);
           }}
           // Keyboard flow: Enter/Space activation dispatches a click

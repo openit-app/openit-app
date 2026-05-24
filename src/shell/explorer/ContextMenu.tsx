@@ -44,20 +44,29 @@ export function ContextMenu({
   const { show: showToast } = useToast();
 
   const handleDelete = () => {
-    if (deleting) return;
+    console.warn("[DELETE-DEBUG] explorer:ContextMenu handleDelete enter", { path: menu.path, isDir: menu.isDir, deleteArmed, deleting });
+    if (deleting) {
+      console.warn("[DELETE-DEBUG] explorer:ContextMenu guarded — local 'deleting' true");
+      return;
+    }
     if (!deleteArmed) {
+      console.warn("[DELETE-DEBUG] explorer:ContextMenu arming first click");
       setDeleteArmed(true);
       return;
     }
     const path = menu.path;
     const filename = path.split("/").pop() ?? path;
     // Cross-instance guard: if a previous menu's delete for this same
-    // path is still pending, silently no-op. Otherwise the user can
-    // right-click the file, confirm, the menu closes, they re-open the
-    // menu before the RPC settles, and confirm again → duplicate
-    // fsDelete fires. The first one wins; the second usually gets
-    // ENOENT which we'd surface as a critical toast.
+    // path is still pending, surface a toast instead of silently no-op.
+    // Silent failure was the original PIN-6612 bug; the in-flight guard
+    // is meant to dedupe a true double-click race, not to swallow user
+    // input.
     if (inFlightDeletes.has(path)) {
+      console.warn("[DELETE-DEBUG] explorer:ContextMenu guarded — module-level inFlightDeletes already has", path);
+      showToast({
+        message: `Already deleting ${filename}…`,
+        tone: "info",
+      });
       onClose();
       return;
     }
@@ -68,14 +77,16 @@ export function ContextMenu({
     // the background. Errors surface via toast — silent failure is
     // the bug PIN-6612 fixes.
     onClose();
+    console.warn("[DELETE-DEBUG] explorer:ContextMenu calling fsDelete", { path });
     fsDelete(path)
       .then(() => {
+        console.warn("[DELETE-DEBUG] explorer:ContextMenu fsDelete resolved", { path });
         showToast({ message: `Deleted ${filename}`, tone: "success" });
         onDeleted();
       })
       .catch((e) => {
         const reason = e instanceof Error ? e.message : String(e);
-        console.error("delete failed:", e);
+        console.error("[DELETE-DEBUG] explorer:ContextMenu fsDelete failed:", e);
         showToast({
           title: "Delete failed",
           message: reason,
@@ -84,6 +95,7 @@ export function ContextMenu({
       })
       .finally(() => {
         inFlightDeletes.delete(path);
+        console.warn("[DELETE-DEBUG] explorer:ContextMenu finally — released lock for", path);
       });
   };
 

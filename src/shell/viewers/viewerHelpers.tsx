@@ -266,18 +266,26 @@ export async function uploadFilesToSubdir(
   }
 }
 
-/// Race a Tauri `ask()` dialog against a timeout. If the dialog hangs
-/// (e.g. due to macOS permission or focus issue), the timeout fires and
-/// we treat it as confirmed — the user already clicked the trash icon.
+/// Browser-native modal: synchronous, always rendered by the webview
+/// itself (no native-Z-order quirks like the Tauri dialog plugin
+/// ran into on Windows). The plugin path stayed dark for some
+/// installs — a click on the trash icon did nothing visible — so the
+/// simpler approach wins.
+///
+/// IMPORTANT: `window.confirm` is BLOCKED inside Tauri's WebView on
+/// some macOS builds — it returns `false` immediately without showing
+/// the dialog. If users report "delete doesn't do anything", check the
+/// `[DELETE-DEBUG] confirmDelete result` log: an instant `false` is the
+/// tell. (The catch path returns `true` so a thrown exception doesn't
+/// silently swallow the click — but Tauri's WebView returns `false`
+/// without throwing.)
 export async function confirmDelete(message: string, _title: string): Promise<boolean> {
-  // Browser-native modal: synchronous, always rendered by the webview
-  // itself (no native-Z-order quirks like the Tauri dialog plugin
-  // ran into on Windows). The plugin path stayed dark for some
-  // installs — a click on the trash icon did nothing visible — so the
-  // simpler approach wins.
   try {
-    return window.confirm(message);
-  } catch {
+    const result = window.confirm(message);
+    console.warn("[DELETE-DEBUG] confirmDelete window.confirm returned", { result });
+    return result;
+  } catch (err) {
+    console.warn("[DELETE-DEBUG] confirmDelete window.confirm threw — treating as confirmed:", err);
     return true;
   }
 }
