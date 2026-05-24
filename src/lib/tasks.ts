@@ -6,15 +6,16 @@
 /// Schema (frontmatter):
 ///   - `status: "todo" | "in-progress" | "complete"`
 ///   - `title: "..."`
+///   - `assignee: "..."` (free-form; "" when unassigned)
 ///   - `createdAt: ISO-8601 UTC` (informational; never used as a key)
 ///
 /// Body (everything after the closing `---`) is free-form markdown. The
 /// viewer renders it the same way it renders any other markdown file
 /// when the user opens the task for editing.
 ///
-/// Three statuses, no escalations, no assignees, no due dates. v1 by
-/// design — Ben's brief was explicit: ship the simplest model that
-/// supports todo → in-progress → complete.
+/// Three statuses, three fields (name / assignee / status). Ben's
+/// revised brief: personal productivity that doubles as "assign myself
+/// or a teammate"; no due dates, no escalations.
 
 import { fsList, fsRead, fsDelete, entityWriteFile } from "./api";
 import { isDirectChild } from "./paths";
@@ -32,6 +33,12 @@ export interface TaskSummary {
   /** Title from frontmatter, or filename stem when missing. */
   title: string;
   status: TaskStatus;
+  /**
+   * Free-form assignee string from frontmatter. Empty string when the
+   * task is unassigned or pre-dates the field. The viewer renders an
+   * em-dash placeholder for the empty case.
+   */
+  assignee: string;
   /** ISO timestamp from frontmatter, or empty when missing. */
   createdAt: string;
   /** Free-form body — everything after the closing `---`. */
@@ -47,6 +54,7 @@ export interface TaskSummary {
 interface ParsedTask {
   status: TaskStatus;
   title: string;
+  assignee: string;
   createdAt: string;
   body: string;
 }
@@ -61,6 +69,7 @@ function isTaskStatus(v: unknown): v is TaskStatus {
 export function parseTaskMarkdown(raw: string, fallbackTitle: string): ParsedTask {
   let status: TaskStatus = "todo";
   let title = fallbackTitle;
+  let assignee = "";
   let createdAt = "";
   let body = raw;
 
@@ -82,21 +91,26 @@ export function parseTaskMarkdown(raw: string, fallbackTitle: string): ParsedTas
         .trim();
       if (key === "status" && isTaskStatus(value)) status = value;
       else if (key === "title" && value) title = value;
+      else if (key === "assignee") assignee = value;
       else if (key === "createdAt" && value) createdAt = value;
     }
   }
 
-  return { status, title, createdAt, body: body.replace(/^\r?\n/, "") };
+  return { status, title, assignee, createdAt, body: body.replace(/^\r?\n/, "") };
 }
 
-/// Serialise back to a markdown file. Always quotes the title so a
-/// colon or `#` in the title doesn't confuse the next parse.
+/// Serialise back to a markdown file. Always quotes the title and
+/// assignee so a colon or `#` in either doesn't confuse the next
+/// parse. Assignee is emitted unconditionally (as `""` when empty) so
+/// the field is visible in any hand-edited task file.
 export function serialiseTaskMarkdown(t: ParsedTask): string {
   const escapedTitle = t.title.replace(/"/g, '\\"');
+  const escapedAssignee = t.assignee.replace(/"/g, '\\"');
   return (
     `---\n` +
     `status: ${t.status}\n` +
     `title: "${escapedTitle}"\n` +
+    `assignee: "${escapedAssignee}"\n` +
     `createdAt: ${t.createdAt}\n` +
     `---\n` +
     (t.body.length > 0 ? `\n${t.body}` : "\n")
@@ -141,6 +155,7 @@ export async function listTasks(repo: string): Promise<TaskSummary[]> {
       filename: node.name,
       title: parsed.title,
       status: parsed.status,
+      assignee: parsed.assignee,
       createdAt: parsed.createdAt,
       body: parsed.body,
     });
@@ -179,6 +194,7 @@ export async function readTask(repo: string, filename: string): Promise<TaskSumm
     filename,
     title: parsed.title,
     status: parsed.status,
+    assignee: parsed.assignee,
     createdAt: parsed.createdAt,
     body: parsed.body,
   };
@@ -206,23 +222,25 @@ export function newTaskFilename(now: number = Date.now()): string {
 /// here keeps the create/read contract self-consistent.
 export async function createTask(
   repo: string,
-  args: { title: string; status?: TaskStatus; body?: string },
+  args: { title: string; status?: TaskStatus; assignee?: string; body?: string },
 ): Promise<TaskSummary> {
   const title = args.title.trim();
   if (!title) {
     throw new Error("Task title cannot be empty");
   }
   const status = args.status ?? "todo";
+  const assignee = (args.assignee ?? "").trim();
   const createdAt = new Date().toISOString().replace(/\.\d+Z$/, "Z");
   const body = args.body ?? "";
   const filename = newTaskFilename();
-  const content = serialiseTaskMarkdown({ status, title, createdAt, body });
+  const content = serialiseTaskMarkdown({ status, title, assignee, createdAt, body });
   await entityWriteFile(repo, TASKS_SUBDIR, filename, content);
   return {
     path: `${tasksDir(repo)}/${filename}`,
     filename,
     title,
     status,
+    assignee,
     createdAt,
     body,
   };
@@ -254,11 +272,42 @@ export async function updateTaskStatus(
   const content = serialiseTaskMarkdown({
     status: next,
     title: existing.title,
+    assignee: existing.assignee,
     createdAt: existing.createdAt,
     body: existing.body,
   });
   await entityWriteFile(repo, TASKS_SUBDIR, filename, content);
   return { ...existing, status: next };
+}
+
+/// Overwrite the task's `assignee` field. Re-reads from disk first so a
+/// concurrent status change (e.g. the user clicks the status pill
+/// mid-edit) is preserved. The new assignee is trimmed but not
+/// validated — assignee is free-form text by design (the v1 brief
+/// avoids a People-table join).
+///
+/// Throws when the file is missing so the caller (the TasksViewer
+/// assignee chip) can surface a "task no longer exists" toast instead
+/// of silently shrugging.
+export async function updateTaskAssignee(
+  repo: string,
+  filename: string,
+  newAssignee: string,
+): Promise<TaskSummary> {
+  const existing = await readTask(repo, filename);
+  if (!existing) {
+    throw new Error(`Task ${filename} no longer exists`);
+  }
+  const assignee = newAssignee.trim();
+  const content = serialiseTaskMarkdown({
+    status: existing.status,
+    title: existing.title,
+    assignee,
+    createdAt: existing.createdAt,
+    body: existing.body,
+  });
+  await entityWriteFile(repo, TASKS_SUBDIR, filename, content);
+  return { ...existing, assignee };
 }
 
 /// Delete a task file. No confirm — the caller (Viewer / TasksViewer)

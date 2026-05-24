@@ -1212,7 +1212,13 @@ input.viewer-title.viewer-title-rename {
   justify-content: flex-end;
   align-items: center;
   gap: 12px;
-  padding: 8px 14px 0;
+  /* Right inset bumped so the "add to chat →" link doesn't read as
+     flush against the pane border. PaneBody (which sits directly
+     below this strip) also reserves a stable scrollbar gutter on the
+     right, so a small 14px subheader inset visually disappeared next
+     to the wider gutter below; 22px gives the link a clear breathing
+     edge that lines up with the typical viewer body padding. */
+  padding: 8px 22px 0 14px;
   background: var(--surface);
 }
 
@@ -5904,7 +5910,13 @@ input.viewer-title.viewer-title-rename {
   display: flex;
   flex-direction: column;
   gap: 18px;
-  padding: 18px 22px 32px;
+  /* Equal horizontal padding so the composer and rows have the same
+     gutter on both sides — the +New button and the assignee chip used
+     to look flush against the right edge of the pane because PaneBody
+     reserves a stable scrollbar gutter on the right and that gutter
+     sat on top of a smaller right-side inset here. Match the left
+     padding explicitly so both edges feel identical. */
+  padding: 18px 22px 32px 22px;
   max-width: 760px;
   margin: 0 auto;
   width: 100%;
@@ -5933,6 +5945,36 @@ input.viewer-title.viewer-title-rename {
 }
 
 .tasks-composer-input:disabled {
+  opacity: 0.6;
+}
+
+/* Composer assignee — narrower than the title input, but the same
+   borderless style so the composer reads as a single row. Fixed
+   width so the +New button stays anchored to the right edge instead
+   of sliding as the assignee name grows. */
+.tasks-composer-assignee {
+  width: 120px;
+  flex: 0 0 auto;
+  appearance: none;
+  border: 0;
+  background: transparent;
+  color: var(--text-muted);
+  font: inherit;
+  font-size: 13px;
+  outline: none;
+  padding: 4px 8px;
+  border-left: 1px solid var(--border);
+}
+
+.tasks-composer-assignee::placeholder {
+  color: var(--text-faint);
+}
+
+.tasks-composer-assignee:focus {
+  color: var(--text);
+}
+
+.tasks-composer-assignee:disabled {
   opacity: 0.6;
 }
 
@@ -6074,4 +6116,47 @@ input.viewer-title.viewer-title-rename {
 
 .tasks-row:hover .tasks-delete {
   opacity: 1;
+}
+
+/* Per-row assignee chip — right-aligned text. Reads as a quiet badge
+   that becomes a real input on click. Empty assignees render an
+   em-dash in a fainter colour so the row still aligns. */
+.tasks-assignee {
+  appearance: none;
+  border: 0;
+  background: transparent;
+  color: var(--text-muted);
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+  padding: 2px 8px;
+  border-radius: 4px;
+  white-space: nowrap;
+  max-width: 140px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  flex: 0 0 auto;
+}
+
+.tasks-assignee:hover {
+  background: var(--surface-hover, var(--accent-faint));
+  color: var(--text);
+}
+
+.tasks-assignee-empty {
+  color: var(--text-faint);
+}
+
+.tasks-assignee-input {
+  appearance: none;
+  border: 1px solid var(--accent, var(--border));
+  background: var(--surface);
+  color: var(--text);
+  font: inherit;
+  font-size: 12px;
+  padding: 2px 6px;
+  border-radius: 4px;
+  width: 140px;
+  flex: 0 0 auto;
+  outline: none;
 }
