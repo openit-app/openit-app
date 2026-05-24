@@ -8,16 +8,16 @@ This file is an **index**. Load the topic file relevant to what you're doing.
 
 | Topic | When to read |
 |---|---|
-| [`instructions/vault-layout.md`](./instructions/vault-layout.md) | Always read first. Folder layout and file conventions. |
-| [`instructions/tasks.md`](./instructions/tasks.md) | Filing, updating, or cycling status on a task. |
-| [`instructions/command-authoring.md`](./instructions/command-authoring.md) | The admin asks for on-demand work, or you're about to capture / update a command. **Contains the scripts-first rule.** |
-| [`instructions/knowledge-conventions.md`](./instructions/knowledge-conventions.md) | Writing or updating anything under `knowledge/`. |
-| [`instructions/tool-calling.md`](./instructions/tool-calling.md) | Calling a CLI, MCP, or external API. |
-| [`instructions/auto-vs-ask.md`](./instructions/auto-vs-ask.md) | Deciding whether an action needs admin confirmation. |
-| [`instructions/communication-style.md`](./instructions/communication-style.md) | Reply formatting and tone. |
-| [`instructions/ui-side-channels.md`](./instructions/ui-side-channels.md) | Toasting confirmations or pulsing workstation tiles. |
-| [`instructions/commands-reference.md`](./instructions/commands-reference.md) | Looking up what a built-in command does. |
+| [`.openit/instructions/vault-layout.md`](./.openit/instructions/vault-layout.md) | Always read first. Folder layout and file conventions. |
+| [`.openit/instructions/tasks.md`](./.openit/instructions/tasks.md) | Filing, updating, or cycling status on a task. |
+| [`.openit/instructions/command-authoring.md`](./.openit/instructions/command-authoring.md) | The admin asks for on-demand work, or you're about to capture / update a command. **Contains the scripts-first rule.** |
+| [`.openit/instructions/knowledge-conventions.md`](./.openit/instructions/knowledge-conventions.md) | Writing or updating anything under `knowledge/`. |
+| [`.openit/instructions/tool-calling.md`](./.openit/instructions/tool-calling.md) | Calling a CLI, MCP, or external API. |
+| [`.openit/instructions/auto-vs-ask.md`](./.openit/instructions/auto-vs-ask.md) | Deciding whether an action needs admin confirmation. |
+| [`.openit/instructions/communication-style.md`](./.openit/instructions/communication-style.md) | Reply formatting and tone. |
+| [`.openit/instructions/ui-side-channels.md`](./.openit/instructions/ui-side-channels.md) | Toasting confirmations or pulsing workstation tiles. |
+| [`.openit/instructions/commands-reference.md`](./.openit/instructions/commands-reference.md) | Looking up what a built-in command does. |
 
 ## Most important rule
 
-**When you author or update a command, the reusable logic goes in a script under `filestores/scripts/` and the command body invokes that script.** Do not re-derive logic inline at run time. Details in [`instructions/command-authoring.md`](./instructions/command-authoring.md).
+**When you author or update a command, the reusable logic goes in a script under `filestores/scripts/` and the command body invokes that script.** Do not re-derive logic inline at run time. Details in [`.openit/instructions/command-authoring.md`](./.openit/instructions/command-authoring.md).
