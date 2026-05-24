@@ -195,7 +195,7 @@ export interface DiscoveredTile {
 const SYSTEM_TILES: DiscoveredTile[] = [
   // Tasks is the post-PIN-6605 replacement for the ticket model — surfaced as
   // a top-level workstation primitive backed by `tasks/` on disk.
-  { rel: "tasks",  label: "Tasks",  defaultIcon: "inbox",  defaultTone: "accent",  countMode: "files" },
+  { rel: "tasks",  label: "Tasks",  defaultIcon: "checklist",  defaultTone: "accent",  countMode: "files" },
   { rel: "tools",  label: "Tools",  defaultIcon: "tools",  defaultTone: "accent",  countMode: "custom" },
   { rel: "traces", label: "Traces", defaultIcon: "traces", defaultTone: "neutral", countMode: "dirs" },
 ];

@@ -1942,7 +1942,7 @@ export function Viewer({
         headerKind = "databases";
         break;
       case "tasks-list":
-        headerKind = "inbox";
+        headerKind = "tasks";
         break;
       case "people-list":
         headerKind = "people";
