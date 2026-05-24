@@ -402,14 +402,23 @@ export function Workbench({
 
   // Tiles that can be deleted (have a folder on disk — not system
   // synthetics like "tools" or parent views like "databases").
-  // Only the primitive container folders (top-level containers) and
-  // system entities are non-deletable. Everything inside them is fair
-  // game. `agents/` is no longer a workstation primitive (CC is the
-  // only agent), but the folder is still backend-relevant — guard
-  // against deletion in case a stale config still surfaces a tile for
-  // it. `tasks` is the new pure-task-list primitive (PR #180).
-  const PRIMITIVES = new Set(["databases", "filestores", "knowledge", "reports", "agents", "tasks"]);
-  const SYSTEM = new Set(["tools", "traces"]);
+  // Only the six primitive container folders and the synthetic
+  // `tools` tile are non-deletable. Everything inside a primitive
+  // (People, Scripts, Library, ...) is fair game.
+  //
+  // `agents` was dropped here in the 2026-05-23 cleanup — the folder
+  // is migrated away by project_bootstrap and any stale tile is
+  // stripped by parseWorkstationConfig, so the user shouldn't be
+  // able to encounter one at all.
+  const PRIMITIVES = new Set([
+    "databases",
+    "filestores",
+    "knowledge",
+    "reports",
+    "tasks",
+    "traces",
+  ]);
+  const SYSTEM = new Set(["tools"]);
   const isDeletable = (rel: string) => {
     return !PRIMITIVES.has(rel) && !SYSTEM.has(rel);
   };
