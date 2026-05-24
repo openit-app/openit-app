@@ -174,7 +174,34 @@ export function ChatPane({
       }),
     );
     term.open(containerRef.current);
-    fit.fit();
+    // Initial fit can measure zero if the parent flex layout hasn't
+    // settled when this effect runs — notably for the SECOND tab,
+    // whose wrapper div is freshly mounted under .chat-area in the
+    // same commit that flips tab 1 to display:none. A degenerate fit
+    // would ship cols=1/rows=1 to the PTY spawn, leaving Claude
+    // rendering into a 1×1 terminal that never paints anything. Try
+    // once now; if degenerate, retry on rAF so the next attempt sees
+    // real geometry. The PTY's actual cols/rows are read from `term`
+    // right before the ptySpawn call below.
+    try {
+      fit.fit();
+    } catch (e) {
+      console.warn("[CC-SPAWN] initial fit threw:", e);
+    }
+    if (term.cols <= 1 || term.rows <= 1) {
+      console.warn("[CC-SPAWN] initial fit degenerate, retrying on rAF", {
+        sessionId: SESSION_ID,
+        cols: term.cols,
+        rows: term.rows,
+      });
+      requestAnimationFrame(() => {
+        try {
+          fit.fit();
+        } catch (e) {
+          console.warn("[CC-SPAWN] retry fit threw:", e);
+        }
+      });
+    }
     if (visible) term.focus();
     const focusOnClick = () => term.focus();
     containerRef.current.addEventListener("click", focusOnClick);
@@ -270,7 +297,45 @@ export function ChatPane({
     let disposed = false;
 
     (async () => {
+      // CRITICAL: subscribe to pty://data and pty://exit BEFORE the
+      // ptySpawn call. Tauri events are not buffered — anything
+      // emitted before a listener is attached is silently dropped.
+      // The Rust reader thread starts streaming bytes the moment
+      // `pty_spawn` returns (often before the awaited invoke even
+      // resolves on the JS side), so registering listeners AFTER the
+      // spawn race-drops Claude's startup banner. Tab 1 used to get
+      // lucky because its mount happens during slow app-boot work;
+      // tab 2 is created on a "+" click when the rest of the UI is
+      // hot, and the JS event-loop slice between spawn-return and
+      // listen-register is short enough that we lose the banner. The
+      // user sees a blinking xterm cursor with no output, and nothing
+      // ever arrives because Claude's TUI only repaints in response
+      // to input it never received.
+      //
+      // Subscribing first is safe: both listeners filter on
+      // payload.session_id, so they're inert until OUR PTY (which
+      // doesn't exist yet) starts emitting. If ptySpawn fails we
+      // unwire them in the catch.
+      console.warn("[CC-SPAWN] subscribing pty listeners", { sessionId: SESSION_ID });
+      const unlistenData = await onPtyData(SESSION_ID, (chunk) => term.write(chunk));
+      const unlistenExit = await onPtyExit(SESSION_ID, (code) => {
+        term.writeln(`\r\n\x1b[33m[process exited${code != null ? `: ${code}` : ""}]\x1b[0m`);
+      });
+      if (disposed) {
+        unlistenData();
+        unlistenExit();
+        return;
+      }
+      unlistens.push(unlistenData, unlistenExit);
+
       const { cols, rows } = term;
+      console.warn("[CC-SPAWN] invoking ptySpawn", {
+        sessionId: SESSION_ID,
+        cwd,
+        cols,
+        rows,
+        resume: !!resume,
+      });
       try {
         await ptySpawn({
           sessionId: SESSION_ID,
@@ -280,6 +345,15 @@ export function ChatPane({
           args: resume ? ["--resume"] : [],
         });
       } catch (e) {
+        console.error("[CC-SPAWN] ptySpawn failed", { sessionId: SESSION_ID, error: e });
+        // Unwire the listeners we registered above and drop them
+        // from the cleanup list so we don't double-unwire on unmount.
+        unlistenData();
+        unlistenExit();
+        const idxData = unlistens.indexOf(unlistenData);
+        if (idxData !== -1) unlistens.splice(idxData, 1);
+        const idxExit = unlistens.indexOf(unlistenExit);
+        if (idxExit !== -1) unlistens.splice(idxExit, 1);
         term.writeln(`\x1b[31mfailed to spawn pty: ${String(e)}\x1b[0m`);
         return;
       }
@@ -287,23 +361,12 @@ export function ChatPane({
         ptyKill(SESSION_ID).catch(() => {});
         return;
       }
+      console.warn("[CC-SPAWN] spawn complete", { sessionId: SESSION_ID });
 
       // Read through the ref so a tab-switch that happened during the
       // ptySpawn await is honored — without this we'd clobber the active
       // session pointer with this (now-hidden) tab's id.
       if (visibleRef.current) setActiveSession(SESSION_ID);
-
-      const unlistenData = await onPtyData(SESSION_ID, (chunk) => term.write(chunk));
-      const unlistenExit = await onPtyExit(SESSION_ID, (code) => {
-        term.writeln(`\r\n\x1b[33m[process exited${code != null ? `: ${code}` : ""}]\x1b[0m`);
-      });
-      if (disposed) {
-        unlistenData();
-        unlistenExit();
-        ptyKill(SESSION_ID).catch(() => {});
-        return;
-      }
-      unlistens.push(unlistenData, unlistenExit);
 
       term.onData((data) => {
         ptyWrite(SESSION_ID, data).catch((e) => console.error("pty bridge error:", e));
