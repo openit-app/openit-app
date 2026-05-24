@@ -56,6 +56,7 @@ import type { ViewerSource } from "./viewerTypes";
 import {
   loadWorkstationConfig,
   saveWorkstationConfig,
+  pinTileToWorkstation,
   type TileConfig,
 } from "../lib/workstationConfig";
 import { iconForKey } from "./entityIcons";
@@ -1593,7 +1594,9 @@ export function Viewer({
                       const cfg = await loadWorkstationConfig(repo);
                       const rel = `filestores/${slug}`;
                       if (!cfg.main.some((t) => t.rel === rel) && !cfg.more.some((t) => t.rel === rel)) {
-                        cfg.more.push({ rel });
+                        // User explicitly created this store — mark
+                        // userPinned so the next reset preserves it.
+                        cfg.more.push({ rel, userPinned: true });
                         await saveWorkstationConfig(repo, cfg);
                       }
                     } catch { /* workstation config update optional */ }
@@ -1643,6 +1646,24 @@ export function Viewer({
                       uploadFilesToSubdir(repo, c.path, files, setFolderUploadError, showToast)
                   : undefined,
               onReveal: () => void fsReveal(c.path).catch(console.error),
+              onAddToWorkstation: repo ? async () => {
+                try {
+                  await pinTileToWorkstation(repo, `filestores/${c.name}`, {
+                    label: cardLabel,
+                    icon: cardIcon,
+                    tone: cardTone,
+                  });
+                  showToast(`Added ${cardLabel} to workstation`);
+                  onFsChange?.();
+                } catch (err) {
+                  const reason = err instanceof Error ? err.message : String(err);
+                  showToast({
+                    title: `Failed to pin ${cardLabel}`,
+                    message: reason,
+                    tone: "critical",
+                  });
+                }
+              } : undefined,
               onDelete: repo ? async () => {
                 const ok = await confirmDelete(
                   `Delete filestore "${c.displayName}" and all its files?\n\nThis cannot be undone.`,
@@ -1775,7 +1796,9 @@ export function Viewer({
                       const cfg = await loadWorkstationConfig(repo);
                       const rel = `databases/${slug}`;
                       if (!cfg.main.some((t) => t.rel === rel) && !cfg.more.some((t) => t.rel === rel)) {
-                        cfg.more.push({ rel });
+                        // User explicitly created this store — mark
+                        // userPinned so the next reset preserves it.
+                        cfg.more.push({ rel, userPinned: true });
                         await saveWorkstationConfig(repo, cfg);
                       }
                     } catch { /* workstation config update optional */ }
@@ -1823,6 +1846,25 @@ export function Viewer({
               meta: `${c.itemCount} row${c.itemCount === 1 ? "" : "s"}`,
               onClick: () => onOpenPath && void onOpenPath(c.path),
               onReveal: () => void fsReveal(c.path).catch(console.error),
+              onAddToWorkstation: repo ? async () => {
+                try {
+                  await pinTileToWorkstation(repo, `databases/${c.name}`, {
+                    label: dbLabel,
+                    icon: dbCardIcon,
+                    tone: dbCardTone,
+                    description: dbDescription,
+                  });
+                  showToast(`Added ${dbLabel} to workstation`);
+                  onFsChange?.();
+                } catch (err) {
+                  const reason = err instanceof Error ? err.message : String(err);
+                  showToast({
+                    title: `Failed to pin ${dbLabel}`,
+                    message: reason,
+                    tone: "critical",
+                  });
+                }
+              } : undefined,
               onDelete: repo ? async () => {
                 const ok = await confirmDelete(
                   `Delete database "${dbLabel}" and all its records?\n\nThis cannot be undone.`,

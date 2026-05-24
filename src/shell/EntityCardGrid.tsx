@@ -63,6 +63,12 @@ export type EntityCard = {
    *  injects a reference (slash command, file path, etc.) into the
    *  active Claude session. */
   onAddToClaude?: () => void | Promise<void>;
+  /** When set, the right-click context menu shows an "Add to
+   *  workstation" entry that calls this handler. Used by sub-store
+   *  cards (People, Access, Library, ...) to let users pin them as
+   *  workstation tiles on demand. The handler is responsible for
+   *  persisting the workstation config. */
+  onAddToWorkstation?: () => void | Promise<void>;
 };
 
 /**
@@ -158,7 +164,7 @@ export function EntityCardGrid({
           isDeleting={deleting.has(c.key)}
           runDelete={runDelete}
           onContextMenu={(x, y) => {
-            if (!c.onDelete && !c.onReveal && !c.onAddToClaude) return;
+            if (!c.onDelete && !c.onReveal && !c.onAddToClaude && !c.onAddToWorkstation) return;
             setMenu({ cardKey: c.key, x, y });
           }}
         />
@@ -188,6 +194,18 @@ export function EntityCardGrid({
                 }}
               >
                 Add to Claude
+              </Button>
+            )}
+            {activeCard.onAddToWorkstation && (
+              <Button
+                variant="ghost"
+                className="context-menu-item"
+                onClick={() => {
+                  void activeCard.onAddToWorkstation?.();
+                  setMenu(null);
+                }}
+              >
+                Add to workstation
               </Button>
             )}
             {activeCard.onReveal && (
@@ -300,7 +318,7 @@ function EntityCardItem({
       onClick={c.onClick}
       onKeyDown={onKeyDown}
       onContextMenu={(e) => {
-        if (!c.onDelete && !c.onReveal && !c.onAddToClaude) return;
+        if (!c.onDelete && !c.onReveal && !c.onAddToClaude && !c.onAddToWorkstation) return;
         e.preventDefault();
         onContextMenu(e.clientX, e.clientY);
       }}
