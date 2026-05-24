@@ -266,27 +266,19 @@ export async function uploadFilesToSubdir(
   }
 }
 
-/// Browser-native modal: synchronous, always rendered by the webview
-/// itself (no native-Z-order quirks like the Tauri dialog plugin
-/// ran into on Windows). The plugin path stayed dark for some
-/// installs — a click on the trash icon did nothing visible — so the
-/// simpler approach wins.
-///
-/// IMPORTANT: `window.confirm` is BLOCKED inside Tauri's WebView on
-/// some macOS builds — it returns `false` immediately without showing
-/// the dialog. If users report "delete doesn't do anything", check the
-/// `[DELETE-DEBUG] confirmDelete result` log: an instant `false` is the
-/// tell. (The catch path returns `true` so a thrown exception doesn't
-/// silently swallow the click — but Tauri's WebView returns `false`
-/// without throwing.)
-export async function confirmDelete(message: string, _title: string): Promise<boolean> {
+/// Tauri's native confirm dialog. `window.confirm` from inside the
+/// WebView is unreliable on macOS — on some builds it returns `false`
+/// immediately without rendering any UI, which silently swallows every
+/// delete click. The `ask()` plugin renders a real NSAlert, blocks
+/// until the user picks, and resolves the boolean. Any unexpected
+/// throw is treated as cancel — better silent no-op than accidental
+/// destruction.
+export async function confirmDelete(message: string, title: string): Promise<boolean> {
   try {
-    const result = window.confirm(message);
-    console.warn("[DELETE-DEBUG] confirmDelete window.confirm returned", { result });
-    return result;
+    return await ask(message, { title, kind: "warning" });
   } catch (err) {
-    console.warn("[DELETE-DEBUG] confirmDelete window.confirm threw — treating as confirmed:", err);
-    return true;
+    console.error("[confirmDelete] dialog failed:", err);
+    return false;
   }
 }
 
