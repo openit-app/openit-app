@@ -86,6 +86,7 @@ pub fn run() {
             fs_tree::fs_open,
             fs_tree::fs_delete,
             user_identity::global_user_email,
+            user_identity::global_user_name,
             claude::claude_generate_commit_message,
             tools::tools_is_installed,
             tools::tools_target_os,

@@ -30,6 +30,13 @@ export async function globalUserEmail(): Promise<string | null> {
   return invoke<string | null>("global_user_email");
 }
 
+/// User's global git name — used as the default assignee in the tasks
+/// composer. Returns null when git's user.name is unset, blank, or the
+/// project-local placeholder ("OpenIT"). Callers fall back to "me".
+export async function globalUserName(): Promise<string | null> {
+  return invoke<string | null>("global_user_name");
+}
+
 /// Generic binary write to `<repo>/<subdir>/<filename>`. Used by the
 /// admin reply composer to land attachment bytes into
 /// `filestores/attachments/<ticketId>/`. Mirrors `entityWriteFile`

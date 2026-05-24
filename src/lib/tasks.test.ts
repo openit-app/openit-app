@@ -23,6 +23,7 @@ import {
   readTask,
   serialiseTaskMarkdown,
   tallyTasks,
+  updateTaskAssignee,
   updateTaskStatus,
   type TaskSummary,
 } from "./tasks";
@@ -45,20 +46,29 @@ function file(name: string, path: string): FileNode {
 
 describe("parseTaskMarkdown", () => {
   it("parses the canonical shape we emit", () => {
-    const raw = `---\nstatus: in-progress\ntitle: "VPN rollout"\ncreatedAt: 2026-05-23T00:00:00Z\n---\n\nbody line\n`;
+    const raw = `---\nstatus: in-progress\ntitle: "VPN rollout"\nassignee: "Sankalp"\ncreatedAt: 2026-05-23T00:00:00Z\n---\n\nbody line\n`;
     const parsed = parseTaskMarkdown(raw, "fallback");
     expect(parsed).toEqual({
       status: "in-progress",
       title: "VPN rollout",
+      assignee: "Sankalp",
       createdAt: "2026-05-23T00:00:00Z",
       body: "body line\n",
     });
+  });
+
+  it("defaults assignee to empty string for legacy tasks missing the field", () => {
+    const raw = `---\nstatus: todo\ntitle: "Pre-assignee task"\ncreatedAt: 2026-05-23T00:00:00Z\n---\n`;
+    const parsed = parseTaskMarkdown(raw, "fallback");
+    expect(parsed.assignee).toBe("");
+    expect(parsed.title).toBe("Pre-assignee task");
   });
 
   it("tolerates missing frontmatter — treats the whole file as the body", () => {
     const parsed = parseTaskMarkdown("just some text", "fallback-title");
     expect(parsed.status).toBe("todo");
     expect(parsed.title).toBe("fallback-title");
+    expect(parsed.assignee).toBe("");
     expect(parsed.createdAt).toBe("");
     expect(parsed.body).toBe("just some text");
   });
@@ -75,16 +85,17 @@ describe("parseTaskMarkdown", () => {
   });
 
   it("ignores unknown keys without crashing", () => {
-    const raw = `---\nassignee: me\nstatus: todo\ntitle: "ok"\n---\nbody`;
+    const raw = `---\nbogusKey: whatever\nstatus: todo\ntitle: "ok"\n---\nbody`;
     expect(parseTaskMarkdown(raw, "fb").title).toBe("ok");
   });
 });
 
 describe("serialiseTaskMarkdown round-trips", () => {
-  it("preserves status / title / body across a parse-serialise cycle", () => {
+  it("preserves status / title / assignee / body across a parse-serialise cycle", () => {
     const original = {
       status: "complete" as const,
       title: "Test \"with\" quotes",
+      assignee: "Alex \"Lex\"",
       createdAt: "2026-05-23T01:02:03Z",
       body: "Some\nmulti-line body.\n",
     };
@@ -92,8 +103,20 @@ describe("serialiseTaskMarkdown round-trips", () => {
     const reparsed = parseTaskMarkdown(raw, "fb");
     expect(reparsed.status).toBe(original.status);
     expect(reparsed.title).toBe(original.title);
+    expect(reparsed.assignee).toBe(original.assignee);
     expect(reparsed.createdAt).toBe(original.createdAt);
     expect(reparsed.body).toBe(original.body);
+  });
+
+  it("emits an empty assignee field for unassigned tasks", () => {
+    const raw = serialiseTaskMarkdown({
+      status: "todo",
+      title: "no one yet",
+      assignee: "",
+      createdAt: "2026-05-23T00:00:00Z",
+      body: "",
+    });
+    expect(raw).toContain('assignee: ""');
   });
 });
 
@@ -201,6 +224,62 @@ describe("createTask", () => {
     const s = await createTask("/r", { title: "   Ship   " });
     expect(s.title).toBe("Ship");
   });
+
+  it("writes the assignee through to disk and the returned summary", async () => {
+    mockedWrite.mockResolvedValueOnce(undefined);
+    const s = await createTask("/r", { title: "Ship it", assignee: "Sankalp" });
+    expect(s.assignee).toBe("Sankalp");
+    const [, , , content] = mockedWrite.mock.calls[0];
+    expect(content).toContain('assignee: "Sankalp"');
+  });
+
+  it("defaults assignee to empty string when omitted", async () => {
+    mockedWrite.mockResolvedValueOnce(undefined);
+    const s = await createTask("/r", { title: "Ship it" });
+    expect(s.assignee).toBe("");
+    const [, , , content] = mockedWrite.mock.calls[0];
+    expect(content).toContain('assignee: ""');
+  });
+
+  it("trims whitespace from the assignee", async () => {
+    mockedWrite.mockResolvedValueOnce(undefined);
+    const s = await createTask("/r", { title: "x", assignee: "   Ben   " });
+    expect(s.assignee).toBe("Ben");
+  });
+});
+
+describe("updateTaskAssignee", () => {
+  it("preserves status / title / body when changing assignee", async () => {
+    mockedFsRead.mockResolvedValueOnce(
+      `---\nstatus: in-progress\ntitle: "Keep me"\nassignee: "Old"\ncreatedAt: 2026-05-23T00:00:00Z\n---\n\nimportant body\n`,
+    );
+    mockedWrite.mockResolvedValueOnce(undefined);
+    const result = await updateTaskAssignee("/r", "task-1.md", "New");
+    expect(result.assignee).toBe("New");
+    expect(result.status).toBe("in-progress");
+    const [, , , content] = mockedWrite.mock.calls[0];
+    expect(content).toContain('assignee: "New"');
+    expect(content).toContain("status: in-progress");
+    expect(content).toContain('title: "Keep me"');
+    expect(content).toContain("important body");
+  });
+
+  it("trims surrounding whitespace from the new assignee", async () => {
+    mockedFsRead.mockResolvedValueOnce(
+      `---\nstatus: todo\ntitle: "x"\nassignee: ""\ncreatedAt: 2026-05-23T00:00:00Z\n---\n`,
+    );
+    mockedWrite.mockResolvedValueOnce(undefined);
+    const result = await updateTaskAssignee("/r", "task-1.md", "   Ada   ");
+    expect(result.assignee).toBe("Ada");
+  });
+
+  it("throws when the file does not exist", async () => {
+    mockedFsRead.mockRejectedValueOnce(new Error("ENOENT"));
+    await expect(updateTaskAssignee("/r", "missing.md", "Ada")).rejects.toThrow(
+      /no longer exists/,
+    );
+    expect(mockedWrite).not.toHaveBeenCalled();
+  });
 });
 
 describe("updateTaskStatus", () => {
@@ -260,10 +339,10 @@ describe("nextStatus", () => {
 describe("tallyTasks", () => {
   it("counts tasks per status and total", () => {
     const tasks: TaskSummary[] = [
-      { path: "", filename: "", title: "", status: "todo", createdAt: "", body: "" },
-      { path: "", filename: "", title: "", status: "todo", createdAt: "", body: "" },
-      { path: "", filename: "", title: "", status: "in-progress", createdAt: "", body: "" },
-      { path: "", filename: "", title: "", status: "complete", createdAt: "", body: "" },
+      { path: "", filename: "", title: "", status: "todo", assignee: "", createdAt: "", body: "" },
+      { path: "", filename: "", title: "", status: "todo", assignee: "", createdAt: "", body: "" },
+      { path: "", filename: "", title: "", status: "in-progress", assignee: "", createdAt: "", body: "" },
+      { path: "", filename: "", title: "", status: "complete", assignee: "", createdAt: "", body: "" },
     ];
     expect(tallyTasks(tasks)).toEqual({ todo: 2, inProgress: 1, complete: 1, total: 4 });
   });
