@@ -71,24 +71,6 @@ export function LeftSidebarRail({
       className="sidebar-rail"
       aria-label="Workstation (collapsed)"
     >
-      <button
-        type="button"
-        className="sidebar-rail-toggle"
-        onClick={onExpand}
-        title="Expand sidebar"
-        aria-label="Expand sidebar"
-        aria-expanded={false}
-      >
-        <svg width="14" height="14" viewBox="0 0 14 14" fill="none" aria-hidden="true">
-          <path
-            d="M5 3l4 4-4 4"
-            stroke="currentColor"
-            strokeWidth="1.5"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-          />
-        </svg>
-      </button>
       <div className="sidebar-rail-tiles">
         {(() => {
           // Pre-compute the longest-prefix-match so a more specific
@@ -129,6 +111,24 @@ export function LeftSidebarRail({
           });
         })()}
       </div>
+      <button
+        type="button"
+        className="sidebar-rail-toggle"
+        onClick={onExpand}
+        title="Expand sidebar"
+        aria-label="Expand sidebar"
+        aria-expanded={false}
+      >
+        <svg width="14" height="14" viewBox="0 0 14 14" fill="none" aria-hidden="true">
+          <path
+            d="M5 3l4 4-4 4"
+            stroke="currentColor"
+            strokeWidth="1.5"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          />
+        </svg>
+      </button>
     </aside>
   );
 }

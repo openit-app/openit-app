@@ -4741,6 +4741,7 @@ input.viewer-title.viewer-title-rename {
   align-items: center;
   justify-content: center;
   height: 28px;
+  margin-top: auto;
   border-radius: 8px;
   color: var(--text-faint);
   transition:
