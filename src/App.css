@@ -4422,191 +4422,6 @@ input.viewer-title.viewer-title-rename {
   min-height: 0;
 }
 
-/* ── TODAY hero card ─────────────────────────────────────────── */
-
-.workbench-today {
-  display: flex;
-  flex-direction: column;
-  width: 100%;
-  background:
-    radial-gradient(
-      ellipse at top right,
-      rgba(199, 90, 44, 0.18) 0%,
-      transparent 70%
-    ),
-    linear-gradient(180deg, #fff8ec 0%, var(--surface) 100%);
-  border: 1px solid var(--border);
-  border-radius: 12px;
-  box-shadow: var(--shadow-card);
-  position: relative;
-  overflow: hidden;
-  transition:
-    border-color var(--t-fast) var(--ease),
-    transform var(--t-fast) var(--ease),
-    box-shadow var(--t-fast) var(--ease);
-}
-.workbench-today.has-escalated {
-  border-color: rgba(199, 154, 46, 0.35);
-  box-shadow:
-    var(--shadow-card),
-    0 0 0 3px rgba(245, 185, 72, 0.06);
-}
-.workbench-today:hover:not(.has-disabled) {
-  border-color: var(--accent-soft);
-  transform: translateY(-1px);
-  box-shadow: var(--shadow-lift);
-}
-.workbench-today.has-escalated:hover {
-  border-color: rgba(199, 154, 46, 0.5);
-}
-
-.workbench-today::after {
-  content: '';
-  position: absolute;
-  inset: 0;
-  background-image: radial-gradient(
-    rgba(120, 96, 60, 0.05) 1px,
-    transparent 1px
-  );
-  background-size: 14px 14px;
-  pointer-events: none;
-  opacity: 0.5;
-}
-
-.workbench-today-main {
-  appearance: none;
-  background: transparent;
-  border: 0;
-  width: 100%;
-  text-align: left;
-  font: inherit;
-  color: inherit;
-  cursor: pointer;
-  padding: 14px 16px 12px;
-  display: flex;
-  flex-direction: column;
-  position: relative;
-  z-index: 1;
-}
-.workbench-today-main:disabled {
-  cursor: not-allowed;
-  opacity: 0.7;
-}
-
-.workbench-today-topline {
-  display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  margin-bottom: 4px;
-}
-.workbench-today-eyebrow {
-  font-family: var(--font-display);
-  font-size: 10px;
-  font-weight: 600;
-  letter-spacing: 0.14em;
-  color: var(--accent);
-}
-.workbench-today-brand {
-  font-family: var(--font-display);
-  font-weight: 800;
-  font-size: 11px;
-  letter-spacing: -0.01em;
-  color: var(--text);
-  line-height: 1;
-  user-select: none;
-}
-.workbench-today-brand em {
-  font-family: var(--font-brand-italic);
-  font-style: italic;
-  font-weight: 500;
-  font-size: 13px;
-  color: var(--accent);
-  margin-left: 1px;
-}
-
-.workbench-today-hero {
-  display: flex;
-  align-items: baseline;
-  gap: 10px;
-  position: relative;
-  z-index: 1;
-}
-
-.workbench-today-number {
-  font-family: var(--font-display);
-  font-size: 44px;
-  font-weight: 700;
-  letter-spacing: -0.04em;
-  line-height: 1;
-  color: var(--text);
-  font-variant-numeric: tabular-nums;
-  background: linear-gradient(135deg, var(--text) 0%, #4a3922 100%);
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  background-clip: text;
-}
-
-.workbench-today-label {
-  font-family: var(--font-serif);
-  font-style: italic;
-  font-size: 13px;
-  color: var(--text-muted);
-  line-height: 1.2;
-}
-
-.workbench-today-hero-clean {
-  align-items: center;
-}
-
-.workbench-today-clean {
-  font-family: var(--font-display);
-  font-size: 22px;
-  font-weight: 600;
-  letter-spacing: -0.02em;
-  line-height: 1.45;
-  padding-bottom: 4px;
-  color: var(--text);
-  background: linear-gradient(135deg, var(--text) 0%, #4a3922 100%);
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  background-clip: text;
-}
-
-/* ── Layout toggle bar ────────────────────────────────────────── */
-
-.workbench-layout-bar {
-  display: flex;
-  justify-content: flex-end;
-  gap: 2px;
-  padding: 0 2px;
-  margin-top: auto;
-}
-
-.workbench-layout-btn {
-  all: unset;
-  cursor: pointer;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 26px;
-  height: 26px;
-  border-radius: 6px;
-  color: var(--text-faint);
-  transition:
-    color var(--t-fast) var(--ease),
-    background var(--t-fast) var(--ease);
-}
-
-.workbench-layout-btn:hover {
-  color: var(--text-muted);
-  background: var(--accent-faint);
-}
-
-.workbench-layout-btn.active {
-  color: var(--accent);
-  background: var(--accent-faint);
-}
-
 /* ── Primary station cards — big, bold, fill the pane ────────── */
 
 .workbench-stations {
@@ -4997,12 +4812,13 @@ input.viewer-title.viewer-title-rename {
 }
 
 /* Collapse toggle inside the expanded Workbench — a small chevron
-   bar that mirrors the rail's expand button. Right-aligned so it
-   doesn't compete with the TODAY hero card's eyebrow text. */
+   bar that mirrors the rail's expand button. Right-aligned and
+   pushed to the bottom of the workbench column. */
 .workbench-collapse-bar {
   display: flex;
   justify-content: flex-end;
-  margin: -4px -4px 0;
+  margin: auto -4px 0;
+  padding-top: 4px;
 }
 
 .workbench-collapse-btn {
@@ -5690,7 +5506,6 @@ input.viewer-title.viewer-title-rename {
    the Button universe's cursor + press-depth + focus-ring so
    every clickable thing in the app feels physical the same way.
    ──────────────────────────────────────────────────────────── */
-.workbench-today-main,
 .station,
 .thread-card,
 .entity-card-clickable,
@@ -5705,7 +5520,6 @@ input.viewer-title.viewer-title-rename {
     transform var(--t-fast) var(--ease),
     box-shadow var(--t-fast) var(--ease);
 }
-.workbench-today-main:active:not(:disabled),
 .station:active:not(:disabled),
 .thread-card:active:not(:disabled),
 .entity-card-clickable:active:not(:disabled),
@@ -5713,7 +5527,6 @@ input.viewer-title.viewer-title-rename {
 .agent-activity-banner:active:not(:disabled) {
   transform: translateY(1px);
 }
-.workbench-today-main:focus-visible,
 .station:focus-visible,
 .thread-card:focus-visible,
 .entity-card-clickable:focus-visible,
@@ -5722,7 +5535,6 @@ input.viewer-title.viewer-title-rename {
   outline: 2px solid var(--color-focus-ring);
   outline-offset: 2px;
 }
-.workbench-today-main:disabled,
 .station:disabled,
 .thread-card:disabled,
 .entity-card-clickable:disabled,
@@ -5732,7 +5544,6 @@ input.viewer-title.viewer-title-rename {
 }
 
 /* Universal radius normalization for card-as-buttons */
-.workbench-today-main,
 .station,
 .thread-card,
 .entity-card-clickable,

@@ -82,16 +82,20 @@ export function TasksViewer({ tasks, repo, onOpenTask, onChanged }: TasksViewerP
   };
 
   const remove = async (task: TaskSummary) => {
+    console.warn("[DELETE-DEBUG] tasks:remove enter", { filename: task.filename, title: task.title });
     const ok = await confirmDelete(
       `Delete "${task.title}"?\n\nThis cannot be undone.`,
       "Delete task?",
     );
+    console.warn("[DELETE-DEBUG] tasks:remove confirm result", { ok });
     if (!ok) return;
     try {
+      console.warn("[DELETE-DEBUG] tasks:remove calling deleteTask", { repo, filename: task.filename });
       await deleteTask(repo, task.filename);
+      console.warn("[DELETE-DEBUG] tasks:remove deleteTask succeeded");
       onChanged();
     } catch (err) {
-      console.error("[tasks] delete failed:", err);
+      console.error("[DELETE-DEBUG] tasks:remove failed:", err);
     }
   };
 
