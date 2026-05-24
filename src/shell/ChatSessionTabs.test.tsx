@@ -248,4 +248,65 @@ describe("ChatSessionTabs component", () => {
     expect(screen.getByText(/open a project folder/i)).toBeInTheDocument();
     expect(screen.queryAllByRole("tab")).toHaveLength(0);
   });
+
+  it("strips a leading status glyph (CC's spinner '*'/'✱') from labels", async () => {
+    // Seed a tab and mount, then drive a title-change through the
+    // restored tab to verify the glyph strip happens in setLabel.
+    persistTabs(REPO, [{ id: "main-glyph", label: "Session 1", resume: false }]);
+    render(<ChatSessionTabs cwd={REPO} />);
+    await act(async () => {
+      await new Promise((r) => setTimeout(r, 0));
+    });
+    // Simulate CC emitting an OSC-title with the spinner glyph prefix
+    // by double-clicking to rename and typing the prefixed value — same
+    // setLabel codepath both auto-rename and manual rename use.
+    const labelBtn = screen.getByRole("tab", { selected: true });
+    fireEvent.doubleClick(labelBtn);
+    const input = screen.getByLabelText(/rename session/i) as HTMLInputElement;
+    fireEvent.change(input, { target: { value: "* Claude Code" } });
+    fireEvent.keyDown(input, { key: "Enter" });
+    await act(async () => {
+      await new Promise((r) => setTimeout(r, 0));
+    });
+    expect(screen.getByRole("tab", { selected: true })).toHaveTextContent(
+      "Claude Code",
+    );
+    expect(
+      screen.getByRole("tab", { selected: true }).textContent,
+    ).not.toMatch(/^\*/);
+  });
+
+  it("double-click swaps in a rename input that commits on Enter", async () => {
+    render(<ChatSessionTabs cwd={REPO} />);
+    await act(async () => {
+      await new Promise((r) => setTimeout(r, 0));
+    });
+    fireEvent.doubleClick(screen.getByRole("tab", { selected: true }));
+    const input = screen.getByLabelText(/rename session/i) as HTMLInputElement;
+    fireEvent.change(input, { target: { value: "Investigating auth" } });
+    fireEvent.keyDown(input, { key: "Enter" });
+    await act(async () => {
+      await new Promise((r) => setTimeout(r, 0));
+    });
+    expect(screen.getByRole("tab", { selected: true })).toHaveTextContent(
+      "Investigating auth",
+    );
+  });
+
+  it("Escape cancels the rename and restores the prior label", async () => {
+    render(<ChatSessionTabs cwd={REPO} />);
+    await act(async () => {
+      await new Promise((r) => setTimeout(r, 0));
+    });
+    fireEvent.doubleClick(screen.getByRole("tab", { selected: true }));
+    const input = screen.getByLabelText(/rename session/i) as HTMLInputElement;
+    fireEvent.change(input, { target: { value: "Throwaway" } });
+    fireEvent.keyDown(input, { key: "Escape" });
+    await act(async () => {
+      await new Promise((r) => setTimeout(r, 0));
+    });
+    expect(screen.getByRole("tab", { selected: true })).toHaveTextContent(
+      "Session 1",
+    );
+  });
 });

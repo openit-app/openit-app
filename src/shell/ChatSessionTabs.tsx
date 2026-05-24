@@ -141,6 +141,13 @@ export function ChatSessionTabs({ cwd, registerHandle }: ChatSessionTabsProps) {
 
   const { tabs, activeId } = tabState;
 
+  // Which tab is currently in inline-rename mode. `null` means no tab is
+  // being renamed; otherwise the tab id whose label is being edited.
+  // Kept local to the strip (not persisted) — rename is a transient UI
+  // state, not part of the session model.
+  const [renamingId, setRenamingId] = useState<string | null>(null);
+  const [renameDraft, setRenameDraft] = useState("");
+
   const setTabs = useCallback(
     (updater: ChatSessionMeta[] | ((prev: ChatSessionMeta[]) => ChatSessionMeta[])) => {
       setTabState((prev) => {
@@ -239,7 +246,17 @@ export function ChatSessionTabs({ cwd, registerHandle }: ChatSessionTabsProps) {
     setTabs((prev) => {
       // Sanitize: trim, collapse whitespace, cap at 60 chars so the tab
       // strip can't be blown out by a stray multi-line title.
-      const cleaned = label.replace(/\s+/g, " ").trim().slice(0, 60);
+      //
+      // Also strip Claude Code's OSC-title status glyph prefix. CC sets
+      // its terminal title to things like "* Claude Code" or "✱ hi" to
+      // indicate thinking/working state — that glyph belongs in the
+      // terminal pane, not in our tab chrome. The character class below
+      // covers the spinner glyphs CC cycles through.
+      const cleaned = label
+        .replace(/^[\*✱●◐◑◒◓]+\s*/u, "")
+        .replace(/\s+/g, " ")
+        .trim()
+        .slice(0, 60);
       if (!cleaned) return prev;
       let changed = false;
       const next = prev.map((t) => {
@@ -317,6 +334,28 @@ export function ChatSessionTabs({ cwd, registerHandle }: ChatSessionTabsProps) {
     return () => window.removeEventListener("keydown", onKey, true);
   }, [tabs, setActiveId]);
 
+  const startRename = useCallback((id: string, currentLabel: string) => {
+    setRenamingId(id);
+    setRenameDraft(currentLabel);
+  }, []);
+
+  const commitRename = useCallback(() => {
+    setRenamingId((id) => {
+      if (id) {
+        // Reuse setLabel so the same sanitization (glyph strip, whitespace
+        // collapse, length cap) applies to user-typed labels too.
+        setLabel(id, renameDraft);
+      }
+      return null;
+    });
+    setRenameDraft("");
+  }, [renameDraft, setLabel]);
+
+  const cancelRename = useCallback(() => {
+    setRenamingId(null);
+    setRenameDraft("");
+  }, []);
+
   const onTitleChangeFor = useMemo(() => {
     // Stable per-id callbacks so panes don't see a new callback identity
     // every render (the ref inside ChatPane reads through, but this also
@@ -339,6 +378,7 @@ export function ChatSessionTabs({ cwd, registerHandle }: ChatSessionTabsProps) {
       <div className="chat-tabs-strip" role="tablist" aria-label="Claude sessions">
         {tabs.map((t) => {
           const active = t.id === activeId;
+          const renaming = renamingId === t.id;
           return (
             // The tab itself MUST carry role="tab" + aria-selected and be
             // the focusable element — per WAI-ARIA, putting role="tab" on a
@@ -349,17 +389,47 @@ export function ChatSessionTabs({ cwd, registerHandle }: ChatSessionTabsProps) {
               key={t.id}
               className={`chat-tab${active ? " chat-tab-active" : ""}`}
             >
-              <button
-                type="button"
-                role="tab"
-                aria-selected={active}
-                className="chat-tab-label"
-                onClick={() => setActiveId(t.id)}
-                title={t.label}
-              >
-                {t.label}
-              </button>
-              {tabs.length > 1 && (
+              {renaming ? (
+                <input
+                  type="text"
+                  className="chat-tab-rename"
+                  value={renameDraft}
+                  autoFocus
+                  onChange={(e) => setRenameDraft(e.target.value)}
+                  onBlur={commitRename}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") {
+                      e.preventDefault();
+                      commitRename();
+                    } else if (e.key === "Escape") {
+                      e.preventDefault();
+                      cancelRename();
+                    }
+                    // Don't let Cmd+1..9 etc. bubble up to the global
+                    // tab-switch shortcut while editing the label.
+                    e.stopPropagation();
+                  }}
+                  onFocus={(e) => e.currentTarget.select()}
+                  aria-label="Rename session"
+                />
+              ) : (
+                <button
+                  type="button"
+                  role="tab"
+                  aria-selected={active}
+                  className="chat-tab-label"
+                  onClick={() => setActiveId(t.id)}
+                  onDoubleClick={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    startRename(t.id, t.label);
+                  }}
+                  title="Double-click to rename"
+                >
+                  {t.label}
+                </button>
+              )}
+              {!renaming && tabs.length > 1 && (
                 <button
                   type="button"
                   className="chat-tab-close"
