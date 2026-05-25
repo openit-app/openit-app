@@ -12,6 +12,17 @@ export function clearActiveSession(id: string) {
   }
 }
 
+// Serializes PTY writes so two concurrent `writeToActiveSession`
+// callers don't interleave their body+enter pairs at the terminal.
+// Without this, two back-to-back calls would race:
+//   ptyWrite(bodyA) → ptyWrite(bodyB) → sleep(50) → enter for A →
+//   sleep(50) → enter for B
+// producing `bodyA + bodyB + \r + \r` at the prompt — one garbled
+// merged submission plus an empty newline. Chain everything off a
+// single shared promise so the second call sees the first's enter
+// before starting its body. (Independent reviewer finding, PIN-6607.)
+let writeChain: Promise<unknown> = Promise.resolve();
+
 /// Write text into whatever PTY is currently active (the visible Claude session).
 /// Resolves silently when no session is active so UI never crashes from a bubble click.
 /// Returns true if a session was active and the write was issued.
@@ -22,6 +33,9 @@ export function clearActiveSession(id: string) {
 /// contains both body and Enter as a paste with embedded newline —
 /// leaving the command staged at the prompt instead of submitting.
 /// Splitting it makes the Enter look like a real keypress.
+///
+/// Concurrent callers are serialized via an internal promise chain —
+/// see `writeChain` above.
 export async function writeToActiveSession(text: string): Promise<boolean> {
   if (!activeSessionId) {
     console.warn(
@@ -29,16 +43,40 @@ export async function writeToActiveSession(text: string): Promise<boolean> {
     );
     return false;
   }
-  const m = text.match(/^([\s\S]*?)([\r\n]+)$/);
-  if (m) {
-    const [, body, enter] = m;
-    if (body.length > 0) {
-      await ptyWrite(activeSessionId, body);
-      await new Promise((r) => setTimeout(r, 50));
+  // Dispatch to whatever session is active when this queued job
+  // actually runs — NOT the session captured at enqueue. The
+  // user's intent is "send to the current Claude session," and if
+  // they swapped sessions while another write was in flight, the
+  // new session is the right target. Only return false if NO
+  // session is active at run time. (BugBot iter-10 finding —
+  // previous behaviour returned false on any id mismatch, even
+  // when a new session was live, which surfaced a misleading
+  // "Claude session not active" toast.)
+  const run = async (): Promise<boolean> => {
+    const liveSessionId = activeSessionId;
+    if (!liveSessionId) {
+      console.warn(
+        "[activeSession] active session cleared between enqueue and run — dropping queued write.",
+      );
+      return false;
     }
-    await ptyWrite(activeSessionId, enter);
+    const m = text.match(/^([\s\S]*?)([\r\n]+)$/);
+    if (m) {
+      const [, body, enter] = m;
+      if (body.length > 0) {
+        await ptyWrite(liveSessionId, body);
+        await new Promise((r) => setTimeout(r, 50));
+      }
+      await ptyWrite(liveSessionId, enter);
+      return true;
+    }
+    await ptyWrite(liveSessionId, text);
     return true;
-  }
-  await ptyWrite(activeSessionId, text);
-  return true;
+  };
+  // Chain off the previous write so body+enter pair runs without
+  // interleaving. Swallow any rejection inside the chain itself so
+  // one caller's failure doesn't poison the chain for the next.
+  const result = writeChain.then(run, run);
+  writeChain = result.catch(() => undefined);
+  return result;
 }

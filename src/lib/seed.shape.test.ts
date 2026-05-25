@@ -5,6 +5,10 @@
  * `firstName` had a "Sample —" prefix that polluted the rendered name).
  * If a future seed edit puts the wrong content in the wrong field, this
  * test fires before integration runs.
+ *
+ * Ticket / conversation seeds were removed in PIN-6605 — only the
+ * remaining personas (people, knowledge, access, assets) and
+ * commands/scripts/reports surface as built-ins.
  */
 import { describe, it, expect } from "vitest";
 import * as fs from "fs";
@@ -82,40 +86,18 @@ function validateAgainstSchema(row: any, schema: { fields: SchemaField[] }): str
 }
 
 describe("Seed data — file counts", () => {
-  it("ships exactly 5 sample tickets", () => {
-    expect(loadSeedFiles("tickets").length).toBe(5);
-  });
   it("ships exactly 5 sample people", () => {
     expect(loadSeedFiles("people").length).toBe(5);
-  });
-  it("ships exactly 8 conversation messages across 5 tickets", () => {
-    const root = path.join(SEED_ROOT, "conversations");
-    const ticketDirs = fs.readdirSync(root).filter((d) =>
-      fs.statSync(path.join(root, d)).isDirectory(),
-    );
-    expect(ticketDirs.length).toBe(5);
-    const total = ticketDirs.reduce(
-      (n, d) => n + fs.readdirSync(path.join(root, d)).filter((f) => f.endsWith(".json")).length,
-      0,
-    );
-    expect(total).toBe(8);
   });
   it("ships exactly 2 sample KB articles", () => {
     const root = path.join(SEED_ROOT, "knowledge");
     const md = fs.readdirSync(root).filter((f) => f.endsWith(".md"));
     expect(md.length).toBe(2);
   });
-});
-
-describe("Seed data — tickets validate against tickets._schema.json", () => {
-  const schema = loadSchema("tickets");
-  const seeds = loadSeedFiles("tickets");
-  for (const { filename, data } of seeds) {
-    it(`${filename} is schema-valid`, () => {
-      const errors = validateAgainstSchema(data, schema);
-      expect(errors).toEqual([]);
-    });
-  }
+  it("does NOT ship sample tickets or conversations (removed in PIN-6605)", () => {
+    expect(fs.existsSync(path.join(SEED_ROOT, "tickets"))).toBe(false);
+    expect(fs.existsSync(path.join(SEED_ROOT, "conversations"))).toBe(false);
+  });
 });
 
 describe("Seed data — people validate against people._schema.json", () => {
@@ -132,26 +114,6 @@ describe("Seed data — people validate against people._schema.json", () => {
       expect(typeof data.firstName).toBe("string");
       expect(data.firstName).not.toMatch(/^Sample/);
     });
-  }
-});
-
-describe("Seed data — conversations carry ticketId for the engine adapter", () => {
-  const root = path.join(SEED_ROOT, "conversations");
-  const ticketDirs = fs.readdirSync(root).filter((d) =>
-    fs.statSync(path.join(root, d)).isDirectory(),
-  );
-  for (const ticketId of ticketDirs) {
-    const msgs = fs
-      .readdirSync(path.join(root, ticketId))
-      .filter((f) => f.endsWith(".json"));
-    for (const msg of msgs) {
-      it(`${ticketId}/${msg} has matching ticketId in content`, () => {
-        const data = JSON.parse(fs.readFileSync(path.join(root, ticketId, msg), "utf-8"));
-        expect(data.ticketId).toBe(ticketId);
-        expect(typeof data.role).toBe("string");
-        expect(typeof data.body).toBe("string");
-      });
-    }
   }
 });
 

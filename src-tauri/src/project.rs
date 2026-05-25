@@ -71,7 +71,11 @@ pub fn project_bootstrap(vault_path: Option<String>) -> Result<BootstrapResult, 
         // turn was logged, which felt incomplete to users browsing
         // the layout.
         for dir in &[
-            "agents",
+            // `agents/` was retired in the May 2026 reorg — the
+            // workstation no longer surfaces it as a primitive and the
+            // intake server falls back to a built-in persona when the
+            // folder is absent. Existing vaults that have one are
+            // migrated below (`agents/` → `.openit/_legacy/agents/`).
             "databases",
             "databases/tickets",
             "databases/people",
@@ -231,6 +235,29 @@ pub fn project_bootstrap(vault_path: Option<String>) -> Result<BootstrapResult, 
         let _ = fs::remove_dir(&legacy_skills);
     }
 
+    // Legacy migration: top-level `instructions/` → `.openit/instructions/`.
+    // PIN-6614 first shipped the per-topic instruction files at the vault
+    // root, but they clutter the user-visible file tree alongside the
+    // admin's own content (`databases/`, `filestores/`, ...). The follow-up
+    // moves them into `.openit/instructions/` where they sit next to the
+    // other system files. Migrate any vault that was bootstrapped during
+    // the window where the old layout shipped so a fresh re-sync from the
+    // bundled plugin doesn't leave stale duplicates at the root.
+    let legacy_instructions = path.join("instructions");
+    if legacy_instructions.is_dir() {
+        let dest_instructions = path.join(".openit").join("instructions");
+        let _ = fs::create_dir_all(&dest_instructions);
+        if let Ok(entries) = fs::read_dir(&legacy_instructions) {
+            for entry in entries.flatten() {
+                let from = entry.path();
+                let name = entry.file_name();
+                let to = unique_legacy_dest(&dest_instructions, &name);
+                let _ = fs::rename(&from, &to);
+            }
+        }
+        let _ = fs::remove_dir(&legacy_instructions);
+    }
+
     // Legacy migration: `.openit/agent-traces/` → top-level `traces/`.
     // The 2026-05 restructure promoted trace storage out of the
     // hidden runtime dir so admins (and CC) can browse audit logs
@@ -248,6 +275,57 @@ pub fn project_bootstrap(vault_path: Option<String>) -> Result<BootstrapResult, 
             }
         }
         let _ = fs::remove_dir(&legacy_traces);
+    }
+
+    // Legacy migration: clean up `agents/` from the vault root.
+    //
+    // Agents was retired as a primitive in the May 2026 reorg
+    // (PIN-6606). The user-visible workstation no longer shows an
+    // Agents tile, the routing layer no longer has an agent viewer,
+    // and the only file that ever lived here in practice (a seeded
+    // `triage.md` from older app versions) is no longer used — the
+    // intake server's `load_agent` falls back to a built-in persona
+    // when the file is absent.
+    //
+    // Migration policy:
+    //   - Empty `agents/` → delete outright.
+    //   - `agents/` containing only the legacy seeded `triage.md` →
+    //     delete (it's stale autogen).
+    //   - `agents/` containing anything the user might have authored →
+    //     quarantine to `.openit/_legacy/agents/`. Never delete user
+    //     data without consent.
+    let agents_dir = path.join("agents");
+    if agents_dir.is_dir() {
+        let entries: Vec<_> = fs::read_dir(&agents_dir)
+            .map(|rd| rd.flatten().collect())
+            .unwrap_or_default();
+
+        let only_legacy_seed = entries.iter().all(|e| {
+            let name = e.file_name();
+            // Pure-seed contents we know we wrote ourselves and can
+            // safely delete.
+            name == "triage.md" || name == ".DS_Store"
+        });
+
+        if entries.is_empty() || only_legacy_seed {
+            if let Err(err) = fs::remove_dir_all(&agents_dir) {
+                eprintln!("[project_bootstrap] failed to remove stale agents/: {err}");
+            } else {
+                eprintln!("[project_bootstrap] removed stale agents/ (no user content)");
+            }
+        } else {
+            // User content present — quarantine instead of delete.
+            let quarantine_root = path.join(".openit").join("_legacy");
+            let _ = fs::create_dir_all(&quarantine_root);
+            let dest = unique_legacy_dest(&quarantine_root, OsStr::new("agents"));
+            match fs::rename(&agents_dir, &dest) {
+                Ok(()) => eprintln!(
+                    "[project_bootstrap] quarantined agents/ → {}",
+                    dest.display()
+                ),
+                Err(err) => eprintln!("[project_bootstrap] failed to quarantine agents/: {err}"),
+            }
+        }
     }
 
     // Flatten migration: move articles from `knowledge/default/`

@@ -10,82 +10,53 @@ import { relUnderRepo } from "../../lib/paths";
 
 /// Pasting a slash command into the active Claude PTY uses bracketed-
 /// paste sequences so the terminal treats it as a single atomic input,
-/// not as the user typing key-by-key. Same pattern as the
-/// EscalatedTicketBanner.
+/// not as the user typing key-by-key.
 export const BRACKETED_PASTE_OPEN = "\x1b[200~";
 export const BRACKETED_PASTE_CLOSE = "\x1b[201~";
-
-/// Default model dropdown options. Mirrors the platform's set
-/// (`sonnet`, `haiku`, `opus`, `opus-low`); blank means "preserve cloud
-/// value" (omit-when-absent on push).
-export const AGENT_MODEL_OPTIONS = [
-  { value: "", label: "(use cloud default)" },
-  { value: "haiku", label: "haiku" },
-  { value: "sonnet", label: "sonnet" },
-  { value: "opus", label: "opus" },
-  { value: "opus-low", label: "opus-low" },
-];
-
-export const AGENT_TRIAGE_SUBDIR = "agents/triage";
 
 /// Title labels for the entity-folder view. Capital case for the title
 /// bar; the explorer rows use the lowercase folder names directly.
 export const ENTITY_FOLDER_LABELS: Record<
-  | "agents"
-  | "workflows"
   | "knowledge"
   | "knowledge-base"
   | "library"
   | "reports"
   | "skills"
-  | "scripts"
-  | "attachments-ticket",
+  | "scripts",
   string
 > = {
-  agents: "Agents",
-  workflows: "Workflows",
   knowledge: "Knowledge",
   "knowledge-base": "Knowledge",
   library: "Library",
   reports: "Reports",
   skills: "Skills",
   scripts: "Scripts",
-  "attachments-ticket": "Attachments",
 };
 
-/// Friendly empty-state copy per top-level entity folder, mirroring the
-/// conversations-list notice. Each message says what lives here, why it
-/// is empty, and the natural way to populate it.
+/// Friendly empty-state copy per top-level entity folder. Each message
+/// says what lives here, why it is empty, and the natural way to
+/// populate it.
 export const ENTITY_FOLDER_EMPTY_COPY: Record<
-  | "agents"
-  | "workflows"
   | "knowledge"
   | "knowledge-base"
   | "library"
   | "reports"
   | "skills"
-  | "scripts"
-  | "attachments-ticket",
+  | "scripts",
   string
 > = {
-  agents:
-    "No agents yet. Agents are reusable Claude prompts (triage, onboarding, audits) that drive the workflows in this project. Ask Claude in the chat — \"draft an agent that triages tickets by urgency\" — and it will scaffold one here.",
-  workflows:
-    "No workflows yet. Workflows orchestrate agents and connections to automate IT work end-to-end. Ask Claude — \"build a workflow that escalates SLA breaches\" — and it will land a workflow file here.",
   knowledge:
-    "No articles yet. This is your knowledge base — Claude reads these when answering tickets. Drop in markdown files, or ask Claude to write one.",
+    "No articles yet. This is your knowledge base. Drop in markdown files, or ask Claude to write one.",
   "knowledge-base":
-    "No articles yet. This is your knowledge base — Claude reads these when answering tickets. Drop in markdown files, or ask Claude to write one.",
+    "No articles yet. This is your knowledge base. Drop in markdown files, or ask Claude to write one.",
   library:
-    "No library files yet. Drop runbook PDFs, scripts, or any reference doc you reach for repeatedly — Claude can pull from these when answering tickets or building workflows.",
+    "No library files yet. Drop runbook PDFs, scripts, or any reference doc you reach for repeatedly — Claude can pull from these.",
   reports:
-    "No reports yet. Click \"generate overview\" above for an instant snapshot of ticket status, recent activity, top askers, and current escalations — or click \"ask for custom report\" to describe one (\"VPN tickets last 30 days\", \"escalations by asker\").",
+    "No reports yet. Click \"generate overview\" above for an instant snapshot, or click \"ask for custom report\" to describe one.",
   skills:
-    "No skills yet. Skills capture admin workflows — markdown prompts Claude (or you) read and follow when a similar ticket comes back around. They land here automatically when you click \"Mark as resolved\" on a ticket whose resolution had branches or judgment calls. You can also ask Claude to draft one directly.",
+    "No skills yet. Skills capture admin workflows — markdown prompts Claude (or you) read and follow. Ask Claude to draft one directly.",
   scripts:
-    "No scripts yet. Scripts capture deterministic admin workflows — runnable code (Node / shell / Python) that always does the same thing for the same inputs. They land here automatically when you click \"Mark as resolved\" on a ticket whose resolution was a fixed CLI / API sequence. You can also ask Claude to draft one directly.",
-  "attachments-ticket":
-    "No attachments on this ticket yet. Files dropped into the chat or admin reply will land here.",
+    "No scripts yet. Scripts capture deterministic admin workflows — runnable code (Node / shell / Python) that always does the same thing for the same inputs. Ask Claude to draft one directly.",
 };
 
 /// Hello-world starter content for the "New" button on the scripts /
@@ -295,24 +266,24 @@ export async function uploadFilesToSubdir(
   }
 }
 
-/// Race a Tauri `ask()` dialog against a timeout. If the dialog hangs
-/// (e.g. due to macOS permission or focus issue), the timeout fires and
-/// we treat it as confirmed — the user already clicked the trash icon.
-export async function confirmDelete(message: string, _title: string): Promise<boolean> {
-  // Browser-native modal: synchronous, always rendered by the webview
-  // itself (no native-Z-order quirks like the Tauri dialog plugin
-  // ran into on Windows). The plugin path stayed dark for some
-  // installs — a click on the trash icon did nothing visible — so the
-  // simpler approach wins.
+/// Tauri's native confirm dialog. `window.confirm` from inside the
+/// WebView is unreliable on macOS — on some builds it returns `false`
+/// immediately without rendering any UI, which silently swallows every
+/// delete click. The `ask()` plugin renders a real NSAlert, blocks
+/// until the user picks, and resolves the boolean. Any unexpected
+/// throw is treated as cancel — better silent no-op than accidental
+/// destruction.
+export async function confirmDelete(message: string, title: string): Promise<boolean> {
   try {
-    return window.confirm(message);
-  } catch {
-    return true;
+    return await ask(message, { title, kind: "warning" });
+  } catch (err) {
+    console.error("[confirmDelete] dialog failed:", err);
+    return false;
   }
 }
 
 /// Confirm + delete a single file in an entity folder. Used by the
-/// trash button on library/KB/reports/attachments-ticket cards. The
+/// trash button on library/KB/reports cards. The
 /// fs watcher refreshes the listing on its own — we just surface
 /// errors so the user knows when a delete didn't take.
 ///

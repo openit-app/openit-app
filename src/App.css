@@ -1212,7 +1212,13 @@ input.viewer-title.viewer-title-rename {
   justify-content: flex-end;
   align-items: center;
   gap: 12px;
-  padding: 8px 14px 0;
+  /* Right inset bumped so the "add to chat →" link doesn't read as
+     flush against the pane border. PaneBody (which sits directly
+     below this strip) also reserves a stable scrollbar gutter on the
+     right, so a small 14px subheader inset visually disappeared next
+     to the wider gutter below; 22px gives the link a clear breathing
+     edge that lines up with the typical viewer body padding. */
+  padding: 8px 22px 0 14px;
   background: var(--surface);
 }
 
@@ -4057,6 +4063,134 @@ input.viewer-title.viewer-title-rename {
   flex: 1;
 }
 
+/* Tab strip for multiple Claude Code sessions. Sits between the
+   chat-shell-header (branding + new/resume buttons) and the chat-area
+   (xterm host). Each tab shows the CC session's own auto-generated
+   name (mirrored via xterm onTitleChange) and a close button. Default
+   label is "Session N" until CC sets a title. */
+.chat-tabs-strip {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: stretch;
+  gap: 2px;
+  padding: 0 var(--space-3);
+  background: var(--color-surface-dark-2);
+  border-bottom: 1px solid var(--color-border-dark);
+  overflow-x: auto;
+  scrollbar-width: none;
+  min-height: 30px;
+}
+.chat-tabs-strip::-webkit-scrollbar {
+  display: none;
+}
+
+.chat-tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 0 8px 0 10px;
+  background: transparent;
+  color: var(--text-faint);
+  font-family: var(--font-body);
+  font-size: 11px;
+  letter-spacing: 0;
+  border-radius: 4px 4px 0 0;
+  border: 1px solid transparent;
+  border-bottom: none;
+  margin-bottom: -1px;
+  transition: background var(--t-fast) var(--ease), color var(--t-fast) var(--ease);
+  max-width: 200px;
+}
+.chat-tab:hover {
+  background: color-mix(in srgb, var(--color-text) 6%, transparent);
+  color: var(--text);
+}
+.chat-tab-active {
+  background: var(--color-surface-dark);
+  color: var(--text);
+  border-color: var(--color-border-dark);
+}
+.chat-tab-active:hover {
+  background: var(--color-surface-dark);
+}
+
+.chat-tab-label {
+  appearance: none;
+  background: transparent;
+  border: 0;
+  margin: 0;
+  padding: 6px 0;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+  text-align: left;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 170px;
+}
+
+.chat-tab-rename {
+  appearance: none;
+  background: var(--color-surface-dark);
+  border: 1px solid var(--color-border-dark);
+  border-radius: 3px;
+  margin: 2px 0;
+  padding: 2px 4px;
+  color: var(--text);
+  font: inherit;
+  outline: none;
+  width: 160px;
+  max-width: 170px;
+}
+.chat-tab-rename:focus {
+  border-color: color-mix(in srgb, var(--color-text) 30%, transparent);
+}
+
+.chat-tab-close {
+  appearance: none;
+  background: transparent;
+  border: 0;
+  margin: 0;
+  padding: 0;
+  width: 16px;
+  height: 16px;
+  border-radius: 3px;
+  color: var(--text-faint);
+  font-size: 14px;
+  line-height: 1;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: background var(--t-fast) var(--ease), color var(--t-fast) var(--ease);
+}
+.chat-tab-close:hover {
+  background: color-mix(in srgb, var(--color-text) 14%, transparent);
+  color: var(--text);
+}
+
+.chat-tab-add {
+  appearance: none;
+  background: transparent;
+  border: 0;
+  margin: 0 0 0 4px;
+  padding: 0 8px;
+  align-self: center;
+  height: 22px;
+  border-radius: 4px;
+  color: var(--text-faint);
+  font-size: 16px;
+  line-height: 1;
+  cursor: pointer;
+  transition: background var(--t-fast) var(--ease), color var(--t-fast) var(--ease);
+}
+.chat-tab-add:hover {
+  background: color-mix(in srgb, var(--color-text) 8%, transparent);
+  color: var(--text);
+}
+
+
 /* ── Status bar removed ─────────────────────────────────────────
    The .status-bar / .status-chip / .status-led classes migrated to
    src/ui/Chip.tsx. The StatusBar component now uses <Chip> and the
@@ -4309,191 +4443,6 @@ input.viewer-title.viewer-title-rename {
   padding: 12px;
   height: 100%;
   min-height: 0;
-}
-
-/* ── TODAY hero card ─────────────────────────────────────────── */
-
-.workbench-today {
-  display: flex;
-  flex-direction: column;
-  width: 100%;
-  background:
-    radial-gradient(
-      ellipse at top right,
-      rgba(199, 90, 44, 0.18) 0%,
-      transparent 70%
-    ),
-    linear-gradient(180deg, #fff8ec 0%, var(--surface) 100%);
-  border: 1px solid var(--border);
-  border-radius: 12px;
-  box-shadow: var(--shadow-card);
-  position: relative;
-  overflow: hidden;
-  transition:
-    border-color var(--t-fast) var(--ease),
-    transform var(--t-fast) var(--ease),
-    box-shadow var(--t-fast) var(--ease);
-}
-.workbench-today.has-escalated {
-  border-color: rgba(199, 154, 46, 0.35);
-  box-shadow:
-    var(--shadow-card),
-    0 0 0 3px rgba(245, 185, 72, 0.06);
-}
-.workbench-today:hover:not(.has-disabled) {
-  border-color: var(--accent-soft);
-  transform: translateY(-1px);
-  box-shadow: var(--shadow-lift);
-}
-.workbench-today.has-escalated:hover {
-  border-color: rgba(199, 154, 46, 0.5);
-}
-
-.workbench-today::after {
-  content: '';
-  position: absolute;
-  inset: 0;
-  background-image: radial-gradient(
-    rgba(120, 96, 60, 0.05) 1px,
-    transparent 1px
-  );
-  background-size: 14px 14px;
-  pointer-events: none;
-  opacity: 0.5;
-}
-
-.workbench-today-main {
-  appearance: none;
-  background: transparent;
-  border: 0;
-  width: 100%;
-  text-align: left;
-  font: inherit;
-  color: inherit;
-  cursor: pointer;
-  padding: 14px 16px 12px;
-  display: flex;
-  flex-direction: column;
-  position: relative;
-  z-index: 1;
-}
-.workbench-today-main:disabled {
-  cursor: not-allowed;
-  opacity: 0.7;
-}
-
-.workbench-today-topline {
-  display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  margin-bottom: 4px;
-}
-.workbench-today-eyebrow {
-  font-family: var(--font-display);
-  font-size: 10px;
-  font-weight: 600;
-  letter-spacing: 0.14em;
-  color: var(--accent);
-}
-.workbench-today-brand {
-  font-family: var(--font-display);
-  font-weight: 800;
-  font-size: 11px;
-  letter-spacing: -0.01em;
-  color: var(--text);
-  line-height: 1;
-  user-select: none;
-}
-.workbench-today-brand em {
-  font-family: var(--font-brand-italic);
-  font-style: italic;
-  font-weight: 500;
-  font-size: 13px;
-  color: var(--accent);
-  margin-left: 1px;
-}
-
-.workbench-today-hero {
-  display: flex;
-  align-items: baseline;
-  gap: 10px;
-  position: relative;
-  z-index: 1;
-}
-
-.workbench-today-number {
-  font-family: var(--font-display);
-  font-size: 44px;
-  font-weight: 700;
-  letter-spacing: -0.04em;
-  line-height: 1;
-  color: var(--text);
-  font-variant-numeric: tabular-nums;
-  background: linear-gradient(135deg, var(--text) 0%, #4a3922 100%);
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  background-clip: text;
-}
-
-.workbench-today-label {
-  font-family: var(--font-serif);
-  font-style: italic;
-  font-size: 13px;
-  color: var(--text-muted);
-  line-height: 1.2;
-}
-
-.workbench-today-hero-clean {
-  align-items: center;
-}
-
-.workbench-today-clean {
-  font-family: var(--font-display);
-  font-size: 22px;
-  font-weight: 600;
-  letter-spacing: -0.02em;
-  line-height: 1.45;
-  padding-bottom: 4px;
-  color: var(--text);
-  background: linear-gradient(135deg, var(--text) 0%, #4a3922 100%);
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  background-clip: text;
-}
-
-/* ── Layout toggle bar ────────────────────────────────────────── */
-
-.workbench-layout-bar {
-  display: flex;
-  justify-content: flex-end;
-  gap: 2px;
-  padding: 0 2px;
-  margin-top: auto;
-}
-
-.workbench-layout-btn {
-  all: unset;
-  cursor: pointer;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 26px;
-  height: 26px;
-  border-radius: 6px;
-  color: var(--text-faint);
-  transition:
-    color var(--t-fast) var(--ease),
-    background var(--t-fast) var(--ease);
-}
-
-.workbench-layout-btn:hover {
-  color: var(--text-muted);
-  background: var(--accent-faint);
-}
-
-.workbench-layout-btn.active {
-  color: var(--accent);
-  background: var(--accent-faint);
 }
 
 /* ── Primary station cards — big, bold, fill the pane ────────── */
@@ -4778,6 +4727,153 @@ input.viewer-title.viewer-title-rename {
    in src/ui/Button.tsx. Consumers in src/App.tsx now use those. */
 
 /* ─────────────────────────────────────────────────────────────────
+   Collapsible left sidebar (PIN-6613)
+   When collapsed, the workstation tiles shrink to an icon-only rail
+   anchored to the left of the shell. The rail sits OUTSIDE the
+   resizable PanelGroup so its width is fixed in pixels — much more
+   predictable than percentage-based pane sizing across screen sizes.
+   ───────────────────────────────────────────────────────────────── */
+
+.shell-panes-row-collapsed-left {
+  gap: 8px;
+}
+
+.sidebar-rail {
+  flex: 0 0 auto;
+  width: 52px;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 6px;
+  padding: 8px 6px;
+  background: var(--bg-canvas);
+  border-radius: var(--r-pane);
+  overflow: hidden;
+}
+
+.sidebar-rail-toggle {
+  all: unset;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: 28px;
+  margin-top: auto;
+  border-radius: 8px;
+  color: var(--text-faint);
+  transition:
+    color var(--t-fast) var(--ease),
+    background var(--t-fast) var(--ease);
+}
+
+.sidebar-rail-toggle:hover {
+  color: var(--accent);
+  background: var(--accent-faint);
+}
+
+.sidebar-rail-toggle:focus-visible {
+  color: var(--accent);
+  background: var(--accent-faint);
+  /* Visible focus ring for keyboard users — `all: unset` above strips
+     the browser default, so :focus-visible must re-establish a
+     contrast-passing indicator (WCAG 2.4.7 / 1.4.11). */
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.sidebar-rail-tiles {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  overflow-y: auto;
+  overflow-x: hidden;
+  min-height: 0;
+  padding: 2px;
+}
+
+.sidebar-rail-tile {
+  all: unset;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+  background: var(--tone-bg, var(--accent-faint));
+  color: var(--tone-color, var(--accent));
+  border: 1px solid transparent;
+  transition:
+    background var(--t-fast) var(--ease),
+    border-color var(--t-fast) var(--ease),
+    transform var(--t-fast) var(--ease);
+}
+
+.sidebar-rail-tile:hover {
+  border-color: var(--tone-border, var(--accent-soft));
+  transform: translateY(-1px);
+}
+
+.sidebar-rail-tile:focus-visible {
+  border-color: var(--tone-border, var(--accent-soft));
+  transform: translateY(-1px);
+  /* WCAG-compliant focus ring (see .sidebar-rail-toggle). */
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.sidebar-rail-tile-selected {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 2px var(--accent-faint);
+}
+
+.sidebar-rail-glyph {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+}
+
+/* Collapse toggle inside the expanded Workbench — a small chevron
+   bar that mirrors the rail's expand button. Right-aligned and
+   pushed to the bottom of the workbench column. */
+.workbench-collapse-bar {
+  display: flex;
+  justify-content: flex-end;
+  margin: auto -4px 0;
+  padding-top: 4px;
+}
+
+.workbench-collapse-btn {
+  all: unset;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  border-radius: 6px;
+  color: var(--text-faint);
+  transition:
+    color var(--t-fast) var(--ease),
+    background var(--t-fast) var(--ease);
+}
+
+.workbench-collapse-btn:hover {
+  color: var(--accent);
+  background: var(--accent-faint);
+}
+
+.workbench-collapse-btn:focus-visible {
+  color: var(--accent);
+  background: var(--accent-faint);
+  /* WCAG-compliant focus ring (see .sidebar-rail-toggle). */
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+/* ─────────────────────────────────────────────────────────────────
    Pane drag-and-drop reorder
    ───────────────────────────────────────────────────────────────── */
 
@@ -5028,17 +5124,13 @@ input.viewer-title.viewer-title-rename {
   top: 50%;
   right: 43px;
   transform: translateY(-50%);
-  opacity: 0;
-  pointer-events: none;
-  z-index: 10;
-}
-
-.entity-card-wrapper:hover .entity-card-run,
-.entity-card-wrapper:focus-within .entity-card-run,
-.entity-card-run:hover,
-.entity-card-run:focus {
+  /* Always visible — Ben feedback (PIN-6611): the hover-only Run
+     button was invisible on first paint, so users didn't realize
+     they could run a script. Click-on-tile still triggers run; the
+     button is the explicit affordance for it. */
   opacity: 1;
   pointer-events: auto;
+  z-index: 10;
 }
 
 /* When a card has run-only (no delete), pull the run slot back to the
@@ -5157,6 +5249,18 @@ input.viewer-title.viewer-title-rename {
      so text doesn't sit under the icons. */
   padding-right: 40px;
 }
+
+/* Scripts cards carry BOTH delete (right: 10px) and run (right: 43px,
+   now always-visible per PIN-6611). Reserve enough right-side padding
+   for both so long script names get ellipsised before they collide
+   with the run glyph. */
+.entity-card-wrapper:has(.entity-card-run) .entity-card-body {
+  padding-right: 76px;
+}
+
+/* Run-only cards (no delete) — the run slot is pulled to right: 10px,
+   so the single-icon 40px reservation already used by `.entity-card-body`
+   is still correct. No additional rule needed. */
 
 .entity-card-row {
   display: flex;
@@ -5426,7 +5530,6 @@ input.viewer-title.viewer-title-rename {
    the Button universe's cursor + press-depth + focus-ring so
    every clickable thing in the app feels physical the same way.
    ──────────────────────────────────────────────────────────── */
-.workbench-today-main,
 .station,
 .thread-card,
 .entity-card-clickable,
@@ -5441,7 +5544,6 @@ input.viewer-title.viewer-title-rename {
     transform var(--t-fast) var(--ease),
     box-shadow var(--t-fast) var(--ease);
 }
-.workbench-today-main:active:not(:disabled),
 .station:active:not(:disabled),
 .thread-card:active:not(:disabled),
 .entity-card-clickable:active:not(:disabled),
@@ -5449,7 +5551,6 @@ input.viewer-title.viewer-title-rename {
 .agent-activity-banner:active:not(:disabled) {
   transform: translateY(1px);
 }
-.workbench-today-main:focus-visible,
 .station:focus-visible,
 .thread-card:focus-visible,
 .entity-card-clickable:focus-visible,
@@ -5458,7 +5559,6 @@ input.viewer-title.viewer-title-rename {
   outline: 2px solid var(--color-focus-ring);
   outline-offset: 2px;
 }
-.workbench-today-main:disabled,
 .station:disabled,
 .thread-card:disabled,
 .entity-card-clickable:disabled,
@@ -5468,7 +5568,6 @@ input.viewer-title.viewer-title-rename {
 }
 
 /* Universal radius normalization for card-as-buttons */
-.workbench-today-main,
 .station,
 .thread-card,
 .entity-card-clickable,
@@ -5629,4 +5728,403 @@ input.viewer-title.viewer-title-rename {
   display: flex;
   gap: 8px;
   justify-content: flex-end;
+}
+
+/* ── Tasks viewer ──────────────────────────────────────────────── */
+/* Kanban board: three equal-width columns (Todo / In Progress /
+ * Complete) holding cards. A composer row + assignee filter chip row
+ * sit above the board. Chrome matches the rest of the app — white
+ * input surface, standard border tokens, and the canonical Button
+ * variant for "+ New". No cream backdrops on inputs. */
+
+.tasks-viewer {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  /* The viewer extends edge-to-edge of PaneBody's content area; PaneBody
+     already supplies the canonical pane inset, so the viewer itself
+     adds zero horizontal padding. The previous version layered an
+     extra 22px on top of PaneBody and STILL had the +New button
+     visually hugging the right edge — the cause turned out to be the
+     composer using `width: 100%` with the +New button as the final
+     flex item AND PaneBody reserving a scrollbar gutter that ate the
+     22px. Letting PaneBody own the inset keeps the right edge of the
+     +New button sitting exactly `--pane-body-pad-x` (16px) from the
+     pane's right border. Adjust --pane-body-pad-x in tokens if a
+     wider gutter is needed app-wide; the tasks viewer no longer
+     fights that token. */
+  padding: 0;
+  width: 100%;
+  min-width: 0;
+  /* Fill the pane height so the Kanban columns can scroll
+     independently when they overflow. Without this the columns
+     collapse to their content height and the page scroll takes over. */
+  height: 100%;
+  min-height: 0;
+}
+
+.tasks-toolbar {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  flex: 0 0 auto;
+}
+
+/* Composer — single row matching the standard input chrome used in
+   other viewers (white surface, --color-border hairline). No cream
+   background, no orange button background; the "+ New" Button uses
+   the app's primary variant. */
+.tasks-composer {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  width: 100%;
+  /* No padding on the composer wrapper itself — each child input owns
+     its own border and padding so the inputs read as discrete fields
+     instead of a single fused bar. */
+}
+
+.tasks-input {
+  appearance: none;
+  background: var(--color-surface, var(--surface));
+  border: 1px solid var(--color-border, var(--border));
+  border-radius: var(--r-md, 8px);
+  color: var(--color-text, var(--text));
+  font: inherit;
+  font-size: 14px;
+  padding: 7px 10px;
+  outline: none;
+  transition:
+    border-color var(--t-fast) var(--ease),
+    box-shadow var(--t-fast) var(--ease);
+}
+
+.tasks-input::placeholder {
+  color: var(--color-text-faint, var(--text-faint));
+}
+
+.tasks-input:focus {
+  border-color: var(--color-accent, var(--accent));
+  box-shadow: 0 0 0 3px var(--color-focus-ring, rgba(199, 90, 44, 0.25));
+}
+
+.tasks-input:disabled {
+  opacity: 0.6;
+}
+
+.tasks-input-title {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.tasks-input-assignee {
+  flex: 0 0 140px;
+  width: 140px;
+}
+
+.tasks-input-status {
+  flex: 0 0 120px;
+  width: 120px;
+  cursor: pointer;
+  /* Preserve the platform select chevron — native chevron reads
+     correctly across themes and keeps the field looking like a real
+     select rather than a styled <input>. */
+}
+
+/* Assignee filter chip row. Mirrors the standard ui/Chip pill but
+   styled inline to avoid pulling Chip into the viewer (the filter
+   chips need an "active" state with a tinted background, which the
+   shared Chip doesn't expose). */
+.tasks-filter {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: center;
+}
+
+.tasks-filter-chip {
+  appearance: none;
+  background: var(--color-surface, var(--surface));
+  border: 1px solid var(--color-border, var(--border));
+  color: var(--color-text-muted, var(--text-muted));
+  border-radius: var(--r-pill, 999px);
+  padding: 3px 12px;
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  white-space: nowrap;
+  transition:
+    background var(--t-fast) var(--ease),
+    border-color var(--t-fast) var(--ease),
+    color var(--t-fast) var(--ease);
+}
+
+.tasks-filter-chip:hover {
+  border-color: var(--color-border-strong, var(--border));
+  color: var(--color-text, var(--text));
+}
+
+.tasks-filter-chip:focus-visible {
+  outline: 2px solid var(--color-focus-ring, rgba(199, 90, 44, 0.45));
+  outline-offset: 2px;
+}
+
+.tasks-filter-chip-active {
+  background: var(--color-accent, var(--accent));
+  border-color: var(--color-accent, var(--accent));
+  color: var(--color-on-accent, #fff);
+}
+
+.tasks-filter-chip-active:hover {
+  background: var(--color-accent-hover, var(--accent));
+  border-color: var(--color-accent-hover, var(--accent));
+  color: var(--color-on-accent, #fff);
+}
+
+/* Kanban board — three equal columns. Each column manages its own
+   scroll, the board itself does not scroll horizontally (three
+   columns always fit in the pane on every supported window size).
+   `min-height: 0` is mandatory on flex children that own a scroller
+   — without it the column would expand to fit its content and steal
+   the pane's scroll. */
+.tasks-kanban {
+  display: flex;
+  gap: 12px;
+  flex: 1 1 auto;
+  min-height: 0;
+  align-items: stretch;
+}
+
+.tasks-column {
+  flex: 1 1 0;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  background: var(--color-bg-canvas, var(--surface-soft));
+  border: 1px solid var(--color-border, var(--border));
+  border-radius: var(--r-md, 10px);
+  min-height: 0;
+  overflow: hidden;
+}
+
+.tasks-column-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--color-border-faint, var(--border));
+  flex: 0 0 auto;
+}
+
+.tasks-column-title {
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--color-text, var(--text));
+  flex: 1 1 auto;
+}
+
+.tasks-column-count {
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  color: var(--color-text-faint, var(--text-faint));
+  background: var(--color-surface, var(--surface));
+  border: 1px solid var(--color-border, var(--border));
+  border-radius: 999px;
+  padding: 1px 8px;
+  min-width: 22px;
+  text-align: center;
+}
+
+.tasks-column-body {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.tasks-column-empty {
+  margin: 6px 2px;
+  font-size: 13px;
+  font-style: italic;
+  color: var(--color-text-faint, var(--text-faint));
+  text-align: center;
+}
+
+/* Card chrome — borrows directly from .entity-card so the Kanban
+   reads as the same surface as the workstation grids. The wrapper is
+   relatively positioned so the trash button can absolute into its
+   bottom-right without disturbing the card's flex layout. The
+   wrapper itself is the drag handle (`draggable` on the element);
+   `cursor: grab` advertises that and flips to `grabbing` while a
+   drag is in flight (signalled by the .tasks-card-dragging class
+   the React component toggles on dragstart / dragend). */
+.tasks-card-wrapper {
+  position: relative;
+  isolation: isolate;
+  cursor: grab;
+}
+
+.tasks-card-wrapper:active {
+  cursor: grabbing;
+}
+
+/* Dragging state — the wrapper class flips while a drag is in flight.
+   Drop the opacity so the user can see the drop target underneath,
+   and remove the hover lift so the floating drag image doesn't carry
+   a stale "hovered" shadow into the drop target. */
+.tasks-card-dragging .tasks-card {
+  opacity: 0.45;
+  box-shadow: none;
+}
+
+/* Column drop-target highlight — the React component flips
+   .tasks-column-drop-target on the section while a dragged card is
+   over it. Subtle accent ring + soft background so the user knows
+   "release here". */
+.tasks-column-drop-target {
+  border-color: var(--color-accent, var(--accent));
+  background: var(--color-accent-faint, var(--accent-faint));
+}
+
+.tasks-column-drop-target .tasks-column-body {
+  /* Slightly tinted body so a column with cards inside still reads
+     as the active drop target — the border alone gets visually lost
+     once the column is full. */
+  background: var(--color-accent-faint, transparent);
+}
+
+.tasks-card {
+  appearance: none;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  width: 100%;
+  padding: 10px 12px;
+  background: var(--color-surface, var(--surface));
+  border: 1px solid var(--color-border, var(--border));
+  border-radius: 8px;
+  text-align: left;
+  font: inherit;
+  color: var(--color-text, var(--text));
+  cursor: pointer;
+  box-shadow: var(--shadow-sm);
+  transition:
+    border-color var(--t-fast) var(--ease),
+    transform var(--t-fast) var(--ease),
+    box-shadow var(--t-fast) var(--ease);
+}
+
+.tasks-card:hover {
+  border-color: var(--color-accent-soft, var(--accent-soft));
+  transform: translateY(-1px);
+  box-shadow: var(--shadow-card, var(--shadow-sm));
+}
+
+.tasks-card:focus-visible {
+  outline: 2px solid var(--color-focus-ring, rgba(199, 90, 44, 0.45));
+  outline-offset: 2px;
+}
+
+.tasks-card-title {
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 1.35;
+  /* Leave room on the right for the absolute-positioned trash button
+     so a long title doesn't run under it. The status pill is gone
+     now (the column header conveys status) so the reservation can
+     shrink — only the trash needs ~32px. */
+  padding-right: 32px;
+  word-break: break-word;
+}
+
+.tasks-card-meta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  color: var(--color-text-muted, var(--text-muted));
+}
+
+.tasks-card-ts {
+  color: var(--color-text-faint, var(--text-faint));
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Hover-revealed delete — sits in the card's bottom-right. The
+   prior design had a status pill in the top-right of the card; that
+   pill is gone now (the column header conveys status, and drag-drop
+   between columns moves a task), so the trash button has the corner
+   to itself. */
+.tasks-card-delete {
+  position: absolute !important;
+  bottom: 6px;
+  right: 6px;
+  opacity: 0;
+  pointer-events: none;
+  z-index: 3;
+  transition: opacity var(--t-fast) var(--ease);
+}
+
+.tasks-card-wrapper:hover .tasks-card-delete,
+.tasks-card-wrapper:focus-within .tasks-card-delete {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+/* Inline assignee chip on each card. Quiet badge by default; click
+   swaps in a real text input. */
+.tasks-assignee {
+  display: inline-flex;
+  align-items: center;
+  background: var(--color-bg-canvas, var(--surface-soft));
+  border: 1px solid var(--color-border-faint, var(--border));
+  color: var(--color-text-muted, var(--text-muted));
+  font-size: 11px;
+  font-weight: 500;
+  border-radius: 999px;
+  padding: 1px 8px;
+  cursor: pointer;
+  max-width: 140px;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  user-select: none;
+  transition:
+    background var(--t-fast) var(--ease),
+    border-color var(--t-fast) var(--ease),
+    color var(--t-fast) var(--ease);
+}
+
+.tasks-assignee:hover {
+  border-color: var(--color-border-strong, var(--border));
+  color: var(--color-text, var(--text));
+}
+
+.tasks-assignee:focus-visible {
+  outline: 2px solid var(--color-focus-ring, rgba(199, 90, 44, 0.45));
+  outline-offset: 2px;
+}
+
+.tasks-assignee-empty {
+  color: var(--color-text-faint, var(--text-faint));
+  font-style: italic;
+}
+
+.tasks-assignee-input {
+  appearance: none;
+  border: 1px solid var(--color-accent, var(--accent));
+  background: var(--color-surface, var(--surface));
+  color: var(--color-text, var(--text));
+  font: inherit;
+  font-size: 11px;
+  padding: 1px 6px;
+  border-radius: 999px;
+  width: 140px;
+  outline: none;
 }

@@ -6,31 +6,32 @@ import {
   fsDelete,
   fsRead,
   stateLoad,
+  stateSave,
   type AppPersistedState,
 } from "../lib/api";
 import { fsWatchStart, fsWatchStop, onFsChanged } from "../lib/fsWatcher";
 // Auto-commit disabled in local-first mode.
 import { startSkillMirrorDriver, stopSkillMirrorDriver } from "../lib/skillMirror";
 import { relUnderRepo, fsNorm } from "../lib/paths";
-import { ChatPane } from "./ChatPane";
+import { ChatSessionTabs, type ChatSessionTabsHandle } from "./ChatSessionTabs";
 import { ChatShellHeader } from "./ChatShellHeader";
 import { PaneDragHandle } from "./PaneDragHandle";
 // StatusBar is no longer rendered at the bottom of the shell. The
 // status chips (project, cloud, intake, slack, changes) now live in
-// the TitleRail at the top — see src/App.tsx. The bottom of the
-// window is pure cream gutter, fixing the "panes look chipped off"
-// feedback. The StatusChips export is consumed there.
+// the TitleRail at the top — see src/App.tsx.
 import { Workbench } from "./Workbench";
+import { LeftSidebarRail } from "./LeftSidebarRail";
 import { ConflictBanner } from "./ConflictBanner";
 import { FileExplorer } from "./FileExplorer";
-import { EscalatedTicketBanner } from "./EscalatedTicketBanner";
-import { AgentActivityBanner } from "./AgentActivityBanner";
-// SourceControl removed — local-first mode has no commit/push UI.
-// Phase 2 re-introduces it gated to syncMode === "git".
+// EscalatedTicketBanner and AgentActivityBanner were removed alongside
+// the rest of the bespoke ticket UI (PIN-6605). The chat intake server
+// still writes ticket-shaped JSON to disk for backwards compatibility
+// but nothing in the renderer surfaces it.
 import { Viewer, type ViewerSource } from "./Viewer";
 // Tab, TabStrip, PaneBody removed — left pane is now just FileExplorer.
 import type { DockKind } from "../lib/skillState";
 import { resolvePathToSource } from "./entityRouting";
+import { selectedRelFromSource } from "./sidebarSelection";
 import { sourceToTreePath } from "./sourceToTreePath";
 import { SkillActionDock } from "./SkillActionDock";
 
@@ -79,14 +80,8 @@ function sourceKey(s: ViewerSource): string {
       return `datastore-row:${s.collection.name}:${(s.item as { key?: string }).key ?? ""}`;
     case "datastore-schema":
       return `datastore-schema:${s.collection.name}`;
-    case "agent":
-      return `agent:${(s.agent as { name?: string }).name ?? ""}`;
-    case "workflow":
-      return `workflow:${(s.workflow as { name?: string }).name ?? ""}`;
-    case "conversation-thread":
-      return `conversation-thread:${s.ticketId}`;
-    case "conversations-list":
-      return "conversations-list";
+    case "tasks-list":
+      return "tasks-list";
     case "people-list":
       return "people-list";
     case "agent-trace":
@@ -99,8 +94,6 @@ function sourceKey(s: ViewerSource): string {
       return "databases-list";
     case "filestores-list":
       return "filestores-list";
-    case "attachments-folder":
-      return "attachments-folder";
     case "knowledge-list":
       return "knowledge-list";
     case "tools":
@@ -138,14 +131,8 @@ function sourceLabel(s: ViewerSource, repo: string): string | null {
       return `database row in ${s.collection.name}`;
     case "datastore-schema":
       return `database schema: ${s.collection.name}`;
-    case "agent":
-      return `agent: ${(s.agent as { name?: string }).name ?? "unknown"}`;
-    case "workflow":
-      return `workflow: ${(s.workflow as { name?: string }).name ?? "unknown"}`;
-    case "conversation-thread":
-      return `ticket: ${s.ticketId}`;
-    case "conversations-list":
-      return "tickets list";
+    case "tasks-list":
+      return "tasks list";
     case "people-list":
       return "people directory";
     case "tools":
@@ -269,8 +256,18 @@ export function Shell({
   const [paneOrder, setPaneOrder] = useState<PaneId[]>(DEFAULT_PANE_ORDER);
   const [draggingPaneId, setDraggingPaneId] = useState<PaneId | null>(null);
   const [dragOverPaneId, setDragOverPaneId] = useState<PaneId | null>(null);
-  const [chatSessionKey, setChatSessionKey] = useState(0);
-  const [chatResume, setChatResume] = useState(false);
+  // Tab-aware chat: ChatSessionTabs owns its own state and registers
+  // an imperative handle here so the existing ChatShellHeader buttons
+  // (New / Resume) can keep working without lifting tab state up.
+  const chatHandleRef = useRef<ChatSessionTabsHandle | null>(null);
+  const registerChatHandle = useCallback((h: ChatSessionTabsHandle | null) => {
+    chatHandleRef.current = h;
+  }, []);
+  /// Left sidebar collapse state. `null` until the first state_load
+  /// resolves — we hold off on rendering the panes row so we don't
+  /// flash expanded → collapsed (or vice versa) on cold start. Default
+  /// is expanded on first launch (state.sidebar_collapsed === null).
+  const [sidebarCollapsed, setSidebarCollapsed] = useState<boolean | null>(null);
   const bumpFs = useCallback(() => setFsTick((t) => t + 1), []);
 
   // ── Tell Claude what the user is looking at ──────────────────────
@@ -370,13 +367,11 @@ export function Shell({
   );
 
   const newChatSession = useCallback(() => {
-    setChatResume(false);
-    setChatSessionKey((k) => k + 1);
+    chatHandleRef.current?.newSession();
   }, []);
 
   const resumeChatSession = useCallback(() => {
-    setChatResume(true);
-    setChatSessionKey((k) => k + 1);
+    chatHandleRef.current?.resumeSession();
   }, []);
 
   // Manual pull is a no-op in local-only mode (no cloud to pull from).
@@ -389,9 +384,103 @@ export function Shell({
     setPulling(false);
   }, [repo, pulling, bumpFs, onSyncLine]);
 
+  /// Tracks whether the most recent `stateLoad` succeeded. When
+  /// `stateLoad` fails (corrupt state.json, perms, partial write from
+  /// an OS crash) we seed the in-memory state with safe defaults so
+  /// the shell can still render — but we must NOT persist those
+  /// defaults, because that would overwrite the on-disk file and
+  /// destroy `last_repo` / `pinned_bubbles` / `onboarding_complete`
+  /// that we couldn't parse. While this flag is true, in-memory
+  /// toggles still work (current session) but `stateSave` is skipped
+  /// (BugBot finding on PIN-6613, sha 0f07641).
+  const stateLoadFailedRef = useRef(false);
+  /// Canonical state for persistence handlers. Mirrors `state` but is
+  /// written SYNCHRONOUSLY in the stateLoad callback (vs. waiting for
+  /// the `setState → useEffect` round-trip), so a sidebar click that
+  /// lands in the very first frame after load still sees a fresh
+  /// snapshot. Without the synchronous seed, the click would hit
+  /// `stateRef.current === null` (the initial-render value) and skip
+  /// the persist — the toggle would flip in-session but the next
+  /// restart would revert (BugBot "Collapse toggle skips early
+  /// persist" on PIN-6613 sha a0cef77).
+  const stateRef = useRef<AppPersistedState | null>(state);
   useEffect(() => {
-    stateLoad().then(setState).catch(console.error);
+    stateLoad()
+      .then((s) => {
+        stateLoadFailedRef.current = false;
+        stateRef.current = s;
+        setState(s);
+        // Seed the sidebar collapse flag from the persisted state.
+        // `null` ≡ first launch → expanded by design (PIN-6613).
+        setSidebarCollapsed(s.sidebar_collapsed ?? false);
+      })
+      .catch((e) => {
+        console.error("[shell] stateLoad failed, falling back to defaults:", e);
+        stateLoadFailedRef.current = true;
+        // Render-only defaults — see `stateLoadFailedRef` doc above.
+        // Writes are gated on `!stateLoadFailedRef.current` so we
+        // don't clobber a recoverable disk file with the placeholder.
+        const fallback: AppPersistedState = {
+          last_repo: null,
+          pane_sizes: null,
+          pinned_bubbles: null,
+          onboarding_complete: false,
+          sidebar_collapsed: null,
+        };
+        stateRef.current = fallback;
+        setState(fallback);
+        setSidebarCollapsed(false);
+      });
   }, []);
+
+  /// Persist the user's collapse choice across app restarts. Per-user
+  /// (lives in the Tauri app data dir's state.json), NOT per-vault.
+  /// `stateSave` writes the full struct, so we merge against the
+  /// latest known state (tracked in a ref) to avoid clobbering other
+  /// persisted fields (`last_repo` etc).
+  ///
+  /// Writes are serialized through a single in-flight chain so rapid
+  /// double-toggles don't issue concurrent disk writes whose order on
+  /// disk is undefined — last-wins via queue rather than racing
+  /// `std::fs::write` calls.
+  useEffect(() => {
+    stateRef.current = state;
+  }, [state]);
+  const persistChainRef = useRef<Promise<void>>(Promise.resolve());
+  const persistAppState = useCallback((next: AppPersistedState) => {
+    stateRef.current = next;
+    setState(next);
+    if (stateLoadFailedRef.current) {
+      // Don't write fallback-defaults back to disk — see
+      // `stateLoadFailedRef` doc. The toggle still works in-session;
+      // it just won't survive a restart until the corrupt state file
+      // is repaired (or a future write from another code path
+      // succeeds, at which point we could clear the flag — but no
+      // such path exists yet, so we stay conservative).
+      return;
+    }
+    persistChainRef.current = persistChainRef.current
+      .catch(() => {
+        // Swallow earlier failures so one bad write doesn't permanently
+        // block subsequent writes — each call gets its own catch below.
+      })
+      .then(() =>
+        stateSave(next).catch((e) =>
+          console.warn("[shell] state_save failed:", e),
+        ),
+      );
+  }, []);
+  const toggleSidebarCollapsed = useCallback(() => {
+    // Compute the next value from the canonical ref (NOT a setter
+    // updater), so the call is a pure event handler and React
+    // StrictMode's double-invocation of updater functions can't fire
+    // two disk writes per click.
+    const base = stateRef.current;
+    if (!base) return;
+    const next = !(base.sidebar_collapsed ?? false);
+    setSidebarCollapsed(next);
+    persistAppState({ ...base, sidebar_collapsed: next });
+  }, [persistAppState]);
 
   // Expose the manual-pull and tab-switch handlers up to App so the
   // command palette can call them. Re-register on every render so the
@@ -420,16 +509,6 @@ export function Shell({
   // it, clicking Getting Started while already on the welcome looked
   // like a no-op.
   const [welcomeFlashKey, setWelcomeFlashKey] = useState(0);
-  // Sticky flag: once the getting-started page is viewed, pulse the
-  // agent activity banner for the rest of this session. The source
-  // changes as the admin navigates (welcome → trace → conversation →
-  // workbench) but the tour is still active.
-  const [gettingStartedActive, setGettingStartedActive] = useState(false);
-  useEffect(() => {
-    if (source?.kind === "file" && source.path.endsWith("/getting-started.html")) {
-      setGettingStartedActive(true);
-    }
-  }, [source]);
   useEffect(() => {
     if (!repo) return;
     const welcomePath = `${repo}/getting-started.html`;
@@ -471,11 +550,8 @@ export function Shell({
     };
   }, [repo, source]);
 
-  // Re-resolve conversation views when the filesystem changes. The
-  // conversations-list reads ticket files for subject/status (so a
-  // ticket status flip from "incoming" → "open" should refresh the
-  // pill). The conversation-thread view reads each message file (so
-  // a new turn from Claude should append to the bubbles). Both are
+  // Re-resolve list-shaped views when the filesystem changes. Card
+  // grids (datastore-table, entity-folder, tasks-list, etc.) are
   // computed at click time in entityRouting; without this effect they
   // stay frozen at the snapshot.
   // Stash `source` in a ref so the fs-tick re-resolver below can read
@@ -493,59 +569,47 @@ export function Shell({
     if (!repo || fsTick === 0) return;
     const current = sourceRef.current;
     if (!current) return;
-    const isConversation =
-      current.kind === "conversations-list" ||
-      current.kind === "conversation-thread";
     const isEntityFolder = current.kind === "entity-folder";
     const isDatabasesList = current.kind === "databases-list";
     const isFilestoresList = current.kind === "filestores-list";
-    const isAttachmentsFolder = current.kind === "attachments-folder";
     const isKnowledgeBasesList = current.kind === "knowledge-list";
     const isPeopleList = current.kind === "people-list";
     const isAccessList = current.kind === "access-list";
     const isAssetsList = current.kind === "assets-list";
     const isDatastoreTable = current.kind === "datastore-table";
+    const isTasksList = current.kind === "tasks-list";
     if (
-      !isConversation &&
       !isEntityFolder &&
       !isDatabasesList &&
       !isFilestoresList &&
-      !isAttachmentsFolder &&
       !isKnowledgeBasesList &&
       !isPeopleList &&
       !isAccessList &&
       !isAssetsList &&
-      !isDatastoreTable
+      !isDatastoreTable &&
+      !isTasksList
     )
       return;
     const path =
-      current.kind === "conversations-list"
-        ? `${repo}/databases/conversations`
-        : current.kind === "conversation-thread"
-          ? `${repo}/databases/conversations/${current.ticketId}`
-          : current.kind === "entity-folder"
-            // Source carries an explicit `path` post-2026-04-27 splits
-            // (KB collections + filestores/library); fall back to the
-            // entity name for built-ins that still match 1:1 (agents,
-            // workflows).
-            ? `${repo}/${current.path}`
-            : current.kind === "databases-list"
-              ? `${repo}/databases`
-              : current.kind === "filestores-list"
-                ? `${repo}/filestores`
-                : current.kind === "attachments-folder"
-                  ? `${repo}/filestores/attachments`
-                  : current.kind === "knowledge-list"
-                    ? `${repo}/knowledge`
-                    : current.kind === "people-list"
-                      ? `${repo}/databases/people`
-                      : current.kind === "access-list"
-                        ? `${repo}/databases/access`
-                        : current.kind === "assets-list"
-                          ? `${repo}/databases/assets`
-                          : current.kind === "datastore-table"
-                            ? `${repo}/databases/${current.collection.name}`
-                            : "";
+      current.kind === "entity-folder"
+        ? `${repo}/${current.path}`
+        : current.kind === "databases-list"
+          ? `${repo}/databases`
+          : current.kind === "filestores-list"
+            ? `${repo}/filestores`
+            : current.kind === "knowledge-list"
+              ? `${repo}/knowledge`
+              : current.kind === "people-list"
+                ? `${repo}/databases/people`
+                : current.kind === "access-list"
+                  ? `${repo}/databases/access`
+                  : current.kind === "assets-list"
+                    ? `${repo}/databases/assets`
+                    : current.kind === "datastore-table"
+                      ? `${repo}/databases/${current.collection.name}`
+                      : current.kind === "tasks-list"
+                        ? `${repo}/tasks`
+                        : "";
     if (!path) return;
     let cancelled = false;
     resolvePathToSource(path, repo)
@@ -560,10 +624,13 @@ export function Shell({
 
   // Re-fetch the live agent trace whenever the fs watcher ticks. The
   // chat-intake server writes a partial trace file after each event
-  // during the turn (see `LiveTracePersister` in `intake.rs`); this
+  // during a turn (see `LiveTracePersister` in `intake.rs`); this
   // effect pulls the latest snapshot in so the timeline animates
   // through the agent's actions instead of waiting for the turn to
-  // finish.
+  // finish. The Ben-feedback batch removed the ticket-shaped UI but
+  // kept the intake server, which still writes traces — anyone who
+  // navigates to a `traces/<id>/<stamp>.json` file via the file
+  // explorer should still get the live animation.
   useEffect(() => {
     if (!repo || fsTick === 0) return;
     const current = sourceRef.current;
@@ -576,8 +643,8 @@ export function Shell({
         if (cancelled) return;
         // Only update if events actually changed — comparing
         // lengths is a cheap proxy that avoids re-rendering the
-        // viewer for unrelated fs ticks (KB push, ticket status
-        // flips, etc.) when the trace file itself hasn't grown.
+        // viewer for unrelated fs ticks when the trace file itself
+        // hasn't grown.
         const currentLen = current.doc?.events.length ?? -1;
         const nextLen = doc?.events.length ?? -1;
         const outcomeChanged = (current.doc?.outcome ?? "") !== (doc?.outcome ?? "");
@@ -692,39 +759,12 @@ export function Shell({
     };
   }, [repo, bumpFs, onSyncLine]);
 
-  if (!state) return <div className="shell-loading">Loading…</div>;
+  if (!state || sidebarCollapsed === null)
+    return <div className="shell-loading">Loading…</div>;
 
   return (
     <div className="shell">
       <ConflictBanner />
-      <AgentActivityBanner
-        repo={repo}
-        fsTick={fsTick}
-        pulse={gettingStartedActive}
-        onOpenTrace={async (ticketId, subject) => {
-          if (!repo) return;
-          try {
-            const doc = await agentTraceLatest(repo, ticketId);
-            // doc may be null when the click lands during the first
-            // turn for a brand-new ticket (the trace file is written
-            // only after the turn completes). Push the source anyway
-            // — the viewer renders a "composing" placeholder and the
-            // fs-watcher reload below swaps in the real doc once it
-            // lands.
-            setSource({ kind: "agent-trace", ticketId, subject, doc });
-          } catch (e) {
-            console.warn("[shell] agent-trace open failed:", e);
-          }
-        }}
-      />
-      <EscalatedTicketBanner
-        repo={repo}
-        fsTick={fsTick}
-        onOpenPath={async (path) => {
-          const resolved = await resolvePathToSource(path, repo);
-          setSource(resolved);
-        }}
-      />
       {(() => {
         const paneClass = (id: PaneId) =>
           `${id === "left" ? "left-pane" : id === "center" ? "center-pane" : "right-pane"} ${
@@ -747,9 +787,7 @@ export function Shell({
                 <FileExplorer
                   repo={repo}
                   onSelect={async (path) => {
-                    const resolved = await resolvePathToSource(path, repo, {
-                      rawTickets: true,
-                    });
+                    const resolved = await resolvePathToSource(path, repo);
                     setSource(resolved);
                   }}
                   fsTick={fsTick}
@@ -757,6 +795,7 @@ export function Shell({
                   selectedPath={sourceToTreePath(source, repo)}
                   active={true}
                   onBack={() => setShowFiles(false)}
+                  onCollapse={toggleSidebarCollapsed}
                 />
               ) : (
                 <Workbench
@@ -767,6 +806,7 @@ export function Shell({
                     setSource(resolved);
                   }}
                   onShowFiles={() => setShowFiles(true)}
+                  onCollapse={toggleSidebarCollapsed}
                 />
               )}
             </div>
@@ -820,9 +860,8 @@ export function Shell({
                   />
                 }
               />
-              <div className="chat-area">
-                <ChatPane key={chatSessionKey} cwd={repo} resume={chatResume} />
-              </div>
+              <ChatSessionTabs cwd={repo} registerHandle={registerChatHandle} />
+
               <SkillActionDock
                 dock={dock}
                 repo={repo}
@@ -844,26 +883,78 @@ export function Shell({
         // its own clean key and no cross-bleed. End result: once the
         // user resizes a pane, the size sticks across page changes
         // AND across app restarts.
-        const autoSaveId = `openit-shell-panes-${paneOrder.join("-")}`;
+        //
+        // When the sidebar is collapsed, "left" is rendered as a
+        // fixed-width rail OUTSIDE the PanelGroup (icon-only, ~52px).
+        // The remaining panes share the PanelGroup with their own
+        // saved sizes — a separate autoSaveId so collapsed and
+        // expanded layouts don't clobber each other's persisted sizes.
+        const panelPaneOrder = sidebarCollapsed
+          ? paneOrder.filter((id) => id !== "left")
+          : paneOrder;
+        // Rescale defaults so they sum to 100 — react-resizable-panels
+        // requires it and otherwise emits "Invalid panel group
+        // configuration; default panel sizes should total 100%" and
+        // silently rescales. Pre-scaling makes the first paint match
+        // the intended ratios (e.g. center:right ≈ 40:36 in collapsed
+        // mode → 52.6:47.4 after rescale) instead of whatever the
+        // library picks on its own.
+        const defaultsTotal = panelPaneOrder.reduce(
+          (acc, id) => acc + PANE_DEFAULT[id],
+          0,
+        );
+        const scaledDefault = (id: PaneId) =>
+          defaultsTotal === 0
+            ? PANE_DEFAULT[id]
+            : (PANE_DEFAULT[id] * 100) / defaultsTotal;
+        // autoSaveId key:
+        //  - expanded mode: full paneOrder so each reordering has its
+        //    own saved widths (no cross-bleed on drop).
+        //  - collapsed mode: only the panes inside the PanelGroup
+        //    (left is rendered as the fixed-width rail OUTSIDE the
+        //    group). Reordering left↔center↔right while collapsed has
+        //    no visible effect on the two remaining panes, so keying
+        //    on panelPaneOrder avoids spawning a fresh storage key
+        //    that would drop the user's previously-saved widths.
+        const autoSaveId = `openit-shell-panes-${
+          sidebarCollapsed ? "collapsed-" : ""
+        }${(sidebarCollapsed ? panelPaneOrder : paneOrder).join("-")}`;
+        const railSelectedRel = selectedRelFromSource(source, repo);
         return (
           // Wrapper enforces the panes-row geometry: takes all
           // available vertical space inside .shell, leaving room for
           // any banners above and the StatusBar below. Without
           // flex:1 the PanelGroup collapses in some cases when the
           // shell uses padded gutters.
-          <div className="shell-panes-row">
+          <div
+            className={`shell-panes-row${
+              sidebarCollapsed ? " shell-panes-row-collapsed-left" : ""
+            }`}
+          >
+            {sidebarCollapsed && (
+              <LeftSidebarRail
+                repo={repo}
+                fsTick={fsTick}
+                selectedRel={railSelectedRel}
+                onExpand={toggleSidebarCollapsed}
+                onOpen={async (path) => {
+                  const resolved = await resolvePathToSource(path, repo);
+                  setSource(resolved);
+                }}
+              />
+            )}
             <PanelGroup direction="horizontal" autoSaveId={autoSaveId}>
-              {paneOrder.map((id, idx) => (
+              {panelPaneOrder.map((id, idx) => (
                 <Fragment key={id}>
                   <Panel
                     id={id}
                     order={idx}
-                    defaultSize={PANE_DEFAULT[id]}
+                    defaultSize={scaledDefault(id)}
                     minSize={PANE_MIN[id]}
                   >
                     {paneContent[id]}
                   </Panel>
-                  {idx < paneOrder.length - 1 && (
+                  {idx < panelPaneOrder.length - 1 && (
                     <PanelResizeHandle className="resize-handle" />
                   )}
                 </Fragment>

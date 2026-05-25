@@ -72,9 +72,11 @@ export function prettyName(
     const stripped = name.replace(/^openit-/, "").replace(/-\d+$/, "");
     if (stripped) return stripped;
   }
-  // Agent + workflow files: `agents/<name>.json` → just `<name>`. The
-  // .json extension is implementation noise; the user thinks of these
-  // as named entities, not files.
+  // Agent / workflow JSON files: `agents/<name>.json` → just `<name>`.
+  // These no longer have a dedicated viewer (legacy V1/V2 schemas were
+  // removed when the Agents tile was retired), but the file explorer
+  // still shows them by their display name — `.json` is implementation
+  // noise even in the generic file viewer.
   if (rel.match(/^(agents|workflows)\/[^/]+\.json$/)) {
     return name.replace(/\.json$/, "");
   }
@@ -112,8 +114,9 @@ export function prettyName(
   if (rel.match(/^databases\/conversations\/[^/]+\/.+\.json$/) && !name.includes(".server.")) {
     return name.replace(/\.json$/, "");
   }
-  // Knowledge-base markdown articles — same logic as agents/workflows:
-  // the .md is implementation noise; users think of them by title.
+  // Knowledge-base markdown articles — same logic as agent/workflow
+  // files above: the .md is implementation noise; users think of them
+  // by title.
   if (rel.match(/^knowledge\/[^/]+\.(md|markdown)$/)) {
     return name.replace(/\.(md|markdown)$/, "");
   }

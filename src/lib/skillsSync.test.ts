@@ -176,6 +176,43 @@ describe("routeFile", () => {
     });
   });
 
+  describe("instructions/", () => {
+    // PIN-6614 follow-up: per-topic instruction files seeded by the
+    // plugin are Claude system files, not user content. They live
+    // under `.openit/instructions/` (alongside `config.json`,
+    // `workstation.json`, etc.) so they don't clutter the user-visible
+    // file explorer next to `databases/`, `filestores/`, etc. The
+    // CLAUDE.md index at the vault root links into this hidden dir.
+    it("routes instructions/<file>.md to <repo>/.openit/instructions/<file>.md", () => {
+      expect(routeFile("instructions/command-authoring.md", slug)).toEqual({
+        subdir: ".openit/instructions",
+        filename: "command-authoring.md",
+        substituteSlug: false,
+      });
+    });
+
+    it("routes every instructions/* topic file consistently", () => {
+      const topics = [
+        "vault-layout",
+        "command-authoring",
+        "knowledge-conventions",
+        "tool-calling",
+        "auto-vs-ask",
+        "communication-style",
+        "ui-side-channels",
+        "commands-reference",
+      ];
+      for (const topic of topics) {
+        const r = routeFile(`instructions/${topic}.md`, slug);
+        expect(r).toEqual({
+          subdir: ".openit/instructions",
+          filename: `${topic}.md`,
+          substituteSlug: false,
+        });
+      }
+    });
+  });
+
   describe("slug parameter", () => {
     it("ignores slug for schemas (output is slug-free)", () => {
       const r = routeFile("schemas/tickets._schema.json", "any-slug-here");
