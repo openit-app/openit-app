@@ -19,6 +19,8 @@ vi.mock("./api", () => ({
 import { fsRead, fsList, entityWriteFile } from "./api";
 import {
   DEFAULT_WORKSTATION_CONFIG,
+  PRIMITIVE_MAIN_RELS,
+  PRIMITIVE_MORE_RELS,
   PRIMITIVE_RELS,
   isPrimitiveRel,
   loadWorkstationConfig,
@@ -125,24 +127,31 @@ describe("loadWorkstationConfig — reset triggers", () => {
 
   it("strips MORE entries that lack userPinned", async () => {
     const legacy: WorkstationConfig = {
-      main: PRIMITIVE_RELS.map((rel) => ({ rel })),
+      main: PRIMITIVE_MAIN_RELS.map((rel) => ({ rel })),
       more: [
-        { rel: "databases/people" }, // legacy auto-discovered
-        { rel: "databases/access" }, // legacy auto-discovered
+        ...PRIMITIVE_MORE_RELS.map((rel) => ({ rel, userPinned: true })),
+        { rel: "databases/people" }, // legacy auto-discovered (will be stripped)
+        { rel: "databases/access" }, // legacy auto-discovered (will be stripped)
         { rel: "filestores/library", userPinned: true }, // explicit pin survives
       ],
     };
     mockedFsRead.mockResolvedValue(JSON.stringify(legacy));
 
     const cfg = await loadWorkstationConfig("/repo");
-    expect(cfg.more.map((t) => t.rel)).toEqual(["filestores/library"]);
+    expect(cfg.more.map((t) => t.rel)).toEqual([
+      ...PRIMITIVE_MORE_RELS,
+      "filestores/library",
+    ]);
     expect(mockedEntityWriteFile).toHaveBeenCalledTimes(1);
   });
 
-  it("leaves a clean primitives-only config alone", async () => {
+  it("leaves a clean 3-main / 5-more primitives config alone", async () => {
     const clean: WorkstationConfig = {
-      main: PRIMITIVE_RELS.map((rel) => ({ rel })),
-      more: [{ rel: "databases/people", userPinned: true }],
+      main: PRIMITIVE_MAIN_RELS.map((rel) => ({ rel })),
+      more: [
+        ...PRIMITIVE_MORE_RELS.map((rel) => ({ rel, userPinned: true })),
+        { rel: "databases/people", userPinned: true },
+      ],
     };
     mockedFsRead.mockResolvedValue(JSON.stringify(clean));
 
@@ -153,10 +162,10 @@ describe("loadWorkstationConfig — reset triggers", () => {
 
   it("preserves user customisations (icon/label/tone) on primitives in main", async () => {
     const customised: WorkstationConfig = {
-      main: PRIMITIVE_RELS.map((rel) =>
+      main: PRIMITIVE_MAIN_RELS.map((rel) =>
         rel === "tasks" ? { rel, label: "My Tasks", icon: "checklist" } : { rel },
       ),
-      more: [],
+      more: PRIMITIVE_MORE_RELS.map((rel) => ({ rel, userPinned: true })),
     };
     mockedFsRead.mockResolvedValue(JSON.stringify(customised));
 
