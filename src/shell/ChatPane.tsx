@@ -214,78 +214,23 @@ export function ChatPane({
       if (cb) cb(newTitle);
     });
 
-    // Shift+Enter / Ctrl+Enter → newline-insert in Claude Code.
+    // Shift+Enter for newline-insert in Claude Code is intentionally
+    // NOT handled here. xterm.js 6.0 doesn't support the kitty
+    // keyboard protocol — without it, the terminal sends the same
+    // byte (\r) for both Enter and Shift+Enter, so CC can't tell them
+    // apart and submits both. Multiple byte-injection workarounds
+    // were attempted (ESC+CR, LF, backslash+CR, backslash+LF, kitty
+    // CSI-u) and all failed in practice — see the conversation in the
+    // r/ClaudeAI thread "Shift+Enter for newline in Claude Code not
+    // working" and dev.to article "Why Shift+Enter doesn't work in
+    // Claude Code (and how to fix it)" for the root-cause explanation.
+    // The proper fix is upgrading to xterm.js 6.1.0 (currently beta)
+    // and enabling vtExtensions for kitty protocol support so CC and
+    // xterm negotiate the right encoding on PTY spawn.
     //
-    // xterm.js's default keymap collapses Enter, Shift+Enter, and
-    // Ctrl+Enter to the same "\r" (carriage return), which Claude
-    // treats as "submit". To insert a newline we must emit "\x1b\r"
-    // (ESC + CR) — the exact sequence Claude Code's own
-    // `/terminal-setup` installs as the VS Code keybinding for
-    // Shift+Enter (command `workbench.action.terminal.sendSequence`,
-    // args.text `"\x1b\r"`). Same byte sequence is what
-    // `/terminal-setup` configures Terminal.app and iTerm2 to send
-    // via Option-as-Meta.
-    //
-    // Ben's feedback (PIN-6609): users hit Shift+Return AND
-    // Ctrl+Return based on muscle memory from different editors;
-    // both must work. We bind both here. On macOS Cmd+Enter is a
-    // different chord (meta) and is intentionally NOT rebound —
-    // that's Claude Code's submit-without-confirm.
-    //
-    // Routed through `term.input()` so the byte flows through the
-    // normal `onData → ptyWrite` pipeline. That also means a
-    // pre-spawn press is silently dropped like any other key
-    // (onData isn't wired until ptySpawn resolves) — no throw, no
-    // stuck buffer.
-    // Detect Shift+Enter / Ctrl+Enter for newline-insert. We attach BOTH
-    // a DOM capture-phase listener AND xterm's customKeyEventHandler so
-    // we beat xterm's keymap regardless of how it sees the event. Plain
-    // LF is what macOS Terminal's /terminal-setup configures CC to
-    // recognise as "literal newline" vs CR which submits.
-    const isNewlineHotkey = (e: KeyboardEvent | { key: string; shiftKey: boolean; ctrlKey: boolean; altKey: boolean; metaKey: boolean; isComposing?: boolean }): boolean => {
-      if (e.key !== "Enter") return false;
-      if (e.isComposing) return false;
-      const isShiftEnter = e.shiftKey && !e.ctrlKey && !e.altKey && !e.metaKey;
-      const isCtrlEnter = e.ctrlKey && !e.shiftKey && !e.altKey && !e.metaKey;
-      return isShiftEnter || isCtrlEnter;
-    };
-
-    const domNewlineHandler = (e: KeyboardEvent) => {
-      if (e.type !== "keydown") return;
-      if (!isNewlineHotkey(e)) return;
-      console.warn("[SHIFT-ENTER] DOM capture handler — sending kitty CSI-u", {
-        sessionId,
-        key: e.key,
-        shift: e.shiftKey,
-        ctrl: e.ctrlKey,
-        target: (e.target as HTMLElement)?.tagName,
-      });
-      e.preventDefault();
-      e.stopImmediatePropagation();
-      // Emit the kitty CSI-u Shift+Enter sequence (ESC [ 13 ; 2 u).
-      // CC's prompt-kit (Ink-based) parses this as a real Shift+Enter
-      // event distinct from Enter. The proper fix is to enable the
-      // kitty keyboard protocol in xterm.js so it negotiates with CC
-      // and emits this natively — but xterm 6.0 doesn't support that
-      // (lands in 6.1.0). For now we inject the byte directly; CC's
-      // parser looks for these sequences regardless of negotiation
-      // when its own kitty-protocol enable was sent (which CC does
-      // on startup).
-      term.input("\x1b[13;2u");
-    };
-    // Capture phase on the container so we run before xterm's own
-    // listeners. Falls back to attachCustomKeyEventHandler below in
-    // case the event reaches xterm via a different path (e.g. focus
-    // on the hidden textarea bubbles up differently).
-    containerRef.current.addEventListener("keydown", domNewlineHandler, true);
-
-    term.attachCustomKeyEventHandler((e) => {
-      if (!isNewlineHotkey(e)) return true;
-      if (e.type !== "keydown") return true;
-      console.warn("[SHIFT-ENTER] xterm handler — sending kitty CSI-u", { sessionId });
-      term.input("\x1b[13;2u");
-      return false;
-    });
+    // Workarounds for users in the meantime:
+    //   - Type \\ then plain Enter to insert a manual newline
+    //   - Drag-and-drop a multi-line text file to paste its contents
 
     // Drag-drop: accept in-app drags (file explorer, entity refs) AND OS
     // file drops (Finder / Desktop). We keep `dragDropEnabled: false` in
@@ -556,7 +501,6 @@ export function ChatPane({
       clearActiveSession(SESSION_ID);
       titleDisposable.dispose();
       containerRef.current?.removeEventListener("click", focusOnClick);
-      containerRef.current?.removeEventListener("keydown", domNewlineHandler, true);
       containerRef.current?.removeEventListener("dragover", onDragOver, true);
       containerRef.current?.removeEventListener("drop", onInPageDrop, true);
       for (const fn of unlistens) fn();
