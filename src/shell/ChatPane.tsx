@@ -248,7 +248,14 @@ export function ChatPane({
       const isCtrlEnter =
         e.ctrlKey && !e.shiftKey && !e.altKey && !e.metaKey;
       if (!isShiftEnter && !isCtrlEnter) return true;
-      term.input("\x1b\r");
+      // Insert newline in CC's prompt buffer. Send raw LF — this is
+      // what macOS Terminal's `/terminal-setup` configures for
+      // Shift+Enter, and what CC's prompt-kit recognises as "literal
+      // newline" vs CR which submits. Previous attempt used Esc+CR
+      // (VS Code's mapping) but CC's input layer interpreted that as
+      // two separate keys (Escape, then Enter-submit).
+      console.warn("[SHIFT-ENTER] sending LF for newline-insert", { sessionId });
+      term.input("\n");
       return false;
     });
 
