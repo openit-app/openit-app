@@ -237,24 +237,46 @@ export function ChatPane({
     // pre-spawn press is silently dropped like any other key
     // (onData isn't wired until ptySpawn resolves) — no throw, no
     // stuck buffer.
+    // Detect Shift+Enter / Ctrl+Enter for newline-insert. We attach BOTH
+    // a DOM capture-phase listener AND xterm's customKeyEventHandler so
+    // we beat xterm's keymap regardless of how it sees the event. Plain
+    // LF is what macOS Terminal's /terminal-setup configures CC to
+    // recognise as "literal newline" vs CR which submits.
+    const isNewlineHotkey = (e: KeyboardEvent | { key: string; shiftKey: boolean; ctrlKey: boolean; altKey: boolean; metaKey: boolean; isComposing?: boolean }): boolean => {
+      if (e.key !== "Enter") return false;
+      if (e.isComposing) return false;
+      const isShiftEnter = e.shiftKey && !e.ctrlKey && !e.altKey && !e.metaKey;
+      const isCtrlEnter = e.ctrlKey && !e.shiftKey && !e.altKey && !e.metaKey;
+      return isShiftEnter || isCtrlEnter;
+    };
+
+    const domNewlineHandler = (e: KeyboardEvent) => {
+      if (e.type !== "keydown") return;
+      if (!isNewlineHotkey(e)) return;
+      console.warn("[SHIFT-ENTER] DOM capture handler — sending LF", {
+        sessionId,
+        key: e.key,
+        shift: e.shiftKey,
+        ctrl: e.ctrlKey,
+        target: (e.target as HTMLElement)?.tagName,
+      });
+      e.preventDefault();
+      e.stopImmediatePropagation();
+      // Write directly via xterm so the byte flows through the
+      // normal onData → ptyWrite pipeline. Pre-spawn presses are
+      // silently dropped (onData isn't wired yet) — no throw.
+      term.input("\n");
+    };
+    // Capture phase on the container so we run before xterm's own
+    // listeners. Falls back to attachCustomKeyEventHandler below in
+    // case the event reaches xterm via a different path (e.g. focus
+    // on the hidden textarea bubbles up differently).
+    containerRef.current.addEventListener("keydown", domNewlineHandler, true);
+
     term.attachCustomKeyEventHandler((e) => {
+      if (!isNewlineHotkey(e)) return true;
       if (e.type !== "keydown") return true;
-      if (e.key !== "Enter") return true;
-      if (e.isComposing) return true;
-      // Shift+Enter: only shift held (no ctrl/alt/meta).
-      const isShiftEnter =
-        e.shiftKey && !e.ctrlKey && !e.altKey && !e.metaKey;
-      // Ctrl+Enter: only ctrl held (no shift/alt/meta).
-      const isCtrlEnter =
-        e.ctrlKey && !e.shiftKey && !e.altKey && !e.metaKey;
-      if (!isShiftEnter && !isCtrlEnter) return true;
-      // Insert newline in CC's prompt buffer. Send raw LF — this is
-      // what macOS Terminal's `/terminal-setup` configures for
-      // Shift+Enter, and what CC's prompt-kit recognises as "literal
-      // newline" vs CR which submits. Previous attempt used Esc+CR
-      // (VS Code's mapping) but CC's input layer interpreted that as
-      // two separate keys (Escape, then Enter-submit).
-      console.warn("[SHIFT-ENTER] sending LF for newline-insert", { sessionId });
+      console.warn("[SHIFT-ENTER] xterm handler — sending LF", { sessionId });
       term.input("\n");
       return false;
     });
@@ -528,6 +550,7 @@ export function ChatPane({
       clearActiveSession(SESSION_ID);
       titleDisposable.dispose();
       containerRef.current?.removeEventListener("click", focusOnClick);
+      containerRef.current?.removeEventListener("keydown", domNewlineHandler, true);
       containerRef.current?.removeEventListener("dragover", onDragOver, true);
       containerRef.current?.removeEventListener("drop", onInPageDrop, true);
       for (const fn of unlistens) fn();
