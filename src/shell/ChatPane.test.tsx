@@ -97,7 +97,7 @@ const sessionIdMatcher = expect.stringMatching(/^main-/);
 
 // Sequence Claude Code's /terminal-setup installs for Shift+Enter
 // (and which we now also bind to Ctrl+Enter for muscle-memory parity).
-const NEWLINE_SEQ = "\\\n";
+const NEWLINE_SEQ = "\x1b[13;2u";
 
 describe("ChatPane", () => {
   beforeEach(() => {
@@ -266,7 +266,7 @@ describe("ChatPane", () => {
   });
 
   describe("Newline hotkey (Shift+Enter / Ctrl+Enter)", () => {
-    it("emits backslash+LF for Shift+Enter and suppresses default", async () => {
+    it("emits kitty CSI-u for Shift+Enter and suppresses default", async () => {
       render(<ChatPane cwd="/tmp/test-repo" />);
       // Wait for ptySpawn to resolve and onData to be wired.
       await new Promise((r) => setTimeout(r, 0));
@@ -284,7 +284,7 @@ describe("ChatPane", () => {
       expect(ptyMock.ptyWrite).toHaveBeenCalledWith(sessionIdMatcher, NEWLINE_SEQ);
     });
 
-    it("emits backslash+LF for Ctrl+Enter and suppresses default", async () => {
+    it("emits kitty CSI-u for Ctrl+Enter and suppresses default", async () => {
       render(<ChatPane cwd="/tmp/test-repo" />);
       await new Promise((r) => setTimeout(r, 0));
       await new Promise((r) => setTimeout(r, 0));

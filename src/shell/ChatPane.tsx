@@ -253,7 +253,7 @@ export function ChatPane({
     const domNewlineHandler = (e: KeyboardEvent) => {
       if (e.type !== "keydown") return;
       if (!isNewlineHotkey(e)) return;
-      console.warn("[SHIFT-ENTER] DOM capture handler — sending backslash+LF", {
+      console.warn("[SHIFT-ENTER] DOM capture handler — sending kitty CSI-u", {
         sessionId,
         key: e.key,
         shift: e.shiftKey,
@@ -262,13 +262,16 @@ export function ChatPane({
       });
       e.preventDefault();
       e.stopImmediatePropagation();
-      // Emit backslash + LF — the well-attested CC line-continuation
-      // pattern from the r/ClaudeAI thread. CC's prompt-kit sees `\\`
-      // at end of line followed by an actual LF and inserts a real
-      // newline into the buffer (the `\\` stays visible but doesn't
-      // hurt). LF specifically — CR triggers submit. Verified across
-      // VS Code, Cursor, and Antigravity in the community thread.
-      term.input("\\\n");
+      // Emit the kitty CSI-u Shift+Enter sequence (ESC [ 13 ; 2 u).
+      // CC's prompt-kit (Ink-based) parses this as a real Shift+Enter
+      // event distinct from Enter. The proper fix is to enable the
+      // kitty keyboard protocol in xterm.js so it negotiates with CC
+      // and emits this natively — but xterm 6.0 doesn't support that
+      // (lands in 6.1.0). For now we inject the byte directly; CC's
+      // parser looks for these sequences regardless of negotiation
+      // when its own kitty-protocol enable was sent (which CC does
+      // on startup).
+      term.input("\x1b[13;2u");
     };
     // Capture phase on the container so we run before xterm's own
     // listeners. Falls back to attachCustomKeyEventHandler below in
@@ -279,8 +282,8 @@ export function ChatPane({
     term.attachCustomKeyEventHandler((e) => {
       if (!isNewlineHotkey(e)) return true;
       if (e.type !== "keydown") return true;
-      console.warn("[SHIFT-ENTER] xterm handler — sending backslash+LF", { sessionId });
-      term.input("\\\n");
+      console.warn("[SHIFT-ENTER] xterm handler — sending kitty CSI-u", { sessionId });
+      term.input("\x1b[13;2u");
       return false;
     });
 
