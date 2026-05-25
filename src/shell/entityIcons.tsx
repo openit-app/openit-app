@@ -12,6 +12,7 @@ import type { ReactNode } from "react";
 
 export type EntityKind =
   | "inbox"
+  | "tasks"
   | "reports"
   | "people"
   | "knowledge"
@@ -20,9 +21,7 @@ export type EntityKind =
   | "filestores"
   | "library"
   | "attachments"
-  | "agents"
   | "databases"
-  | "workflows"
   | "tools"
   | "skills"
   | "commands"
@@ -147,6 +146,19 @@ const AccessIcon: ReactNode = (
 const AssetsIcon: ReactNode = (
   <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
     <path d="M20 16V7a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v9m16 0H4m16 0 1.28 2.55a1 1 0 0 1-.9 1.45H3.62a1 1 0 0 1-.9-1.45L4 16" />
+  </svg>
+);
+
+// Checklist — task lists (replaces the envelope/InboxIcon for the
+// Tasks primitive; tasks are not mail).
+const ChecklistIcon: ReactNode = (
+  <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+    <rect x="3" y="4" width="7" height="7" rx="1.5" />
+    <polyline points="4.8 7.5 6.3 9 8.5 6.4" />
+    <rect x="3" y="13" width="7" height="7" rx="1.5" />
+    <polyline points="4.8 16.5 6.3 18 8.5 15.4" />
+    <line x1="13" y1="7.5" x2="21" y2="7.5" />
+    <line x1="13" y1="16.5" x2="21" y2="16.5" />
   </svg>
 );
 
@@ -326,6 +338,7 @@ export const ICON_GALLERY: Record<string, { icon: ReactNode; label: string }> = 
   access:      { icon: AccessIcon,      label: "Shield" },
   assets:      { icon: AssetsIcon,      label: "Laptop" },
   traces:      { icon: TracesIcon,      label: "Activity" },
+  checklist:   { icon: ChecklistIcon,   label: "Checklist" },
   // Extended gallery
   tag:         { icon: TagIcon,         label: "Tag" },
   globe:       { icon: GlobeIcon,       label: "Globe" },
@@ -363,6 +376,7 @@ type EntityMetaEntry = {
 
 export const ENTITY_META: Record<EntityKind, EntityMetaEntry> = {
   inbox:             { icon: InboxIcon,       tone: "accent",  label: "Inbox" },
+  tasks:             { icon: ChecklistIcon,   tone: "accent",  label: "Tasks" },
   reports:           { icon: ReportsIcon,     tone: "link",    label: "Reports" },
   people:            { icon: PersonIcon,      tone: "sage",    label: "People" },
   knowledge:         { icon: KnowledgeIcon,   tone: "ochre",   label: "Knowledge" },
@@ -371,9 +385,7 @@ export const ENTITY_META: Record<EntityKind, EntityMetaEntry> = {
   filestores:        { icon: FilesIcon,       tone: "neutral", label: "Filestores" },
   library:           { icon: FilesIcon,       tone: "neutral", label: "Library" },
   attachments:       { icon: AttachmentsIcon, tone: "neutral", label: "Attachments" },
-  agents:            { icon: AgentsIcon,      tone: "accent",  label: "Agents" },
   databases:         { icon: DatabasesIcon,   tone: "link",    label: "Databases" },
-  workflows:         { icon: WorkflowsIcon,   tone: "sage",    label: "Workflows" },
   tools:             { icon: ToolsIcon,       tone: "accent",  label: "Tools" },
   skills:            { icon: SkillsIcon,      tone: "ochre",   label: "Skills" },
   commands:          { icon: CommandsIcon,    tone: "accent",  label: "Commands" },

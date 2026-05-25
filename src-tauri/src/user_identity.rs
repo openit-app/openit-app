@@ -20,3 +20,25 @@ pub fn global_user_email() -> Result<Option<String>, String> {
     }
     Ok(Some(raw))
 }
+
+/// Read the user's global git `user.name` if set. Used by the tasks
+/// composer to default the assignee field to the current user — the
+/// caller falls back to a generic "me" when this returns None. We
+/// also strip the project-local placeholder `OpenIT` (set by
+/// `git_ensure_repo`) so a vault-local commit identity doesn't leak
+/// in as the assignee default.
+#[tauri::command]
+pub fn global_user_name() -> Result<Option<String>, String> {
+    let output = Command::new("git")
+        .args(["config", "--global", "user.name"])
+        .output()
+        .map_err(|e| format!("failed to run git: {}", e))?;
+    if !output.status.success() {
+        return Ok(None);
+    }
+    let raw = String::from_utf8_lossy(&output.stdout).trim().to_string();
+    if raw.is_empty() || raw == "OpenIT" {
+        return Ok(None);
+    }
+    Ok(Some(raw))
+}

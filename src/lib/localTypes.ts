@@ -26,31 +26,3 @@ export type MemoryItem = {
   updatedAt: string;
   sortField?: string;
 };
-
-/// Agent configuration read from `agents/<name>/<name>.json`.
-export type AgentRow = {
-  id?: string;
-  name: string;
-  description?: string;
-  selectedModel?: string;
-  isShared?: boolean;
-  promptExamples?: unknown;
-  introMessage?: string;
-  resources?: unknown;
-  tools?: unknown;
-};
-
-/// Alias used by downstream UI components.
-export type Agent = AgentRow;
-
-/// Workflow configuration read from `workflows/<name>.json`.
-export type WorkflowRow = {
-  id?: string;
-  name: string;
-  description?: string;
-  triggers?: unknown;
-  inputs?: unknown;
-};
-
-/// Alias used by downstream UI components.
-export type Workflow = WorkflowRow;

@@ -38,13 +38,64 @@ async function saveAndPasteDroppedFiles(files: FileList, sessionId: string) {
   }
 }
 
-export function ChatPane({ cwd, resume }: { cwd: string | null; resume?: boolean }) {
+export interface ChatPaneProps {
+  cwd: string | null;
+  /** Stable PTY/session identifier. When supplied by a parent (e.g.
+   *  ChatSessionTabs) the parent controls the session lifetime and the
+   *  pane sticks to that id across re-renders. When omitted, the pane
+   *  auto-generates `main-<uuid>` for the single-session legacy path. */
+  sessionId?: string;
+  /** Whether this pane is the currently-visible tab. Inactive panes stay
+   *  mounted (display:none) so PTY state and xterm scrollback survive
+   *  tab switches, but only the visible one is registered as the
+   *  paste/skill target via setActiveSession. */
+  visible?: boolean;
+  resume?: boolean;
+  /** Fires whenever the embedded program emits an OSC 0/2 title change
+   *  (Claude Code does this on auto-name and after `/rename`). Used by
+   *  ChatSessionTabs to mirror the CC session name into the tab label. */
+  onTitleChange?: (title: string) => void;
+}
+
+export function ChatPane({
+  cwd,
+  sessionId,
+  visible = true,
+  resume,
+  onTitleChange,
+}: ChatPaneProps) {
   const containerRef = useRef<HTMLDivElement | null>(null);
+  // Keep the latest onTitleChange in a ref so the spawn effect — which we
+  // intentionally don't re-run on every render — always calls the freshest
+  // callback without re-spawning the PTY.
+  const titleCbRef = useRef<typeof onTitleChange>(onTitleChange);
+  useEffect(() => {
+    titleCbRef.current = onTitleChange;
+  }, [onTitleChange]);
+  // Mirror `visible` into a ref so the async ptySpawn IIFE checks the LIVE
+  // value when it completes, not the value captured at effect-creation time.
+  // Without this, a fast user (create tab → immediately switch back to the
+  // previous tab while the new pty is still spawning) sees the post-spawn
+  // `setActiveSession` overwrite the now-correct active id with the hidden
+  // tab's id, redirecting subsequent paste/skill-action writes to the wrong
+  // pane.
+  const visibleRef = useRef(visible);
+  useEffect(() => {
+    visibleRef.current = visible;
+  }, [visible]);
+
+  // Re-fit + refocus when this tab becomes visible. Hidden panes don't get
+  // ResizeObserver/window resize events that match their actual geometry,
+  // so on first reveal we explicitly nudge xterm.
+  const fitRef = useRef<FitAddon | null>(null);
+  const termRef = useRef<Terminal | null>(null);
+  const stableSessionIdRef = useRef<string | null>(null);
 
   useEffect(() => {
     if (!containerRef.current) return;
     if (!cwd) return; // Don't spawn until we have a project folder
-    const SESSION_ID = `main-${crypto.randomUUID()}`;
+    const SESSION_ID = sessionId ?? `main-${crypto.randomUUID()}`;
+    stableSessionIdRef.current = SESSION_ID;
 
     const term = new Terminal({
       fontFamily:
@@ -108,6 +159,8 @@ export function ChatPane({ cwd, resume }: { cwd: string | null; resume?: boolean
     });
     const fit = new FitAddon();
     term.loadAddon(fit);
+    fitRef.current = fit;
+    termRef.current = term;
     // Web-links addon: detects http(s):// URLs in terminal output
     // and makes them clickable. Routed through Tauri's openUrl so
     // links open in the user's default browser, not inside the
@@ -121,10 +174,63 @@ export function ChatPane({ cwd, resume }: { cwd: string | null; resume?: boolean
       }),
     );
     term.open(containerRef.current);
-    fit.fit();
-    term.focus();
+    // Initial fit can measure zero if the parent flex layout hasn't
+    // settled when this effect runs — notably for the SECOND tab,
+    // whose wrapper div is freshly mounted under .chat-area in the
+    // same commit that flips tab 1 to display:none. A degenerate fit
+    // would ship cols=1/rows=1 to the PTY spawn, leaving Claude
+    // rendering into a 1×1 terminal that never paints anything. Try
+    // once now; if degenerate, retry on rAF so the next attempt sees
+    // real geometry. The PTY's actual cols/rows are read from `term`
+    // right before the ptySpawn call below.
+    try {
+      fit.fit();
+    } catch (e) {
+      console.warn("[CC-SPAWN] initial fit threw:", e);
+    }
+    if (term.cols <= 1 || term.rows <= 1) {
+      console.warn("[CC-SPAWN] initial fit degenerate, retrying on rAF", {
+        sessionId: SESSION_ID,
+        cols: term.cols,
+        rows: term.rows,
+      });
+      requestAnimationFrame(() => {
+        try {
+          fit.fit();
+        } catch (e) {
+          console.warn("[CC-SPAWN] retry fit threw:", e);
+        }
+      });
+    }
+    if (visible) term.focus();
     const focusOnClick = () => term.focus();
     containerRef.current.addEventListener("click", focusOnClick);
+
+    // Mirror CC's session name into the tab label. CC sets the
+    // terminal title via OSC 0/2 when it auto-names a session and
+    // again after `/rename`. xterm's onTitleChange fires for both.
+    const titleDisposable = term.onTitleChange((newTitle) => {
+      const cb = titleCbRef.current;
+      if (cb) cb(newTitle);
+    });
+
+    // Shift+Enter for newline-insert in Claude Code is intentionally
+    // NOT handled here. xterm.js 6.0 doesn't support the kitty
+    // keyboard protocol — without it, the terminal sends the same
+    // byte (\r) for both Enter and Shift+Enter, so CC can't tell them
+    // apart and submits both. Multiple byte-injection workarounds
+    // were attempted (ESC+CR, LF, backslash+CR, backslash+LF, kitty
+    // CSI-u) and all failed in practice — see the conversation in the
+    // r/ClaudeAI thread "Shift+Enter for newline in Claude Code not
+    // working" and dev.to article "Why Shift+Enter doesn't work in
+    // Claude Code (and how to fix it)" for the root-cause explanation.
+    // The proper fix is upgrading to xterm.js 6.1.0 (currently beta)
+    // and enabling vtExtensions for kitty protocol support so CC and
+    // xterm negotiate the right encoding on PTY spawn.
+    //
+    // Workarounds for users in the meantime:
+    //   - Type \\ then plain Enter to insert a manual newline
+    //   - Drag-and-drop a multi-line text file to paste its contents
 
     // Drag-drop: accept in-app drags (file explorer, entity refs) AND OS
     // file drops (Finder / Desktop). We keep `dragDropEnabled: false` in
@@ -171,7 +277,45 @@ export function ChatPane({ cwd, resume }: { cwd: string | null; resume?: boolean
     let disposed = false;
 
     (async () => {
+      // CRITICAL: subscribe to pty://data and pty://exit BEFORE the
+      // ptySpawn call. Tauri events are not buffered — anything
+      // emitted before a listener is attached is silently dropped.
+      // The Rust reader thread starts streaming bytes the moment
+      // `pty_spawn` returns (often before the awaited invoke even
+      // resolves on the JS side), so registering listeners AFTER the
+      // spawn race-drops Claude's startup banner. Tab 1 used to get
+      // lucky because its mount happens during slow app-boot work;
+      // tab 2 is created on a "+" click when the rest of the UI is
+      // hot, and the JS event-loop slice between spawn-return and
+      // listen-register is short enough that we lose the banner. The
+      // user sees a blinking xterm cursor with no output, and nothing
+      // ever arrives because Claude's TUI only repaints in response
+      // to input it never received.
+      //
+      // Subscribing first is safe: both listeners filter on
+      // payload.session_id, so they're inert until OUR PTY (which
+      // doesn't exist yet) starts emitting. If ptySpawn fails we
+      // unwire them in the catch.
+      console.warn("[CC-SPAWN] subscribing pty listeners", { sessionId: SESSION_ID });
+      const unlistenData = await onPtyData(SESSION_ID, (chunk) => term.write(chunk));
+      const unlistenExit = await onPtyExit(SESSION_ID, (code) => {
+        term.writeln(`\r\n\x1b[33m[process exited${code != null ? `: ${code}` : ""}]\x1b[0m`);
+      });
+      if (disposed) {
+        unlistenData();
+        unlistenExit();
+        return;
+      }
+      unlistens.push(unlistenData, unlistenExit);
+
       const { cols, rows } = term;
+      console.warn("[CC-SPAWN] invoking ptySpawn", {
+        sessionId: SESSION_ID,
+        cwd,
+        cols,
+        rows,
+        resume: !!resume,
+      });
       try {
         await ptySpawn({
           sessionId: SESSION_ID,
@@ -181,6 +325,15 @@ export function ChatPane({ cwd, resume }: { cwd: string | null; resume?: boolean
           args: resume ? ["--resume"] : [],
         });
       } catch (e) {
+        console.error("[CC-SPAWN] ptySpawn failed", { sessionId: SESSION_ID, error: e });
+        // Unwire the listeners we registered above and drop them
+        // from the cleanup list so we don't double-unwire on unmount.
+        unlistenData();
+        unlistenExit();
+        const idxData = unlistens.indexOf(unlistenData);
+        if (idxData !== -1) unlistens.splice(idxData, 1);
+        const idxExit = unlistens.indexOf(unlistenExit);
+        if (idxExit !== -1) unlistens.splice(idxExit, 1);
         term.writeln(`\x1b[31mfailed to spawn pty: ${String(e)}\x1b[0m`);
         return;
       }
@@ -188,68 +341,214 @@ export function ChatPane({ cwd, resume }: { cwd: string | null; resume?: boolean
         ptyKill(SESSION_ID).catch(() => {});
         return;
       }
+      console.warn("[CC-SPAWN] spawn complete", { sessionId: SESSION_ID });
 
-      setActiveSession(SESSION_ID);
-
-      const unlistenData = await onPtyData(SESSION_ID, (chunk) => term.write(chunk));
-      const unlistenExit = await onPtyExit(SESSION_ID, (code) => {
-        term.writeln(`\r\n\x1b[33m[process exited${code != null ? `: ${code}` : ""}]\x1b[0m`);
-      });
-      if (disposed) {
-        unlistenData();
-        unlistenExit();
-        ptyKill(SESSION_ID).catch(() => {});
-        return;
-      }
-      unlistens.push(unlistenData, unlistenExit);
+      // Read through the ref so a tab-switch that happened during the
+      // ptySpawn await is honored — without this we'd clobber the active
+      // session pointer with this (now-hidden) tab's id.
+      if (visibleRef.current) setActiveSession(SESSION_ID);
 
       term.onData((data) => {
         ptyWrite(SESSION_ID, data).catch((e) => console.error("pty bridge error:", e));
       });
 
-      const onResize = () => {
-        if (disposed) return;
-        fit.fit();
+      // Resize handling has two phases:
+      //
+      // 1. Live phase (during a drag / window resize): throttle to one
+      //    rAF — call `fit.fit()` + `ptyResize()` so layout stays
+      //    responsive. This sends SIGWINCH to Claude, which starts
+      //    repainting at the new geometry.
+      //
+      // 2. Settle phase (after resize stops): once we've been quiet
+      //    for SETTLE_MS, do a final `fit.fit()` + `ptyResize()` at
+      //    the final geometry, then wipe the xterm buffer with a full
+      //    clear-screen + clear-scrollback sequence. The next frame
+      //    Claude paints lands on a blank canvas, eliminating the
+      //    duplicate spinners / overlapping prompt / stale glyphs
+      //    that Ben reported (PIN-6608).
+      //
+      // Why settle (not refresh): xterm's `refresh()` only redraws
+      // what's already in its buffer at its current width. The bug
+      // is that Claude's TUI renderer is a delta-painter — when
+      // SIGWINCH fires mid-frame, its next frame doesn't always
+      // overwrite every cell from the prior (wider) frame, so old
+      // glyphs leak through. Clearing the buffer ourselves forces a
+      // full repaint from Claude's next frame onward.
+      const SETTLE_MS = 80;
+      let rafScheduled = false;
+      let settleTimer: ReturnType<typeof setTimeout> | null = null;
+      // Baseline geometry. We *don't* seed from `term.cols`/`term.rows`
+      // here — the initial `fit.fit()` at mount ran before the
+      // container settled into its post-layout size, so the first
+      // ResizeObserver fire would otherwise see a spurious delta and
+      // wipe Claude's startup banner. Instead we baseline lazily on
+      // the first settle (see `baselined` below).
+      let lastCols = -1;
+      let lastRows = -1;
+      let baselined = false;
+
+      // Wrap `fit.fit()` because it can throw on degenerate geometry
+      // (zero or NaN width when the pane is collapsed to nothing
+      // during a drag). The throw would propagate out of the rAF /
+      // setTimeout callback as an unhandled error — we'd rather log
+      // and continue at the prior size.
+      const safeFit = () => {
+        try {
+          fit.fit();
+        } catch (e) {
+          console.warn("fit.fit failed (probably zero-size pane):", e);
+        }
+      };
+
+      const sendResize = () => {
         ptyResize(SESSION_ID, term.cols, term.rows).catch((e) =>
           console.error("pty bridge error:", e),
         );
-        // Force xterm to repaint the visible buffer at the new width.
-        // Without this, lines that streamed in at the previous column
-        // count keep their original wrap points — so resizing the
-        // pane mid-stream leaves a half-broken display until the user
-        // hits Ctrl-L. New content wraps fine on its own; this only
-        // matters for already-rendered scrollback.
-        term.refresh(0, term.rows - 1);
       };
+
+      const settle = () => {
+        if (disposed) return;
+        // If the pane became hidden between schedule and settle, bail —
+        // we don't want a queued settle to wipe the buffer of a now-hidden
+        // pane while the user is looking at a sibling tab.
+        if (!visibleRef.current) return;
+        // Final fit in case the last live-phase fit was stale.
+        safeFit();
+        const cols = term.cols;
+        const rows = term.rows;
+        const changed = cols !== lastCols || rows !== lastRows;
+        if (!baselined) {
+          // First settle after mount: don't treat the initial layout
+          // as a "resize" — capture it as the baseline and skip both
+          // the redundant SIGWINCH and the buffer clear.
+          lastCols = cols;
+          lastRows = rows;
+          baselined = true;
+          return;
+        }
+        if (!changed) {
+          // Spurious settle (focus change, scrollbar toggle, devtools
+          // open). Skip ptyResize so Claude doesn't repaint on
+          // every layout perturbation.
+          return;
+        }
+        // Geometry really did change. Re-emit the final size — the
+        // child may have missed a SIGWINCH mid-frame — then wipe the
+        // xterm buffer so Claude's next paint lands on a blank canvas.
+        sendResize();
+        // \x1b[3J → clear scrollback
+        // \x1b[2J → clear entire visible viewport
+        // \x1b[H  → move cursor to home (1,1)
+        // We write to xterm only; the child manages its own framebuffer.
+        term.write("\x1b[3J\x1b[2J\x1b[H");
+        lastCols = cols;
+        lastRows = rows;
+      };
+
+      const scheduleSettle = () => {
+        if (settleTimer) clearTimeout(settleTimer);
+        settleTimer = setTimeout(settle, SETTLE_MS);
+      };
+
+      const onResize = () => {
+        if (disposed) return;
+        // Skip resize handling for hidden panes. When a new tab is added,
+        // the previously-active pane flips to display:none, which fires
+        // ResizeObserver with a (0, 0) measurement. Running fit.fit() on
+        // a zero-size container clamps xterm to degenerate cols/rows, and
+        // the subsequent `settle()` then wipes the buffer with
+        // \x1b[3J\x1b[2J\x1b[H — so when the user switches back to the
+        // original tab, their Claude Code session appears blanked out.
+        // The visible-pane's own visibility effect already handles the
+        // post-reveal refit, so hidden panes don't need to track size at all.
+        if (!visibleRef.current) return;
+        if (rafScheduled) {
+          // Live tick already queued; just extend the settle window.
+          scheduleSettle();
+          return;
+        }
+        rafScheduled = true;
+        requestAnimationFrame(() => {
+          rafScheduled = false;
+          if (disposed) return;
+          // Re-check visibility inside the rAF — a tab switch between
+          // schedule and frame would otherwise still fit+resize on a
+          // now-hidden pane.
+          if (!visibleRef.current) return;
+          safeFit();
+          sendResize();
+          scheduleSettle();
+        });
+      };
+
       window.addEventListener("resize", onResize);
       unlistens.push(() => window.removeEventListener("resize", onResize));
 
       // Catch pane-splitter drags — those don't fire window 'resize'.
-      // Throttle to one rAF so we don't ptyResize on every pixel.
-      let rafScheduled = false;
-      const observer = new ResizeObserver(() => {
-        if (rafScheduled) return;
-        rafScheduled = true;
-        requestAnimationFrame(() => {
-          rafScheduled = false;
-          onResize();
-        });
-      });
+      const observer = new ResizeObserver(() => onResize());
       if (containerRef.current) observer.observe(containerRef.current);
-      unlistens.push(() => observer.disconnect());
+      unlistens.push(() => {
+        observer.disconnect();
+        if (settleTimer) {
+          clearTimeout(settleTimer);
+          settleTimer = null;
+        }
+      });
     })();
 
     return () => {
       disposed = true;
       clearActiveSession(SESSION_ID);
+      titleDisposable.dispose();
       containerRef.current?.removeEventListener("click", focusOnClick);
       containerRef.current?.removeEventListener("dragover", onDragOver, true);
       containerRef.current?.removeEventListener("drop", onInPageDrop, true);
       for (const fn of unlistens) fn();
       ptyKill(SESSION_ID).catch((e) => console.error("pty bridge error:", e));
       term.dispose();
+      fitRef.current = null;
+      termRef.current = null;
+      stableSessionIdRef.current = null;
     };
-  }, [cwd]);
+    // We intentionally exclude `visible` and `onTitleChange` from this
+    // effect's deps: switching tabs or swapping the title callback must
+    // NEVER tear down and re-spawn the PTY (that would kill the running
+    // process and wipe scrollback). Visibility changes are handled by
+    // the separate effect below; title-callback changes are read through
+    // titleCbRef.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [cwd, sessionId, resume]);
+
+  // Visibility transitions: when this pane becomes the active tab, hand
+  // it the global active-session pointer (so paste/skill-action writes
+  // land here), refit (its container just gained real dimensions), and
+  // refocus. When it loses visibility, release the pointer if we still
+  // hold it.
+  useEffect(() => {
+    const id = stableSessionIdRef.current;
+    if (!id) return;
+    if (visible) {
+      setActiveSession(id);
+      // Defer the fit until after the parent's display:none toggle has
+      // actually painted — otherwise xterm measures zero and clamps to
+      // 1 column. requestAnimationFrame is enough since the toggle is
+      // a synchronous style change.
+      //
+      // CRITICAL: cancel the pending frame on cleanup. Without this, a
+      // rapid visible=true → visible=false transition (user clicks a
+      // tab then immediately clicks another within one frame) leaves a
+      // queued rAF that fires AFTER the cleanup ran, stealing focus
+      // back to a now-hidden pane and yanking the cursor away from the
+      // tab the user actually selected.
+      const handle = requestAnimationFrame(() => {
+        fitRef.current?.fit();
+        termRef.current?.focus();
+      });
+      return () => cancelAnimationFrame(handle);
+    }
+    clearActiveSession(id);
+    return undefined;
+  }, [visible]);
 
   if (!cwd) {
     return (
@@ -259,5 +558,14 @@ export function ChatPane({ cwd, resume }: { cwd: string | null; resume?: boolean
     );
   }
 
-  return <div ref={containerRef} style={{ width: "100%", height: "100%" }} />;
+  return (
+    <div
+      ref={containerRef}
+      style={{
+        width: "100%",
+        height: "100%",
+        display: visible ? "block" : "none",
+      }}
+    />
+  );
 }

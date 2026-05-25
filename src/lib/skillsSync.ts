@@ -79,6 +79,11 @@ export async function fetchSkillFile(
 /// Routing rules:
 ///   - `CLAUDE.md`                          → `CLAUDE.md` (repo root)
 ///   - `claude-md.template.md` (legacy)     → `CLAUDE.md` (repo root)
+///   - `instructions/<file>.md`             → `.openit/instructions/<file>.md`
+///                                              (system files for Claude, kept
+///                                              out of the user's main file
+///                                              tree alongside other `.openit/`
+///                                              runtime state)
 ///   - `skills/<name>.md`                   → `.claude/skills/<name>/SKILL.md`
 ///   - `schemas/<col>._schema.json`         → `databases/<col>/_schema.json`
 ///   - `agents/<name>.template.json`        → `agents/<name>.json`
@@ -103,6 +108,20 @@ export function routeFile(
 ): { subdir: string; filename: string; substituteSlug: boolean } | null {
   if (filePath === "CLAUDE.md" || filePath === "claude-md.template.md") {
     return { subdir: "", filename: "CLAUDE.md", substituteSlug: false };
+  }
+  // PIN-6614 follow-up: per-topic instruction files seeded by the plugin
+  // belong next to the other Claude/runtime system files under `.openit/`,
+  // not at the vault root where they appear in the user's file explorer
+  // alongside their own content (`databases/`, `filestores/`, ...). The
+  // CLAUDE.md index lives at the vault root and links into
+  // `.openit/instructions/` explicitly.
+  if (filePath.startsWith("instructions/") && filePath.endsWith(".md")) {
+    const filename = filePath.replace("instructions/", "");
+    return {
+      subdir: ".openit/instructions",
+      filename,
+      substituteSlug: false,
+    };
   }
   // Canonical command bodies bundled at `commands/<name>.md` are mirrored
   // into `.claude/skills/<name>/SKILL.md` — Claude Code's plugin loader

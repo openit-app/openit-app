@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { fsList, fsRead, entityRemoveDir, type FileNode } from "../lib/api";
-import { scanEscalatedTickets, type TicketSummary } from "../lib/escalatedTickets";
 import { listInstalled as listInstalledTools } from "../lib/toolsInstall";
+import { countCommands } from "../lib/commandsCatalog";
 import { iconForKey, type ToneKey } from "./entityIcons";
 import {
   loadWorkstationConfig,
@@ -15,6 +15,7 @@ import {
 import { IconPicker } from "./IconPicker";
 import { Button } from "../ui";
 import { confirmDelete } from "./viewers";
+import { useToast } from "../Toast";
 
 // ── Helpers ──────────────────────────────────────────────────────────
 
@@ -47,8 +48,6 @@ function countWithMode(
   }).length;
 }
 
-type GridLayout = "single" | "grid";
-
 // ── Component ────────────────────────────────────────────────────────
 
 export function Workbench({
@@ -56,16 +55,27 @@ export function Workbench({
   fsTick,
   onOpen,
   onShowFiles,
+  onCollapse,
 }: {
   repo: string | null;
   fsTick: number;
   onOpen: (path: string) => void;
   onShowFiles: () => void;
+  /// Optional collapse-sidebar handler. When provided, a chevron
+  /// button appears at the bottom of the workstation. Omit to hide
+  /// the toggle (e.g. embeds that don't own sidebar layout).
+  onCollapse?: () => void;
 }) {
   const [config, setConfig] = useState<WorkstationConfig | null>(null);
   const [mainTiles, setMainTiles] = useState<ResolvedTile[]>([]);
   const [moreTiles, setMoreTiles] = useState<ResolvedTile[]>([]);
   const [counts, setCounts] = useState<Record<string, number>>({});
+  const { show: showToast } = useToast();
+  // Per-tile in-flight delete tracking (PIN-6612). Rapid clicks on the
+  // same store's trash glyph dedupe to a single backend
+  // `entityRemoveDir`; failure surfaces as a critical toast instead of
+  // silent `console.error`.
+  const deletingTilesRef = useRef<Set<string>>(new Set());
   const prevCountsRef = useRef<Record<string, number> | null>(null);
   const highlightTimerRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   // Suppress count-based highlights for the first 15 seconds after
@@ -84,10 +94,7 @@ export function Workbench({
   // write by the getting-started tour fires normally.
   const highlightSeededRef = useRef(false);
   const [highlightedStations, setHighlightedStations] = useState<Set<string>>(new Set());
-  const [escalatedTickets, setEscalatedTickets] = useState<TicketSummary[]>([]);
-  const escalatedCount = escalatedTickets.length;
   const [pickerOpen, setPickerOpen] = useState(false);
-  const [layout, setLayout] = useState<GridLayout>("single");
   const [customizing, setCustomizing] = useState<ResolvedTile | null>(null);
   const [contextMenu, setContextMenu] = useState<{
     tile: ResolvedTile;
@@ -100,7 +107,6 @@ export function Workbench({
   useEffect(() => {
     if (!repo) {
       setCounts({});
-      setEscalatedTickets([]);
       setMainTiles([]);
       setMoreTiles([]);
       return;
@@ -141,23 +147,16 @@ export function Workbench({
             }
             return;
           }
-          // Commands (filestores/commands) — count both .claude/skills dirs + custom skills
+          // Commands (filestores/commands) — defer to the shared catalog
+          // so the tile count always matches the number of entries the
+          // Commands viewer (SkillsStation) actually renders. See
+          // `src/lib/commandsCatalog.ts` for the canonical filter.
           if (t.rel === "filestores/commands") {
-            let slashCount = 0;
-            let customCount = 0;
             try {
-              const slashRoot = `${repo}/.claude/skills`;
-              const slashItems = await fsList(slashRoot);
-              slashCount = directChildren(slashItems, slashRoot).filter((n) => n.is_dir).length;
-            } catch { /* .claude/skills/ may not exist */ }
-            try {
-              const customRoot = `${repo}/filestores/commands`;
-              const customItems = await fsList(customRoot);
-              customCount = directChildren(customItems, customRoot).filter(
-                (n) => !n.is_dir && n.name.endsWith(".md"),
-              ).length;
-            } catch { /* filestores/commands/ may not exist */ }
-            next[t.rel] = slashCount + customCount;
+              next[t.rel] = await countCommands(repo);
+            } catch {
+              next[t.rel] = 0;
+            }
             return;
           }
           // Everything else — standard counting
@@ -194,14 +193,6 @@ export function Workbench({
       }
       prevCountsRef.current = next;
       setCounts(next);
-
-      // Escalated tickets
-      try {
-        const esc = await scanEscalatedTickets(repo);
-        if (!cancelled) setEscalatedTickets(esc);
-      } catch {
-        if (!cancelled) setEscalatedTickets([]);
-      }
 
       // Imperative tile highlight via .openit/highlight.json.
       // Claude writes {"tiles":["knowledge"],"ts":<ms>} when
@@ -322,20 +313,55 @@ export function Workbench({
 
   const deleteStore = useCallback(
     async (tile: ResolvedTile) => {
-      if (!repo) return;
-      const ok = await confirmDelete(
-        `Delete "${tile.label}" and all its contents?\n\nThis cannot be undone.`,
-        "Delete store?",
-      );
-      if (!ok) return;
+      console.warn("[DELETE-DEBUG] workbench:deleteStore enter", { rel: tile.rel, label: tile.label, hasRepo: !!repo });
+      if (!repo) {
+        console.warn("[DELETE-DEBUG] workbench:deleteStore aborted — no repo");
+        return;
+      }
+      // Claim the lock BEFORE awaiting the confirm dialog — otherwise
+      // a rapid second click also passes this gate (the first call is
+      // still awaiting confirm, hasn't called `add` yet) and both
+      // dialogs end up opening. PIN-6612 ensemble-review finding.
+      if (deletingTilesRef.current.has(tile.rel)) {
+        console.warn("[DELETE-DEBUG] workbench:deleteStore guarded — already in-flight for", tile.rel);
+        return;
+      }
+      deletingTilesRef.current.add(tile.rel);
+      let confirmed = false;
       try {
+        console.warn("[DELETE-DEBUG] workbench:deleteStore awaiting confirm");
+        const ok = await confirmDelete(
+          `Delete "${tile.label}" and all its contents?\n\nThis cannot be undone.`,
+          "Delete store?",
+        );
+        console.warn("[DELETE-DEBUG] workbench:deleteStore confirm result", { ok });
+        if (!ok) return;
+        confirmed = true;
+        console.warn("[DELETE-DEBUG] workbench:deleteStore calling entityRemoveDir", { repo, rel: tile.rel });
         await entityRemoveDir(repo, tile.rel);
+        console.warn("[DELETE-DEBUG] workbench:deleteStore entityRemoveDir succeeded");
         await removeTile(tile.rel);
+        showToast({ message: `Deleted ${tile.label}`, tone: "success" });
       } catch (err) {
-        console.error("[workbench-delete] failed:", err);
+        if (!confirmed) {
+          // Threw during the confirm phase — propagate as silent
+          // failure of the dialog, not a user-visible delete error.
+          console.error("[DELETE-DEBUG] workbench:deleteStore confirm failed:", err);
+          return;
+        }
+        const reason = err instanceof Error ? err.message : String(err);
+        console.error("[DELETE-DEBUG] workbench:deleteStore backend failed:", err);
+        showToast({
+          title: `Failed to delete ${tile.label}`,
+          message: reason,
+          tone: "critical",
+        });
+      } finally {
+        deletingTilesRef.current.delete(tile.rel);
+        console.warn("[DELETE-DEBUG] workbench:deleteStore finally — released lock for", tile.rel);
       }
     },
-    [repo, removeTile],
+    [repo, removeTile, showToast],
   );
 
   const customizeTile = useCallback(
@@ -374,60 +400,33 @@ export function Workbench({
 
   // ── Derived state ────────────────────────────────────────────────
 
-  const openInbox = () => {
-    if (repo) onOpen(`${repo}/databases/tickets`);
-  };
-
   // Tiles that can be deleted (have a folder on disk — not system
   // synthetics like "tools" or parent views like "databases").
-  // Only the 5 primitives (top-level containers) and system entities
-  // are non-deletable. Everything inside them is fair game.
-  const PRIMITIVES = new Set(["databases", "filestores", "knowledge", "reports", "agents"]);
-  const SYSTEM = new Set(["tools", "traces"]);
+  // Only the six primitive container folders and the synthetic
+  // `tools` tile are non-deletable. Everything inside a primitive
+  // (People, Scripts, Library, ...) is fair game.
+  //
+  // `agents` was dropped here in the 2026-05-23 cleanup — the folder
+  // is migrated away by project_bootstrap and any stale tile is
+  // stripped by parseWorkstationConfig, so the user shouldn't be
+  // able to encounter one at all.
+  const PRIMITIVES = new Set([
+    "databases",
+    "filestores",
+    "knowledge",
+    "reports",
+    "tasks",
+    "traces",
+  ]);
+  const SYSTEM = new Set(["tools"]);
   const isDeletable = (rel: string) => {
     return !PRIMITIVES.has(rel) && !SYSTEM.has(rel);
   };
 
   return (
     <div className="workbench">
-      {/* ── TODAY hero card ───────────────────────────────── */}
-      <div
-        className={`workbench-today${escalatedCount > 0 ? " has-escalated" : ""}`}
-      >
-        <button
-          type="button"
-          className="workbench-today-main"
-          onClick={openInbox}
-          disabled={!repo}
-          title={
-            escalatedCount > 0
-              ? "Open the Tickets Inbox"
-              : "Open the Tickets Inbox (nothing waiting)"
-          }
-        >
-          <span className="workbench-today-topline">
-            <span className="workbench-today-eyebrow">TODAY</span>
-            <span className="workbench-today-brand" aria-hidden>
-              Open<em>IT</em>
-            </span>
-          </span>
-          {escalatedCount === 0 ? (
-            <span className="workbench-today-hero workbench-today-hero-clean">
-              <span className="workbench-today-clean">Clean inbox</span>
-            </span>
-          ) : (
-            <span className="workbench-today-hero">
-              <span className="workbench-today-number">{escalatedCount}</span>
-              <span className="workbench-today-label">
-                escalated ticket{escalatedCount === 1 ? "" : "s"}
-              </span>
-            </span>
-          )}
-        </button>
-      </div>
-
       {/* ── Main station cards ────────────────────────────── */}
-      <div className={`workbench-stations workbench-stations-${layout}`}>
+      <div className="workbench-stations workbench-stations-single">
         {mainTiles.map((t) => {
           const tileIcon = iconForKey(t.icon);
           return (
@@ -587,6 +586,7 @@ export function Workbench({
                 tone="destructive"
                 className="context-menu-item"
                 onClick={() => {
+                  console.warn("[DELETE-DEBUG] workbench:contextMenu Delete clicked", { rel: contextMenu.tile.rel });
                   void deleteStore(contextMenu.tile);
                   setContextMenu(null);
                 }}
@@ -617,53 +617,29 @@ export function Workbench({
         />
       )}
 
-      {/* ── Layout toggle ─────────────────────────────────── */}
-      <div className="workbench-layout-bar">
-        <button
-          type="button"
-          className={`workbench-layout-btn${layout === "single" ? " active" : ""}`}
-          onClick={() => setLayout("single")}
-          title="Single column"
-          aria-label="Single column layout"
-        >
-          <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
-            <rect
-              x="1" y="1" width="12" height="3.5" rx="1"
-              stroke="currentColor" strokeWidth="1.2"
-            />
-            <rect
-              x="1" y="6.5" width="12" height="3.5" rx="1"
-              stroke="currentColor" strokeWidth="1.2"
-            />
-          </svg>
-        </button>
-        <button
-          type="button"
-          className={`workbench-layout-btn${layout === "grid" ? " active" : ""}`}
-          onClick={() => setLayout("grid")}
-          title="Two columns"
-          aria-label="Two column layout"
-        >
-          <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
-            <rect
-              x="1" y="1" width="5" height="5" rx="1"
-              stroke="currentColor" strokeWidth="1.2"
-            />
-            <rect
-              x="8" y="1" width="5" height="5" rx="1"
-              stroke="currentColor" strokeWidth="1.2"
-            />
-            <rect
-              x="1" y="8" width="5" height="5" rx="1"
-              stroke="currentColor" strokeWidth="1.2"
-            />
-            <rect
-              x="8" y="8" width="5" height="5" rx="1"
-              stroke="currentColor" strokeWidth="1.2"
-            />
-          </svg>
-        </button>
-      </div>
+      {/* ── Bottom collapse toggle ────────────────────────── */}
+      {onCollapse && (
+        <div className="workbench-collapse-bar">
+          <button
+            type="button"
+            className="workbench-collapse-btn"
+            onClick={onCollapse}
+            title="Collapse sidebar"
+            aria-label="Collapse sidebar"
+            aria-expanded={true}
+          >
+            <svg width="14" height="14" viewBox="0 0 14 14" fill="none" aria-hidden="true">
+              <path
+                d="M9 3l-4 4 4 4"
+                stroke="currentColor"
+                strokeWidth="1.5"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              />
+            </svg>
+          </button>
+        </div>
+      )}
     </div>
   );
 }

@@ -8,7 +8,7 @@
 // The `rel` field on each tile is the repo-relative path that doubles as
 // the tile's identity (e.g. `databases/people`, `filestores/commands`,
 // `knowledge`). System primitives use their canonical paths too
-// (`agents`, `tools`, `traces`).
+// (`tools`, `traces`).
 
 import { fsRead, fsList, entityWriteFile, type FileNode } from "./api";
 import { isDirectChild } from "./paths";
@@ -27,6 +27,14 @@ export interface TileConfig {
   tone?: ToneKey;
   /** Short description shown on list-view cards. */
   description?: string;
+  /**
+   * True when the user explicitly added this tile via the right-click
+   * "Add to workstation" action. Untagged tiles in `more` are assumed
+   * to be legacy auto-discovered entries and may be removed by the
+   * one-shot reset on load. Primitives in `main` ignore this flag —
+   * they're always defaults.
+   */
+  userPinned?: boolean;
 }
 
 export interface WorkstationConfig {
@@ -36,36 +44,136 @@ export interface WorkstationConfig {
   more: TileConfig[];
 }
 
+// ── Primitives ───────────────────────────────────────────────────────
+
+/// The eight primitive tile rels that make up the workstation hero.
+///
+/// Per user direction (2026-05-24): the workstation surfaces ONLY these
+/// eight primitives by default. Sub-stores (People, Access, Assets,
+/// Scripts, Library, Attachments, ...) never auto-appear — the user
+/// pins them explicitly via the right-click "Add to workstation" action
+/// on the primitive's overview viewer.
+///
+/// `filestores/commands` is treated as a primitive even though on disk
+/// it lives under `filestores/` — Commands is the IT admin's daily
+/// driver and earned its own top-level tile.
+/// Primitives that ship pinned to MAIN by default. The IT admin sees
+/// these three tiles the moment they open a fresh vault; everything
+/// else lives in MORE so the front page stays scannable.
+export const PRIMITIVE_MAIN_RELS: ReadonlyArray<string> = [
+  "tasks",
+  "knowledge",
+  "filestores/commands",
+];
+
+/// Primitives that ship pinned to MORE by default. Still primitives —
+/// the user can move them into MAIN if they want, and they're not
+/// strippable by the auto-discovery cleanup.
+export const PRIMITIVE_MORE_RELS: ReadonlyArray<string> = [
+  "reports",
+  "filestores",
+  "databases",
+  "tools",
+  "traces",
+];
+
+/// All eight primitives. Used by the "is this a primitive?" check and
+/// by the reset logic that rejects non-primitive tiles in MAIN.
+export const PRIMITIVE_RELS: ReadonlyArray<string> = [
+  ...PRIMITIVE_MAIN_RELS,
+  ...PRIMITIVE_MORE_RELS,
+];
+
+const PRIMITIVE_SET: ReadonlySet<string> = new Set(PRIMITIVE_RELS);
+
+export function isPrimitiveRel(rel: string): boolean {
+  return PRIMITIVE_SET.has(rel);
+}
+
 // ── Defaults ─────────────────────────────────────────────────────────
 
+/// Default workstation = three primitives in MAIN
+/// (Tasks / Knowledge / Commands), the remaining five primitives in
+/// MORE. Sub-stores (Access, Assets, Scripts, etc.) stay invisible
+/// until the user explicitly pins them via right-click.
 export const DEFAULT_WORKSTATION_CONFIG: WorkstationConfig = {
-  main: [
-    { rel: "knowledge" },
-    { rel: "filestores/commands" },
-  ],
-  // Tiles are shortcuts to surfaces the admin uses day-to-day, not a
-  // mirror of the disk tree. Sub-stores get their own tiles (People,
-  // Access, Assets, ...); the primitive folders that contain them
-  // (`databases/`, `filestores/`, the legacy `knowledge-bases` name)
-  // are intentionally NOT in the default pool — they're folder
-  // categories, not features the admin clicks on. Power users can
-  // still pin a primitive via `.openit/workstation.json` if they
-  // want.
-  more: [
-    { rel: "databases/people" },
-    { rel: "databases/access" },
-    { rel: "databases/assets" },
-    { rel: "filestores/scripts" },
-    { rel: "filestores/library" },
-    { rel: "filestores/attachments" },
-    { rel: "agents" },
-    { rel: "tools" },
-    { rel: "traces" },
-    { rel: "reports" },
-  ],
+  main: PRIMITIVE_MAIN_RELS.map((rel) => ({ rel })),
+  more: PRIMITIVE_MORE_RELS.map((rel) => ({ rel, userPinned: true })),
 };
 
 // ── Load / Save ──────────────────────────────────────────────────────
+
+/// Returns true when `main` contains any tile that is NOT one of the
+/// eight primitives — a strong signal the saved config predates the
+/// 2026-05-24 primitives-only layout. We reset such configs so users
+/// stuck on the legacy layouts (Tasks/Knowledge/Commands,
+/// six-primitives-plus-People, etc.) get the new defaults without
+/// having to delete `.openit/workstation.json` by hand.
+function mainHasNonPrimitive(main: TileConfig[]): boolean {
+  return main.some((t) => !PRIMITIVE_SET.has(t.rel));
+}
+
+/// Returns true when `main` contains any primitive that should live in
+/// MORE by default (i.e., one of the five non-main primitives). When
+/// this fires we move those tiles into MORE rather than letting MAIN
+/// balloon — keeps the workstation focused on the three daily-driver
+/// primitives (Tasks / Knowledge / Commands).
+function mainHasMorePrimitive(main: TileConfig[]): boolean {
+  const moreSet = new Set(PRIMITIVE_MORE_RELS);
+  return main.some((t) => moreSet.has(t.rel));
+}
+
+/// Strip tiles from `main` whose rel belongs in MORE by default and
+/// append them to `more` (with `userPinned: true` so they survive the
+/// next reset). Used when a legacy config had all eight primitives in
+/// main — we keep them visible, just relocate to where they belong.
+function relocateMorePrimitives(
+  main: TileConfig[],
+  more: TileConfig[],
+): { main: TileConfig[]; more: TileConfig[] } {
+  const moreSet = new Set(PRIMITIVE_MORE_RELS);
+  const moreRelsAlready = new Set(more.map((t) => t.rel));
+  const stayingInMain: TileConfig[] = [];
+  const relocated: TileConfig[] = [];
+  for (const t of main) {
+    if (moreSet.has(t.rel) && !moreRelsAlready.has(t.rel)) {
+      relocated.push({ ...t, userPinned: true });
+    } else if (!moreSet.has(t.rel)) {
+      stayingInMain.push(t);
+    }
+    // else: already represented in more, drop the duplicate.
+  }
+  return { main: stayingInMain, more: [...more, ...relocated] };
+}
+
+/// Returns true when `main` is missing one or more primitives. We
+/// re-add the missing ones in-place so partial configs (e.g. saved
+/// before a new primitive was introduced) get filled out.
+function mainMissingPrimitive(main: TileConfig[]): boolean {
+  const present = new Set(main.map((t) => t.rel));
+  return PRIMITIVE_MAIN_RELS.some((p) => !present.has(p));
+}
+
+/// Append any missing primitives to `main`, preserving the user's
+/// existing order. Used when `main` is partial (had some primitives
+/// but not all) — we want to keep what they had and just fill the
+/// gaps rather than wipe the whole list.
+function appendMissingPrimitives(main: TileConfig[]): TileConfig[] {
+  const present = new Set(main.map((t) => t.rel));
+  const out = [...main];
+  for (const rel of PRIMITIVE_MAIN_RELS) {
+    if (!present.has(rel)) out.push({ rel });
+  }
+  return out;
+}
+
+/// Strip MORE entries that lack the `userPinned` flag. The flag is
+/// only ever set by the right-click "Add to workstation" action; any
+/// entry without it was auto-discovered into MORE by the pre-2026-05-24
+/// merge logic and should be removed so a fresh vault shows MORE empty.
+function stripAutoDiscoveredMore(more: TileConfig[]): TileConfig[] {
+  return more.filter((t) => t.userPinned === true || PRIMITIVE_SET.has(t.rel));
+}
 
 export async function loadWorkstationConfig(
   repo: string,
@@ -73,7 +181,68 @@ export async function loadWorkstationConfig(
   try {
     const raw = await fsRead(`${repo}/.openit/workstation.json`);
     const parsed = JSON.parse(raw);
-    return parseWorkstationConfig(parsed);
+    const config = parseWorkstationConfig(parsed);
+
+    // One-shot reset for vaults still on a pre-2026-05-24 layout.
+    //
+    // Trigger criteria (any one is enough):
+    //   1. `main` contains any non-primitive tile (e.g. legacy People
+    //      pin, custom sub-store in main) — likely legacy auto-derived
+    //      shape, wipe main back to the eight primitives.
+    //   2. `main` is missing one or more primitives — re-add them
+    //      while preserving the user's existing order.
+    //   3. `more` contains any entry without `userPinned: true` — all
+    //      such entries came from the old auto-discovery merge; strip
+    //      them so MORE starts empty.
+    //
+    // Tradeoff: this is intentionally aggressive. Users who manually
+    // arranged auto-discovered tiles in MORE and expected them to
+    // persist (rare, since MORE was never customisable) will lose
+    // that arrangement on first load after upgrade. They can re-pin
+    // each one via right-click → "Add to workstation".
+    let nextMain = config.main;
+    let nextMore = config.more;
+    let changed = false;
+
+    if (mainHasNonPrimitive(nextMain)) {
+      nextMain = structuredClone(DEFAULT_WORKSTATION_CONFIG.main);
+      nextMore = structuredClone(DEFAULT_WORKSTATION_CONFIG.more);
+      changed = true;
+    } else if (mainHasMorePrimitive(nextMain)) {
+      // Legacy 8-primitives-in-main shape. Relocate the 5 non-main
+      // primitives to MORE (preserving any visual overrides), keep
+      // the 3 main primitives in MAIN.
+      const relocated = relocateMorePrimitives(nextMain, nextMore);
+      nextMain = relocated.main;
+      nextMore = relocated.more;
+      // Also re-add the 3 main primitives if any got dropped.
+      if (mainMissingPrimitive(nextMain)) {
+        nextMain = appendMissingPrimitives(nextMain);
+      }
+      changed = true;
+    } else if (mainMissingPrimitive(nextMain)) {
+      nextMain = appendMissingPrimitives(nextMain);
+      changed = true;
+    }
+
+    const strippedMore = stripAutoDiscoveredMore(nextMore);
+    if (strippedMore.length !== nextMore.length) {
+      nextMore = strippedMore;
+      changed = true;
+    }
+
+    if (changed) {
+      const reset: WorkstationConfig = { main: nextMain, more: nextMore };
+      // Persist so subsequent loads skip the migration entirely.
+      // Failure is non-fatal — the in-memory reset still applies for
+      // this session.
+      saveWorkstationConfig(repo, reset).catch((err) => {
+        console.warn("[workstationConfig] reset persist failed:", err);
+      });
+      return reset;
+    }
+
+    return config;
   } catch {
     return structuredClone(DEFAULT_WORKSTATION_CONFIG);
   }
@@ -91,15 +260,40 @@ export async function saveWorkstationConfig(
   );
 }
 
+/// Append a tile to MORE, marking it `userPinned: true` so the next
+/// reset preserves it. No-op when the tile is already pinned somewhere
+/// (main or more). Persists the updated config.
+export async function pinTileToWorkstation(
+  repo: string,
+  rel: string,
+  extras?: { label?: string; icon?: string; tone?: ToneKey; description?: string },
+): Promise<void> {
+  const cfg = await loadWorkstationConfig(repo);
+  if (cfg.main.some((t) => t.rel === rel)) return;
+  if (cfg.more.some((t) => t.rel === rel)) {
+    // Already in MORE — upgrade to userPinned so a future reset spares
+    // it. Merge any new visual overrides while we're here.
+    cfg.more = cfg.more.map((t) =>
+      t.rel === rel ? { ...t, ...extras, userPinned: true } : t,
+    );
+  } else {
+    cfg.more.push({ rel, ...extras, userPinned: true });
+  }
+  await saveWorkstationConfig(repo, cfg);
+}
+
 /// Map legacy tile rels to their renamed counterparts. Used when
-/// loading a workstation config that was saved before the 2026-05
-/// layout rename so existing vaults keep their pinned tiles instead
-/// of going empty after the disk migration moves files to the new
-/// paths.
+/// loading a workstation config that was saved before a UI rename so
+/// existing vaults keep their pinned tiles instead of going empty
+/// after the underlying folder moves.
 const LEGACY_REL_REWRITES: Record<string, string> = {
   "filestores/skills": "filestores/commands",
   "knowledge-bases": "knowledge",
   ".openit/agent-traces": "traces",
+  // Ticket model removed in PIN-6605 → replaced by the simpler tasks
+  // model. Vaults that pinned the old Inbox tile keep their pin,
+  // pointing at the new tasks/ folder.
+  "databases/tickets": "tasks",
 };
 
 function rewriteLegacyRel(tile: TileConfig): TileConfig {
@@ -107,15 +301,16 @@ function rewriteLegacyRel(tile: TileConfig): TileConfig {
   return replacement ? { ...tile, rel: replacement } : tile;
 }
 
-/// Drop tile entries whose rel matches a primitive container folder.
-/// The 2026-05 tile-UX change dropped these from the default set —
-/// tiles are daily-access shortcuts, not folder mirrors. Vaults that
-/// pinned them before the change had them auto-discovered in `more`;
-/// after the change those tiles render with no data and confuse the
-/// admin. Strip on load instead of forcing a manual edit.
+/// Drop tile entries whose rel matches a retired primitive.
+///
+/// `agents` was retired in the 2026-05 reorg — Claude Code is the only
+/// agent; the standalone Agents primitive no longer has a tile or
+/// viewer. Any saved config that still pins it is stripped on load so
+/// the user doesn't see a dead tile. (The `agents/` folder on disk is
+/// migrated away by the bootstrap; see project_bootstrap in
+/// src-tauri/src/project.rs.)
 const DROPPED_PRIMITIVE_RELS = new Set([
-  "databases",
-  "filestores",
+  "agents",
 ]);
 
 function parseWorkstationConfig(raw: unknown): WorkstationConfig {
@@ -148,12 +343,25 @@ function parseWorkstationConfig(raw: unknown): WorkstationConfig {
 function isTileConfig(v: unknown): v is TileConfig {
   if (!v || typeof v !== "object") return false;
   const o = v as Record<string, unknown>;
-  return typeof o.rel === "string" && o.rel.length > 0;
+  if (typeof o.rel !== "string" || o.rel.length === 0) return false;
+  // `userPinned` is optional — accept missing or boolean, reject other
+  // types so a malformed config can't accidentally suppress the reset.
+  if ("userPinned" in o && typeof o.userPinned !== "boolean") return false;
+  return true;
 }
 
 // ── Discovery ────────────────────────────────────────────────────────
 // Scan the filesystem to find all available stores. Each store maps to
-// a potential workstation tile.
+// a potential workstation tile. Sub-stores discovered here are NOT
+// auto-surfaced as tiles — `mergeConfigWithDiscovery` only resolves
+// tiles the config explicitly references. The discovery is still
+// needed so that:
+//   - the resolver knows the label/icon/tone/countMode for a pinned
+//     sub-store
+//   - navigation into `databases/people` etc. still routes correctly
+//     elsewhere in the app (sourcing from FileExplorer)
+//   - the right-click "Add to workstation" action has metadata to
+//     copy onto the new MORE entry
 
 export interface DiscoveredTile {
   rel: string;
@@ -171,17 +379,20 @@ export interface DiscoveredTile {
 
 /// Well-known tiles that exist regardless of filesystem state.
 ///
-/// The primitive container folders (`databases/`, `filestores/`,
-/// `knowledge/`) are intentionally NOT listed here. Tiles are
-/// shortcuts to surfaces the admin uses day-to-day; primitive
-/// folders are organizational categories the admin browses via the
-/// file explorer, not features they click on. Their sub-stores
-/// (People, Access, Scripts, Commands, ...) are surfaced as their
-/// own tiles instead, discovered below.
+/// Every entry here is one of the eight top-level primitives (per the
+/// 2026-05-24 primitives-only layout). Sub-stores (People, Scripts,
+/// ...) are discovered from disk below but not surfaced as tiles
+/// unless explicitly pinned.
 const SYSTEM_TILES: DiscoveredTile[] = [
-  { rel: "agents", label: "Agents", defaultIcon: "agents", defaultTone: "accent",  countMode: "files" },
-  { rel: "tools",  label: "Tools",  defaultIcon: "tools",  defaultTone: "accent",  countMode: "custom" },
-  { rel: "traces", label: "Traces", defaultIcon: "traces", defaultTone: "neutral", countMode: "dirs" },
+  // The eight primitives, in canonical order.
+  { rel: "tasks",              label: "Tasks",     defaultIcon: "checklist", defaultTone: "accent",  countMode: "files" },
+  { rel: "knowledge",          label: "Knowledge", defaultIcon: "knowledge", defaultTone: "ochre",   countMode: "files" },
+  { rel: "filestores/commands", label: "Commands", defaultIcon: "commands",  defaultTone: "accent",  countMode: "files" },
+  { rel: "reports",            label: "Reports",   defaultIcon: "reports",   defaultTone: "link",    countMode: "files" },
+  { rel: "filestores",         label: "Filestores", defaultIcon: "folder",   defaultTone: "neutral", countMode: "dirs"  },
+  { rel: "databases",          label: "Databases", defaultIcon: "database",  defaultTone: "link",    countMode: "dirs"  },
+  { rel: "tools",              label: "Tools",     defaultIcon: "tools",     defaultTone: "accent",  countMode: "custom" },
+  { rel: "traces",             label: "Traces",    defaultIcon: "traces",    defaultTone: "neutral", countMode: "dirs"  },
 ];
 
 /** Well-known database collections with custom defaults. */
@@ -189,7 +400,6 @@ const KNOWN_DB_DEFAULTS: Record<string, { label: string; icon: string; tone: Ton
   people:        { label: "People",   icon: "person",   tone: "sage" },
   access:        { label: "Access",   icon: "access",   tone: "sage" },
   assets:        { label: "Assets",   icon: "assets",   tone: "clay" },
-  tickets:       { label: "Inbox",    icon: "inbox",    tone: "accent" },
 };
 
 /** Well-known filestore collections with custom defaults. */
@@ -197,7 +407,6 @@ const KNOWN_FS_DEFAULTS: Record<string, { label: string; icon: string; tone: Ton
   commands:    { label: "Commands",    icon: "commands",    tone: "accent" },
   scripts:     { label: "Scripts",     icon: "scripts",     tone: "link" },
   library:     { label: "Library",     icon: "folder",      tone: "neutral" },
-  attachments: { label: "Attachments", icon: "attachments", tone: "neutral" },
 };
 
 /** Capitalize first letter. */
@@ -212,37 +421,17 @@ function directChildDirs(items: FileNode[], rootAbs: string): FileNode[] {
 export async function discoverTiles(repo: string): Promise<DiscoveredTile[]> {
   const tiles: DiscoveredTile[] = [];
 
-  // Knowledge bases — only if the folder exists on disk
-  try {
-    await fsList(`${repo}/knowledge`);
-    tiles.push({
-      rel: "knowledge",
-      label: "Knowledge",
-      defaultIcon: "knowledge",
-      defaultTone: "ochre",
-      countMode: "files",
-    });
-  } catch { /* folder doesn't exist — skip */ }
-
-  // Reports — only if the folder exists on disk
-  try {
-    await fsList(`${repo}/reports`);
-    tiles.push({
-      rel: "reports",
-      label: "Reports",
-      defaultIcon: "reports",
-      defaultTone: "link",
-      countMode: "files",
-    });
-  } catch { /* folder doesn't exist — skip */ }
-
   // Discover database collections
   try {
     const dbItems = await fsList(`${repo}/databases`);
     const dbDirs = directChildDirs(dbItems, `${repo}/databases`);
     for (const dir of dbDirs) {
-      if (dir.name === "conversations") continue; // hidden, tied to tickets
-      if (dir.name === "tickets") continue; // inbox hero card handles this
+      // Legacy ticket folders from older app versions stay on disk but
+      // are never surfaced as workstation tiles — the tasks station
+      // replaces them. The user can still navigate to the raw JSON via
+      // the file explorer if needed.
+      if (dir.name === "conversations") continue;
+      if (dir.name === "tickets") continue;
       const known = KNOWN_DB_DEFAULTS[dir.name];
       tiles.push({
         rel: `databases/${dir.name}`,
@@ -255,13 +444,14 @@ export async function discoverTiles(repo: string): Promise<DiscoveredTile[]> {
   } catch { /* databases/ may not exist */ }
 
   // Discover filestore collections
-  const fsSeen = new Set<string>();
   try {
     const fsItems = await fsList(`${repo}/filestores`);
     const fsDirs = directChildDirs(fsItems, `${repo}/filestores`);
     for (const dir of fsDirs) {
+      // `filestores/commands` is already a primitive in SYSTEM_TILES —
+      // skip the discovered copy to avoid a duplicate entry.
+      if (dir.name === "commands") continue;
       const known = KNOWN_FS_DEFAULTS[dir.name];
-      fsSeen.add(dir.name);
       tiles.push({
         rel: `filestores/${dir.name}`,
         label: known?.label ?? capitalize(dir.name),
@@ -273,21 +463,7 @@ export async function discoverTiles(repo: string): Promise<DiscoveredTile[]> {
     }
   } catch { /* filestores/ may not exist */ }
 
-  // Always synthesize the Commands tile (filestores/commands) so it appears
-  // in a fresh vault even before the folder is materialized — it's a core
-  // workstation tile pinned to `main` in the default config.
-  if (!fsSeen.has("commands")) {
-    const known = KNOWN_FS_DEFAULTS.commands;
-    tiles.push({
-      rel: "filestores/commands",
-      label: known.label,
-      defaultIcon: known.icon,
-      defaultTone: known.tone,
-      countMode: "files",
-    });
-  }
-
-  // System tiles
+  // System + primitive tiles
   tiles.push(...SYSTEM_TILES);
 
   return tiles;
@@ -296,8 +472,12 @@ export async function discoverTiles(repo: string): Promise<DiscoveredTile[]> {
 // ── Merge ────────────────────────────────────────────────────────────
 // Combine the persisted config with filesystem discovery to produce the
 // final tile lists. Config-referenced tiles that no longer exist on disk
-// are silently dropped. Newly discovered tiles not in config are appended
-// to "more".
+// are silently dropped.
+//
+// NOTE (2026-05-24): unlike the pre-primitives-only behaviour, discovered
+// tiles that are NOT in the config are NOT auto-appended to MORE. The
+// user pins sub-stores explicitly via right-click → "Add to workstation"
+// (see `pinTileToWorkstation`).
 
 export interface ResolvedTile {
   rel: string;
@@ -337,24 +517,6 @@ export function mergeConfigWithDiscovery(
   for (const tc of config.more) {
     const r = resolve(tc);
     if (r) more.push(r);
-  }
-
-  // Append newly discovered tiles not in config
-  const inConfig = new Set([
-    ...config.main.map((t) => t.rel),
-    ...config.more.map((t) => t.rel),
-  ]);
-  for (const d of discovered) {
-    if (!inConfig.has(d.rel)) {
-      more.push({
-        rel: d.rel,
-        label: d.label,
-        icon: d.defaultIcon,
-        tone: d.defaultTone,
-        countMode: d.countMode,
-        openRel: d.openRel,
-      });
-    }
   }
 
   return { main, more };

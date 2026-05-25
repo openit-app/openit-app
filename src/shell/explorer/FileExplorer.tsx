@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import {
   ChevronDown,
   ChevronRight,
@@ -25,6 +25,7 @@ import {
 } from "./helpers";
 import { ContextMenu, type ContextMenuState } from "./ContextMenu";
 import { useTreeState } from "./useTreeState";
+import { useToast } from "../../Toast";
 
 /**
  * COLLECTION LOADING & SYNC PROCESS
@@ -62,6 +63,7 @@ export function FileExplorer({
   selectedPath,
   active,
   onBack,
+  onCollapse,
 }: {
   repo: string | null;
   onSelect: (path: string) => void;
@@ -81,6 +83,11 @@ export function FileExplorer({
    *  Workbench overview. Omit when the explorer is the only left-pane
    *  view (future full-time explorer mode). */
   onBack?: () => void;
+  /** When set, a collapse-sidebar chevron renders in the toolbar so the
+   *  user can shrink the left pane to an icon rail without first having
+   *  to navigate back to the Workbench. Optional — omit in embeds that
+   *  don't own sidebar layout (PIN-6613). */
+  onCollapse?: () => void;
 }) {
   const [dragOver, setDragOver] = useState(false);
   const [dropTargetPath, setDropTargetPath] = useState<string | null>(null);
@@ -90,6 +97,23 @@ export function FileExplorer({
   // scaffolding the user usually doesn't want to see. Default off;
   // toolbar icon toggles.
   const [showSystemFiles, setShowSystemFiles] = useState(false);
+  // Per-path in-flight delete tracking (PIN-6612). Repeated trash
+  // clicks on the same KB row collapse into a single backend call; a
+  // failure surfaces via toast instead of silently logging to the
+  // devtools console.
+  //
+  // Two parallel structures: `deletingPathsRef` is the synchronous
+  // truth used by the click handler (two pointer events in the same
+  // React tick both observe stale state, but the ref is current);
+  // `deletingPaths` mirrors it into state so the `disabled` /
+  // `aria-busy` attributes on the trash button update on the next
+  // render. BugBot + ensemble both flagged the state-only guard as
+  // insufficient against same-cycle activations.
+  const deletingPathsRef = useRef<Set<string>>(new Set());
+  const [deletingPaths, setDeletingPaths] = useState<ReadonlySet<string>>(
+    () => new Set(),
+  );
+  const { show: showToast } = useToast();
 
   // Virtual resource state
   const [datastores] = useState<DataCollection[]>([]);
@@ -223,10 +247,37 @@ export function FileExplorer({
 
   const handleDelete = async (node: { is_dir: boolean; path: string; name: string }) => {
     if (!isDeletable(node) || !repo) return;
+    // Ref check first — synchronous, catches same-cycle activations
+    // that the React-state `deletingPaths` would otherwise miss.
+    if (deletingPathsRef.current.has(node.path)) return;
+    deletingPathsRef.current.add(node.path);
     const filename = relPath(repo, node.path).slice(KB_PREFIX.length);
-    await kbDeleteFile(repo, filename);
-    reload();
-    onFsChange?.();
+    setDeletingPaths((prev) => {
+      const next = new Set(prev);
+      next.add(node.path);
+      return next;
+    });
+    try {
+      await kbDeleteFile(repo, filename);
+      reload();
+      onFsChange?.();
+      showToast({ message: `Deleted ${node.name}`, tone: "success" });
+    } catch (err) {
+      const reason = err instanceof Error ? err.message : String(err);
+      console.error(`[kb-delete] failed for ${filename}:`, err);
+      showToast({
+        title: `Failed to delete ${node.name}`,
+        message: reason,
+        tone: "critical",
+      });
+    } finally {
+      deletingPathsRef.current.delete(node.path);
+      setDeletingPaths((prev) => {
+        const next = new Set(prev);
+        next.delete(node.path);
+        return next;
+      });
+    }
   };
 
   // Icon mirrors the cycle state: collapse-all when fully expanded,
@@ -256,6 +307,21 @@ export function FileExplorer({
             title="Back to overview"
           >
             <svg width={14} height={14} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" aria-hidden><path d="M19 12H5"/><path d="M12 19l-7-7 7-7"/></svg>
+          </Button>
+        )}
+        {onCollapse && (
+          <Button
+            variant="ghost"
+            size="sm"
+            iconOnly
+            onClick={onCollapse}
+            title="Collapse sidebar"
+            aria-label="Collapse sidebar"
+            aria-expanded={true}
+          >
+            <svg width={14} height={14} viewBox="0 0 14 14" fill="none" aria-hidden>
+              <path d="M9 3l-4 4 4 4" stroke="currentColor" strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round" />
+            </svg>
           </Button>
         )}
         <Button
@@ -321,16 +387,13 @@ export function FileExplorer({
                   //   - top-level datastore dirs (databases/<col>/) → table
                   //   - conversation thread subfolders
                   //     (databases/conversations/<ticketId>/) → chat thread
-                  //   - top-level entity dirs (agents, workflows,
-                  //     knowledge-base, filestore) → entity-folder view
-                  //     so empty folders show a friendly notice instead
-                  //     of nothing.
+                  //   - top-level entity dirs (knowledge-base,
+                  //     filestore) → entity-folder view so empty folders
+                  //     show a friendly notice instead of nothing.
                   if (
                     rel === "databases" ||
                     rel.match(/^databases\/[^/]+$/) ||
                     rel.match(/^databases\/conversations\/[^/]+$/) ||
-                    rel === "agents" ||
-                    rel === "workflows" ||
                     // Flat KB directory: all articles in knowledge/
                     rel === "knowledge" ||
                     // 2026-04-27 filestore split:
@@ -398,10 +461,16 @@ export function FileExplorer({
                   size="sm"
                   iconOnly
                   className="tree-delete-btn"
-                  title={`Delete ${n.name}`}
+                  title={
+                    deletingPaths.has(n.path)
+                      ? `Deleting ${n.name}…`
+                      : `Delete ${n.name}`
+                  }
+                  aria-busy={deletingPaths.has(n.path)}
+                  disabled={deletingPaths.has(n.path)}
                   onClick={(e) => {
                     e.stopPropagation();
-                    handleDelete(n);
+                    void handleDelete(n);
                   }}
                 >
                   ✕

@@ -1,10 +1,9 @@
 /// Entity-folder sub-viewer extracted from Viewer.tsx.
 /// Handles `entity-folder` rendering — the generic top-level folder
-/// view for agents, workflows, knowledge-base, library, reports,
-/// skills, scripts, and per-ticket attachments.
-/// No behavior changes — purely structural extraction.
+/// view for knowledge-base, library, reports, skills, scripts, and
+/// per-ticket attachments.
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { fsReveal } from "../../lib/api";
 import type { ViewerSource } from "../viewerTypes";
 import { EntityCardGrid } from "../EntityCardGrid";
@@ -48,6 +47,23 @@ export function EntityFolderBody({
   useEffect(() => {
     setHiddenPaths(new Set());
   }, [source.path]);
+  // Per-script "currently running" set keyed by absolute path. Lets
+  // the scripts-folder cards swap their play glyph for a spinner so
+  // long-running runs don't look frozen. Reset when the folder path
+  // changes.
+  //
+  // Two parallel stores: a ref for the *synchronous* guard inside
+  // the onRun handler (state updates would only land on the next
+  // render, so two rapid-fire clicks both pass an
+  // `if (state.has(path)) return` check and spawn two concurrent
+  // runs), and a state set for the UI render trigger. Always mutate
+  // the ref first, then mirror to state.
+  const runningRef = useRef<Set<string>>(new Set());
+  const [runningScripts, setRunningScripts] = useState<Set<string>>(new Set());
+  useEffect(() => {
+    runningRef.current = new Set();
+    setRunningScripts(new Set());
+  }, [source.path]);
 
   const isReport = source.entity === "reports";
   const reversed = !!sortReversed[source.path];
@@ -78,7 +94,6 @@ export function EntityFolderBody({
     const useTypeBadge =
       (source.entity === "library" ||
         source.entity === "reports" ||
-        source.entity === "attachments-ticket" ||
         source.entity === "knowledge-base" ||
         source.entity === "skills" ||
         source.entity === "scripts") &&
@@ -120,11 +135,24 @@ export function EntityFolderBody({
           }
         : undefined,
       onReveal: () => void fsReveal(f.path).catch(console.error),
+      running: runningScripts.has(f.path),
       onRun:
         source.entity === "scripts" &&
         /\.(mjs|js|cjs|py)$/i.test(f.path) &&
         onShowSource
           ? async () => {
+              // Synchronous guard via ref — rapid double-clicks
+              // both used to pass `if (state.has(path)) return`
+              // because React batches state updates. The ref read
+              // + add happen in a single JS turn, so the second
+              // invocation bails before reaching `scriptRun`.
+              if (runningRef.current.has(f.path)) return;
+              runningRef.current.add(f.path);
+              setRunningScripts((prev) => {
+                const next = new Set(prev);
+                next.add(f.path);
+                return next;
+              });
               try {
                 const { scriptRun } = await import("../../lib/api");
                 const out = await scriptRun(repo, f.path);
@@ -140,14 +168,19 @@ export function EntityFolderBody({
                 const reason = err instanceof Error ? err.message : String(err);
                 console.error(`[script-run] ${f.name} failed:`, err);
                 showToast(`Run failed: ${reason}`);
+              } finally {
+                runningRef.current.delete(f.path);
+                setRunningScripts((prev) => {
+                  const next = new Set(prev);
+                  next.delete(f.path);
+                  return next;
+                });
               }
             }
           : undefined,
       onAddToClaude: (() => {
         const rel = repo ? toRepoRelative(repo, f.path) : f.name;
         switch (source.entity) {
-          case "agents":
-            return () => { void writeToActiveSession(`Read and follow the agent instructions in ${rel}\r`); };
           case "skills":
             return () => { void writeToActiveSession(`/${f.displayName}\r`); };
           case "knowledge-base":
@@ -232,7 +265,7 @@ export function EntityFolderBody({
         </div>
       )}
       <EntityCardGrid
-        kind={source.entity === "attachments-ticket" ? "attachments" : source.entity}
+        kind={source.entity}
         cards={cards}
         empty={
           <p className="summary-desc">
