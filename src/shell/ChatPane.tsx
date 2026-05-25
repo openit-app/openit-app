@@ -253,7 +253,7 @@ export function ChatPane({
     const domNewlineHandler = (e: KeyboardEvent) => {
       if (e.type !== "keydown") return;
       if (!isNewlineHotkey(e)) return;
-      console.warn("[SHIFT-ENTER] DOM capture handler — sending backslash+CR", {
+      console.warn("[SHIFT-ENTER] DOM capture handler — sending backslash+LF", {
         sessionId,
         key: e.key,
         shift: e.shiftKey,
@@ -262,14 +262,13 @@ export function ChatPane({
       });
       e.preventDefault();
       e.stopImmediatePropagation();
-      // Emit backslash + CR — same bytes as the user typing `\` then
-      // Enter. CC's prompt-kit treats `\` at end of line as line
-      // continuation: it removes the backslash, inserts a real newline
-      // into the buffer, and waits for more input instead of submitting.
-      // This works regardless of terminal modifier-key protocol (no
-      // kitty CSI-u required) since it piggybacks on CC's documented
-      // multi-line input pattern.
-      term.input("\\\r");
+      // Emit backslash + LF — the well-attested CC line-continuation
+      // pattern from the r/ClaudeAI thread. CC's prompt-kit sees `\\`
+      // at end of line followed by an actual LF and inserts a real
+      // newline into the buffer (the `\\` stays visible but doesn't
+      // hurt). LF specifically — CR triggers submit. Verified across
+      // VS Code, Cursor, and Antigravity in the community thread.
+      term.input("\\\n");
     };
     // Capture phase on the container so we run before xterm's own
     // listeners. Falls back to attachCustomKeyEventHandler below in
@@ -280,8 +279,8 @@ export function ChatPane({
     term.attachCustomKeyEventHandler((e) => {
       if (!isNewlineHotkey(e)) return true;
       if (e.type !== "keydown") return true;
-      console.warn("[SHIFT-ENTER] xterm handler — sending backslash+CR", { sessionId });
-      term.input("\\\r");
+      console.warn("[SHIFT-ENTER] xterm handler — sending backslash+LF", { sessionId });
+      term.input("\\\n");
       return false;
     });
 
