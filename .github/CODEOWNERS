@@ -9,4 +9,4 @@
 # so we can require two-eyes review on sensitive paths like
 # .github/workflows/release.yml, src-tauri/tauri.conf.json, and SECURITY.md.
 
-*  @sankalpgunturi @brig-pinkfish
+*  @sankalpgunturi
