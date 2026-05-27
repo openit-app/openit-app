@@ -24,6 +24,15 @@ export type PluginManifest = {
 /// re-sync is needed (without nuking user edits to non-plugin files).
 const PLUGIN_VERSION_SENTINEL = ".openit/plugin-version";
 
+/// Tombstone-by-diff sentinel. Records the set of `seed/commands/<name>.md`
+/// bundled command names that landed on disk during the previous sync. The
+/// gate in `syncSkillsToDisk` reads this on the next sync and uses it to
+/// distinguish "file missing because the user deleted it" (skip — respect
+/// the deletion) from "file missing because it's a newly-shipped bundled
+/// command" (write). Without this, every re-sync resurrects defaults the
+/// user removed in Finder.
+const SYNCED_SEED_COMMANDS_SENTINEL = ".openit/synced-seed-commands.json";
+
 /// Read the version of the last successful sync. Returns null when the
 /// sentinel is missing or unreadable — the caller treats that as
 /// "out-of-date" so a fresh sync runs on first launch under a new build.
@@ -47,6 +56,37 @@ async function writeSyncedPluginVersion(repo: string, version: string): Promise<
     });
   } catch (err) {
     console.warn("[skillsSync] failed to write plugin-version sentinel:", err);
+  }
+}
+
+/// Read the set of bundled command names persisted by the previous sync.
+/// Returns null when the sentinel is missing or unreadable — the caller
+/// treats null as "first sync ever on this vault" and writes all bundled
+/// commands. Returns an empty set if the file is present but malformed,
+/// which is the conservative choice: an empty set means "we have no record
+/// the user ever saw any of these defaults," so every missing file is
+/// treated as new and gets written.
+export async function readSyncedSeedCommands(repo: string): Promise<Set<string> | null> {
+  try {
+    const raw = await invoke<string>("fs_read", { path: `${repo}/${SYNCED_SEED_COMMANDS_SENTINEL}` });
+    const parsed = JSON.parse(raw) as { commands?: unknown };
+    if (!Array.isArray(parsed.commands)) return new Set();
+    return new Set(parsed.commands.filter((c): c is string => typeof c === "string"));
+  } catch {
+    return null;
+  }
+}
+
+async function writeSyncedSeedCommands(repo: string, commands: string[]): Promise<void> {
+  try {
+    await invoke("entity_write_file", {
+      repo,
+      subdir: ".openit",
+      filename: "synced-seed-commands.json",
+      content: JSON.stringify({ commands: [...commands].sort() }, null, 2),
+    });
+  } catch (err) {
+    console.warn("[skillsSync] failed to write synced-seed-commands sentinel:", err);
   }
 }
 
@@ -258,6 +298,21 @@ export async function syncSkillsToDisk(
     const bubbleCount = (manifest.bubbles ?? []).length;
     const writtenPaths: string[] = [];
 
+    // Tombstone-by-diff for seed commands. `previousSeedCommands` is what
+    // the previous sync persisted on this vault (null on first install).
+    // `currentSeedCommands` is the set of bundled command names in this
+    // manifest version — we persist it at the end so the next sync can
+    // tell "user deleted this" apart from "never seeded this." Without
+    // this gate, every missing file in `filestores/commands/` looks the
+    // same to the write-once check below and gets resurrected.
+    const previousSeedCommands = await readSyncedSeedCommands(repo);
+    const currentSeedCommands = new Set<string>();
+    for (const file of manifest.files) {
+      if (file.path.startsWith("seed/commands/") && file.path.endsWith(".md")) {
+        currentSeedCommands.add(file.path.replace("seed/commands/", "").replace(".md", ""));
+      }
+    }
+
     for (const file of manifest.files) {
       let stage: SyncLogEntry["stage"] = "route";
       try {
@@ -285,6 +340,20 @@ export async function syncSkillsToDisk(
           if (await fileExistsOnDisk(repo, route.subdir, route.filename)) {
             console.debug(
               `[skillsSync] preserved user-edited ${route.subdir}/${route.filename}`,
+            );
+            syncLog.push({ path: file.path, stage: "preserved", subdir: route.subdir, filename: route.filename });
+            continue;
+          }
+          // Tombstone gate: file is missing on disk. If we know this command
+          // was synced previously, the user has since deleted it (in Finder
+          // or via the app) — respect the deletion instead of resurrecting
+          // it. New bundled commands (not in the previous set) and the
+          // first-install case (previousSeedCommands === null) both fall
+          // through and get written below.
+          const commandName = file.path.replace("seed/commands/", "").replace(".md", "");
+          if (previousSeedCommands !== null && previousSeedCommands.has(commandName)) {
+            console.debug(
+              `[skillsSync] respecting user deletion of ${route.subdir}/${route.filename}`,
             );
             syncLog.push({ path: file.path, stage: "preserved", subdir: route.subdir, filename: route.filename });
             continue;
@@ -360,6 +429,13 @@ export async function syncSkillsToDisk(
     if (manifest.version) {
       await writeSyncedPluginVersion(repo, manifest.version);
     }
+
+    // Persist the bundled-command set this sync was responsible for so the
+    // next sync can diff against it (see the tombstone gate above). We
+    // always write the full current set, not the union with the previous
+    // set — bundled commands that were dropped from the manifest are no
+    // longer something we care about preserving deletions for.
+    await writeSyncedSeedCommands(repo, [...currentSeedCommands]);
 
     onLog?.(`    ${fileCount} file(s), ${skillCount} skill(s), ${bubbleCount} bubble(s) — synced`);
     return { bubbles: manifest.bubbles ?? [] };
