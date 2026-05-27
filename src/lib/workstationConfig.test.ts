@@ -173,6 +173,40 @@ describe("loadWorkstationConfig — reset triggers", () => {
     expect(cfg.main.find((t) => t.rel === "tasks")?.label).toBe("My Tasks");
     expect(mockedEntityWriteFile).not.toHaveBeenCalled();
   });
+
+  it("promotes MORE-default primitives to MAIN and persists across reload", async () => {
+    // Parametrized test over all five PRIMITIVE_MORE_RELS to ensure
+    // the fix works for all affected primitives and prevent future
+    // regressions where similar logic could target a different rel.
+    for (const rel of PRIMITIVE_MORE_RELS) {
+      // Reset mocks between iterations
+      mockedFsRead.mockReset();
+      mockedEntityWriteFile.mockReset();
+      mockedEntityWriteFile.mockResolvedValue(undefined);
+
+      // Simulate user promoting a MORE-default primitive to MAIN
+      const promoted: WorkstationConfig = {
+        main: [
+          ...PRIMITIVE_MAIN_RELS.map((r) => ({ rel: r })),
+          { rel }, // ← user promoted this primative from MORE to MAIN
+        ],
+        more: PRIMITIVE_MORE_RELS.filter((r) => r !== rel).map((r) => ({ rel: r, userPinned: true })),
+      };
+      mockedFsRead.mockResolvedValue(JSON.stringify(promoted));
+
+      // Load should NOT revert the user's promotion (this was the bug)
+      const cfg = await loadWorkstationConfig("/repo");
+
+      // Assert the promoted tile is still in MAIN after reload
+      expect(cfg.main.map((t) => t.rel)).toContain(rel);
+
+      // Assert it's NOT in MORE (promotion is complete)
+      expect(cfg.more.map((t) => t.rel)).not.toContain(rel);
+
+      // Assert no re-writing occurred (config was valid, no migration needed)
+      expect(mockedEntityWriteFile).not.toHaveBeenCalled();
+    }
+  });
 });
 
 describe("mergeConfigWithDiscovery", () => {

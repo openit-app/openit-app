@@ -113,39 +113,6 @@ function mainHasNonPrimitive(main: TileConfig[]): boolean {
   return main.some((t) => !PRIMITIVE_SET.has(t.rel));
 }
 
-/// Returns true when `main` contains any primitive that should live in
-/// MORE by default (i.e., one of the five non-main primitives). When
-/// this fires we move those tiles into MORE rather than letting MAIN
-/// balloon — keeps the workstation focused on the three daily-driver
-/// primitives (Tasks / Knowledge / Commands).
-function mainHasMorePrimitive(main: TileConfig[]): boolean {
-  const moreSet = new Set(PRIMITIVE_MORE_RELS);
-  return main.some((t) => moreSet.has(t.rel));
-}
-
-/// Strip tiles from `main` whose rel belongs in MORE by default and
-/// append them to `more` (with `userPinned: true` so they survive the
-/// next reset). Used when a legacy config had all eight primitives in
-/// main — we keep them visible, just relocate to where they belong.
-function relocateMorePrimitives(
-  main: TileConfig[],
-  more: TileConfig[],
-): { main: TileConfig[]; more: TileConfig[] } {
-  const moreSet = new Set(PRIMITIVE_MORE_RELS);
-  const moreRelsAlready = new Set(more.map((t) => t.rel));
-  const stayingInMain: TileConfig[] = [];
-  const relocated: TileConfig[] = [];
-  for (const t of main) {
-    if (moreSet.has(t.rel) && !moreRelsAlready.has(t.rel)) {
-      relocated.push({ ...t, userPinned: true });
-    } else if (!moreSet.has(t.rel)) {
-      stayingInMain.push(t);
-    }
-    // else: already represented in more, drop the duplicate.
-  }
-  return { main: stayingInMain, more: [...more, ...relocated] };
-}
-
 /// Returns true when `main` is missing one or more primitives. We
 /// re-add the missing ones in-place so partial configs (e.g. saved
 /// before a new primitive was introduced) get filled out.
@@ -207,18 +174,6 @@ export async function loadWorkstationConfig(
     if (mainHasNonPrimitive(nextMain)) {
       nextMain = structuredClone(DEFAULT_WORKSTATION_CONFIG.main);
       nextMore = structuredClone(DEFAULT_WORKSTATION_CONFIG.more);
-      changed = true;
-    } else if (mainHasMorePrimitive(nextMain)) {
-      // Legacy 8-primitives-in-main shape. Relocate the 5 non-main
-      // primitives to MORE (preserving any visual overrides), keep
-      // the 3 main primitives in MAIN.
-      const relocated = relocateMorePrimitives(nextMain, nextMore);
-      nextMain = relocated.main;
-      nextMore = relocated.more;
-      // Also re-add the 3 main primitives if any got dropped.
-      if (mainMissingPrimitive(nextMain)) {
-        nextMain = appendMissingPrimitives(nextMain);
-      }
       changed = true;
     } else if (mainMissingPrimitive(nextMain)) {
       nextMain = appendMissingPrimitives(nextMain);
