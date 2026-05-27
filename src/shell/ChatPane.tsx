@@ -102,6 +102,7 @@ export function ChatPane({
         "'MesloLGS NF', 'JetBrainsMono Nerd Font Mono', 'JetBrainsMono Nerd Font', 'Hack Nerd Font Mono', 'Hack Nerd Font', 'Symbols Nerd Font Mono', Menlo, Monaco, 'SF Mono', monospace",
       fontSize: 13,
       cursorBlink: true,
+      scrollback: 10000,
       // OSC 8 hyperlink handler. Claude Code emits OSC 8 escape
       // sequences for URLs in its output (the "rich" terminal
       // hyperlink protocol — separate from the regex-based plain
@@ -214,23 +215,25 @@ export function ChatPane({
       if (cb) cb(newTitle);
     });
 
-    // Shift+Enter for newline-insert in Claude Code is intentionally
-    // NOT handled here. xterm.js 6.0 doesn't support the kitty
-    // keyboard protocol — without it, the terminal sends the same
-    // byte (\r) for both Enter and Shift+Enter, so CC can't tell them
-    // apart and submits both. Multiple byte-injection workarounds
-    // were attempted (ESC+CR, LF, backslash+CR, backslash+LF, kitty
-    // CSI-u) and all failed in practice — see the conversation in the
-    // r/ClaudeAI thread "Shift+Enter for newline in Claude Code not
-    // working" and dev.to article "Why Shift+Enter doesn't work in
-    // Claude Code (and how to fix it)" for the root-cause explanation.
-    // The proper fix is upgrading to xterm.js 6.1.0 (currently beta)
-    // and enabling vtExtensions for kitty protocol support so CC and
-    // xterm negotiate the right encoding on PTY spawn.
-    //
-    // Workarounds for users in the meantime:
-    //   - Type \\ then plain Enter to insert a manual newline
-    //   - Drag-and-drop a multi-line text file to paste its contents
+    // Shift+Enter → \x1b\r (ESC + CR), the sequence Claude Code's
+    // `/terminal-setup` configures iTerm2 to send. CC's input parser
+    // treats this as newline-insert; bare \r is submit.
+    term.attachCustomKeyEventHandler((e) => {
+      if (
+        e.type === "keydown" &&
+        e.key === "Enter" &&
+        e.shiftKey &&
+        !e.ctrlKey &&
+        !e.metaKey &&
+        !e.altKey
+      ) {
+        e.preventDefault();
+        e.stopPropagation();
+        ptyWrite(SESSION_ID, "\x1b\r").catch((err) => console.error("pty bridge error:", err));
+        return false;
+      }
+      return true;
+    });
 
     // Drag-drop: accept in-app drags (file explorer, entity refs) AND OS
     // file drops (Finder / Desktop). We keep `dragDropEnabled: false` in
@@ -352,46 +355,16 @@ export function ChatPane({
         ptyWrite(SESSION_ID, data).catch((e) => console.error("pty bridge error:", e));
       });
 
-      // Resize handling has two phases:
-      //
-      // 1. Live phase (during a drag / window resize): throttle to one
-      //    rAF — call `fit.fit()` + `ptyResize()` so layout stays
-      //    responsive. This sends SIGWINCH to Claude, which starts
-      //    repainting at the new geometry.
-      //
-      // 2. Settle phase (after resize stops): once we've been quiet
-      //    for SETTLE_MS, do a final `fit.fit()` + `ptyResize()` at
-      //    the final geometry, then wipe the xterm buffer with a full
-      //    clear-screen + clear-scrollback sequence. The next frame
-      //    Claude paints lands on a blank canvas, eliminating the
-      //    duplicate spinners / overlapping prompt / stale glyphs
-      //    that Ben reported (PIN-6608).
-      //
-      // Why settle (not refresh): xterm's `refresh()` only redraws
-      // what's already in its buffer at its current width. The bug
-      // is that Claude's TUI renderer is a delta-painter — when
-      // SIGWINCH fires mid-frame, its next frame doesn't always
-      // overwrite every cell from the prior (wider) frame, so old
-      // glyphs leak through. Clearing the buffer ourselves forces a
-      // full repaint from Claude's next frame onward.
+      // Resize: rAF-throttled fit during drag (so xterm reflows visually
+      // without spamming the PTY), debounced trailing ptyResize that
+      // fires once geometry settles and only when cols/rows actually
+      // changed (Zed's set_size dedup pattern, terminal.rs:1454-1466).
       const SETTLE_MS = 80;
       let rafScheduled = false;
       let settleTimer: ReturnType<typeof setTimeout> | null = null;
-      // Baseline geometry. We *don't* seed from `term.cols`/`term.rows`
-      // here — the initial `fit.fit()` at mount ran before the
-      // container settled into its post-layout size, so the first
-      // ResizeObserver fire would otherwise see a spurious delta and
-      // wipe Claude's startup banner. Instead we baseline lazily on
-      // the first settle (see `baselined` below).
-      let lastCols = -1;
-      let lastRows = -1;
-      let baselined = false;
+      let lastCols = term.cols;
+      let lastRows = term.rows;
 
-      // Wrap `fit.fit()` because it can throw on degenerate geometry
-      // (zero or NaN width when the pane is collapsed to nothing
-      // during a drag). The throw would propagate out of the rAF /
-      // setTimeout callback as an unhandled error — we'd rather log
-      // and continue at the prior size.
       const safeFit = () => {
         try {
           fit.fit();
@@ -400,85 +373,33 @@ export function ChatPane({
         }
       };
 
-      const sendResize = () => {
+      const settle = () => {
+        if (disposed || !visibleRef.current) return;
+        safeFit();
+        if (term.cols === lastCols && term.rows === lastRows) return;
+        if (term.cols <= 1 || term.rows <= 1) return;
+        lastCols = term.cols;
+        lastRows = term.rows;
         ptyResize(SESSION_ID, term.cols, term.rows).catch((e) =>
           console.error("pty bridge error:", e),
         );
-      };
-
-      const settle = () => {
-        if (disposed) return;
-        // If the pane became hidden between schedule and settle, bail —
-        // we don't want a queued settle to wipe the buffer of a now-hidden
-        // pane while the user is looking at a sibling tab.
-        if (!visibleRef.current) return;
-        // Final fit in case the last live-phase fit was stale.
-        safeFit();
-        const cols = term.cols;
-        const rows = term.rows;
-        const changed = cols !== lastCols || rows !== lastRows;
-        if (!baselined) {
-          // First settle after mount: don't treat the initial layout
-          // as a "resize" — capture it as the baseline and skip both
-          // the redundant SIGWINCH and the buffer clear.
-          lastCols = cols;
-          lastRows = rows;
-          baselined = true;
-          return;
-        }
-        if (!changed) {
-          // Spurious settle (focus change, scrollbar toggle, devtools
-          // open). Skip ptyResize so Claude doesn't repaint on
-          // every layout perturbation.
-          return;
-        }
-        // Geometry really did change. Re-emit the final size — the
-        // child may have missed a SIGWINCH mid-frame — then wipe the
-        // xterm buffer so Claude's next paint lands on a blank canvas.
-        sendResize();
-        // \x1b[3J → clear scrollback
-        // \x1b[2J → clear entire visible viewport
-        // \x1b[H  → move cursor to home (1,1)
-        // We write to xterm only; the child manages its own framebuffer.
-        term.write("\x1b[3J\x1b[2J\x1b[H");
-        lastCols = cols;
-        lastRows = rows;
-      };
-
-      const scheduleSettle = () => {
-        if (settleTimer) clearTimeout(settleTimer);
-        settleTimer = setTimeout(settle, SETTLE_MS);
+        // Clear viewport (not scrollback) so CC's next paint lands on a
+        // blank canvas — its delta-painter leaves stale glyphs otherwise.
+        term.write("\x1b[2J\x1b[H");
       };
 
       const onResize = () => {
-        if (disposed) return;
-        // Skip resize handling for hidden panes. When a new tab is added,
-        // the previously-active pane flips to display:none, which fires
-        // ResizeObserver with a (0, 0) measurement. Running fit.fit() on
-        // a zero-size container clamps xterm to degenerate cols/rows, and
-        // the subsequent `settle()` then wipes the buffer with
-        // \x1b[3J\x1b[2J\x1b[H — so when the user switches back to the
-        // original tab, their Claude Code session appears blanked out.
-        // The visible-pane's own visibility effect already handles the
-        // post-reveal refit, so hidden panes don't need to track size at all.
-        if (!visibleRef.current) return;
-        if (rafScheduled) {
-          // Live tick already queued; just extend the settle window.
-          scheduleSettle();
-          return;
+        if (disposed || !visibleRef.current) return;
+        if (!rafScheduled) {
+          rafScheduled = true;
+          requestAnimationFrame(() => {
+            rafScheduled = false;
+            if (disposed || !visibleRef.current) return;
+            safeFit();
+          });
         }
-        rafScheduled = true;
-        requestAnimationFrame(() => {
-          rafScheduled = false;
-          if (disposed) return;
-          // Re-check visibility inside the rAF — a tab switch between
-          // schedule and frame would otherwise still fit+resize on a
-          // now-hidden pane.
-          if (!visibleRef.current) return;
-          safeFit();
-          sendResize();
-          scheduleSettle();
-        });
+        if (settleTimer) clearTimeout(settleTimer);
+        settleTimer = setTimeout(settle, SETTLE_MS);
       };
 
       window.addEventListener("resize", onResize);
