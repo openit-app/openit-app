@@ -59,6 +59,17 @@ updates:
     schedule:
       interval: monthly
     open-pull-requests-limit: 3
+    ignore:
+      # @astrojs/tailwind v6 peer-deps lock astro to ^5 and tailwindcss to ^3.
+      # Major bumps on any of the three break the landing deploy (see #141).
+      # Re-enable once we migrate to astro 6 + tailwindcss 4 as one coherent PR
+      # that also drops @astrojs/tailwind in favor of the tailwindcss vite plugin.
+      - dependency-name: "astro"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "tailwindcss"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "@astrojs/tailwind"
+        update-types: ["version-update:semver-major"]
     commit-message:
       prefix: chore
       include: scope
