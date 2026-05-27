@@ -187,7 +187,10 @@ describe("requestAgentInstall / requestAgentUninstall", () => {
     });
     expect(ok).toBe(true);
     const written = mockedWrite.mock.calls[0][0];
-    expect(written.endsWith("\r")).toBe(true);
+    // Natural-language prompts populate the input but should NOT auto-submit
+    // — only real slash/CLI commands get the trailing carriage return.
+    expect(written.endsWith("\r")).toBe(false);
+    expect(written.endsWith(" ")).toBe(true);
     expect(written).toContain("linux");
   });
 
