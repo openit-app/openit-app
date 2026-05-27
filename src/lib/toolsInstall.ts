@@ -184,12 +184,12 @@ export async function requestAgentInstall(
   entry: CatalogEntry,
   context: AgentContext,
 ): Promise<boolean> {
-  return writeToActiveSession(buildAgentInstallPrompt(entry, context) + "\r");
+  return writeToActiveSession(buildAgentInstallPrompt(entry, context) + " ");
 }
 
 export async function requestAgentUninstall(
   entry: CatalogEntry,
   context: AgentContext,
 ): Promise<boolean> {
-  return writeToActiveSession(buildAgentUninstallPrompt(entry, context) + "\r");
+  return writeToActiveSession(buildAgentUninstallPrompt(entry, context) + " ");
 }
