@@ -19,11 +19,22 @@ vi.mock("@tauri-apps/api/webview", () => ({
 // xterm tries to render to a real DOM. jsdom doesn't implement enough of
 // CanvasRenderingContext2D for it to fully initialize, but the addon and
 // onData hooks still register before any rendering — which is what we test.
+// fit() bumps cols/rows on the attached terminal so ChatPane's
+// geometry-changed gate (cols/rows must differ from lastCols/lastRows)
+// actually fires its debounced ptyResize.
 vi.mock("@xterm/addon-fit", () => ({
   FitAddon: class {
-    activate() {}
+    term: { cols: number; rows: number } | null = null;
+    activate(term: { cols: number; rows: number }) {
+      this.term = term;
+    }
     dispose() {}
-    fit() {}
+    fit() {
+      if (this.term) {
+        this.term.cols += 1;
+        this.term.rows += 1;
+      }
+    }
   },
 }));
 
@@ -44,7 +55,9 @@ vi.mock("@xterm/xterm", () => {
   class FakeTerminal {
     cols = 80;
     rows = 24;
-    loadAddon() {}
+    loadAddon(addon: { activate?: (term: unknown) => void }) {
+      addon.activate?.(this);
+    }
     open() {}
     focus() {
       xtermCapture.focusCalls += 1;
@@ -133,8 +146,9 @@ describe("ChatPane", () => {
     await new Promise((r) => setTimeout(r, 0));
     ptyMock.ptyResize.mockClear();
     window.dispatchEvent(new Event("resize"));
-    // ptyResize runs inside requestAnimationFrame, so wait one frame.
-    await new Promise((r) => requestAnimationFrame(() => r(null)));
+    // ptyResize is debounced behind an 80ms settle timer (Zed's set_size
+    // pattern) — wait past it before asserting.
+    await new Promise((r) => setTimeout(r, 120));
     expect(ptyMock.ptyResize).toHaveBeenCalledWith(
       sessionIdMatcher,
       expect.any(Number),
