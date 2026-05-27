@@ -248,7 +248,14 @@ export function Workbench({
       try {
         const [tasks, stages] = await Promise.all([listTasks(repo), loadStages(repo)]);
         if (!cancelled) setTaskCounts(tallyTasksToday(tasks, stages));
-      } catch {
+      } catch (err) {
+        // `listTasks` already returns [] on a missing tasks dir, and
+        // `loadStages` falls back to DEFAULT_STAGES on any read
+        // failure — so reaching this catch means something unexpected
+        // broke (permissions, parse error, etc.). Log so it surfaces
+        // in the dev console instead of silently rendering the
+        // "No todos!" empty state and masking the real failure.
+        console.error("[workbench] hero count refresh failed:", err);
         if (!cancelled) setTaskCounts({ todos: 0, inProgress: 0, completeToday: 0 });
       }
     })();

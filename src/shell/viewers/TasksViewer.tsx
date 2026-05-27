@@ -184,7 +184,18 @@ export function TasksViewer({ tasks, repo, onOpenTask, onChanged }: TasksViewerP
     setCreating(true);
     try {
       const assignee = newAssignee.trim() || defaultAssignee;
-      await createTask(repo, { title, status: newStatus, assignee });
+      // Pass the configured last-stage name so `createTask` stamps
+      // `completedAt` when a task is composed directly into the
+      // complete column — required for the TODAY hero's
+      // `completeToday` count to be honest in workspaces that rename
+      // the last stage (e.g. "Shipped"). See PIN-6691.
+      const completeStageName = stages[stages.length - 1];
+      await createTask(repo, {
+        title,
+        status: newStatus,
+        assignee,
+        completeStageName,
+      });
       setNewTitle("");
       // Reset assignee to the default so the next task picks it up
       // without the user re-typing. Don't blank it — that would force
@@ -224,7 +235,12 @@ export function TasksViewer({ tasks, repo, onOpenTask, onChanged }: TasksViewerP
       const task = tasks.find((t) => t.filename === filename);
       if (task && stageForStatus(task.status, stages) === stage) return;
       try {
-        await updateTaskStatus(repo, filename, () => stage);
+        // Pass the configured last-stage name so the dragged-to-
+        // "Shipped" (or whatever the user named the last column)
+        // case stamps `completedAt` — otherwise the TODAY hero's
+        // `completeToday` count under-reports. See PIN-6691.
+        const completeStageName = stages[stages.length - 1];
+        await updateTaskStatus(repo, filename, () => stage, completeStageName);
         onChanged();
       } catch (err) {
         console.error("[tasks] drop status update failed:", err);
