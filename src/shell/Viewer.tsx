@@ -2452,10 +2452,10 @@ export function Viewer({
             <Button
               variant="linkMuted"
               onClick={() => {
-                // Conversation threads use injectIntoChat (appends \r
-                // to auto-send the /answer-ticket command). Everything
-                // else just types the path as a reference.
-                const isSlashCmd = chatAddPath.startsWith("/");
+                // Only real slash commands auto-fire (e.g. `/answer-ticket`).
+                // Absolute paths also start with "/", so match slug-shape
+                // explicitly — everything else just populates the input.
+                const isSlashCmd = /^\/[a-zA-Z][a-zA-Z0-9_-]*$/.test(chatAddPath);
                 const fn = isSlashCmd
                   ? () => injectIntoChat(chatAddPath)
                   : () => writeToActiveSession(chatAddPath + " ");
