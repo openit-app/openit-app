@@ -103,7 +103,6 @@ export function CommandPalette({
       { id: "run-offboard", label: "/offboard", hint: "Revoke access for a departing employee", group: "Run", run: () => injectIntoChat("/offboard") },
       { id: "run-salesforce-data-quality", label: "/salesforce-data-quality", hint: "Find and fix dirty data", group: "Run", run: () => injectIntoChat("/salesforce-data-quality") },
       { id: "run-slack-to-knowledge", label: "/slack-to-knowledge", hint: "Mine Slack into KB articles", group: "Run", run: () => injectIntoChat("/slack-to-knowledge") },
-      { id: "run-patient-inquiry", label: "/patient-inquiry", hint: "Patient inquiry agent", group: "Run", run: () => injectIntoChat("/patient-inquiry") },
       { id: "run-drive-search", label: "/drive-search", hint: "Search Google Drive", group: "Run", run: () => injectIntoChat("/drive-search") },
       { id: "run-asset-tracking", label: "/asset-tracking", hint: "Query device inventory", group: "Run", run: () => injectIntoChat("/asset-tracking") },
       { id: "run-pipeline-outreach", label: "/pipeline-outreach", hint: "Pipeline reports & emails", group: "Run", run: () => injectIntoChat("/pipeline-outreach") },

@@ -1,8 +1,9 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { fsList, fsRead, entityWriteFile } from "../lib/api";
 import { listCommands } from "../lib/commandsCatalog";
+import { fetchSkillsManifest } from "../lib/skillsSync";
 import { writeToActiveSession } from "./activeSession";
-import { Button } from "../ui";
+import { Button, Tab, TabStrip } from "../ui";
 import { useToast } from "../Toast";
 import styles from "./ToolsPanel.module.css";
 
@@ -18,10 +19,13 @@ function escapeMarkdownFences(s: string): string {
     .replace(/~{3,}/g, (run) => run.split("").join("​"));
 }
 
+type CommandKind = "yours" | "builtin";
+
 type CommandEntry = {
   name: string;
   description: string;
   path: string;
+  kind: CommandKind;
 };
 
 // Commands that map directly to Lisa's pain points, in priority order.
@@ -35,7 +39,6 @@ const FEATURED_COMMANDS: string[] = [
   "offboard",                // Offboarding departing employees
   "salesforce-data-quality",  // Data quality / cleanup in Salesforce
   "slack-to-knowledge",             // Knowledge trapped in Slack
-  "patient-inquiry",          // Patient inquiry handling (Salesforce Cases)
   "drive-search",             // Information scattered across Drive
   "asset-tracking",           // Asset tracking
   "pipeline-outreach",        // Recurring reporting / outreach
@@ -65,8 +68,30 @@ export function CommandsStation({
     let cancelled = false;
     (async () => {
       // Discovery + dedup lives in commandsCatalog so the tile counter
-      // and this viewer always agree on what counts as a command.
-      const refs = await listCommands(repo);
+      // and this viewer always agree on what counts as a command. The
+      // bundled manifest is the source of truth for "shipped with the
+      // install": both `commands/*.md` (installed into `.claude/skills/`)
+      // and `seed/commands/*.md` (seeded into `filestores/commands/`).
+      // Classifying by name-match against this set is more reliable than
+      // looking at `r.source`, because user-authored commands also get
+      // mirrored into `.claude/skills/` so Claude Code can run them.
+      const [refs, manifest] = await Promise.all([
+        listCommands(repo),
+        fetchSkillsManifest().catch(() => ({ files: [] as { path: string }[] })),
+      ]);
+      const bundledNames = new Set(
+        manifest.files
+          .map((f) => f.path)
+          .filter(
+            (p) =>
+              (p.startsWith("commands/") || p.startsWith("seed/commands/")) &&
+              p.endsWith(".md"),
+          )
+          .map((p) => {
+            const base = p.split("/").pop() ?? "";
+            return base.replace(/\.md$/, "");
+          }),
+      );
       const entries: CommandEntry[] = await Promise.all(
         refs.map(async (r) => {
           let description = "";
@@ -74,11 +99,12 @@ export function CommandsStation({
             const raw = await fsRead(r.path);
             description = extractDescription(raw);
           } catch { /* unreadable / SKILL.md missing */ }
+          const kind: CommandKind = bundledNames.has(r.name) ? "builtin" : "yours";
           return {
             name: r.name,
             description,
             path: r.path,
-            featured: FEATURED_COMMANDS.includes(r.name),
+            kind,
           };
         }),
       );
@@ -107,11 +133,24 @@ export function CommandsStation({
   const [newName, setNewName] = useState("");
   const [newIntent, setNewIntent] = useState("");
 
+  const [tab, setTab] = useState<CommandKind>("yours");
+  const counts = useMemo(() => {
+    let yours = 0;
+    let builtin = 0;
+    for (const c of commands) {
+      if (c.kind === "yours") yours += 1;
+      else builtin += 1;
+    }
+    return { yours, builtin };
+  }, [commands]);
+
   // Show every command by default. Search narrows the list in place.
   const q = search.toLowerCase();
-  const visible = q
-    ? commands.filter((c) => c.name.includes(q) || c.description.toLowerCase().includes(q))
-    : commands;
+  const visible = commands.filter((c) => {
+    if (c.kind !== tab) return false;
+    if (!q) return true;
+    return c.name.includes(q) || c.description.toLowerCase().includes(q);
+  });
   const [showNewInput, setShowNewInput] = useState(false);
   // In-flight guard: a fast double-click on Create (or Enter +
   // immediate second Enter) could otherwise launch two write
@@ -450,12 +489,24 @@ Before signing off, re-read this command body. If the admin's choices narrowed a
         </Button>
       </div>
 
+      <TabStrip>
+        <Tab active={tab === "yours"} count={counts.yours} onClick={() => setTab("yours")}>
+          Yours
+        </Tab>
+        <Tab active={tab === "builtin"} count={counts.builtin} onClick={() => setTab("builtin")}>
+          Built-in
+        </Tab>
+      </TabStrip>
+
       <input
         className={styles.search}
         type="text"
         placeholder="Search commands…"
         value={search}
         onChange={(e) => setSearch(e.target.value)}
+        spellCheck={false}
+        autoCorrect="off"
+        autoCapitalize="off"
       />
 
       {showNewInput && (
@@ -524,7 +575,13 @@ Before signing off, re-read this command body. If the admin's choices narrowed a
       )}
 
       {visible.length === 0 ? (
-        <div className={styles.empty}>{q ? "No matching commands." : "No commands found."}</div>
+        <div className={styles.empty}>
+          {q
+            ? "No matching commands."
+            : tab === "yours"
+              ? "No commands here yet — click + New to create one."
+              : "No built-in commands found."}
+        </div>
       ) : (
         <div className={styles.grid}>
           {visible.map((cmd) => (

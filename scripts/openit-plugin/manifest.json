@@ -1,5 +1,5 @@
 {
-  "version": "2026-05-24-001",
+  "version": "2026-05-27-001",
   "files": [
     { "path": "CLAUDE.md" },
     { "path": "instructions/vault-layout.md" },
@@ -56,7 +56,6 @@
     { "path": "seed/commands/drive-search.md" },
     { "path": "seed/commands/asset-tracking.md" },
     { "path": "seed/commands/pipeline-outreach.md" },
-    { "path": "seed/commands/patient-inquiry.md" },
     { "path": "seed/scripts/hello-world.mjs" },
     { "path": "seed/scripts/say-hello.mjs" },
     { "path": "seed/scripts/list-people.mjs" }
