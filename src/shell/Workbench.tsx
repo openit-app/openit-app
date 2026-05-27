@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { fsList, fsRead, entityRemoveDir, type FileNode } from "../lib/api";
 import { listInstalled as listInstalledTools } from "../lib/toolsInstall";
 import { countCommands } from "../lib/commandsCatalog";
+import { listTasks, tallyTasksToday, type TodayCounts } from "../lib/tasks";
 import { iconForKey, type ToneKey } from "./entityIcons";
 import {
   loadWorkstationConfig,
@@ -94,6 +95,11 @@ export function Workbench({
   // write by the getting-started tour fires normally.
   const highlightSeededRef = useRef(false);
   const [highlightedStations, setHighlightedStations] = useState<Set<string>>(new Set());
+  const [taskCounts, setTaskCounts] = useState<TodayCounts>({
+    todos: 0,
+    inProgress: 0,
+    completeToday: 0,
+  });
   const [pickerOpen, setPickerOpen] = useState(false);
   const [customizing, setCustomizing] = useState<ResolvedTile | null>(null);
   const [contextMenu, setContextMenu] = useState<{
@@ -109,6 +115,7 @@ export function Workbench({
       setCounts({});
       setMainTiles([]);
       setMoreTiles([]);
+      setTaskCounts({ todos: 0, inProgress: 0, completeToday: 0 });
       return;
     }
     let cancelled = false;
@@ -223,6 +230,19 @@ export function Workbench({
           }
         }
       } catch { /* highlight.json doesn't exist or is malformed — fine */ }
+
+      // Task counts for the TODAY hero card. Re-fetched on every
+      // fsTick so the hero stays consistent with the rest of the
+      // workstation's live-data behaviours. Failures fall through to
+      // zeros — the hero will render its "No todos!" empty state,
+      // which is a reasonable fallback if the tasks dir is missing
+      // entirely.
+      try {
+        const tasks = await listTasks(repo);
+        if (!cancelled) setTaskCounts(tallyTasksToday(tasks));
+      } catch {
+        if (!cancelled) setTaskCounts({ todos: 0, inProgress: 0, completeToday: 0 });
+      }
     })();
 
     return () => {
@@ -423,8 +443,50 @@ export function Workbench({
     return !PRIMITIVES.has(rel) && !SYSTEM.has(rel);
   };
 
+  // Click handler for the TODAY hero — opens the Tasks station list.
+  // Matches the behaviour of the pre-d73880e hero exactly.
+  const openTasks = () => {
+    if (repo) onOpen(`${repo}/tasks`);
+  };
+
   return (
     <div className="workbench">
+      {/* ── TODAY hero — three counts, or "No todos!" when clear ── */}
+      {taskCounts.todos === 0 ? (
+        <button
+          type="button"
+          className="workbench-today workbench-today-empty"
+          onClick={openTasks}
+          disabled={!repo}
+          title={repo ? "Open your task list" : "Open your task list"}
+          aria-label="No todos today — open task list"
+        >
+          <span className="workbench-today-empty-label">No todos!</span>
+        </button>
+      ) : (
+        <button
+          type="button"
+          className="workbench-today workbench-today-active"
+          onClick={openTasks}
+          disabled={!repo}
+          title="Open your task list"
+          aria-label={`${taskCounts.todos} todo, ${taskCounts.inProgress} in progress, ${taskCounts.completeToday} complete today — open task list`}
+        >
+          <span className="workbench-today-stat">
+            <span className="workbench-today-count">{taskCounts.todos}</span>
+            <span className="workbench-today-label">Todos</span>
+          </span>
+          <span className="workbench-today-stat">
+            <span className="workbench-today-count">{taskCounts.inProgress}</span>
+            <span className="workbench-today-label">In progress</span>
+          </span>
+          <span className="workbench-today-stat">
+            <span className="workbench-today-count">{taskCounts.completeToday}</span>
+            <span className="workbench-today-label">Complete</span>
+          </span>
+        </button>
+      )}
+
       {/* ── Main station cards ────────────────────────────── */}
       <div className="workbench-stations workbench-stations-single">
         {mainTiles.map((t) => {

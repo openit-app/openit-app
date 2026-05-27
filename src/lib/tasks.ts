@@ -52,21 +52,31 @@ export interface TaskSummary {
   assignee: string;
   /** ISO timestamp from frontmatter, or empty when missing. */
   createdAt: string;
+  /**
+   * ISO timestamp recording when status last flipped to "complete".
+   * Empty string when the task has never been completed (or pre-dates
+   * the field). Cleared when the task transitions back away from
+   * "complete". Used by the workstation TODAY hero card to count
+   * "completed today" without a file-mtime hack.
+   */
+  completedAt: string;
   /** Free-form body — everything after the closing `---`. */
   body: string;
 }
 
 // ── Frontmatter parser/serializer ────────────────────────────────────
 // We deliberately do NOT pull in a yaml library — frontmatter is a
-// three-line shape (status / title / createdAt) that a hand-rolled
-// parser handles cleanly. Anything that fails to parse falls back to
-// safe defaults so a hand-edited task file never crashes the viewer.
+// small shape (status / title / assignee / createdAt / completedAt)
+// that a hand-rolled parser handles cleanly. Anything that fails to
+// parse falls back to safe defaults so a hand-edited task file never
+// crashes the viewer.
 
 interface ParsedTask {
   status: TaskStatus;
   title: string;
   assignee: string;
   createdAt: string;
+  completedAt: string;
   body: string;
 }
 
@@ -91,6 +101,7 @@ export function parseTaskMarkdown(raw: string, fallbackTitle: string): ParsedTas
   let title = fallbackTitle;
   let assignee = "";
   let createdAt = "";
+  let completedAt = "";
   let body = raw;
 
   const fmMatch = raw.match(/^---\r?\n([\s\S]*?)\r?\n---\r?\n?([\s\S]*)$/);
@@ -118,10 +129,11 @@ export function parseTaskMarkdown(raw: string, fallbackTitle: string): ParsedTas
       } else if (key === "title" && value) title = value;
       else if (key === "assignee") assignee = value;
       else if (key === "createdAt" && value) createdAt = value;
+      else if (key === "completedAt") completedAt = value;
     }
   }
 
-  return { status, title, assignee, createdAt, body: body.replace(/^\r?\n/, "") };
+  return { status, title, assignee, createdAt, completedAt, body: body.replace(/^\r?\n/, "") };
 }
 
 // `isLegacyTaskStatus` is exported under a private suffix for callers
@@ -143,6 +155,7 @@ export function serialiseTaskMarkdown(t: ParsedTask): string {
     `title: "${escapedTitle}"\n` +
     `assignee: "${escapedAssignee}"\n` +
     `createdAt: ${t.createdAt}\n` +
+    `completedAt: ${t.completedAt}\n` +
     `---\n` +
     (t.body.length > 0 ? `\n${t.body}` : "\n")
   );
@@ -188,6 +201,7 @@ export async function listTasks(repo: string): Promise<TaskSummary[]> {
       status: parsed.status,
       assignee: parsed.assignee,
       createdAt: parsed.createdAt,
+      completedAt: parsed.completedAt,
       body: parsed.body,
     });
   }
@@ -227,6 +241,7 @@ export async function readTask(repo: string, filename: string): Promise<TaskSumm
     status: parsed.status,
     assignee: parsed.assignee,
     createdAt: parsed.createdAt,
+    completedAt: parsed.completedAt,
     body: parsed.body,
   };
 }
@@ -262,9 +277,19 @@ export async function createTask(
   const status = args.status ?? "todo";
   const assignee = (args.assignee ?? "").trim();
   const createdAt = new Date().toISOString().replace(/\.\d+Z$/, "Z");
+  // Tasks created directly in "complete" status get stamped — otherwise
+  // the first transition into "complete" stamps via updateTaskStatus.
+  const completedAt = status === "complete" ? createdAt : "";
   const body = args.body ?? "";
   const filename = newTaskFilename();
-  const content = serialiseTaskMarkdown({ status, title, assignee, createdAt, body });
+  const content = serialiseTaskMarkdown({
+    status,
+    title,
+    assignee,
+    createdAt,
+    completedAt,
+    body,
+  });
   await entityWriteFile(repo, TASKS_SUBDIR, filename, content);
   return {
     path: `${tasksDir(repo)}/${filename}`,
@@ -273,6 +298,7 @@ export async function createTask(
     status,
     assignee,
     createdAt,
+    completedAt,
     body,
   };
 }
@@ -300,15 +326,30 @@ export async function updateTaskStatus(
   }
   const next =
     typeof resolveNext === "function" ? resolveNext(existing.status) : resolveNext;
+  // Stamp completedAt when transitioning into "complete", clear when
+  // transitioning away. The "stays complete" case (next === existing
+  // === "complete") preserves the original timestamp so the hero's
+  // "complete today" count doesn't lie about when the task actually
+  // finished.
+  let completedAt: string;
+  if (next === "complete") {
+    completedAt =
+      existing.status === "complete" && existing.completedAt
+        ? existing.completedAt
+        : new Date().toISOString().replace(/\.\d+Z$/, "Z");
+  } else {
+    completedAt = "";
+  }
   const content = serialiseTaskMarkdown({
     status: next,
     title: existing.title,
     assignee: existing.assignee,
     createdAt: existing.createdAt,
+    completedAt,
     body: existing.body,
   });
   await entityWriteFile(repo, TASKS_SUBDIR, filename, content);
-  return { ...existing, status: next };
+  return { ...existing, status: next, completedAt };
 }
 
 /// Overwrite the task's `assignee` field. Re-reads from disk first so a
@@ -335,6 +376,7 @@ export async function updateTaskAssignee(
     title: existing.title,
     assignee,
     createdAt: existing.createdAt,
+    completedAt: existing.completedAt,
     body: existing.body,
   });
   await entityWriteFile(repo, TASKS_SUBDIR, filename, content);
@@ -384,4 +426,58 @@ export function tallyTasks(tasks: TaskSummary[]): TaskCounts {
     else if (t.status === "complete") complete += 1;
   }
   return { todo, inProgress, complete, total: tasks.length };
+}
+
+/// Shape consumed by the TODAY hero card. Unlike `TaskCounts`, the
+/// `completeToday` value is scoped to tasks whose `completedAt`
+/// timestamp falls on or after local-TZ start-of-today.
+export interface TodayCounts {
+  todos: number;
+  inProgress: number;
+  completeToday: number;
+}
+
+/// Local-TZ start-of-day in ms since epoch. Extracted so callers can
+/// pass a frozen `now` in tests; defaults to `Date.now()` in prod.
+function startOfDayLocal(now: number): number {
+  const d = new Date(now);
+  d.setHours(0, 0, 0, 0);
+  return d.getTime();
+}
+
+/// Tally for the TODAY hero card. Three counts:
+///   - todos        = tasks with status === "todo"
+///   - inProgress   = tasks with status === "in-progress"
+///   - completeToday = tasks with status === "complete" AND
+///                     completedAt parses to a ms value >=
+///                     local-TZ start-of-day-for-`now`.
+///
+/// Tasks with status "complete" but missing/empty/unparseable
+/// `completedAt` (legacy on-disk data that pre-dates the field) are
+/// NOT counted toward `completeToday` — being conservative keeps the
+/// hero from over-counting after the field rolls out.
+///
+/// The `now` parameter is a unix-ms timestamp (default Date.now()).
+/// Exposed for testability — pin it in unit tests so the assertions
+/// don't drift across day boundaries.
+export function tallyTasksToday(
+  tasks: TaskSummary[],
+  now: number = Date.now(),
+): TodayCounts {
+  const boundary = startOfDayLocal(now);
+  let todos = 0;
+  let inProgress = 0;
+  let completeToday = 0;
+  for (const t of tasks) {
+    if (t.status === "todo") {
+      todos += 1;
+    } else if (t.status === "in-progress") {
+      inProgress += 1;
+    } else if (t.status === "complete") {
+      if (!t.completedAt) continue;
+      const ms = Date.parse(t.completedAt);
+      if (Number.isFinite(ms) && ms >= boundary) completeToday += 1;
+    }
+  }
+  return { todos, inProgress, completeToday };
 }
