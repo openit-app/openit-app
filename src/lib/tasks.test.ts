@@ -23,6 +23,7 @@ import {
   readTask,
   serialiseTaskMarkdown,
   tallyTasks,
+  tallyTasksToday,
   updateTaskAssignee,
   updateTaskStatus,
   type TaskSummary,
@@ -46,15 +47,28 @@ function file(name: string, path: string): FileNode {
 
 describe("parseTaskMarkdown", () => {
   it("parses the canonical shape we emit", () => {
-    const raw = `---\nstatus: in-progress\ntitle: "VPN rollout"\nassignee: "Sankalp"\ncreatedAt: 2026-05-23T00:00:00Z\n---\n\nbody line\n`;
+    const raw = `---\nstatus: in-progress\ntitle: "VPN rollout"\nassignee: "Sankalp"\ncreatedAt: 2026-05-23T00:00:00Z\ncompletedAt: \n---\n\nbody line\n`;
     const parsed = parseTaskMarkdown(raw, "fallback");
     expect(parsed).toEqual({
       status: "in-progress",
       title: "VPN rollout",
       assignee: "Sankalp",
       createdAt: "2026-05-23T00:00:00Z",
+      completedAt: "",
       body: "body line\n",
     });
+  });
+
+  it("parses completedAt when present", () => {
+    const raw = `---\nstatus: complete\ntitle: "Done"\nassignee: ""\ncreatedAt: 2026-05-23T00:00:00Z\ncompletedAt: 2026-05-27T18:00:00Z\n---\n`;
+    const parsed = parseTaskMarkdown(raw, "fb");
+    expect(parsed.completedAt).toBe("2026-05-27T18:00:00Z");
+  });
+
+  it("defaults completedAt to empty string for legacy tasks missing the field", () => {
+    const raw = `---\nstatus: complete\ntitle: "Legacy"\ncreatedAt: 2026-05-23T00:00:00Z\n---\n`;
+    const parsed = parseTaskMarkdown(raw, "fb");
+    expect(parsed.completedAt).toBe("");
   });
 
   it("defaults assignee to empty string for legacy tasks missing the field", () => {
@@ -70,6 +84,7 @@ describe("parseTaskMarkdown", () => {
     expect(parsed.title).toBe("fallback-title");
     expect(parsed.assignee).toBe("");
     expect(parsed.createdAt).toBe("");
+    expect(parsed.completedAt).toBe("");
     expect(parsed.body).toBe("just some text");
   });
 
@@ -91,12 +106,13 @@ describe("parseTaskMarkdown", () => {
 });
 
 describe("serialiseTaskMarkdown round-trips", () => {
-  it("preserves status / title / assignee / body across a parse-serialise cycle", () => {
+  it("preserves status / title / assignee / completedAt / body across a parse-serialise cycle", () => {
     const original = {
       status: "complete" as const,
       title: "Test \"with\" quotes",
       assignee: "Alex \"Lex\"",
       createdAt: "2026-05-23T01:02:03Z",
+      completedAt: "2026-05-27T18:00:00Z",
       body: "Some\nmulti-line body.\n",
     };
     const raw = serialiseTaskMarkdown(original);
@@ -105,6 +121,7 @@ describe("serialiseTaskMarkdown round-trips", () => {
     expect(reparsed.title).toBe(original.title);
     expect(reparsed.assignee).toBe(original.assignee);
     expect(reparsed.createdAt).toBe(original.createdAt);
+    expect(reparsed.completedAt).toBe(original.completedAt);
     expect(reparsed.body).toBe(original.body);
   });
 
@@ -114,9 +131,22 @@ describe("serialiseTaskMarkdown round-trips", () => {
       title: "no one yet",
       assignee: "",
       createdAt: "2026-05-23T00:00:00Z",
+      completedAt: "",
       body: "",
     });
     expect(raw).toContain('assignee: ""');
+  });
+
+  it("emits the completedAt line even when empty (forward-compat for legacy files)", () => {
+    const raw = serialiseTaskMarkdown({
+      status: "todo",
+      title: "x",
+      assignee: "",
+      createdAt: "2026-05-23T00:00:00Z",
+      completedAt: "",
+      body: "",
+    });
+    expect(raw).toContain("completedAt:");
   });
 });
 
@@ -336,15 +366,199 @@ describe("nextStatus", () => {
   });
 });
 
+function makeTask(over: Partial<TaskSummary>): TaskSummary {
+  return {
+    path: "",
+    filename: "",
+    title: "",
+    status: "todo",
+    assignee: "",
+    createdAt: "",
+    completedAt: "",
+    body: "",
+    ...over,
+  };
+}
+
 describe("tallyTasks", () => {
   it("counts tasks per status and total", () => {
     const tasks: TaskSummary[] = [
-      { path: "", filename: "", title: "", status: "todo", assignee: "", createdAt: "", body: "" },
-      { path: "", filename: "", title: "", status: "todo", assignee: "", createdAt: "", body: "" },
-      { path: "", filename: "", title: "", status: "in-progress", assignee: "", createdAt: "", body: "" },
-      { path: "", filename: "", title: "", status: "complete", assignee: "", createdAt: "", body: "" },
+      makeTask({ status: "todo" }),
+      makeTask({ status: "todo" }),
+      makeTask({ status: "in-progress" }),
+      makeTask({ status: "complete" }),
     ];
     expect(tallyTasks(tasks)).toEqual({ todo: 2, inProgress: 1, complete: 1, total: 4 });
+  });
+});
+
+describe("tallyTasksToday", () => {
+  // Frozen "now" = 2026-05-27 14:00 local time. The local-TZ
+  // start-of-day boundary is 2026-05-27 00:00 local. Yesterday's
+  // completions sit before the boundary; today's sit on or after.
+  const NOW = new Date(2026, 4, 27, 14, 0, 0).getTime(); // month is 0-indexed
+  const TODAY_AM = new Date(2026, 4, 27, 9, 30, 0).toISOString();
+  const YESTERDAY_PM = new Date(2026, 4, 26, 23, 59, 0).toISOString();
+  const DEFAULT_STAGES = ["Todo", "In Progress", "Complete"];
+
+  it("counts todos, in-progress, and complete-today using default stages (case-insensitive)", () => {
+    // PIN-6691: the on-disk default-status string is capital "Todo",
+    // not lowercase "todo". The tally must match case-insensitively
+    // against the configured stage list, otherwise the hero shows
+    // "No todos!" with a todo present (the customer's first bug
+    // report).
+    const tasks: TaskSummary[] = [
+      makeTask({ status: "Todo" }),
+      makeTask({ status: "todo" }), // older lowercase form survives
+      makeTask({ status: "In Progress" }),
+      makeTask({ status: "Complete", completedAt: TODAY_AM }),
+      makeTask({ status: "Complete", completedAt: YESTERDAY_PM }),
+    ];
+    expect(tallyTasksToday(tasks, DEFAULT_STAGES, NOW)).toEqual({
+      todos: 2,
+      inProgress: 1,
+      completeToday: 1,
+    });
+  });
+
+  it("works with user-renamed stages", () => {
+    const stages = ["Backlog", "Doing", "Shipped"];
+    const tasks: TaskSummary[] = [
+      makeTask({ status: "Backlog" }),
+      makeTask({ status: "Doing" }),
+      makeTask({ status: "Doing" }),
+      makeTask({ status: "Shipped", completedAt: TODAY_AM }),
+    ];
+    expect(tallyTasksToday(tasks, stages, NOW)).toEqual({
+      todos: 1,
+      inProgress: 2,
+      completeToday: 1,
+    });
+  });
+
+  it("buckets unsorted (status doesn't match any stage) as todos", () => {
+    // Tasks with statuses outside the configured set need a home;
+    // surfacing them as "todos" nudges the user to clean up.
+    const tasks: TaskSummary[] = [
+      makeTask({ status: "Blocked" }),
+      makeTask({ status: "" }),
+    ];
+    expect(tallyTasksToday(tasks, DEFAULT_STAGES, NOW).todos).toBe(2);
+  });
+
+  it("does not count tasks completed before today's local-TZ boundary", () => {
+    const tasks: TaskSummary[] = [
+      makeTask({ status: "Complete", completedAt: YESTERDAY_PM }),
+    ];
+    expect(tallyTasksToday(tasks, DEFAULT_STAGES, NOW).completeToday).toBe(0);
+  });
+
+  it("does not count complete tasks with missing or empty completedAt (legacy data)", () => {
+    const tasks: TaskSummary[] = [
+      makeTask({ status: "Complete", completedAt: "" }),
+      makeTask({ status: "Complete" }), // factory default ""
+    ];
+    expect(tallyTasksToday(tasks, DEFAULT_STAGES, NOW).completeToday).toBe(0);
+  });
+
+  it("ignores completedAt on tasks whose status is not the last stage", () => {
+    // Defensive: a stale completedAt on a re-opened task must not count.
+    const tasks: TaskSummary[] = [
+      makeTask({ status: "In Progress", completedAt: TODAY_AM }),
+    ];
+    expect(tallyTasksToday(tasks, DEFAULT_STAGES, NOW).completeToday).toBe(0);
+  });
+
+  it("returns zeros for an empty list", () => {
+    expect(tallyTasksToday([], DEFAULT_STAGES, NOW)).toEqual({
+      todos: 0,
+      inProgress: 0,
+      completeToday: 0,
+    });
+  });
+
+  it("returns zeros when the stage list is empty (defensive)", () => {
+    const tasks: TaskSummary[] = [makeTask({ status: "Todo" })];
+    expect(tallyTasksToday(tasks, [], NOW)).toEqual({
+      todos: 0,
+      inProgress: 0,
+      completeToday: 0,
+    });
+  });
+
+  it("handles a 2-stage workspace (Todo / Complete) with no middle bucket", () => {
+    const stages = ["Todo", "Complete"];
+    const tasks: TaskSummary[] = [
+      makeTask({ status: "Todo" }),
+      makeTask({ status: "Complete", completedAt: TODAY_AM }),
+    ];
+    expect(tallyTasksToday(tasks, stages, NOW)).toEqual({
+      todos: 1,
+      inProgress: 0,
+      completeToday: 1,
+    });
+  });
+});
+
+describe("updateTaskStatus — completedAt stamping", () => {
+  it("stamps completedAt when transitioning into 'complete'", async () => {
+    mockedFsRead.mockResolvedValueOnce(
+      `---\nstatus: in-progress\ntitle: "x"\nassignee: ""\ncreatedAt: 2026-05-23T00:00:00Z\ncompletedAt: \n---\n`,
+    );
+    mockedWrite.mockResolvedValueOnce(undefined);
+    const result = await updateTaskStatus("/r", "task-1.md", "complete");
+    expect(result.status).toBe("complete");
+    expect(result.completedAt).not.toBe("");
+    // Same ISO format we write for createdAt.
+    expect(result.completedAt).toMatch(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$/);
+    const [, , , content] = mockedWrite.mock.calls[0];
+    expect(content).toContain(`completedAt: ${result.completedAt}`);
+  });
+
+  it("clears completedAt when transitioning away from 'complete'", async () => {
+    mockedFsRead.mockResolvedValueOnce(
+      `---\nstatus: complete\ntitle: "x"\nassignee: ""\ncreatedAt: 2026-05-23T00:00:00Z\ncompletedAt: 2026-05-27T18:00:00Z\n---\n`,
+    );
+    mockedWrite.mockResolvedValueOnce(undefined);
+    const result = await updateTaskStatus("/r", "task-1.md", "in-progress");
+    expect(result.status).toBe("in-progress");
+    expect(result.completedAt).toBe("");
+    const [, , , content] = mockedWrite.mock.calls[0];
+    expect(content).toContain("completedAt: \n");
+  });
+
+  it("preserves the existing completedAt when the task stays in 'complete'", async () => {
+    // A no-op transition (e.g., assignee change routed through this path
+    // by future code) must NOT bump the timestamp — otherwise the
+    // "complete today" tally would drift forward whenever a complete
+    // task is touched.
+    mockedFsRead.mockResolvedValueOnce(
+      `---\nstatus: complete\ntitle: "x"\nassignee: ""\ncreatedAt: 2026-05-23T00:00:00Z\ncompletedAt: 2026-05-27T18:00:00Z\n---\n`,
+    );
+    mockedWrite.mockResolvedValueOnce(undefined);
+    const result = await updateTaskStatus("/r", "task-1.md", "complete");
+    expect(result.completedAt).toBe("2026-05-27T18:00:00Z");
+  });
+
+  it("stamps completedAt for capital-C 'Complete' (default stage name)", async () => {
+    // PIN-6691 customer bug: the kanban writes the configured stage
+    // name verbatim (default is "Complete"), so the stamping match
+    // must be case-insensitive.
+    mockedFsRead.mockResolvedValueOnce(
+      `---\nstatus: In Progress\ntitle: "x"\nassignee: ""\ncreatedAt: 2026-05-23T00:00:00Z\ncompletedAt: \n---\n`,
+    );
+    mockedWrite.mockResolvedValueOnce(undefined);
+    const result = await updateTaskStatus("/r", "task-1.md", "Complete");
+    expect(result.completedAt).not.toBe("");
+  });
+
+  it("stamps completedAt when the configured complete-stage name is custom", async () => {
+    mockedFsRead.mockResolvedValueOnce(
+      `---\nstatus: Doing\ntitle: "x"\nassignee: ""\ncreatedAt: 2026-05-23T00:00:00Z\ncompletedAt: \n---\n`,
+    );
+    mockedWrite.mockResolvedValueOnce(undefined);
+    const result = await updateTaskStatus("/r", "task-1.md", "Shipped", "Shipped");
+    expect(result.completedAt).not.toBe("");
   });
 });
 

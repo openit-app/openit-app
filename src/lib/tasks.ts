@@ -52,21 +52,31 @@ export interface TaskSummary {
   assignee: string;
   /** ISO timestamp from frontmatter, or empty when missing. */
   createdAt: string;
+  /**
+   * ISO timestamp recording when status last flipped to "complete".
+   * Empty string when the task has never been completed (or pre-dates
+   * the field). Cleared when the task transitions back away from
+   * "complete". Used by the workstation TODAY hero card to count
+   * "completed today" without a file-mtime hack.
+   */
+  completedAt: string;
   /** Free-form body — everything after the closing `---`. */
   body: string;
 }
 
 // ── Frontmatter parser/serializer ────────────────────────────────────
 // We deliberately do NOT pull in a yaml library — frontmatter is a
-// three-line shape (status / title / createdAt) that a hand-rolled
-// parser handles cleanly. Anything that fails to parse falls back to
-// safe defaults so a hand-edited task file never crashes the viewer.
+// small shape (status / title / assignee / createdAt / completedAt)
+// that a hand-rolled parser handles cleanly. Anything that fails to
+// parse falls back to safe defaults so a hand-edited task file never
+// crashes the viewer.
 
 interface ParsedTask {
   status: TaskStatus;
   title: string;
   assignee: string;
   createdAt: string;
+  completedAt: string;
   body: string;
 }
 
@@ -91,6 +101,7 @@ export function parseTaskMarkdown(raw: string, fallbackTitle: string): ParsedTas
   let title = fallbackTitle;
   let assignee = "";
   let createdAt = "";
+  let completedAt = "";
   let body = raw;
 
   const fmMatch = raw.match(/^---\r?\n([\s\S]*?)\r?\n---\r?\n?([\s\S]*)$/);
@@ -118,10 +129,11 @@ export function parseTaskMarkdown(raw: string, fallbackTitle: string): ParsedTas
       } else if (key === "title" && value) title = value;
       else if (key === "assignee") assignee = value;
       else if (key === "createdAt" && value) createdAt = value;
+      else if (key === "completedAt") completedAt = value;
     }
   }
 
-  return { status, title, assignee, createdAt, body: body.replace(/^\r?\n/, "") };
+  return { status, title, assignee, createdAt, completedAt, body: body.replace(/^\r?\n/, "") };
 }
 
 // `isLegacyTaskStatus` is exported under a private suffix for callers
@@ -143,6 +155,7 @@ export function serialiseTaskMarkdown(t: ParsedTask): string {
     `title: "${escapedTitle}"\n` +
     `assignee: "${escapedAssignee}"\n` +
     `createdAt: ${t.createdAt}\n` +
+    `completedAt: ${t.completedAt}\n` +
     `---\n` +
     (t.body.length > 0 ? `\n${t.body}` : "\n")
   );
@@ -188,6 +201,7 @@ export async function listTasks(repo: string): Promise<TaskSummary[]> {
       status: parsed.status,
       assignee: parsed.assignee,
       createdAt: parsed.createdAt,
+      completedAt: parsed.completedAt,
       body: parsed.body,
     });
   }
@@ -227,6 +241,7 @@ export async function readTask(repo: string, filename: string): Promise<TaskSumm
     status: parsed.status,
     assignee: parsed.assignee,
     createdAt: parsed.createdAt,
+    completedAt: parsed.completedAt,
     body: parsed.body,
   };
 }
@@ -253,7 +268,16 @@ export function newTaskFilename(now: number = Date.now()): string {
 /// here keeps the create/read contract self-consistent.
 export async function createTask(
   repo: string,
-  args: { title: string; status?: TaskStatus; assignee?: string; body?: string },
+  args: {
+    title: string;
+    status?: TaskStatus;
+    assignee?: string;
+    body?: string;
+    /// Configured last-stage name (case-insensitive). Used so a
+    /// pre-completed seed task gets a `completedAt` stamp regardless
+    /// of stage casing. Defaults to "complete".
+    completeStageName?: string;
+  },
 ): Promise<TaskSummary> {
   const title = args.title.trim();
   if (!title) {
@@ -262,9 +286,22 @@ export async function createTask(
   const status = args.status ?? "todo";
   const assignee = (args.assignee ?? "").trim();
   const createdAt = new Date().toISOString().replace(/\.\d+Z$/, "Z");
+  // Tasks created directly in the configured "complete" stage get
+  // stamped — otherwise the first transition into the complete stage
+  // stamps via updateTaskStatus. Case-insensitive match keeps this
+  // honest when the user renames stages (default is capital "Complete").
+  const completeStageName = args.completeStageName ?? "complete";
+  const completedAt = statusEquals(status, completeStageName) ? createdAt : "";
   const body = args.body ?? "";
   const filename = newTaskFilename();
-  const content = serialiseTaskMarkdown({ status, title, assignee, createdAt, body });
+  const content = serialiseTaskMarkdown({
+    status,
+    title,
+    assignee,
+    createdAt,
+    completedAt,
+    body,
+  });
   await entityWriteFile(repo, TASKS_SUBDIR, filename, content);
   return {
     path: `${tasksDir(repo)}/${filename}`,
@@ -273,6 +310,7 @@ export async function createTask(
     status,
     assignee,
     createdAt,
+    completedAt,
     body,
   };
 }
@@ -289,10 +327,19 @@ export async function createTask(
 /// Throws when the file is missing so the caller (the TasksViewer pill
 /// click handler) can surface a "task no longer exists" toast instead
 /// of silently shrugging.
+/// Case-insensitive comparison helper for status strings. Treats
+/// "Complete" / "complete" / " complete " as equivalent so the
+/// stamping logic stays correct regardless of how the user spelled
+/// the configured stage name.
+function statusEquals(a: string, b: string): boolean {
+  return a.trim().toLowerCase() === b.trim().toLowerCase();
+}
+
 export async function updateTaskStatus(
   repo: string,
   filename: string,
   resolveNext: TaskStatus | ((current: TaskStatus) => TaskStatus),
+  completeStageName: string = "complete",
 ): Promise<TaskSummary> {
   const existing = await readTask(repo, filename);
   if (!existing) {
@@ -300,15 +347,31 @@ export async function updateTaskStatus(
   }
   const next =
     typeof resolveNext === "function" ? resolveNext(existing.status) : resolveNext;
+  // Stamp completedAt when the new status matches the configured
+  // last-stage (case-insensitive), clear when transitioning away.
+  // The "stays complete" case (next === existing both map to the
+  // last stage) preserves the original timestamp so the hero's
+  // "complete today" count doesn't lie about when the task actually
+  // finished.
+  let completedAt: string;
+  if (statusEquals(next, completeStageName)) {
+    completedAt =
+      statusEquals(existing.status, completeStageName) && existing.completedAt
+        ? existing.completedAt
+        : new Date().toISOString().replace(/\.\d+Z$/, "Z");
+  } else {
+    completedAt = "";
+  }
   const content = serialiseTaskMarkdown({
     status: next,
     title: existing.title,
     assignee: existing.assignee,
     createdAt: existing.createdAt,
+    completedAt,
     body: existing.body,
   });
   await entityWriteFile(repo, TASKS_SUBDIR, filename, content);
-  return { ...existing, status: next };
+  return { ...existing, status: next, completedAt };
 }
 
 /// Overwrite the task's `assignee` field. Re-reads from disk first so a
@@ -335,6 +398,7 @@ export async function updateTaskAssignee(
     title: existing.title,
     assignee,
     createdAt: existing.createdAt,
+    completedAt: existing.completedAt,
     body: existing.body,
   });
   await entityWriteFile(repo, TASKS_SUBDIR, filename, content);
@@ -384,4 +448,101 @@ export function tallyTasks(tasks: TaskSummary[]): TaskCounts {
     else if (t.status === "complete") complete += 1;
   }
   return { todo, inProgress, complete, total: tasks.length };
+}
+
+/// Shape consumed by the TODAY hero card. Unlike `TaskCounts`, the
+/// `completeToday` value is scoped to tasks whose `completedAt`
+/// timestamp falls on or after local-TZ start-of-today.
+export interface TodayCounts {
+  todos: number;
+  inProgress: number;
+  completeToday: number;
+}
+
+/// Local-TZ start-of-day in ms since epoch. Extracted so callers can
+/// pass a frozen `now` in tests; defaults to `Date.now()` in prod.
+function startOfDayLocal(now: number): number {
+  const d = new Date(now);
+  d.setHours(0, 0, 0, 0);
+  return d.getTime();
+}
+
+/// Tally for the TODAY hero card. Three counts, derived from the
+/// configured stage list (`stages` from `.openit/tasks-stages.json`):
+///   - todos        = tasks whose status maps to the FIRST stage
+///   - inProgress   = tasks whose status maps to any MIDDLE stage
+///                    (or to the first stage when only 2 stages exist)
+///   - completeToday = tasks whose status maps to the LAST stage AND
+///                     completedAt parses to a ms value >=
+///                     local-TZ start-of-day-for-`now`.
+///
+/// Stage-aware so user-renamed columns (e.g. "Backlog / Doing /
+/// Shipped") still bucket correctly — the customer's "Todos / In
+/// progress / Complete" labels are surface copy, the underlying
+/// counts follow whatever stages the workspace is configured with.
+///
+/// Tasks whose status falls into the synthetic "Unsorted" stage are
+/// counted as `todos` — they're not done and they're not in progress,
+/// so the most honest UX is to surface them as "your plate is dirty,
+/// look at the Tasks list."
+///
+/// Tasks mapped to the last stage but with missing/empty/unparseable
+/// `completedAt` (legacy on-disk data that pre-dates the field) are
+/// NOT counted toward `completeToday` — being conservative keeps the
+/// hero from over-counting after the field rolls out.
+///
+/// The `now` parameter is a unix-ms timestamp (default Date.now()).
+/// Exposed for testability — pin it in unit tests so the assertions
+/// don't drift across day boundaries.
+export function tallyTasksToday(
+  tasks: TaskSummary[],
+  stages: readonly string[],
+  now: number = Date.now(),
+): TodayCounts {
+  const boundary = startOfDayLocal(now);
+  // Defensive: an empty stage list means we can't classify anything.
+  // Fall back to counting nothing.
+  if (stages.length === 0) {
+    return { todos: 0, inProgress: 0, completeToday: 0 };
+  }
+  const firstStage = stages[0].trim().toLowerCase();
+  const lastStage = stages[stages.length - 1].trim().toLowerCase();
+  let todos = 0;
+  let inProgress = 0;
+  let completeToday = 0;
+  for (const t of tasks) {
+    const normalized = t.status.trim().toLowerCase();
+    if (!normalized) {
+      // Empty status falls into "Unsorted" in the kanban; treat as
+      // todos so the user sees there's something to triage.
+      todos += 1;
+      continue;
+    }
+    if (normalized === lastStage) {
+      if (!t.completedAt) continue;
+      const ms = Date.parse(t.completedAt);
+      if (Number.isFinite(ms) && ms >= boundary) completeToday += 1;
+      continue;
+    }
+    // 2-stage edge case: with only ["Todo", "Complete"] the middle
+    // bucket is empty; anything matching first stage is a todo. We
+    // handle it by checking first-stage match first.
+    if (normalized === firstStage) {
+      todos += 1;
+      continue;
+    }
+    // Any other configured stage = middle = in progress.
+    let matched = false;
+    for (let i = 1; i < stages.length - 1; i += 1) {
+      if (stages[i].trim().toLowerCase() === normalized) {
+        inProgress += 1;
+        matched = true;
+        break;
+      }
+    }
+    // Status doesn't match any configured stage (Unsorted) — bucket
+    // as todos so the user is nudged to clean it up.
+    if (!matched) todos += 1;
+  }
+  return { todos, inProgress, completeToday };
 }
