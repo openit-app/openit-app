@@ -184,11 +184,11 @@ export function EntityFolderBody({
           case "skills":
             return () => { void writeToActiveSession(`/${f.displayName}\r`); };
           case "knowledge-base":
-            return () => { void writeToActiveSession(`Read the knowledge base article at ${rel}\r`); };
+            return () => { void writeToActiveSession(`Read the knowledge base article at ${rel} `); };
           case "scripts":
-            return () => { void writeToActiveSession(`Run the script at ${rel}\r`); };
+            return () => { void writeToActiveSession(`Run the script at ${rel} `); };
           case "reports":
-            return () => { void writeToActiveSession(`Read the report at ${rel}\r`); };
+            return () => { void writeToActiveSession(`Read the report at ${rel} `); };
           default:
             return undefined;
         }

@@ -111,17 +111,17 @@ export function ToolsPanel({ projectRoot }: { projectRoot: string | null }) {
   // Actions
   const onCliInstall = async (entry: CatalogEntry) => {
     await writeToActiveSession(
-      `Install ${entry.name} (${entry.binary}) on this machine. Use brew on macOS, apt/snap on Linux, or winget/choco on Windows. After installing, verify with \`which ${entry.binary}\`.\r`,
+      `Install ${entry.name} (${entry.binary}) on this machine. Use brew on macOS, apt/snap on Linux, or winget/choco on Windows. After installing, verify with \`which ${entry.binary}\`. `,
     );
     setTimeout(() => void refreshInstalled(), 5000);
     setTimeout(() => void refreshInstalled(), 10000);
   };
   const onCliRemove = async (entry: CatalogEntry) => {
-    await writeToActiveSession(`Uninstall ${entry.name} (${entry.binary}) from this machine.\r`);
+    await writeToActiveSession(`Uninstall ${entry.name} (${entry.binary}) from this machine. `);
     setTimeout(() => void refreshInstalled(), 5000);
   };
   const onExplore = async (name: string) => {
-    await writeToActiveSession(`What can I do with ${name}?\r`);
+    await writeToActiveSession(`What can I do with ${name}? `);
   };
   const onConnectMcp = async (entry: McpEntry) => {
     if (entry.envVars.length > 0) {
