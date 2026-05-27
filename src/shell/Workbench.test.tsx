@@ -30,6 +30,11 @@ vi.mock("../lib/workstationConfig", () => ({
   mergeConfigWithDiscovery: vi.fn(() => ({ main: [], more: [] })),
 }));
 
+// Stable seed for mergeConfigWithDiscovery — individual tests can
+// override before render.
+import { mergeConfigWithDiscovery } from "../lib/workstationConfig";
+const mockedMerge = vi.mocked(mergeConfigWithDiscovery);
+
 vi.mock("../Toast", () => ({
   useToast: () => ({ show: vi.fn() }),
 }));
@@ -54,16 +59,24 @@ vi.mock("../lib/tasks", () => ({
   // Workbench.tsx resolves under the mock.
 }));
 
+vi.mock("../lib/taskStages", () => ({
+  loadStages: vi.fn(async () => ["Todo", "In Progress", "Complete"]),
+}));
+
 import { listTasks, tallyTasksToday } from "../lib/tasks";
+import { loadStages } from "../lib/taskStages";
 import { Workbench } from "./Workbench";
 
 const mockedListTasks = vi.mocked(listTasks);
 const mockedTally = vi.mocked(tallyTasksToday);
+const mockedStages = vi.mocked(loadStages);
 
 beforeEach(() => {
   mockedListTasks.mockReset();
   mockedTally.mockReset();
+  mockedStages.mockReset();
   mockedListTasks.mockResolvedValue([]);
+  mockedStages.mockResolvedValue(["Todo", "In Progress", "Complete"]);
 });
 
 afterEach(() => {
@@ -143,5 +156,30 @@ describe("Workbench TODAY hero (PIN-6691)", () => {
     // tallyTasksToday is NOT called when there's no repo — the effect
     // short-circuits before listTasks.
     expect(mockedTally).not.toHaveBeenCalled();
+  });
+
+  it("filters the 'tasks' primitive tile out of the workbench grid", async () => {
+    // PIN-6691: the hero supersedes the tasks tile entirely. Having
+    // both visible was a customer-reported duplicate. Verifies the
+    // filter that excludes rel === 'tasks' from mainTiles + moreTiles.
+    mockedTally.mockReturnValue({ todos: 0, inProgress: 0, completeToday: 0 });
+    mockedMerge.mockReturnValueOnce({
+      main: [
+        { rel: "tasks", label: "Tasks", tone: "ember", icon: "tasks" } as never,
+        { rel: "knowledge", label: "Knowledge", tone: "ink", icon: "kb" } as never,
+      ],
+      more: [],
+    });
+    await renderAndWait({
+      repo: "/r",
+      fsTick: 0,
+      onOpen: vi.fn(),
+      onShowFiles: vi.fn(),
+    });
+
+    // The Knowledge tile renders…
+    expect(screen.getByText("Knowledge")).toBeTruthy();
+    // …but the Tasks tile is filtered out.
+    expect(screen.queryByText("Tasks")).toBeNull();
   });
 });

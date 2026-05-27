@@ -3,6 +3,7 @@ import { fsList, fsRead, entityRemoveDir, type FileNode } from "../lib/api";
 import { listInstalled as listInstalledTools } from "../lib/toolsInstall";
 import { countCommands } from "../lib/commandsCatalog";
 import { listTasks, tallyTasksToday, type TodayCounts } from "../lib/tasks";
+import { loadStages } from "../lib/taskStages";
 import { iconForKey, type ToneKey } from "./entityIcons";
 import {
   loadWorkstationConfig,
@@ -130,8 +131,13 @@ export function Workbench({
       setConfig(cfg);
 
       const { main, more } = mergeConfigWithDiscovery(cfg, discovered);
-      setMainTiles(main);
-      setMoreTiles(more);
+      // The TODAY hero supersedes the "tasks" primitive tile entirely
+      // (PIN-6691 — Ben's brief explicitly calls the tile a duplicate
+      // of the hero). Filter it out of both buckets so it doesn't
+      // render alongside the hero. The tasks folder still exists on
+      // disk; clicking the hero is the only way to open the list.
+      setMainTiles(main.filter((t) => t.rel !== "tasks"));
+      setMoreTiles(more.filter((t) => t.rel !== "tasks"));
 
       // Count items for all tiles
       const allTiles = [...main, ...more];
@@ -236,10 +242,12 @@ export function Workbench({
       // workstation's live-data behaviours. Failures fall through to
       // zeros — the hero will render its "No todos!" empty state,
       // which is a reasonable fallback if the tasks dir is missing
-      // entirely.
+      // entirely. Stages are loaded in parallel so the tally uses
+      // the user's configured stage names (defaults: Todo / In
+      // Progress / Complete) and stays correct after renames.
       try {
-        const tasks = await listTasks(repo);
-        if (!cancelled) setTaskCounts(tallyTasksToday(tasks));
+        const [tasks, stages] = await Promise.all([listTasks(repo), loadStages(repo)]);
+        if (!cancelled) setTaskCounts(tallyTasksToday(tasks, stages));
       } catch {
         if (!cancelled) setTaskCounts({ todos: 0, inProgress: 0, completeToday: 0 });
       }

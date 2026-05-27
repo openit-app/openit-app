@@ -399,43 +399,104 @@ describe("tallyTasksToday", () => {
   const NOW = new Date(2026, 4, 27, 14, 0, 0).getTime(); // month is 0-indexed
   const TODAY_AM = new Date(2026, 4, 27, 9, 30, 0).toISOString();
   const YESTERDAY_PM = new Date(2026, 4, 26, 23, 59, 0).toISOString();
+  const DEFAULT_STAGES = ["Todo", "In Progress", "Complete"];
 
-  it("counts todos, in-progress, and complete-today separately", () => {
+  it("counts todos, in-progress, and complete-today using default stages (case-insensitive)", () => {
+    // PIN-6691: the on-disk default-status string is capital "Todo",
+    // not lowercase "todo". The tally must match case-insensitively
+    // against the configured stage list, otherwise the hero shows
+    // "No todos!" with a todo present (the customer's first bug
+    // report).
     const tasks: TaskSummary[] = [
-      makeTask({ status: "todo" }),
-      makeTask({ status: "todo" }),
-      makeTask({ status: "in-progress" }),
-      makeTask({ status: "complete", completedAt: TODAY_AM }),
-      makeTask({ status: "complete", completedAt: YESTERDAY_PM }),
+      makeTask({ status: "Todo" }),
+      makeTask({ status: "todo" }), // older lowercase form survives
+      makeTask({ status: "In Progress" }),
+      makeTask({ status: "Complete", completedAt: TODAY_AM }),
+      makeTask({ status: "Complete", completedAt: YESTERDAY_PM }),
     ];
-    expect(tallyTasksToday(tasks, NOW)).toEqual({
+    expect(tallyTasksToday(tasks, DEFAULT_STAGES, NOW)).toEqual({
       todos: 2,
       inProgress: 1,
       completeToday: 1,
     });
   });
 
+  it("works with user-renamed stages", () => {
+    const stages = ["Backlog", "Doing", "Shipped"];
+    const tasks: TaskSummary[] = [
+      makeTask({ status: "Backlog" }),
+      makeTask({ status: "Doing" }),
+      makeTask({ status: "Doing" }),
+      makeTask({ status: "Shipped", completedAt: TODAY_AM }),
+    ];
+    expect(tallyTasksToday(tasks, stages, NOW)).toEqual({
+      todos: 1,
+      inProgress: 2,
+      completeToday: 1,
+    });
+  });
+
+  it("buckets unsorted (status doesn't match any stage) as todos", () => {
+    // Tasks with statuses outside the configured set need a home;
+    // surfacing them as "todos" nudges the user to clean up.
+    const tasks: TaskSummary[] = [
+      makeTask({ status: "Blocked" }),
+      makeTask({ status: "" }),
+    ];
+    expect(tallyTasksToday(tasks, DEFAULT_STAGES, NOW).todos).toBe(2);
+  });
+
   it("does not count tasks completed before today's local-TZ boundary", () => {
-    const tasks: TaskSummary[] = [makeTask({ status: "complete", completedAt: YESTERDAY_PM })];
-    expect(tallyTasksToday(tasks, NOW).completeToday).toBe(0);
+    const tasks: TaskSummary[] = [
+      makeTask({ status: "Complete", completedAt: YESTERDAY_PM }),
+    ];
+    expect(tallyTasksToday(tasks, DEFAULT_STAGES, NOW).completeToday).toBe(0);
   });
 
   it("does not count complete tasks with missing or empty completedAt (legacy data)", () => {
     const tasks: TaskSummary[] = [
-      makeTask({ status: "complete", completedAt: "" }),
-      makeTask({ status: "complete" }), // factory default ""
+      makeTask({ status: "Complete", completedAt: "" }),
+      makeTask({ status: "Complete" }), // factory default ""
     ];
-    expect(tallyTasksToday(tasks, NOW).completeToday).toBe(0);
+    expect(tallyTasksToday(tasks, DEFAULT_STAGES, NOW).completeToday).toBe(0);
   });
 
-  it("ignores completedAt on tasks whose status is not 'complete'", () => {
+  it("ignores completedAt on tasks whose status is not the last stage", () => {
     // Defensive: a stale completedAt on a re-opened task must not count.
-    const tasks: TaskSummary[] = [makeTask({ status: "in-progress", completedAt: TODAY_AM })];
-    expect(tallyTasksToday(tasks, NOW).completeToday).toBe(0);
+    const tasks: TaskSummary[] = [
+      makeTask({ status: "In Progress", completedAt: TODAY_AM }),
+    ];
+    expect(tallyTasksToday(tasks, DEFAULT_STAGES, NOW).completeToday).toBe(0);
   });
 
   it("returns zeros for an empty list", () => {
-    expect(tallyTasksToday([], NOW)).toEqual({ todos: 0, inProgress: 0, completeToday: 0 });
+    expect(tallyTasksToday([], DEFAULT_STAGES, NOW)).toEqual({
+      todos: 0,
+      inProgress: 0,
+      completeToday: 0,
+    });
+  });
+
+  it("returns zeros when the stage list is empty (defensive)", () => {
+    const tasks: TaskSummary[] = [makeTask({ status: "Todo" })];
+    expect(tallyTasksToday(tasks, [], NOW)).toEqual({
+      todos: 0,
+      inProgress: 0,
+      completeToday: 0,
+    });
+  });
+
+  it("handles a 2-stage workspace (Todo / Complete) with no middle bucket", () => {
+    const stages = ["Todo", "Complete"];
+    const tasks: TaskSummary[] = [
+      makeTask({ status: "Todo" }),
+      makeTask({ status: "Complete", completedAt: TODAY_AM }),
+    ];
+    expect(tallyTasksToday(tasks, stages, NOW)).toEqual({
+      todos: 1,
+      inProgress: 0,
+      completeToday: 1,
+    });
   });
 });
 
@@ -477,6 +538,27 @@ describe("updateTaskStatus — completedAt stamping", () => {
     mockedWrite.mockResolvedValueOnce(undefined);
     const result = await updateTaskStatus("/r", "task-1.md", "complete");
     expect(result.completedAt).toBe("2026-05-27T18:00:00Z");
+  });
+
+  it("stamps completedAt for capital-C 'Complete' (default stage name)", async () => {
+    // PIN-6691 customer bug: the kanban writes the configured stage
+    // name verbatim (default is "Complete"), so the stamping match
+    // must be case-insensitive.
+    mockedFsRead.mockResolvedValueOnce(
+      `---\nstatus: In Progress\ntitle: "x"\nassignee: ""\ncreatedAt: 2026-05-23T00:00:00Z\ncompletedAt: \n---\n`,
+    );
+    mockedWrite.mockResolvedValueOnce(undefined);
+    const result = await updateTaskStatus("/r", "task-1.md", "Complete");
+    expect(result.completedAt).not.toBe("");
+  });
+
+  it("stamps completedAt when the configured complete-stage name is custom", async () => {
+    mockedFsRead.mockResolvedValueOnce(
+      `---\nstatus: Doing\ntitle: "x"\nassignee: ""\ncreatedAt: 2026-05-23T00:00:00Z\ncompletedAt: \n---\n`,
+    );
+    mockedWrite.mockResolvedValueOnce(undefined);
+    const result = await updateTaskStatus("/r", "task-1.md", "Shipped", "Shipped");
+    expect(result.completedAt).not.toBe("");
   });
 });
 
