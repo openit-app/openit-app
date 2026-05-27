@@ -90,6 +90,11 @@ export function ChatPane({
   const fitRef = useRef<FitAddon | null>(null);
   const termRef = useRef<Terminal | null>(null);
   const stableSessionIdRef = useRef<string | null>(null);
+  // First time this pane becomes visible we just fit + focus; on
+  // subsequent re-reveals we also wipe stale glyphs and ask CC to
+  // repaint (its delta-painter sometimes leaves orphan rows when its
+  // UI shifts while the pane was hidden).
+  const everVisibleRef = useRef(false);
 
   useEffect(() => {
     if (!containerRef.current) return;
@@ -450,6 +455,8 @@ export function ChatPane({
     if (!id) return;
     if (visible) {
       setActiveSession(id);
+      const isReReveal = everVisibleRef.current;
+      everVisibleRef.current = true;
       // Defer the fit until after the parent's display:none toggle has
       // actually painted — otherwise xterm measures zero and clamps to
       // 1 column. requestAnimationFrame is enough since the toggle is
@@ -464,6 +471,13 @@ export function ChatPane({
       const handle = requestAnimationFrame(() => {
         fitRef.current?.fit();
         termRef.current?.focus();
+        if (isReReveal) {
+          // Wipe viewport (preserve scrollback) and send Ctrl+L so CC
+          // does a full repaint rather than leaving orphan glyphs from
+          // its prior layout.
+          termRef.current?.write("\x1b[2J\x1b[H");
+          ptyWrite(id, "\x0c").catch(() => {});
+        }
       });
       return () => cancelAnimationFrame(handle);
     }
