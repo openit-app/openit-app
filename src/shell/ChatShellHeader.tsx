@@ -2,11 +2,9 @@ import { type ReactNode } from "react";
 import { Button } from "../ui";
 
 export function ChatShellHeader({
-  onNewSession,
   onResumeSession,
   dragHandle,
 }: {
-  onNewSession: () => void;
   onResumeSession?: () => void;
   dragHandle?: ReactNode;
 }) {
@@ -28,16 +26,6 @@ export function ChatShellHeader({
           ↺
         </Button>
       )}
-      <Button
-        variant="subtle"
-        size="sm"
-        iconOnly
-        onClick={onNewSession}
-        title="New Claude session"
-        aria-label="Start a new Claude session"
-      >
-        +
-      </Button>
     </div>
   );
 }

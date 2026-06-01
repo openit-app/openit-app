@@ -4077,14 +4077,29 @@ input.viewer-title.viewer-title-rename {
   background: var(--color-surface-dark-2);
   border-bottom: 1px solid var(--color-border-dark);
   overflow-x: auto;
-  scrollbar-width: none;
+  scrollbar-width: thin;
+  scrollbar-color: color-mix(in srgb, var(--color-text) 22%, transparent) transparent;
   min-height: 30px;
 }
 .chat-tabs-strip::-webkit-scrollbar {
-  display: none;
+  height: 6px;
+}
+.chat-tabs-strip::-webkit-scrollbar-thumb {
+  background: color-mix(in srgb, var(--color-text) 18%, transparent);
+  border-radius: 3px;
+}
+.chat-tabs-strip::-webkit-scrollbar-thumb:hover {
+  background: color-mix(in srgb, var(--color-text) 30%, transparent);
+}
+.chat-tabs-strip::-webkit-scrollbar-track {
+  background: transparent;
 }
 
 .chat-tab {
+  /* Don't shrink: as tabs accumulate they keep their width and the
+     strip scrolls horizontally, rather than squishing every tab into
+     an illegible sliver. */
+  flex: 0 0 auto;
   display: inline-flex;
   align-items: center;
   gap: 4px;
@@ -4172,7 +4187,15 @@ input.viewer-title.viewer-title-rename {
 
 .chat-tab-add {
   appearance: none;
-  background: transparent;
+  /* Stay pinned to the right edge of the strip while the tabs scroll
+     underneath, so "new session" is always reachable no matter how
+     many tabs are open. The opaque background masks tabs sliding past,
+     and the left inset shadow gives a soft fade affordance. */
+  position: sticky;
+  right: 0;
+  flex: 0 0 auto;
+  background: var(--color-surface-dark-2);
+  box-shadow: -8px 0 8px -4px var(--color-surface-dark-2);
   border: 0;
   margin: 0 0 0 4px;
   padding: 0 8px;
@@ -4183,10 +4206,9 @@ input.viewer-title.viewer-title-rename {
   font-size: 16px;
   line-height: 1;
   cursor: pointer;
-  transition: background var(--t-fast) var(--ease), color var(--t-fast) var(--ease);
+  transition: color var(--t-fast) var(--ease);
 }
 .chat-tab-add:hover {
-  background: color-mix(in srgb, var(--color-text) 8%, transparent);
   color: var(--text);
 }
 

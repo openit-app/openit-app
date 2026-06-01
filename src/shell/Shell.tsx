@@ -366,10 +366,6 @@ export function Shell({
     [reorderPane],
   );
 
-  const newChatSession = useCallback(() => {
-    chatHandleRef.current?.newSession();
-  }, []);
-
   const resumeChatSession = useCallback(() => {
     chatHandleRef.current?.resumeSession();
   }, []);
@@ -850,7 +846,6 @@ export function Shell({
               onDrop={(e) => onPaneDrop("right", e)}
             >
               <ChatShellHeader
-                onNewSession={newChatSession}
                 onResumeSession={resumeChatSession}
                 dragHandle={
                   <PaneDragHandle
