@@ -4,7 +4,8 @@ The admin's vault is a folder on disk. Everything is a file or folder. No databa
 
 | Folder | What's there |
 |---|---|
-| `tasks/` | Personal task list. One markdown file per task (`task-<unix-ms>-<rand>.md`) with YAML frontmatter (`status`, `title`, `createdAt`) and a free-form markdown body. |
+| `profile.md` | Durable facts about the admin — name, role, team, working preferences. Read it at session start; update it as you learn. See [`profile.md`](./profile.md). |
+| `tasks/` | Personal task list. One markdown file per task (`task-<unix-ms>-<rand>.md`) with YAML frontmatter (`status`, `title`, `assignee`, `createdAt`) and a free-form markdown body. |
 | `databases/<collection>/` | Structured records. One folder per collection (`people`, `access`, `assets`, ...). Each collection has a `_schema.json`. |
 | `filestores/commands/<name>.md` | Commands the admin invokes via `/<name>`. |
 | `filestores/scripts/<name>.mjs` | Runnable scripts. Always Node.js (`.mjs`). |

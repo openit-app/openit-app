@@ -52,7 +52,7 @@ Tell the admin:
 
 Wait for acknowledgment.
 
-> That's it — three statuses, one click each. No assignees, no due dates, no escalations. Just `todo → in-progress → complete`. You own the list.
+> That's it — three statuses, one click each. No due dates, no escalations, no ticketing ceremony. Just `todo → in-progress → complete`. You own the list.
 
 Pulse the Tasks tile so the admin can find their way back:
 
