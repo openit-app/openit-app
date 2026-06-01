@@ -37,6 +37,14 @@ export async function globalUserName(): Promise<string | null> {
   return invoke<string | null>("global_user_name");
 }
 
+/// OS account full ("real") name (e.g. macOS `id -F`). Used as an
+/// editable suggestion in the first-run profile prompt — a far better
+/// default than git config for non-developers. Returns null when
+/// unavailable (non-macOS, or no full name set).
+export async function osFullName(): Promise<string | null> {
+  return invoke<string | null>("os_full_name");
+}
+
 /// Generic binary write to `<repo>/<subdir>/<filename>`. Used by the
 /// admin reply composer to land attachment bytes into
 /// `filestores/attachments/<ticketId>/`. Mirrors `entityWriteFile`

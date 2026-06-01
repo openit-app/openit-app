@@ -15,6 +15,7 @@ import { startSkillMirrorDriver, stopSkillMirrorDriver } from "../lib/skillMirro
 import { relUnderRepo, fsNorm } from "../lib/paths";
 import { ChatSessionTabs, type ChatSessionTabsHandle } from "./ChatSessionTabs";
 import { ChatShellHeader } from "./ChatShellHeader";
+import { ProfilePrompt } from "./ProfilePrompt";
 import { PaneDragHandle } from "./PaneDragHandle";
 // StatusBar is no longer rendered at the bottom of the shell. The
 // status chips (project, cloud, intake, slack, changes) now live in
@@ -761,6 +762,7 @@ export function Shell({
   return (
     <div className="shell">
       <ConflictBanner />
+      {repo && <ProfilePrompt repo={repo} onSaved={bumpFs} />}
       {(() => {
         const paneClass = (id: PaneId) =>
           `${id === "left" ? "left-pane" : id === "center" ? "center-pane" : "right-pane"} ${
