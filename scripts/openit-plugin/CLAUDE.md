@@ -9,6 +9,7 @@ This file is an **index**. Load the topic file relevant to what you're doing.
 | Topic | When to read |
 |---|---|
 | [`.openit/instructions/vault-layout.md`](./.openit/instructions/vault-layout.md) | Always read first. Folder layout and file conventions. |
+| [`.openit/instructions/profile.md`](./.openit/instructions/profile.md) | Always read first. Who the admin is (`profile.md`) — name, team, preferences. Capture durable facts about them here; ask, don't guess. |
 | [`.openit/instructions/tasks.md`](./.openit/instructions/tasks.md) | Filing, updating, or cycling status on a task. |
 | [`.openit/instructions/command-authoring.md`](./.openit/instructions/command-authoring.md) | The admin asks for on-demand work, or you're about to capture / update a command. **Contains the scripts-first rule.** |
 | [`.openit/instructions/knowledge-conventions.md`](./.openit/instructions/knowledge-conventions.md) | Writing or updating anything under `knowledge/`. |

@@ -1,8 +1,9 @@
 {
-  "version": "2026-05-27-001",
+  "version": "2026-06-01-001",
   "files": [
     { "path": "CLAUDE.md" },
     { "path": "instructions/vault-layout.md" },
+    { "path": "instructions/profile.md" },
     { "path": "instructions/tasks.md" },
     { "path": "instructions/command-authoring.md" },
     { "path": "instructions/knowledge-conventions.md" },

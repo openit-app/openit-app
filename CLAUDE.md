@@ -144,11 +144,11 @@ To customize the tile appearance, write to `.openit/workstation.json` — set `i
 
 ## Plugin CLAUDE.md (what users see)
 
-`scripts/openit-plugin/CLAUDE.md` is the instruction file Claude reads when working in a user's vault. It defines:
-- Directory layout (tickets, people, KB, skills, scripts, etc.)
-- The "every session is a ticket" behavior — auto-create tickets, log conversations, capture KB
-- Commands reference table
-- Communication style rules
+`scripts/openit-plugin/CLAUDE.md` is the instruction file Claude reads when working in a user's vault. It's a thin **index** that points at topic files in `instructions/`; it defines:
+- Where to find each instruction topic (vault layout, profile, tasks, command authoring, etc.)
+- The "scripts-first" rule for authoring commands
+
+Note: sessions are **not** auto-filed as tasks or tickets. Every session is auto-recorded as a **trace** (`traces/`) by the system — that's the durable log. Tasks are deliberate (see `instructions/tasks.md`: "Do not create a task for every session"), and status is never auto-cycled without the admin's direction.
 
 **Keep this file current.** When you add a new command or change behavior, update this file.
 

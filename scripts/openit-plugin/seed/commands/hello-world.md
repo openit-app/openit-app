@@ -17,8 +17,8 @@ Slash-invoke `/hello-world` from the desktop Claude pane. Useful as a
 
 ## Steps
 
-1. Greet the admin by name (read `git config user.name` if available;
-   fall back to "admin").
+1. Greet the admin by name (read `name` from `profile.md` if present;
+   fall back to a friendly "admin" — don't guess from git or the OS).
 2. Walk `databases/tickets/`, sort by `updatedAt` descending, find the
    three most recently `resolved` tickets.
 3. For each one, list its subject and check whether
