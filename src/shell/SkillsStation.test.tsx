@@ -633,16 +633,14 @@ describe("CommandsStation + New flow", () => {
   it("normalises Windows backslash paths when classifying system vs user collisions", async () => {
     apiMock.fsList.mockImplementation(async (path: string) => {
       if (path.endsWith("/.claude/skills")) {
-        return [{ name: "winskill", path: `${path}/winskill`, is_dir: true }];
-      }
-      // Simulate fsList returning backslash-style paths the way it
-      // does on Windows.
-      if (path.endsWith("/.claude/skills/winskill")) {
-        return [{
-          name: "SKILL.md",
-          path: "C:\\Users\\me\\repo\\.claude\\skills\\winskill\\SKILL.md",
-          is_dir: false,
-        }];
+        // fs_list (WalkDir) is recursive: the dir and its SKILL.md come
+        // back in the same listing. The catalog requires the SKILL.md to
+        // be present for the dir to count as a command. Backslash-style
+        // paths are normalised by fsNorm/isDirectChild downstream.
+        return [
+          { name: "winskill", path: `${path}/winskill`, is_dir: true },
+          { name: "SKILL.md", path: `${path}/winskill/SKILL.md`, is_dir: false },
+        ];
       }
       return [];
     });
@@ -706,11 +704,12 @@ describe("CommandsStation + New flow", () => {
   it("distinguishes a system-command collision from a user-command collision in the toast", async () => {
     apiMock.fsList.mockImplementation(async (path: string) => {
       if (path.endsWith("/.claude/skills")) {
-        // System command — directory containing a SKILL.md.
-        return [{ name: "onboard", path: `${path}/onboard`, is_dir: true }];
-      }
-      if (path.endsWith("/.claude/skills/onboard")) {
-        return [{ name: "SKILL.md", path: `${path}/SKILL.md`, is_dir: false }];
+        // System command — directory containing a SKILL.md. fs_list is
+        // recursive, so both come back in one listing.
+        return [
+          { name: "onboard", path: `${path}/onboard`, is_dir: true },
+          { name: "SKILL.md", path: `${path}/onboard/SKILL.md`, is_dir: false },
+        ];
       }
       return [];
     });

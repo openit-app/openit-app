@@ -16,6 +16,7 @@ import { Button } from "../../ui";
 import { TrashIcon } from "../TrashIcon";
 import { confirmDelete } from "./viewerHelpers";
 import { globalUserName } from "../../lib/api";
+import { readProfileName } from "../../lib/profile";
 import {
   createTask,
   deleteTask,
@@ -47,7 +48,17 @@ interface TasksViewerProps {
 /// means we haven't fetched yet.
 let cachedUserName: string | null | undefined;
 
-async function resolveDefaultAssignee(): Promise<string> {
+async function resolveDefaultAssignee(repo: string): Promise<string> {
+  // `profile.md` is the source of truth for who the admin is (captured
+  // once on first run, no git required). Prefer it; fall back to the git
+  // name, then "me". Profile is read per call (cheap) so it picks up the
+  // name as soon as the first-run prompt writes it.
+  try {
+    const fromProfile = await readProfileName(repo);
+    if (fromProfile) return fromProfile;
+  } catch (err) {
+    console.warn("[tasks] failed to read profile.md:", err);
+  }
   if (cachedUserName !== undefined) return cachedUserName ?? "me";
   try {
     cachedUserName = await globalUserName();
@@ -120,7 +131,7 @@ export function TasksViewer({ tasks, repo, onOpenTask, onChanged }: TasksViewerP
   // sentinel since the field is one-shot text input).
   useEffect(() => {
     let cancelled = false;
-    void resolveDefaultAssignee().then((name) => {
+    void resolveDefaultAssignee(repo).then((name) => {
       if (cancelled) return;
       setDefaultAssignee(name);
       setNewAssignee((current) => (current === "" ? name : current));
@@ -128,7 +139,7 @@ export function TasksViewer({ tasks, repo, onOpenTask, onChanged }: TasksViewerP
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [repo]);
 
   // Build the unique-assignee list from the current task set. Empty
   // assignees roll up under "Unassigned". Sorted alphabetically so the

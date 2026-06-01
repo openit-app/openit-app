@@ -25,9 +25,11 @@ export interface CommandRef {
 /// Return the canonical list of commands for a vault, in stable order.
 ///
 /// Discovery rules (matched by the Commands viewer):
-///   * System commands — direct child *directories* of `.claude/skills/`.
-///     The presence of a `SKILL.md` is not required (the viewer renders
-///     them either way; missing description just shows blank).
+///   * System commands — direct child *directories* of `.claude/skills/`
+///     that actually contain a `SKILL.md`. An empty / orphaned skill
+///     directory (e.g. one left behind when a command's SKILL.md was
+///     deleted) is NOT a command — listing it produced a "ghost" entry
+///     that opened to "this file no longer exists".
 ///   * Custom commands — direct child `.md` *files* of
 ///     `filestores/commands/`. Files inside subdirectories (e.g.
 ///     `filestores/commands/<slug>/_history/<ts>.md` snapshots from the
@@ -82,8 +84,15 @@ async function listSystemCommands(repo: string): Promise<CommandRef[]> {
   } catch {
     return [];
   }
+  // `fs_list` is recursive (WalkDir), so a skill's `SKILL.md` appears as a
+  // nested node in the same listing. A skill directory only counts as a
+  // command if its `SKILL.md` is actually present — an empty/orphaned dir
+  // (e.g. left behind when the SKILL.md was deleted) must NOT surface as a
+  // ghost command that opens to "this file no longer exists".
+  const skillFiles = nodes.filter((n) => !n.is_dir && n.name === "SKILL.md");
   return nodes
     .filter((n) => n.is_dir && isDirectChild(root, n.path))
+    .filter((d) => skillFiles.some((f) => isDirectChild(d.path, f.path)))
     .map((d) => ({
       name: d.name,
       path: `${d.path}/SKILL.md`,
