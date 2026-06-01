@@ -18,6 +18,11 @@ function shellEscape(p: string): string {
  *  above this limit are skipped with a warning to avoid freezing the UI. */
 const DROP_SIZE_LIMIT = 25 * 1024 * 1024; // 25 MB
 
+/** Platform clipboard modifier: Cmd on macOS, Ctrl everywhere else. Drives
+ *  the copy/paste shortcuts so they match each OS's convention — and so
+ *  Ctrl+C stays "interrupt" on macOS (Cmd+C is copy there). */
+const IS_MAC = /Mac|iPhone|iPad/i.test(navigator.platform || navigator.userAgent);
+
 /** Copy the terminal's current selection to the system clipboard. No-op when
  *  nothing is selected. */
 function copySelectionToClipboard(term: Terminal) {
@@ -311,24 +316,31 @@ export function ChatPane({
       }
 
       // Clipboard. xterm's defaults don't reach the OS clipboard reliably
-      // in the Tauri/WebView2 webview (especially on Windows), and image
+      // in the Tauri webview (especially WebView2 on Windows), and image
       // paste isn't a terminal concept at all — so we handle copy/paste
-      // ourselves for one consistent cross-platform behaviour.
-      const ctrlOnly = e.ctrlKey && !e.altKey && !e.metaKey;
+      // ourselves for one consistent behaviour on every platform.
+      //
+      // `clip` is the OS clipboard chord: Cmd on macOS, Ctrl elsewhere,
+      // with the other modifier excluded. On macOS this leaves Ctrl+C as
+      // "interrupt" (Cmd+C copies); on Windows/Linux Ctrl+C copies only
+      // when there's a selection (otherwise it interrupts — see below).
       const key = e.key.toLowerCase();
+      const clip = IS_MAC
+        ? e.metaKey && !e.ctrlKey && !e.altKey
+        : e.ctrlKey && !e.metaKey && !e.altKey;
 
-      // Copy: Ctrl+Shift+C always; bare Ctrl+C only when text is selected
+      // Copy: clip+Shift+C always; bare clip+C only when text is selected
       // (a Ctrl+C with no selection must still interrupt Claude Code).
-      if (ctrlOnly && key === "c" && (e.shiftKey || term.hasSelection())) {
+      if (clip && key === "c" && (e.shiftKey || term.hasSelection())) {
         copySelectionToClipboard(term);
         e.preventDefault();
         return false;
       }
 
-      // Paste: Ctrl+V / Ctrl+Shift+V, or Alt+V (matches Claude Code's own
-      // Windows image-paste binding, so muscle memory carries over).
+      // Paste: clip+V / clip+Shift+V, or Alt+V (matches Claude Code's own
+      // Windows/WSL image-paste binding, so muscle memory carries over).
       const isPaste =
-        (ctrlOnly && key === "v") ||
+        (clip && key === "v") ||
         (e.altKey && !e.ctrlKey && !e.metaKey && key === "v");
       if (isPaste) {
         e.preventDefault();
