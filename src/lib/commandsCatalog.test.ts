@@ -147,6 +147,7 @@ describe("commandsCatalog", () => {
     routeFsList({
       [`${repo}/.claude/skills`]: [
         dir("zeta", `${repo}/.claude/skills/zeta`),
+        file("SKILL.md", `${repo}/.claude/skills/zeta/SKILL.md`),
       ],
       [`${repo}/filestores/commands`]: [
         file("alpha.md", `${repo}/filestores/commands/alpha.md`),
@@ -155,5 +156,46 @@ describe("commandsCatalog", () => {
 
     const refs = await listCommands(repo);
     expect(refs.map((r) => r.name)).toEqual(["zeta", "alpha"]);
+  });
+
+  it("excludes an orphaned skill dir with no SKILL.md (delete leftover)", async () => {
+    // Deleting a command's SKILL.md leaves an empty `.claude/skills/<name>/`
+    // directory behind. It must NOT show up as a ghost command (the
+    // bug: it listed and opened to "this file no longer exists").
+    const repo = "/r";
+    routeFsList({
+      [`${repo}/.claude/skills`]: [
+        dir("live", `${repo}/.claude/skills/live`),
+        file("SKILL.md", `${repo}/.claude/skills/live/SKILL.md`),
+        // `ghost` dir exists but its SKILL.md was deleted — orphan.
+        dir("ghost", `${repo}/.claude/skills/ghost`),
+      ],
+      [`${repo}/filestores/commands`]: new Error("ENOENT"),
+    });
+
+    expect(await countCommands(repo)).toBe(1);
+    const refs = await listCommands(repo);
+    expect(refs.map((r) => r.name)).toEqual(["live"]);
+  });
+
+  it("surfaces the editable custom copy when the mirror SKILL.md is gone", async () => {
+    // If a command's `.claude/skills/<name>/SKILL.md` mirror was deleted
+    // but the source `filestores/commands/<name>.md` still exists, the
+    // command should still appear — sourced from the editable custom copy,
+    // not the orphaned mirror dir.
+    const repo = "/r";
+    routeFsList({
+      [`${repo}/.claude/skills`]: [
+        dir("backup", `${repo}/.claude/skills/backup`),
+      ],
+      [`${repo}/filestores/commands`]: [
+        file("backup.md", `${repo}/filestores/commands/backup.md`),
+      ],
+    });
+
+    const refs = await listCommands(repo);
+    expect(refs.map((r) => r.name)).toEqual(["backup"]);
+    expect(refs[0].source).toBe("custom");
+    expect(refs[0].path).toBe(`${repo}/filestores/commands/backup.md`);
   });
 });

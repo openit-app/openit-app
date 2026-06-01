@@ -24,7 +24,7 @@
 // debounce, fan out to a per-path handler. One driver per repo.
 
 import { invoke } from "@tauri-apps/api/core";
-import { fsDelete, fsRead } from "./api";
+import { entityRemoveDir, fsDelete, fsRead } from "./api";
 import { onFsChanged } from "./fsWatcher";
 import { relUnderRepo } from "./paths";
 
@@ -128,9 +128,13 @@ async function applyAction(repo: string, action: Action): Promise<void> {
       console.warn(`[skillMirror] write skill ${action.slug} failed:`, e);
     }
   } else if (action.kind === "skill-delete") {
-    const target = `${repo}/.claude/skills/${action.slug}`;
+    // A skill mirror is a *directory* (`.claude/skills/<slug>/SKILL.md`),
+    // so it must be removed recursively. `fsDelete` is file-only and the
+    // Rust side refuses directories — using it here silently left the
+    // mirror folder behind, so the deleted command kept showing up as a
+    // ghost in the Commands list. `entityRemoveDir` removes the folder.
     try {
-      await fsDelete(target);
+      await entityRemoveDir(repo, `.claude/skills/${action.slug}`);
     } catch {
       // Already gone, or never existed — non-fatal.
     }

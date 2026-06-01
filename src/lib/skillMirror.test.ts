@@ -10,13 +10,14 @@ vi.mock("@tauri-apps/api/core", () => ({
 vi.mock("./api", () => ({
   fsRead: vi.fn(),
   fsDelete: vi.fn(),
+  entityRemoveDir: vi.fn(),
 }));
 vi.mock("./fsWatcher", () => ({
   onFsChanged: vi.fn(),
 }));
 
 import { invoke } from "@tauri-apps/api/core";
-import { fsRead, fsDelete } from "./api";
+import { fsRead, fsDelete, entityRemoveDir } from "./api";
 import { onFsChanged } from "./fsWatcher";
 import {
   __test,
@@ -27,6 +28,7 @@ import {
 const mockInvoke = vi.mocked(invoke);
 const mockFsRead = vi.mocked(fsRead);
 const mockFsDelete = vi.mocked(fsDelete);
+const mockEntityRemoveDir = vi.mocked(entityRemoveDir);
 const mockOnFsChanged = vi.mocked(onFsChanged);
 
 describe("isNotFoundError", () => {
@@ -188,7 +190,12 @@ describe("startSkillMirrorDriver — end-to-end behavior", () => {
     fsHandler!(["/repo/filestores/commands/gone.md"]);
     await vi.advanceTimersByTimeAsync(600);
 
-    expect(mockFsDelete).toHaveBeenCalledWith("/repo/.claude/skills/gone");
+    // The mirror is a directory, so it's removed recursively via
+    // entityRemoveDir(repo, subdir) — not the file-only fsDelete.
+    expect(mockEntityRemoveDir).toHaveBeenCalledWith(
+      "/repo",
+      ".claude/skills/gone",
+    );
     // No write should have landed.
     expect(mockInvoke).not.toHaveBeenCalled();
   });
@@ -205,6 +212,7 @@ describe("startSkillMirrorDriver — end-to-end behavior", () => {
     await vi.advanceTimersByTimeAsync(600);
 
     expect(mockFsDelete).not.toHaveBeenCalled();
+    expect(mockEntityRemoveDir).not.toHaveBeenCalled();
     expect(mockInvoke).not.toHaveBeenCalled();
   });
 
