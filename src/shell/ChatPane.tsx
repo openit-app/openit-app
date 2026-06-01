@@ -18,6 +18,69 @@ function shellEscape(p: string): string {
  *  above this limit are skipped with a warning to avoid freezing the UI. */
 const DROP_SIZE_LIMIT = 25 * 1024 * 1024; // 25 MB
 
+/** Platform clipboard modifier: Cmd on macOS, Ctrl everywhere else. Drives
+ *  the copy/paste shortcuts so they match each OS's convention — and so
+ *  Ctrl+C stays "interrupt" on macOS (Cmd+C is copy there). */
+const IS_MAC = /Mac|iPhone|iPad/i.test(navigator.platform || navigator.userAgent);
+
+/** Copy the terminal's current selection to the system clipboard. No-op when
+ *  nothing is selected. */
+function copySelectionToClipboard(term: Terminal) {
+  const selection = term.getSelection();
+  if (!selection) return;
+  navigator.clipboard
+    .writeText(selection)
+    .catch((err) => console.warn("clipboard copy failed:", err));
+}
+
+/** Paste the system clipboard into the PTY.
+ *
+ *  A clipboard image is saved to a temp file and its path is written to the
+ *  terminal — the same flow as a file drop, so Claude Code attaches the image
+ *  (xterm/terminals have no native concept of an image paste). Otherwise the
+ *  clipboard text is pasted through `term.paste`, which adds bracketed-paste
+ *  markers when Claude Code has the mode enabled.
+ *
+ *  We drive this ourselves on every platform because WebView2 on Windows
+ *  never wires xterm's default copy/paste up to the OS clipboard reliably. */
+async function pasteClipboardIntoPty(term: Terminal, sessionId: string) {
+  // Image first — a copied screenshot is almost always what the user means.
+  if (navigator.clipboard?.read) {
+    try {
+      const items = await navigator.clipboard.read();
+      for (const item of items) {
+        const imageType = item.types.find((t) => t.startsWith("image/"));
+        if (!imageType) continue;
+        const blob = await item.getType(imageType);
+        if (blob.size > DROP_SIZE_LIMIT) {
+          console.warn(
+            `clipboard image too large (${(blob.size / 1e6).toFixed(1)} MB), skipping`,
+          );
+          return;
+        }
+        const buf = await blob.arrayBuffer();
+        const ext = imageType.split("/")[1] ?? "png";
+        const savedPath = await invoke<string>("save_dropped_file", {
+          name: `clipboard-${Date.now()}.${ext}`,
+          bytes: Array.from(new Uint8Array(buf)),
+        });
+        await ptyWrite(sessionId, shellEscape(savedPath) + " ");
+        return;
+      }
+    } catch (err) {
+      // read() rejects when the clipboard holds no readable item or the
+      // webview denies access — fall through to a plain-text paste.
+      console.warn("clipboard image read failed, falling back to text:", err);
+    }
+  }
+  try {
+    const text = await navigator.clipboard.readText();
+    if (text) term.paste(text);
+  } catch (err) {
+    console.warn("clipboard text paste failed:", err);
+  }
+}
+
 /** Save OS-dropped files to a temp dir and paste the paths into the PTY. */
 async function saveAndPasteDroppedFiles(files: FileList, sessionId: string) {
   for (const file of Array.from(files)) {
@@ -212,6 +275,19 @@ export function ChatPane({
     const focusOnClick = () => term.focus();
     containerRef.current.addEventListener("click", focusOnClick);
 
+    // Right-click: copy when there's a selection, otherwise paste — the
+    // console/Windows-Terminal convention Windows users reach for.
+    const onContextMenu = (e: MouseEvent) => {
+      e.preventDefault();
+      if (term.hasSelection()) {
+        copySelectionToClipboard(term);
+        term.clearSelection();
+      } else {
+        void pasteClipboardIntoPty(term, SESSION_ID);
+      }
+    };
+    containerRef.current.addEventListener("contextmenu", onContextMenu);
+
     // Mirror CC's session name into the tab label. CC sets the
     // terminal title via OSC 0/2 when it auto-names a session and
     // again after `/rename`. xterm's onTitleChange fires for both.
@@ -220,12 +296,13 @@ export function ChatPane({
       if (cb) cb(newTitle);
     });
 
-    // Shift+Enter → \x1b\r (ESC + CR), the sequence Claude Code's
-    // `/terminal-setup` configures iTerm2 to send. CC's input parser
-    // treats this as newline-insert; bare \r is submit.
     term.attachCustomKeyEventHandler((e) => {
+      if (e.type !== "keydown") return true;
+
+      // Shift+Enter → \x1b\r (ESC + CR), the sequence Claude Code's
+      // `/terminal-setup` configures iTerm2 to send. CC's input parser
+      // treats this as newline-insert; bare \r is submit.
       if (
-        e.type === "keydown" &&
         e.key === "Enter" &&
         e.shiftKey &&
         !e.ctrlKey &&
@@ -237,6 +314,40 @@ export function ChatPane({
         ptyWrite(SESSION_ID, "\x1b\r").catch((err) => console.error("pty bridge error:", err));
         return false;
       }
+
+      // Clipboard. xterm's defaults don't reach the OS clipboard reliably
+      // in the Tauri webview (especially WebView2 on Windows), and image
+      // paste isn't a terminal concept at all — so we handle copy/paste
+      // ourselves for one consistent behaviour on every platform.
+      //
+      // `clip` is the OS clipboard chord: Cmd on macOS, Ctrl elsewhere,
+      // with the other modifier excluded. On macOS this leaves Ctrl+C as
+      // "interrupt" (Cmd+C copies); on Windows/Linux Ctrl+C copies only
+      // when there's a selection (otherwise it interrupts — see below).
+      const key = e.key.toLowerCase();
+      const clip = IS_MAC
+        ? e.metaKey && !e.ctrlKey && !e.altKey
+        : e.ctrlKey && !e.metaKey && !e.altKey;
+
+      // Copy: clip+Shift+C always; bare clip+C only when text is selected
+      // (a Ctrl+C with no selection must still interrupt Claude Code).
+      if (clip && key === "c" && (e.shiftKey || term.hasSelection())) {
+        copySelectionToClipboard(term);
+        e.preventDefault();
+        return false;
+      }
+
+      // Paste: clip+V / clip+Shift+V, or Alt+V (matches Claude Code's own
+      // Windows/WSL image-paste binding, so muscle memory carries over).
+      const isPaste =
+        (clip && key === "v") ||
+        (e.altKey && !e.ctrlKey && !e.metaKey && key === "v");
+      if (isPaste) {
+        e.preventDefault();
+        void pasteClipboardIntoPty(term, SESSION_ID);
+        return false;
+      }
+
       return true;
     });
 
@@ -427,6 +538,7 @@ export function ChatPane({
       clearActiveSession(SESSION_ID);
       titleDisposable.dispose();
       containerRef.current?.removeEventListener("click", focusOnClick);
+      containerRef.current?.removeEventListener("contextmenu", onContextMenu);
       containerRef.current?.removeEventListener("dragover", onDragOver, true);
       containerRef.current?.removeEventListener("drop", onInPageDrop, true);
       for (const fn of unlistens) fn();
