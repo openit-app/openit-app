@@ -1,7 +1,7 @@
 {
   "name": "openit-app",
   "private": true,
-  "version": "3.1.0",
+  "version": "3.1.1",
   "type": "module",
   "repository": "https://github.com/openit-app/openit-app",
   "homepage": "https://openit-app.github.io/openit-app",
@@ -30,6 +30,7 @@
     "@slack/socket-mode": "^2.0.4",
     "@slack/web-api": "^7.10.0",
     "@tauri-apps/api": "^2.11.0",
+    "@tauri-apps/plugin-clipboard-manager": "^2.3.2",
     "@tauri-apps/plugin-dialog": "^2.7.1",
     "@tauri-apps/plugin-http": "^2.5.9",
     "@tauri-apps/plugin-opener": "^2",
