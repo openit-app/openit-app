@@ -4,6 +4,7 @@ import { FitAddon } from "@xterm/addon-fit";
 import { WebLinksAddon } from "@xterm/addon-web-links";
 import { invoke } from "@tauri-apps/api/core";
 import { openUrl } from "@tauri-apps/plugin-opener";
+import { readText as readClipboardText } from "@tauri-apps/plugin-clipboard-manager";
 import { onPtyData, onPtyExit, ptyKill, ptyResize, ptySpawn, ptyWrite } from "../lib/terminal";
 import { setActiveSession, clearActiveSession } from "./activeSession";
 import "@xterm/xterm/css/xterm.css";
@@ -44,7 +45,24 @@ function copySelectionToClipboard(term: Terminal) {
  *  We drive this ourselves on every platform because WebView2 on Windows
  *  never wires xterm's default copy/paste up to the OS clipboard reliably. */
 async function pasteClipboardIntoPty(term: Terminal, sessionId: string) {
-  // Image first — a copied screenshot is almost always what the user means.
+  // Text first, read NATIVELY via Tauri. `navigator.clipboard.readText()`
+  // (and `.read()`) trigger macOS's webview "Paste" consent callout — the
+  // little bubble the user must click — which made paste feel broken. The
+  // native clipboard plugin reads without any prompt, so a plain text paste
+  // (the common case) just works.
+  try {
+    const text = await readClipboardText();
+    if (text) {
+      term.paste(text);
+      return;
+    }
+  } catch (err) {
+    console.warn("native clipboard text read failed:", err);
+  }
+
+  // No text → maybe a copied image (screenshot). This path uses the webview
+  // clipboard API and may still show the consent prompt, but it's only
+  // reached for the rarer image paste, where a one-time allow is tolerable.
   if (navigator.clipboard?.read) {
     try {
       const items = await navigator.clipboard.read();
@@ -69,15 +87,10 @@ async function pasteClipboardIntoPty(term: Terminal, sessionId: string) {
       }
     } catch (err) {
       // read() rejects when the clipboard holds no readable item or the
-      // webview denies access — fall through to a plain-text paste.
-      console.warn("clipboard image read failed, falling back to text:", err);
+      // webview denies access. Text was already handled natively above, so
+      // there's nothing left to fall back to.
+      console.warn("clipboard image read failed:", err);
     }
-  }
-  try {
-    const text = await navigator.clipboard.readText();
-    if (text) term.paste(text);
-  } catch (err) {
-    console.warn("clipboard text paste failed:", err);
   }
 }
 
@@ -339,9 +352,14 @@ export function ChatPane({
 
       // Paste: clip+V / clip+Shift+V, or Alt+V (matches Claude Code's own
       // Windows/WSL image-paste binding, so muscle memory carries over).
+      // On macOS we ALSO accept Ctrl+V — Cmd+V is the native chord, but
+      // many users reach for Ctrl+V out of habit, and it has no conflicting
+      // terminal meaning here. (Copy stays Cmd-only so Ctrl+C still
+      // interrupts.)
       const isPaste =
         (clip && key === "v") ||
-        (e.altKey && !e.ctrlKey && !e.metaKey && key === "v");
+        (e.altKey && !e.ctrlKey && !e.metaKey && key === "v") ||
+        (IS_MAC && e.ctrlKey && !e.metaKey && !e.altKey && key === "v");
       if (isPaste) {
         e.preventDefault();
         void pasteClipboardIntoPty(term, SESSION_ID);
