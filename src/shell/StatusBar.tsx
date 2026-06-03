@@ -1,13 +1,9 @@
-import type { SlackConfig, SlackStatus } from "../lib/api";
-import { IntakeChip, SlackChip } from "../ui";
+import { IntakeChip } from "../ui";
 
 export function StatusChips({
   intakeUrl,
   tunnelUrl,
   onShare,
-  slackConfig,
-  slackStatus,
-  onConnectSlack,
 }: {
   /** Local intake server URL (e.g. `http://127.0.0.1:<port>`). */
   intakeUrl: string | null;
@@ -15,9 +11,6 @@ export function StatusChips({
   tunnelUrl: string | null;
   /** Click handler for share — kicks off the /share-intake flow. */
   onShare: () => void;
-  slackConfig: SlackConfig | null;
-  slackStatus: SlackStatus | null;
-  onConnectSlack: () => void;
 }) {
   return (
     <>
@@ -25,11 +18,6 @@ export function StatusChips({
         sharedUrl={intakeUrl}
         tunnelUrl={tunnelUrl}
         onShare={onShare}
-      />
-      <SlackChip
-        config={slackConfig}
-        status={slackStatus}
-        onConnect={onConnectSlack}
       />
     </>
   );

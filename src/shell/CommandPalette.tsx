@@ -25,7 +25,6 @@ export function CommandPalette({
   open,
   onClose,
   repo,
-  onConnectSlack,
   onManualPull,
   onOpenWelcome,
   onShowDraft,
@@ -33,7 +32,6 @@ export function CommandPalette({
   open: boolean;
   onClose: () => void;
   repo: string | null;
-  onConnectSlack: () => void;
   onManualPull: () => void;
   onOpenWelcome: () => void;
   onShowDraft?: (source: {
@@ -102,7 +100,6 @@ export function CommandPalette({
       { id: "run-onboard", label: "/onboard", hint: "Grant access for a new employee", group: "Run", run: () => injectIntoChat("/onboard") },
       { id: "run-offboard", label: "/offboard", hint: "Revoke access for a departing employee", group: "Run", run: () => injectIntoChat("/offboard") },
       { id: "run-salesforce-data-quality", label: "/salesforce-data-quality", hint: "Find and fix dirty data", group: "Run", run: () => injectIntoChat("/salesforce-data-quality") },
-      { id: "run-slack-to-knowledge", label: "/slack-to-knowledge", hint: "Mine Slack into KB articles", group: "Run", run: () => injectIntoChat("/slack-to-knowledge") },
       { id: "run-drive-search", label: "/drive-search", hint: "Search Google Drive", group: "Run", run: () => injectIntoChat("/drive-search") },
       { id: "run-asset-tracking", label: "/asset-tracking", hint: "Query device inventory", group: "Run", run: () => injectIntoChat("/asset-tracking") },
       { id: "run-pipeline-outreach", label: "/pipeline-outreach", hint: "Pipeline reports & emails", group: "Run", run: () => injectIntoChat("/pipeline-outreach") },
@@ -182,16 +179,13 @@ export function CommandPalette({
         },
       },
 
-      // ── Connect ──
-      { id: "connect-slack", label: "Connect Slack", hint: "Set up the OpenIT bot", group: "Connect", run: () => onConnectSlack() },
-
       // ── System ──
       { id: "sys-welcome", label: "Open Welcome", hint: "Getting-started guide", group: "System", run: () => onOpenWelcome() },
       { id: "sys-refresh", label: "Refresh from disk", hint: "Re-read files from vault", group: "System", run: () => onManualPull() },
       { id: "sys-change-vault", label: "Change vault", hint: "Pick a different vault folder", group: "System", run: () => window.dispatchEvent(new CustomEvent("openit:change-vault")) },
     ];
     return items;
-  }, [repo, dynamicTiles, onConnectSlack, onManualPull, onOpenWelcome, onShowDraft]);
+  }, [repo, dynamicTiles, onManualPull, onOpenWelcome, onShowDraft]);
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();

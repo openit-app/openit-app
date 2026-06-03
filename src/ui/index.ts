@@ -20,9 +20,6 @@ export type { TabStripProps, TabStripVariant, TabProps } from "./TabStrip";
 export { IntakeChip } from "./IntakeChip";
 export type { IntakeChipProps } from "./IntakeChip";
 
-export { SlackChip } from "./SlackChip";
-export type { SlackChipProps } from "./SlackChip";
-
 export { UpdateChip } from "./UpdateChip";
 
 export { Banner } from "./Banner";

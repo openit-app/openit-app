@@ -41,8 +41,6 @@
       "../scripts/openit-plugin/commands/*.md": "openit-plugin/commands/",
       "../scripts/openit-plugin/schemas/*.json": "openit-plugin/schemas/",
       "../scripts/openit-plugin/scripts/*.mjs": "openit-plugin/scripts/",
-      "../scripts/openit-plugin/scripts/*.cjs": "openit-plugin/scripts/",
-      "../scripts/openit-plugin/scripts/*.yml": "openit-plugin/scripts/",
       "../scripts/openit-plugin/seed/people/*.json": "openit-plugin/seed/people/",
       "../scripts/openit-plugin/seed/knowledge/*.md": "openit-plugin/seed/knowledge/",
       "../scripts/openit-plugin/seed/reports/*.md": "openit-plugin/seed/reports/",

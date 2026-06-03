@@ -66,7 +66,6 @@ src/                    # React frontend (TypeScript)
 src-tauri/src/          # Tauri backend (Rust)
   intake/               # Chat intake HTTP server (mod.rs + prompts.rs + chat_ui.html)
   kb/                   # Knowledge base (local.rs + cloud.rs + types.rs)
-  slack/                # Slack integration (config.rs + api.rs + listener.rs)
   ...                   # PTY, file watching, git ops, tools, tunnel
 scripts/openit-plugin/  # Claude plugin — skills, scripts, schemas, seed data
 landing/                # Website (Astro + Tailwind) → GitHub Pages
@@ -167,7 +166,7 @@ Skills must be generic — useful for any IT admin. No customer-specific command
 
 This is an open-source repo. Code should be approachable for contributors.
 
-- **No god files.** If a file exceeds ~500 lines, consider splitting it. Use the existing patterns: `viewers/`, `explorer/`, `routing/`, `intake/`, `kb/`, `slack/` modules.
+- **No god files.** If a file exceeds ~500 lines, consider splitting it. Use the existing patterns: `viewers/`, `explorer/`, `routing/`, `intake/`, `kb/` modules.
 - **cargo fmt + clippy must pass.** CI checks both. Run before pushing.
 - **No debug console.log in production code.** Use `console.warn` for recoverable errors, `console.error` for real failures.
 - **No `as any` casts.** The codebase currently has zero — keep it that way.

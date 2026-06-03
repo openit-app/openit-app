@@ -235,8 +235,8 @@ pub(super) fn build_chat_prompt(
          more info leaves the ticket stuck. If you can't answer \
          from the information you already have, hand off; the human \
          teammate will ask any follow-ups themselves.\n\n\
-         Plain text only. The chat surface and the Slack ingest both \
-         render raw text, so markdown shows through as literal \
+         Plain text only. The chat surface renders raw text, so \
+         markdown shows through as literal \
          characters: no `**bold**`, no `*italics*`, no `# headings`, \
          no `- bullet lists`, no fenced code blocks, no tables. If \
          you need to enumerate steps, write `1. `, `2. ` inside \

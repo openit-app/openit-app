@@ -18,7 +18,7 @@ import { ChatShellHeader } from "./ChatShellHeader";
 import { ProfilePrompt } from "./ProfilePrompt";
 import { PaneDragHandle } from "./PaneDragHandle";
 // StatusBar is no longer rendered at the bottom of the shell. The
-// status chips (project, cloud, intake, slack, changes) now live in
+// status chips (project, cloud, intake, changes) now live in
 // the TitleRail at the top — see src/App.tsx.
 import { Workbench } from "./Workbench";
 import { LeftSidebarRail } from "./LeftSidebarRail";
@@ -30,11 +30,9 @@ import { FileExplorer } from "./FileExplorer";
 // but nothing in the renderer surfaces it.
 import { Viewer, type ViewerSource } from "./Viewer";
 // Tab, TabStrip, PaneBody removed — left pane is now just FileExplorer.
-import type { DockKind } from "../lib/skillState";
 import { resolvePathToSource } from "./entityRouting";
 import { selectedRelFromSource } from "./sidebarSelection";
 import { sourceToTreePath } from "./sourceToTreePath";
-import { SkillActionDock } from "./SkillActionDock";
 
 /// Stable id for each pane. Used to drive reordering — the user can
 /// drag a pane's grip onto another pane and the layout state tracks
@@ -152,10 +150,6 @@ function capStack(s: ViewerSource[]): ViewerSource[] {
 export function Shell({
   repo,
   intakeUrl,
-  dock,
-  slackOrgId,
-  stagedSlackBotToken,
-  onStagedSlackBotTokenChange,
   registerManualPull,
 }: {
   repo: string | null;
@@ -163,23 +157,6 @@ export function Shell({
    *  into `{{INTAKE_URL}}` placeholders in markdown content (e.g. the
    *  welcome doc). */
   intakeUrl: string | null;
-  /** Which secret-paste affordance the chat-anchored
-   *  SkillActionDock should surface, if any. Driven by the
-   *  `.openit/skill-state/connect-slack.json` side channel (read in
-   *  App.tsx). The dock renders nothing when this is null/undefined.
-   */
-  dock: DockKind | undefined;
-  /** orgId (or "" for local-only) — needed by
-   *  SkillActionDock when it calls slack_connect (Keychain slot is
-   *  scoped per org). */
-  slackOrgId: string;
-  /** xoxb- token staged in App-level state between the bot-token
-   *  paste and the app-token paste. App.tsx owns the value so the
-   *  paste flow survives the dock unmount/remount cycle that
-   *  happens when Claude flips the dock kind between paste steps. */
-  stagedSlackBotToken: string | null;
-  /** Setter for the staged bot token. */
-  onStagedSlackBotTokenChange: (t: string | null) => void;
   /** Register the manual-pull handler so the command palette can call it. */
   registerManualPull: (fn: () => void) => void;
 }) {
@@ -858,15 +835,6 @@ export function Shell({
                 }
               />
               <ChatSessionTabs cwd={repo} registerHandle={registerChatHandle} />
-
-              <SkillActionDock
-                dock={dock}
-                repo={repo}
-                orgId={slackOrgId}
-                intakeUrl={intakeUrl}
-                stagedBotToken={stagedSlackBotToken}
-                onStagedBotTokenChange={onStagedSlackBotTokenChange}
-              />
             </div>
           ),
         };

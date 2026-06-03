@@ -15,7 +15,6 @@ mod workspaces;
 
 // ── Integrations ──
 mod mcp;
-mod slack;
 mod tools;
 mod tunnel;
 
@@ -71,7 +70,6 @@ pub fn run() {
         .manage(watcher::WatcherState::default())
         .manage(intake::IntakeState::default())
         .manage(tunnel::TunnelState::default())
-        .manage(slack::SlackSupervisorState::default())
         .invoke_handler(tauri::generate_handler![
             pty::pty_spawn,
             pty::pty_write,
@@ -153,14 +151,6 @@ pub fn run() {
             skill_canvas::skill_state_read,
             skill_canvas::skill_state_write,
             skill_canvas::skill_state_clear,
-            slack::slack_connect,
-            slack::slack_validate_bot_token,
-            slack::slack_disconnect,
-            slack::slack_config_read,
-            slack::slack_listener_start,
-            slack::slack_listener_stop,
-            slack::slack_listener_status,
-            slack::slack_listener_send_intro,
             window_focus,
         ])
         .run(tauri::generate_context!())
