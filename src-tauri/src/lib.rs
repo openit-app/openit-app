@@ -5,9 +5,6 @@ mod keychain;
 mod pty;
 mod state;
 
-// ── Chat & intake ──
-mod intake;
-
 // ── Data & project ──
 mod kb;
 mod project;
@@ -16,7 +13,6 @@ mod workspaces;
 // ── Integrations ──
 mod mcp;
 mod tools;
-mod tunnel;
 
 // ── Claude & agents ──
 mod agent_trace;
@@ -25,7 +21,6 @@ mod skill_canvas;
 mod skills;
 
 // ── Utilities ──
-mod openit_config;
 mod reports;
 mod scripts;
 mod user_identity;
@@ -68,8 +63,6 @@ pub fn run() {
         })
         .manage(pty::PtyState::default())
         .manage(watcher::WatcherState::default())
-        .manage(intake::IntakeState::default())
-        .manage(tunnel::TunnelState::default())
         .invoke_handler(tauri::generate_handler![
             pty::pty_spawn,
             pty::pty_write,
@@ -141,12 +134,6 @@ pub fn run() {
             filestore::datastore_list_collections,
             watcher::fs_watch_start,
             watcher::fs_watch_stop,
-            intake::intake_start,
-            intake::intake_stop,
-            intake::intake_url,
-            tunnel::tunnel_start,
-            tunnel::tunnel_stop,
-            tunnel::tunnel_url,
             agent_trace::agent_trace_latest,
             skill_canvas::skill_state_read,
             skill_canvas::skill_state_write,

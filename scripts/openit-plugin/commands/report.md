@@ -1,11 +1,11 @@
 ---
 name: report
-description: Generate a custom helpdesk report from the local ticket and conversation data. Reads tickets / conversations / people, drafts a markdown report, writes it to reports/<timestamp>-<slug>.md so the newest report sorts to the top of the explorer. Use for anything more specific than the canned "Generate overview" — e.g. "VPN tickets last month", "which KB articles were cited most this quarter", "summarize escalations by asker".
+description: Generate a custom report from the local task data (and knowledge base). Reads tasks / people / knowledge, drafts a markdown report, writes it to reports/<timestamp>-<slug>.md so the newest report sorts to the top of the explorer. Use for anything more specific than the canned "Generate overview" — e.g. "tasks completed last month", "open tasks by assignee", "which KB articles changed this quarter".
 ---
 
 ## When to use
 
-Slash-invoked by the admin: `/report <what they want a report on>`. The instant, canned helpdesk overview is produced by the **Generate overview** button in the explorer (which shells out to `.claude/scripts/report-overview.mjs`); this skill is the freeform path for anything that button doesn't already cover.
+Slash-invoked by the admin: `/report <what they want a report on>`. The instant, canned task overview is produced by the **Generate overview** button in the explorer (which shells out to `.claude/scripts/report-overview.mjs`); this skill is the freeform path for anything that button doesn't already cover.
 
 Both paths write into the same `reports/` folder. Newest sorts to the top by filename.
 
@@ -15,33 +15,32 @@ Both paths write into the same `reports/` folder. Newest sorts to the top by fil
 
 Don't pepper the admin with questions. If they said "VPN tickets" you have enough — pick the obvious time window (last 30 days) and run with it; mention the choice in the report header so they can push back.
 
-Ask only when there's a real fork: "tickets" could mean only-escalated or all-statuses, "performance" could mean response time or KB-hit rate. One question, then go.
+Ask only when there's a real fork: "tasks" could mean only-open or all-statuses, "by person" could mean assignee or creator. One question, then go.
 
 ### 2. Read the data you need
 
 Everything is local files — use the built-in tools:
 
-- **Tickets** — `Glob "databases/tickets/*.json"`, `Read` each that matches the scope.
-- **Conversations** — for each relevant ticket, `databases/conversations/<ticketId>/msg-*.json`. Skip `*.server.*` (sync conflict shadows).
-- **People** — `databases/people/*.json` for asker lookups.
-- **KB** — `Glob "knowledge/**/*.md"` if the report is about KB coverage / cited articles.
+- **Tasks** — `Glob "tasks/*.md"`, `Read` each that matches the scope. Each task is a markdown file with YAML frontmatter: `status`, `title`, `assignee`, `createdAt`, `completedAt` (all ISO-8601 timestamps; the body after the closing `---` is free-form markdown). See `instructions/tasks.md` for the full shape.
+- **People** — `databases/people/*.json` for assignee lookups (optional; assignee is free-form text, so a People row isn't required).
+- **KB** — `Glob "knowledge/**/*.md"` if the report is about KB coverage / recently-changed articles.
 
-For a report scoped to a date range, filter by `createdAt` (for "tickets opened in window") or `updatedAt` (for "tickets touched in window"). Both are ISO-8601 strings — `Date.parse()`-comparable.
+For a report scoped to a date range, filter by `createdAt` (for "tasks opened in window") or `completedAt` (for "tasks finished in window"). Both are ISO-8601 strings — `Date.parse()`-comparable. `completedAt` is empty for tasks that have never reached the complete stage.
 
 ### 3. Draft the report
 
 Markdown. Lead with a `# Title` that explains what the report covers. Include a one-line generated-at note so the admin can tell which run they're looking at:
 
 ```markdown
-# VPN tickets — last 30 days
+# Tasks completed — last 30 days
 
-_Generated 2026-04-27T14:32:00Z — 12 tickets matching tag:vpn._
+_Generated 2026-04-27T14:32:00Z — 12 tasks completed in window._
 
-## By status
-| Status | Count |
+## By assignee
+| Assignee | Completed |
 | --- | --- |
-| escalated | 4 |
-| resolved | 8 |
+| Alice | 7 |
+| Bob | 5 |
 
 ## …
 ```
@@ -53,7 +52,7 @@ Use plain markdown tables. No HTML, no charts. If a section has no data, write `
 `Write` to `reports/<timestamp>-<slug>.md`:
 
 - **`<timestamp>`** = local time as `YYYY-MM-DD-HHmm` (e.g. `2026-04-27-1432`). Reverse-alphabetical sort on the filename puts the newest report at the top of the explorer with no metadata read.
-- **`<slug>`** = kebab-case derived from the report title, max ~40 chars. e.g. `vpn-tickets-last-30-days`.
+- **`<slug>`** = kebab-case derived from the report title, max ~40 chars. e.g. `tasks-completed-last-30-days`.
 
 If `reports/` doesn't exist yet, `Write` creates it.
 
@@ -62,11 +61,11 @@ If `reports/` doesn't exist yet, `Write` creates it.
 Show the path and the headline numbers so they don't have to open the file to know if it answered the question. Offer to refine in place — further iterations should `Edit` the same file rather than create a new timestamped one (a fresh prompt = fresh file; a refinement = edit-in-place).
 
 ```
-Wrote reports/2026-04-27-1432-vpn-tickets-last-30-days.md.
+Wrote reports/2026-04-27-1432-tasks-completed-last-30-days.md.
 
-12 VPN-tagged tickets in the window — 4 currently escalated, 8 resolved.
+12 tasks completed in the window — 7 by Alice, 5 by Bob.
 
-Want me to dig into the escalated ones, or break it down by asker?
+Want me to break it down by status, or look at what's still open?
 ```
 
 ## What this skill is *not* for

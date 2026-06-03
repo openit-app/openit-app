@@ -6,18 +6,13 @@ import {
   createWorkspace,
   entityWriteFile,
   fsRead,
-  intakeStart,
   listWorkspaces,
   projectBootstrap,
   stateLoad,
 } from "./lib/api";
-import {
-  injectIntoChat,
-} from "./lib/skillState";
 import { onFsChanged } from "./lib/fsWatcher";
 import { useToast } from "./Toast";
 import { Button, TitleRail, UpdateChip } from "./ui";
-import { StatusChips } from "./shell/StatusBar";
 import { useUpdateChecker } from "./lib/updater";
 import { syncSkillsToDisk, readSyncedPluginVersion } from "./lib/skillsSync";
 import { seedIfEmpty } from "./lib/seed";
@@ -137,8 +132,6 @@ function App() {
   const [repo, setRepo] = useState<string | null>(null);
   const [loaded, setLoaded] = useState(false);
   const [bypassOnboarding, setBypassOnboarding] = useState(false);
-  const [intakeServerUrl, setIntakeServerUrl] = useState<string | null>(null);
-  const [tunnelUrl, setTunnelUrl] = useState<string | null>(null);
 
   /// Open a vault: bootstrap its layout, run migrations, sync plugin,
   /// set as active repo. Shared by boot (registry has an active path)
@@ -174,16 +167,6 @@ function App() {
   }, []);
   const [paletteOpen, setPaletteOpen] = useState(false);
   const manualPullRef = useRef<(() => void) | null>(null);
-
-  // Kick off the share-intake flow — injects /share-intake into Claude,
-  // which walks the user through cloudflared setup + tunnel creation.
-  const triggerShareFlow = useCallback(async () => {
-    if (!repo) return;
-    if (tunnelUrl) return; // already sharing
-    injectIntoChat("/share-intake").catch((e) =>
-      console.warn("[app] inject /share-intake failed:", e),
-    );
-  }, [repo, tunnelUrl]);
 
   // Global cmd-K / ctrl-K listener — opens the command palette from
   // anywhere in the app. We use a window listener (not document
@@ -273,9 +256,9 @@ function App() {
 
   // getting-started.md's "Create sample dataset" CTA dispatches this
   // event (Viewer.tsx::ExternalAnchor catches `openit://create-samples`).
-  // Writes the bundled sample tickets/people/conversations/KB articles
-  // to disk. Per-target gate is just "is the local folder empty?" so
-  // re-clicks after content exists are no-ops, not clobber.
+  // Writes the bundled sample tasks/people/KB articles to disk.
+  // Per-file gate skips anything already on disk, so re-clicks after
+  // content exists are no-ops, not clobber.
   useEffect(() => {
     const onCreateSamples = () => {
       if (!repo) {
@@ -340,72 +323,6 @@ function App() {
       });
   }, []);
 
-  // Localhost ticket-intake server lifecycle. Tied to `repo` — start
-  // when a project opens, transparently restart with the new path on
-  // project switch. The Rust side enforces single-instance semantics:
-  // intakeStart awaits an internal stop_inner before binding, so calling
-  // it with a new repo cleanly swaps the previous server.
-  //
-  // Why no intakeStop in cleanup: a rapid repo change A → B can have
-  // intakeStart(A)'s promise still pending when B's effect runs. If
-  // A's cleanup called intakeStop and then A's promise resolved, the
-  // resolve handler would see `cancelled=true`. Worse: if the cleanup
-  // *and* a follow-up resolve both call intakeStop, the second one
-  // kills server B that B's effect just brought up. Trusting Rust's
-  // swap semantics + skipping cleanup-stop is simpler and race-free.
-  // App close kills the spawned task via the tokio runtime drop on
-  // process exit — no manual stop needed there either.
-  const intakeGenRef = useRef(0);
-  useEffect(() => {
-    // Bump the generation counter unconditionally — including when
-    // repo transitions to null. Without this, a still-pending
-    // intakeStart from the previous repo could resolve after we set
-    // the URL to null and overwrite it with a stale value (its gen
-    // would still match because we didn't increment).
-    const myGen = ++intakeGenRef.current;
-    if (!repo) {
-      setIntakeServerUrl(null);
-      return;
-    }
-    intakeStart(repo)
-      .then((url) => {
-        if (intakeGenRef.current !== myGen) return;
-        console.debug("[app] intake server up at", url);
-        setIntakeServerUrl(url);
-      })
-      .catch((e) => {
-        if (intakeGenRef.current !== myGen) return;
-        console.error("[app] intake start failed:", e);
-        setIntakeServerUrl(null);
-      });
-  }, [repo]);
-
-  // Poll the intake server for active tunnel URL. Runs every 3s so
-  // the pill updates promptly after /share-intake creates a tunnel.
-  useEffect(() => {
-    if (!repo || !intakeServerUrl) {
-      setTunnelUrl(null);
-      return;
-    }
-    let mounted = true;
-    const poll = async () => {
-      try {
-        const r = await fetch(`${intakeServerUrl}/share/status`);
-        if (!r.ok) return;
-        const j = await r.json();
-        if (mounted) setTunnelUrl(j.active ? j.url : null);
-      } catch {
-        if (mounted) setTunnelUrl(null);
-      }
-    };
-    poll();
-    const id = setInterval(poll, 3_000);
-    return () => {
-      mounted = false;
-      clearInterval(id);
-    };
-  }, [repo, intakeServerUrl]);
-
   const showOnboarding = loaded && !bypassOnboarding;
 
   if (!loaded) {
@@ -442,16 +359,7 @@ function App() {
     <>
     <main className="app">
       <TitleRail
-        left={
-          <>
-            <UpdateChip update={updateState} />
-            <StatusChips
-              intakeUrl={intakeServerUrl}
-              tunnelUrl={tunnelUrl}
-              onShare={triggerShareFlow}
-            />
-          </>
-        }
+        left={<UpdateChip update={updateState} />}
         right={
           <>
             <Button
@@ -480,7 +388,6 @@ function App() {
       <Shell
         key={repo ?? "none"}
         repo={repo}
-        intakeUrl={intakeServerUrl}
         registerManualPull={(fn) => { manualPullRef.current = fn; }}
       />
     </main>

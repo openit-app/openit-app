@@ -64,27 +64,27 @@ pub fn project_bootstrap(vault_path: Option<String>) -> Result<BootstrapResult, 
         fs::create_dir_all(&path).map_err(|e| format!("create_dir_all failed: {}", e))?;
 
         // Create standard subdirectories so they appear in the file
-        // explorer even if empty. The three core datastore dirs
-        // (tickets, people, conversations) are created upfront so the
-        // explorer + Claude both see them on day-one — without this,
-        // `databases/conversations/` only appeared after the first
-        // turn was logged, which felt incomplete to users browsing
-        // the layout.
+        // explorer even if empty. The core datastore dirs (people,
+        // access, assets) and the top-level `tasks/` dir are created
+        // upfront so the explorer + Claude both see them on day-one.
+        // (The helpdesk ticket model was retired in the 2026-06 pivot;
+        // `databases/tickets` + `databases/conversations` are no longer
+        // scaffolded — tasks replace them.)
         for dir in &[
             // `agents/` was retired in the May 2026 reorg — the
-            // workstation no longer surfaces it as a primitive and the
-            // intake server falls back to a built-in persona when the
-            // folder is absent. Existing vaults that have one are
-            // migrated below (`agents/` → `.openit/_legacy/agents/`).
+            // workstation no longer surfaces it as a primitive. Existing
+            // vaults that have one are migrated below (`agents/` →
+            // `.openit/_legacy/agents/`).
             "databases",
-            "databases/tickets",
             "databases/people",
-            "databases/conversations",
             "databases/access",
             "databases/assets",
+            // Top-level task list (markdown files at `tasks/task-*.md`).
+            // The inbox/focus of the workstation since the 2026-06 pivot.
+            "tasks",
             // Filestore split into purpose-specific collections.
-            // `attachments` is operational (per-ticket file uploads from
-            // the chat intake); `library` is curated (admin's go-to
+            // `attachments` is operational (per-thread file uploads);
+            // `library` is curated (admin's go-to
             // runbooks). `commands` holds the admin-facing slash
             // commands; `scripts` holds runnable automations. All four
             // share the filestore sync engine when cloud is connected.
@@ -102,11 +102,12 @@ pub fn project_bootstrap(vault_path: Option<String>) -> Result<BootstrapResult, 
             // /report command. Always create so the sidebar entry isn't
             // empty on a fresh project.
             "reports",
-            // Audit logs of agent turns (per-ticket folders with one
-            // JSON per turn). Promoted out of `.openit/agent-traces/`
+            // Audit logs of agent turns (one folder per run — keyed by
+            // a legacy internal id — with one JSON per turn). Promoted
+            // out of `.openit/agent-traces/`
             // in the 2026-05 restructure so admins can browse them
-            // alongside the other primitives. The intake server writes
-            // these; admins don't.
+            // alongside the other primitives. Written by agent runs;
+            // admins don't.
             "traces",
         ] {
             fs::create_dir_all(path.join(dir))
@@ -137,27 +138,8 @@ pub fn project_bootstrap(vault_path: Option<String>) -> Result<BootstrapResult, 
     // started putting their own content there is safe.
     let _ = fs::remove_dir(path.join("workflows"));
 
-    // First-launch `.openit/config.json` with defaults. Gives admins a
-    // discoverable surface to tune without reading docs — file is in
-    // the explorer's "show system files" view, structure is obvious.
-    // Idempotent: only writes when the file is missing, so admin
-    // overrides survive across app launches.
-    let openit_dir = path.join(".openit");
-    let config_path = openit_dir.join("config.json");
-    if !config_path.exists() {
-        let _ = fs::create_dir_all(&openit_dir);
-        if let Ok(json) =
-            serde_json::to_string_pretty(&crate::openit_config::OpenitConfig::default())
-        {
-            let _ = fs::write(&config_path, format!("{}\n", json));
-        }
-    }
-
     // First-launch Getting Started page. Idempotent: only writes when
     // the file is missing, so user edits survive across app launches.
-    // `{{INTAKE_URL}}` is substituted by the markdown viewer at render
-    // time (the URL changes per app launch — different OS-assigned
-    // port — so a static URL can't be baked in here).
     let getting_started_path = path.join("getting-started.html");
     if !getting_started_path.exists() {
         let getting_started = include_str!("getting-started.html");
@@ -283,9 +265,7 @@ pub fn project_bootstrap(vault_path: Option<String>) -> Result<BootstrapResult, 
     // (PIN-6606). The user-visible workstation no longer shows an
     // Agents tile, the routing layer no longer has an agent viewer,
     // and the only file that ever lived here in practice (a seeded
-    // `triage.md` from older app versions) is no longer used — the
-    // intake server's `load_agent` falls back to a built-in persona
-    // when the file is absent.
+    // `triage.md` from older app versions) is no longer used.
     //
     // Migration policy:
     //   - Empty `agents/` → delete outright.

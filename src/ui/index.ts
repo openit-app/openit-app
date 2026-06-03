@@ -17,9 +17,6 @@ export type {
 export { TabStrip, Tab } from "./TabStrip";
 export type { TabStripProps, TabStripVariant, TabProps } from "./TabStrip";
 
-export { IntakeChip } from "./IntakeChip";
-export type { IntakeChipProps } from "./IntakeChip";
-
 export { UpdateChip } from "./UpdateChip";
 
 export { Banner } from "./Banner";

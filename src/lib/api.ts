@@ -164,31 +164,6 @@ export async function listInstalledMcps(repo?: string): Promise<InstalledMcp[]> 
   return invoke("list_installed_mcps", { repo: repo ?? null });
 }
 
-// ---------------------------------------------------------------------------
-// Intake server
-// ---------------------------------------------------------------------------
-
-/// Start the localhost ticket-intake HTTP server scoped to `repo`.
-/// Returns the URL clients hit (e.g. `http://127.0.0.1:54123`). If a
-/// server is already running, it's stopped first so calling this on
-/// project switch transparently moves the server to the new repo.
-///
-/// Note: `intake_stop` and `intake_url` Tauri commands are still
-/// registered on the Rust side for future use (Phase 3b settings,
-/// programmatic stop), but no JS caller uses them yet — wrappers
-/// will be added when there's a real consumer.
-export async function intakeStart(repo: string): Promise<string> {
-  return invoke("intake_start", { repo });
-}
-
-/// Open a public HTTPS tunnel (via localhost.run, no signup) pointing
-/// at the local intake server. Returns the public URL (e.g.
-/// `https://abc123.lhr.life`). Pair with `intakeStart`: after the
-/// local server is up, hand its URL to this command. Tunnel dies
-/// when the SSH session ends — laptop sleep, app close, network
-/// loss. That ephemerality is intentional; it's the upgrade-to-cloud
-/// pitch.
-
 export type KbLocalFile = { filename: string; mtime_ms: number | null; size: number };
 export type KbFileState = {
   remote_version: string;

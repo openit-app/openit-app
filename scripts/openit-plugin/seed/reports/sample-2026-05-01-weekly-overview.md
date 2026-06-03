@@ -1,27 +1,26 @@
-# Weekly Helpdesk Overview — May 1, 2026
+# Weekly Team Overview — May 1, 2026
 
 ## Summary
 
-- **5 tickets** this week (3 resolved, 1 escalated, 1 open)
+- **5 tasks** this week (3 complete, 2 still open)
 - **2 new people** added to the directory
-- **0 Slack DMs** (Slack not yet connected)
 
-## Tickets
+## Tasks
 
-| Ticket | Subject | Status | Asker |
-|--------|---------|--------|-------|
-| sample-ticket-1 | VPN not connecting | Resolved | alice@acme.org |
-| sample-ticket-2 | New laptop request | Escalated | bob@acme.org |
-| sample-ticket-3 | Password reset | Resolved | carol@acme.org |
-| sample-ticket-4 | Printer not found | Open | dave@acme.org |
-| sample-ticket-5 | Software install | Resolved | eve@acme.org |
+| Task | Status | Assignee |
+|------|--------|----------|
+| Migrate the staging database | Complete | alice |
+| Draft the Q2 roadmap | In progress | bob |
+| Fix flaky CI on the web repo | Complete | carol |
+| Audit third-party API keys | To do | dave |
+| Write onboarding docs for new hires | Complete | eve |
 
 ## Highlights
 
-- The VPN article in the knowledge base resolved 2 tickets automatically
-- 1 ticket escalated because no matching KB article existed (new laptop request)
-- Consider adding a "New hardware request" article to the KB
+- Three tasks shipped this week — the staging migration unblocked two follow-ups
+- The Q2 roadmap is the only in-progress item; everything else is queued or done
+- Two open tasks (API key audit, onboarding docs) are unassigned-adjacent — pick them up or reassign
 
 ## Recommendation
 
-Connect Slack to enable DM-based ticket intake — most teams see 3x more tickets once Slack is live.
+Knock out the API key audit next — it's the oldest open task and blocks the security review.

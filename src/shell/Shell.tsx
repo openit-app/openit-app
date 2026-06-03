@@ -17,17 +17,12 @@ import { ChatSessionTabs, type ChatSessionTabsHandle } from "./ChatSessionTabs";
 import { ChatShellHeader } from "./ChatShellHeader";
 import { ProfilePrompt } from "./ProfilePrompt";
 import { PaneDragHandle } from "./PaneDragHandle";
-// StatusBar is no longer rendered at the bottom of the shell. The
-// status chips (project, cloud, intake, changes) now live in
-// the TitleRail at the top — see src/App.tsx.
 import { Workbench } from "./Workbench";
 import { LeftSidebarRail } from "./LeftSidebarRail";
 import { ConflictBanner } from "./ConflictBanner";
 import { FileExplorer } from "./FileExplorer";
 // EscalatedTicketBanner and AgentActivityBanner were removed alongside
-// the rest of the bespoke ticket UI (PIN-6605). The chat intake server
-// still writes ticket-shaped JSON to disk for backwards compatibility
-// but nothing in the renderer surfaces it.
+// the rest of the bespoke ticket UI (PIN-6605).
 import { Viewer, type ViewerSource } from "./Viewer";
 // Tab, TabStrip, PaneBody removed — left pane is now just FileExplorer.
 import { resolvePathToSource } from "./entityRouting";
@@ -149,14 +144,9 @@ function capStack(s: ViewerSource[]): ViewerSource[] {
 
 export function Shell({
   repo,
-  intakeUrl,
   registerManualPull,
 }: {
   repo: string | null;
-  /** Current intake server URL (or null if not yet started). Substituted
-   *  into `{{INTAKE_URL}}` placeholders in markdown content (e.g. the
-   *  welcome doc). */
-  intakeUrl: string | null;
   /** Register the manual-pull handler so the command palette can call it. */
   registerManualPull: (fn: () => void) => void;
 }) {
@@ -596,15 +586,13 @@ export function Shell({
     };
   }, [fsTick, repo]);
 
-  // Re-fetch the live agent trace whenever the fs watcher ticks. The
-  // chat-intake server writes a partial trace file after each event
-  // during a turn (see `LiveTracePersister` in `intake.rs`); this
-  // effect pulls the latest snapshot in so the timeline animates
-  // through the agent's actions instead of waiting for the turn to
-  // finish. The Ben-feedback batch removed the ticket-shaped UI but
-  // kept the intake server, which still writes traces — anyone who
-  // navigates to a `traces/<id>/<stamp>.json` file via the file
-  // explorer should still get the live animation.
+  // Re-fetch the live agent trace whenever the fs watcher ticks. An
+  // agent run writes a partial trace file after each event during a
+  // turn; this effect pulls the latest snapshot in so the timeline
+  // animates through the agent's actions instead of waiting for the
+  // turn to finish. `traces/<id>/<stamp>.json` files opened via the
+  // file explorer still get the live animation. (`ticketId` below is
+  // a legacy internal trace-folder key, not a helpdesk ticket.)
   useEffect(() => {
     if (!repo || fsTick === 0) return;
     const current = sourceRef.current;
@@ -802,7 +790,6 @@ export function Shell({
                 source={source}
                 repo={repo ?? ""}
                 fsTick={fsTick}
-                intakeUrl={intakeUrl}
                 welcomeFlashKey={welcomeFlashKey}
                 onOpenPath={async (path) => {
                   const resolved = await resolvePathToSource(path, repo);

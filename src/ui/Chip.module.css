@@ -157,9 +157,8 @@ button.dashed:hover:not(:disabled) {
 }
 
 /* Segmented chip — a `[label] [value]` pair rendered as one visual
-   entity. Used by IntakeChip and SlackChip. The wrapper paints the
-   shared background; the label is italic-serif and divided from the
-   button(s) by a thin border. */
+   entity. The wrapper paints the shared background; the label is
+   italic-serif and divided from the button(s) by a thin border. */
 .segment {
   display: inline-flex;
   align-items: stretch;

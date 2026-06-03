@@ -85,7 +85,6 @@ export function Viewer({
   source,
   repo,
   fsTick,
-  intakeUrl,
   welcomeFlashKey,
   onOpenPath,
   onShowSource,
@@ -98,8 +97,6 @@ export function Viewer({
   source: ViewerSource;
   repo: string;
   fsTick?: number;
-  /** Local intake server URL for `{{INTAKE_URL}}` substitution. */
-  intakeUrl?: string | null;
   /** Bumped by the parent when the user clicks "Getting Started" while the
    *  welcome doc is already the active source. Triggers a one-shot flash
    *  animation so the click doesn't look like a no-op. */
@@ -1183,15 +1180,14 @@ export function Viewer({
         );
       }
       if (mode === "rendered" && isMarkdown(source.path)) {
-        // Substitute live template tokens before rendering. {{INTAKE_URL}}
-        // is the only one for now — used by the welcome doc to link to
-        // the dynamic intake URL that changes per app launch. If the
-        // server isn't running yet (intakeUrl is null), strip the link
-        // gracefully so we don't render a broken `[text](null)`.
-        const ctaUrl = intakeUrl;
-        const rendered = ctaUrl
-          ? content.split("{{INTAKE_URL}}").join(ctaUrl)
-          : content.replace(/\[([^\]]+)\]\(\{\{INTAKE_URL\}\}\)/g, "$1");
+        // Legacy `{{INTAKE_URL}}` token (from the removed chat-intake
+        // server) no longer has a live value. Strip any lingering token
+        // from old on-disk content so it never renders as a broken link
+        // or raw placeholder.
+        const rendered = content
+          .replace(/\[([^\]]+)\]\(\{\{INTAKE_URL\}\}\)/g, "$1")
+          .split("{{INTAKE_URL}}")
+          .join("");
         // Re-mount the markdown subtree on flashKey change so the CSS
         // animation re-fires. Combining with a class is enough — no
         // imperative DOM poking.
@@ -1718,7 +1714,7 @@ export function Viewer({
       if (source.folders.length === 0) {
         return (
           <div className="viewer-summary">
-            <p className="summary-desc">No agent traces yet. Traces appear here when the chat intake agent runs.</p>
+            <p className="summary-desc">No agent traces yet. Traces appear here when an agent runs.</p>
           </div>
         );
       }

@@ -38,8 +38,8 @@ describe("routeFile", () => {
 
   describe("commands/", () => {
     it("expands name to .claude/skills/<name>/SKILL.md", () => {
-      expect(routeFile("commands/ai-intake.md", slug)).toEqual({
-        subdir: ".claude/skills/ai-intake",
+      expect(routeFile("commands/report.md", slug)).toEqual({
+        subdir: ".claude/skills/report",
         filename: "SKILL.md",
         substituteSlug: false,
       });

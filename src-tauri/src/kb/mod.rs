@@ -142,9 +142,8 @@ pub async fn kb_download_to_local(
 // `filestores/library/` and `.openit/fs-state.json`.
 //
 // Layout split (2026-04-27):
-//   filestores/attachments/<ticketId>/<filename>  — operational
-//     uploads from the chat intake; written by the intake server, not
-//     these commands. Each thread owns its subfolder.
+//   filestores/attachments/<id>/<filename>  — operational
+//     uploads grouped by an opaque id. Each thread owns its subfolder.
 //   filestores/library/<filename>  — curated docs/scripts the admin
 //     keeps handy. Synced via the existing `openit-*` cloud filestore
 //     collection. Default path that `fs_store_*` commands here target.
