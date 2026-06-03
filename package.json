@@ -19,16 +19,13 @@
     "cleanslate": "node scripts/cleanslate.mjs",
     "clear-cloud-slate": "node scripts/clear-cloud-slate.mjs",
     "cleanup-cloud": "scripts/cleanup-cloud.sh",
-    "devmode": "node scripts/devmode.mjs",
-    "build:slack-listener": "node scripts/build-slack-listener.mjs"
+    "devmode": "node scripts/devmode.mjs"
   },
   "dependencies": {
     "@fontsource-variable/source-serif-4": "^5.2.9",
     "@fontsource/fraunces": "^5.2.9",
     "@fontsource/inter": "^5.2.8",
     "@fontsource/jetbrains-mono": "^5.2.8",
-    "@slack/socket-mode": "^2.0.4",
-    "@slack/web-api": "^7.10.0",
     "@tauri-apps/api": "^2.11.0",
     "@tauri-apps/plugin-clipboard-manager": "^2.3.2",
     "@tauri-apps/plugin-dialog": "^2.7.1",

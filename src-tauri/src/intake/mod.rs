@@ -85,20 +85,6 @@ struct RunningServer {
 enum TransportMeta {
     #[default]
     Chat,
-    Slack {
-        workspace_id: String,
-        /// The DM channel id (starts with `D…`). Used by the listener
-        /// for outbound replies.
-        channel_id: String,
-        user_id: String,
-        /// Slack thread anchor — the `ts` of the top-level DM that
-        /// kicked off this ticket. The listener replies in this
-        /// thread, and a later in-thread reply from the asker is the
-        /// signal to resume this ticket. Optional so older callers
-        /// (and the chat transport) don't need to know about it.
-        #[serde(default, skip_serializing_if = "Option::is_none")]
-        thread_ts: Option<String>,
-    },
 }
 
 /// One chat session — held in-memory by the server. Lost on restart;
@@ -330,79 +316,8 @@ fn build_router(repo: PathBuf, local_port: u16) -> Router {
         .route("/share/start", post(share_start))
         .route("/share/stop", post(share_stop))
         .route("/share/status", get(share_status))
-        .route("/skill/slack-send-intro", post(skill_slack_send_intro))
         .layer(axum::extract::DefaultBodyLimit::max(MAX_UPLOAD_BYTES))
         .with_state(state)
-}
-
-#[derive(Deserialize)]
-struct SlackSendIntroBody {
-    /// Email of the Slack user to DM. Resolved to a user id via
-    /// users.lookupByEmail.
-    email: String,
-    /// Optional override; defaults to the canonical intro line so
-    /// every test DM reads the same.
-    text: Option<String>,
-}
-
-const DEFAULT_INTRO_TEXT: &str =
-    "Hi! I'm the OpenIT triage bot. DM me a question — e.g. \"how do I reset my Mac password?\" — and I'll either answer from your knowledge base or escalate to your IT team.\n\nEach new DM starts a fresh ticket. To continue a conversation, reply inside the same thread; to start a new one, just send a new top-level DM.";
-
-async fn skill_slack_send_intro(Json(body): Json<SlackSendIntroBody>) -> Response {
-    // Bot token lives in a process-global Arc that `slack.rs`
-    // updates on listener bring-up / exit. No AppHandle needed —
-    // we just lock the global, clone the string, and call the
-    // shared HTTP helpers.
-    let bot_token = match crate::slack::current_bot_token() {
-        Some(t) => t,
-        None => {
-            return (
-                StatusCode::FAILED_DEPENDENCY,
-                Json(serde_json::json!({
-                    "ok": false,
-                    "error": "slack listener not running — connect Slack first",
-                })),
-            )
-                .into_response();
-        }
-    };
-    let http = match reqwest::Client::builder()
-        .timeout(std::time::Duration::from_secs(15))
-        .build()
-    {
-        Ok(c) => c,
-        Err(e) => {
-            return (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                Json(serde_json::json!({
-                    "ok": false,
-                    "error": format!("http client init: {}", e),
-                })),
-            )
-                .into_response();
-        }
-    };
-    let user_id =
-        match crate::slack::slack_lookup_user_id(&http, &bot_token, body.email.trim()).await {
-            Ok(id) => id,
-            Err(e) => {
-                return (
-                    StatusCode::BAD_REQUEST,
-                    Json(serde_json::json!({"ok": false, "error": e})),
-                )
-                    .into_response();
-            }
-        };
-    let text = body.text.unwrap_or_else(|| DEFAULT_INTRO_TEXT.to_string());
-    if let Err(e) = crate::slack::slack_post_message(&http, &bot_token, &user_id, text.trim()).await
-    {
-        return (
-            StatusCode::BAD_GATEWAY,
-            Json(serde_json::json!({"ok": false, "error": e})),
-        )
-            .into_response();
-    }
-    (StatusCode::OK, Json(serde_json::json!({"ok": true}))).into_response()
 }
 
 /// Hard cap on a single uploaded attachment. 25 MB is plenty for the
@@ -424,16 +339,14 @@ struct ChatStartReq {
     /// Optional. When omitted, the session is treated as the default
     /// localhost web chat (`TransportMeta::Chat`) — preserves the
     /// existing browser client's payload exactly. Non-web transports
-    /// (e.g. the Slack listener) populate this so the ticket stub
-    /// gets the right `askerChannel` + provenance fields on first
-    /// turn.
+    /// populate this so the ticket stub gets the right `askerChannel`
+    /// + provenance fields on first turn.
     #[serde(default)]
     transport: Option<TransportMeta>,
     /// Optional. When set, the server reuses an existing on-disk
     /// ticket id instead of generating a new one. Used by transports
-    /// that persist their session map across restarts (Slack
-    /// listener) so a listener restart doesn't fork an in-progress
-    /// conversation into a second ticket.
+    /// that persist their session map across restarts, so a restart
+    /// doesn't fork an in-progress conversation into a second ticket.
     ///
     /// Validation: the ticket file must exist AND its `asker` field
     /// must equal the request's `email`. Any mismatch returns 400 —
@@ -2117,9 +2030,8 @@ async fn ensure_responding_stub(
         let subject = first_line_truncated(user_message, 80);
         let asker_channel = match transport {
             TransportMeta::Chat => "chat",
-            TransportMeta::Slack { .. } => "slack",
         };
-        let mut row = serde_json::json!({
+        let row = serde_json::json!({
             "subject": subject,
             "description": user_message,
             "asker": email,
@@ -2130,34 +2042,6 @@ async fn ensure_responding_stub(
             "createdAt": now,
             "updatedAt": now,
         });
-        if let TransportMeta::Slack {
-            workspace_id,
-            channel_id,
-            user_id,
-            thread_ts,
-        } = transport
-        {
-            if let Some(obj) = row.as_object_mut() {
-                obj.insert(
-                    "slackWorkspaceId".to_string(),
-                    serde_json::Value::String(workspace_id.clone()),
-                );
-                obj.insert(
-                    "slackChannelId".to_string(),
-                    serde_json::Value::String(channel_id.clone()),
-                );
-                obj.insert(
-                    "slackUserId".to_string(),
-                    serde_json::Value::String(user_id.clone()),
-                );
-                if let Some(ts) = thread_ts {
-                    obj.insert(
-                        "slackThreadTs".to_string(),
-                        serde_json::Value::String(ts.clone()),
-                    );
-                }
-            }
-        }
         let json =
             serde_json::to_string_pretty(&row).map_err(|e| format!("serialize ticket: {}", e))?;
         if let Some(parent) = ticket_path.parent() {
@@ -2766,9 +2650,8 @@ mod tests {
         std::fs::write(&ticket_path, serde_json::to_string_pretty(&row).unwrap()).unwrap();
 
         // Asker sends a follow-up. Pass TransportMeta::Chat to match
-        // the seeded ticket's askerChannel — this argument was added
-        // by the slack-channel-local branch so non-web transports
-        // (Slack listener etc.) can stamp ticket provenance on first
+        // the seeded ticket's askerChannel — the transport argument
+        // lets non-web transports stamp ticket provenance on first
         // turn without a follow-up Edit.
         ensure_responding_stub(
             repo,

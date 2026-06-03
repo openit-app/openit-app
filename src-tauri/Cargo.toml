@@ -36,12 +36,5 @@ uuid = { version = "1", features = ["v4"] }
 url = "2"
 sha2 = "0.11"
 
-# Used by src/slack.rs for SIGTERM-then-SIGKILL on the Node listener.
-# Already pulled in transitively; pinning a minor version here makes
-# the dependency explicit and shields the call sites from a
-# transitive bump that drops the API.
-[target.'cfg(unix)'.dependencies]
-libc = "0.2"
-
 [dev-dependencies]
 tempfile = "3"

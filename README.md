@@ -105,7 +105,6 @@ openit-app/
 │   └── src/
 │       ├── intake/      # Chat intake HTTP server + prompt builder
 │       ├── kb/          # Knowledge base sync (local + cloud)
-│       ├── slack/       # Slack integration
 │       └── ...          # PTY, file watching, git ops, tools
 ├── scripts/
 │   └── openit-plugin/   # Claude plugin — skills, scripts, schemas, seed data

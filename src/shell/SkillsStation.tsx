@@ -38,7 +38,6 @@ const FEATURED_COMMANDS: string[] = [
   "onboard",                 // Onboarding new employees
   "offboard",                // Offboarding departing employees
   "salesforce-data-quality",  // Data quality / cleanup in Salesforce
-  "slack-to-knowledge",             // Knowledge trapped in Slack
   "drive-search",             // Information scattered across Drive
   "asset-tracking",           // Asset tracking
   "pipeline-outreach",        // Recurring reporting / outreach

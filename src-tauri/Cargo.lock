@@ -2920,7 +2920,6 @@ dependencies = [
  "anyhow",
  "axum",
  "keyring",
- "libc",
  "notify",
  "parking_lot",
  "portable-pty",

@@ -9,20 +9,10 @@ import {
   intakeStart,
   listWorkspaces,
   projectBootstrap,
-  slackConfigRead,
-  slackListenerStart,
-  slackListenerStatus,
-  slackListenerStop,
   stateLoad,
-  type SlackConfig,
-  type SlackStatus,
 } from "./lib/api";
 import {
-  type DockKind,
-  type SkillState,
   injectIntoChat,
-  skillStateClear,
-  skillStateRead,
 } from "./lib/skillState";
 import { onFsChanged } from "./lib/fsWatcher";
 import { useToast } from "./Toast";
@@ -149,14 +139,6 @@ function App() {
   const [bypassOnboarding, setBypassOnboarding] = useState(false);
   const [intakeServerUrl, setIntakeServerUrl] = useState<string | null>(null);
   const [tunnelUrl, setTunnelUrl] = useState<string | null>(null);
-  const [slackConfig, setSlackConfig] = useState<SlackConfig | null>(null);
-  const [slackStatus, setSlackStatus] = useState<SlackStatus | null>(null);
-  // Which secret-paste affordance the chat-anchored SkillActionDock
-  // should surface, if any. Driven by the connect-slack skill via
-  // `.openit/skill-state/connect-slack.json` — Claude writes
-  // `{"skill":"connect-slack","dock":"bot-token-paste"|null}` and the
-  // fs-watcher below picks it up.
-  const [dock, setDock] = useState<DockKind | undefined>(undefined);
 
   /// Open a vault: bootstrap its layout, run migrations, sync plugin,
   /// set as active repo. Shared by boot (registry has an active path)
@@ -190,26 +172,8 @@ function App() {
       setLoaded(true);
     }
   }, []);
-  // xoxb- token staged in App-level state between the bot-token-paste
-  // and app-token-paste moments. Survives re-renders / unmounts of
-  // the SkillActionDock. In-memory only — Keychain takes over after
-  // slackConnect succeeds.
-  const [stagedSlackBotToken, setStagedSlackBotToken] = useState<string | null>(null);
   const [paletteOpen, setPaletteOpen] = useState(false);
   const manualPullRef = useRef<(() => void) | null>(null);
-
-  // Single-source-of-truth handler for "kick off the Slack flow":
-  //   inject /connect-slack into Claude.
-  // Used by the cmd-K palette AND the bottom-bar Slack pill so both
-  // surfaces behave identically.
-  const triggerSlackFlow = useCallback(async () => {
-    if (!repo) return;
-    // If already connected, don't re-trigger the setup flow.
-    if (slackConfig) return;
-    injectIntoChat("/connect-slack").catch((e) =>
-      console.warn("[app] inject /connect-slack failed:", e),
-    );
-  }, [repo, slackConfig]);
 
   // Kick off the share-intake flow — injects /share-intake into Claude,
   // which walks the user through cloudflared setup + tunnel creation.
@@ -242,7 +206,7 @@ function App() {
   const toast = useToast();
 
   // Watch `.openit/flash.json` for ephemeral confirmations posted by
-  // plugin scripts ("✓ Manifest copied", "✓ Slack disconnected", etc).
+  // plugin scripts ("✓ Manifest copied", etc).
   // The script overwrites the file with a fresh `{message, ts}`; we
   // de-dupe by `ts` so a re-render doesn't replay the same toast.
   const lastFlashTsRef = useRef<number>(0);
@@ -292,172 +256,6 @@ function App() {
       unlistenFn?.();
     };
   }, [repo, toast]);
-
-  // Watch the connect-slack skill side-channel for dock state. The
-  // skill writes `{"skill":"connect-slack","dock":"bot-token-paste"|...}`
-  // when it reaches a paste step in chat; the dock under the chat
-  // surfaces the matching button. When dock is null/absent, the dock
-  // renders nothing.
-  const ACTIVE_DOCK_SKILL = "connect-slack";
-  useEffect(() => {
-    if (!repo) {
-      setDock(undefined);
-      return;
-    }
-    let mounted = true;
-    const refresh = () =>
-      skillStateRead(repo, ACTIVE_DOCK_SKILL)
-        .then((s: SkillState | null) => {
-          if (mounted) setDock(s?.dock ?? null);
-        })
-        .catch((e) => console.warn("[app] dock state read failed:", e));
-    // On app startup, clear any persisted paste-state. A bot/app-token-
-    // paste dock value only makes sense while the Claude session that
-    // wrote it is alive and waiting for a token. After a restart, that
-    // session is gone — the persisted value would spuriously surface a
-    // paste button before the user re-invokes /connect-slack. Reading
-    // first so we only clear when there's actually stale paste-state
-    // (avoids a write on every launch).
-    skillStateRead(repo, ACTIVE_DOCK_SKILL)
-      .then((s) => {
-        if (!mounted) return;
-        if (s?.dock === "bot-token-paste" || s?.dock === "app-token-paste") {
-          skillStateClear(repo, ACTIVE_DOCK_SKILL).catch((e) =>
-            console.warn("[app] stale dock clear failed:", e),
-          );
-          setDock(null);
-        } else {
-          setDock(s?.dock ?? null);
-        }
-      })
-      .catch((e) => console.warn("[app] dock startup read failed:", e));
-    let unlistenFn: (() => void) | null = null;
-    onFsChanged((paths) => {
-      if (paths.some((p) => fsNorm(p).includes("/.openit/skill-state/"))) {
-        refresh();
-      }
-    })
-      .then((un) => {
-        if (mounted) unlistenFn = un;
-        else un();
-      })
-      .catch((e) => console.warn("[app] dock watcher init failed:", e));
-    return () => {
-      mounted = false;
-      unlistenFn?.();
-    };
-  }, [repo]);
-
-  // Slack lifecycle:
-  //
-  //   1. On project open (repo set), read .openit/slack.json. If
-  //      present, auto-start the listener as soon as the intake
-  //      server URL is also known. Both are required because the
-  //      listener needs OPENIT_INTAKE_URL.
-  //   2. While a project is open, poll status every 5s so the
-  //      header pill flips between running/stopped without user
-  //      action. Cheap call — just reads supervisor state.
-  //   3. On project switch / null repo: stop the listener and clear
-  //      state. The supervisor's stop is idempotent (safe to call
-  //      when nothing's running), so no need to gate on
-  //      slackStatus?.running.
-  const slackOrgId = "local";
-  // Declared up here (rather than next to the auto-start effect
-  // below) because the slack-config effect's fs-watcher resets it
-  // when slack.json disappears, so the next reconnect can re-arm
-  // auto-start. Both effects close over the same ref.
-  const slackAutoStartedRef = useRef<string | null>(null);
-  useEffect(() => {
-    if (!repo) {
-      setSlackConfig(null);
-      setSlackStatus(null);
-      // Best-effort: stop a listener that might still be pointed at
-      // the previous project. Errors are fine to ignore — if there
-      // was nothing running, stop is a no-op.
-      slackListenerStop().catch(() => {});
-      return;
-    }
-    let mounted = true;
-    const refreshConfig = () =>
-      slackConfigRead(repo)
-        .then((cfg) => {
-          if (mounted) setSlackConfig(cfg);
-        })
-        .catch((e) => console.warn("[app] slack config read failed:", e));
-    refreshConfig();
-    const refreshStatus = () =>
-      slackListenerStatus()
-        .then((s) => {
-          if (mounted) setSlackStatus(s);
-        })
-        .catch(() => {});
-    refreshStatus();
-    const id = setInterval(refreshStatus, 5_000);
-    // Re-read slack.json whenever it changes on disk — covers the
-    // disconnect-script path, where the script removes the file
-    // (and tokens, and listener) without going through the FE. The
-    // refresh flips slackConfig to null, which in turn flips the
-    // status pill from "connected" back to the unconnected pill.
-    let unlistenFn: (() => void) | null = null;
-    onFsChanged((paths) => {
-      if (paths.some((p) => {
-        const n = fsNorm(p);
-        return n.endsWith("/.openit/slack.json") || n.includes("/.openit/skill-state/connect-slack");
-      })) {
-        refreshConfig();
-        // Reset the auto-start latch so the next reconnect (if any)
-        // is allowed to bring the listener back up.
-        slackAutoStartedRef.current = null;
-      }
-    })
-      .then((un) => {
-        if (mounted) unlistenFn = un;
-        else un();
-      })
-      .catch((e) => console.warn("[app] slack.json watcher init failed:", e));
-    return () => {
-      mounted = false;
-      clearInterval(id);
-      unlistenFn?.();
-    };
-  }, [repo]);
-
-  // Auto-start: when both repo and intakeServerUrl are known and a
-  // slack config exists, start the listener — exactly ONCE per
-  // (repo, intakeUrl) pair. We deliberately do NOT re-fire when
-  // the supervisor flips back to stopped: a listener that crashes
-  // because of a bad token would thrash-restart every 5s. After
-  // an unexpected exit, the user clicks the Slack pill to re-run
-  // /connect-slack; Claude surfaces the captured exit error in
-  // chat and the dock's app-token field lets the user re-paste.
-  useEffect(() => {
-    if (!repo || !intakeServerUrl || !slackConfig) return;
-    const key = `${repo}|${intakeServerUrl}`;
-    if (slackAutoStartedRef.current === key) return;
-    slackAutoStartedRef.current = key;
-    let cancelled = false;
-    (async () => {
-      try {
-        await slackListenerStart({
-          repo,
-          intakeUrl: intakeServerUrl,
-          orgId: slackOrgId,
-        });
-        if (!cancelled) {
-          // Re-read status immediately so the pill flips green
-          // without waiting for the 5s interval tick.
-          slackListenerStatus()
-            .then((s) => setSlackStatus(s))
-            .catch(() => {});
-        }
-      } catch (e) {
-        console.warn("[app] slack listener auto-start failed:", e);
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, [repo, intakeServerUrl, slackConfig, slackOrgId]);
 
   useEffect(() => {
     // Stop the WebView from navigating to a dropped file when the drop
@@ -651,9 +449,6 @@ function App() {
               intakeUrl={intakeServerUrl}
               tunnelUrl={tunnelUrl}
               onShare={triggerShareFlow}
-              slackConfig={slackConfig}
-              slackStatus={slackStatus}
-              onConnectSlack={triggerSlackFlow}
             />
           </>
         }
@@ -686,10 +481,6 @@ function App() {
         key={repo ?? "none"}
         repo={repo}
         intakeUrl={intakeServerUrl}
-        dock={dock}
-        slackOrgId={slackOrgId}
-        stagedSlackBotToken={stagedSlackBotToken}
-        onStagedSlackBotTokenChange={setStagedSlackBotToken}
         registerManualPull={(fn) => { manualPullRef.current = fn; }}
       />
     </main>
@@ -697,7 +488,6 @@ function App() {
       open={paletteOpen}
       onClose={() => setPaletteOpen(false)}
       repo={repo}
-      onConnectSlack={triggerSlackFlow}
       onManualPull={() => manualPullRef.current?.()}
       onOpenWelcome={() => window.dispatchEvent(new CustomEvent("openit:open-welcome"))}
       onShowDraft={(source) => window.dispatchEvent(new CustomEvent("openit:show-draft", { detail: source }))}
