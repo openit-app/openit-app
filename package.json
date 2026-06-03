@@ -52,7 +52,7 @@
     "@testing-library/react": "^16.3.2",
     "@types/react": "^19.2.15",
     "@types/react-dom": "^19.1.6",
-    "@vitejs/plugin-react": "^4.6.0",
+    "@vitejs/plugin-react": "^6.0.2",
     "@vitest/ui": "^4.1.7",
     "esbuild": "^0.28.0",
     "fallow": "^2.83.0",
