@@ -4,9 +4,9 @@
 
 Status badge: Public Beta · macOS · Open Source
 
-**An IT helpdesk that runs on Claude Code.**
+**A shared workspace that runs on Claude Code.**
 
-Lede: Claude handles tickets, provisions access, and learns how you work — so you spend your day on the hard problems, not the queue.
+Lede: Your team shares knowledge, reports, commands, and files — and assigns each other tasks. Claude does the work in plain English, so the answers you figure out once are there for everyone, forever.
 
 CTAs:
 - Download for macOS — Beta · Apple Silicon + Intel
@@ -14,15 +14,15 @@ CTAs:
 
 ### Architecture block
 
-**For IT · Desktop app**
-Run Claude Code on your desktop.
+**One vault · On disk**
+A folder your whole team shares.
 
-Install OpenIT on your Mac. Claude works alongside you in the terminal — reading tickets, shaping workflows, writing connectors.
+Put the vault in a synced folder — Google Drive, Dropbox, git, whatever you already use. Knowledge, reports, commands, files, and tasks all live there as plain files you own.
 
-**For employees · Chat**
-Ask in Slack, Teams, or email.
+**Plain English · One chat**
+Tell Claude what you need.
 
-No new app to learn. Employees ask wherever they already work — Claude answers, or routes it to you.
+No new app to learn. Ask Claude in plain English — write it up, run it, assign it — and the result lands in the vault for the rest of the team.
 
 ---
 
@@ -30,7 +30,7 @@ No new app to learn. Employees ask wherever they already work — Claude answers
 
 ### Configure in Claude Code. Not UI.
 
-Every other ITSM is configured the same way: clicky admin screens, proprietary workflow builders, vendor agents you have to learn. The configuration is theirs.
+Every other tool is configured the same way: clicky admin screens, proprietary workflow builders, vendor agents you have to learn. The configuration is theirs — and so is your knowledge, locked in their database.
 
 > Claude Code is the operating system.
 
@@ -38,40 +38,39 @@ OpenIT inverts it. You configure in plain English with Claude Code; the result i
 
 ---
 
-## §02 — Native access
+## §02 — One shared vault
 
-### Every tool. One chat.
+### One vault. Your whole team.
 
-Stop logging into five dashboards. Claude has direct access to every system you use — so you ask in one place, and it acts everywhere.
+Stop scattering what you know across docs, threads, and people's heads. Everything your team shares lives in one vault — plain files in a synced folder you already use.
 
-- **Identity** — Okta, Google Workspace, Microsoft Entra
-- **Chat** — Slack, Microsoft Teams
-- **Endpoints** — Jamf, Kandji, Intune
-- **Cloud** — AWS, GCP, Azure
-- **Code** — GitHub, GitLab
-- **Tickets & docs** — Jira, Linear, Notion, Confluence
-- **Anything else** — Claude writes the integration if it's missing
+- **Knowledge** — how-tos and answers, written once and reused
+- **Reports** — generated from your data, saved as Markdown
+- **Commands** — reusable workflows anyone can run
+- **Files** — the attachments, exports, and assets you share
+- **Tasks** — assign each other work; no ticketing ceremony
+- **People** — who's on the team and what they own
 
-No middleware. No glue scripts. No tab-switching. The investigation, the fix, and the article that documents it all happen in one conversation.
+No middleware. No vendor database. The vault is a folder — sync it, `git init` it, back it up. It's yours.
 
 ---
 
 ## §03 — How it learns
 
-### Answer once. Claude handles the next one.
+### Answer once. Your team reuses it.
 
-The first time someone asks something Claude hasn't seen, it escalates to you. After you answer, the moment is captured as a saved automation — so the next time, Claude just handles it.
+The first time someone works something out, Claude captures the answer **and** the workflow — as a knowledge article or a runnable command. The next time anyone on the team hits the same thing, the answer's already there.
 
 The chat (illustrated):
-- *Marcus:* "i can't log in"
-- *OpenIT (escalating to you):* haven't seen this one before
-- *You:* "reset your password at company.okta.com/reset"
-- **✓ Automation saved — `skills/login-reset.md` · KB article published**
+- *Marcus:* "how do we cut a release again?"
+- *OpenIT (first time):* haven't written this down yet — walk me through it
+- *You:* "bump the version, tag it, push, the workflow does the rest"
+- **✓ Saved — `knowledge/cutting-a-release.md` · command `/release` published**
 - *(three days later)*
-- *Priya:* "can't log in either, what do i do"
-- *OpenIT (auto-resolved):* Reset your password at company.okta.com/reset.
+- *Priya:* "need to ship a release, what's the process"
+- *OpenIT:* Here's how we cut a release — or run `/release` and I'll walk you through it.
 
-Every question Claude can't answer becomes a saved automation. Two weeks in, your queue runs differently.
+Every answer becomes a file the whole team shares. Two weeks in, you stop repeating yourselves.
 
 ---
 
@@ -79,29 +78,27 @@ Every question Claude can't answer becomes a saved automation. Two weeks in, you
 
 ### Done once. Saved forever.
 
-Each fix becomes a file you can read, edit, and reuse — plain instructions when that's enough, code when it's not.
+Each thing you work out becomes a file you can read, edit, and reuse — plain instructions when that's enough, code when it's not.
 
-**Skill (plain English) — `skills/login-reset.md`**
+**Knowledge (plain English) — `knowledge/cutting-a-release.md`**
 ```
-# Login & password reset
+# Cutting a release
 
-When someone says they can't log in:
-1. Confirm their email is on file
-2. Send the reset link from company.okta.com/reset
-3. If no email arrives in 5 min, escalate
+1. Bump the version in all three files
+2. Tag it and push
+3. The release workflow builds, signs, and publishes
 ```
 
-**Script (for code) — `scripts/offboard.ts`**
+**Script (for code) — `scripts/weekly-report.ts`**
 ```
-async function offboard(email) {
-  await okta.deactivate(email)
-  await jamf.unenroll(email)
-  await drive.transferOwnership(email)
-  await slack.archiveDMs(email)
+async function weeklyReport() {
+  const tasks = await vault.tasks.closedThisWeek()
+  const md = render(tasks)
+  await vault.reports.write("weekly", md)
 }
 ```
 
-Claude builds them. Then runs them — when you ask, or automatically when a familiar request comes in.
+Claude builds them. Then runs them — when anyone on the team asks, or on a schedule.
 
 ---
 
@@ -109,9 +106,9 @@ Claude builds them. Then runs them — when you ask, or automatically when a fam
 
 ### Try it on your Mac. Deploy when you trust it.
 
-Run OpenIT on your laptop. Real Claude Code, real integrations, real tickets — no paid sandbox.
+Run OpenIT on your laptop. Real Claude Code, real integrations, real work — no paid sandbox.
 
-When it earns your trust, sync to Pinkfish. The same project runs in cloud, 24/7. Slack and Teams stay live, agents act while you sleep, public links stay reachable.
+When it earns your trust, sync to Pinkfish. The same vault runs in cloud, 24/7 — agents act while you sleep and the team's knowledge stays in reach from anywhere.
 
 ---
 

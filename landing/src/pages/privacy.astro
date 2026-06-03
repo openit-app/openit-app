@@ -7,10 +7,10 @@ import BaseLayout from "../layouts/BaseLayout.astro";
 
   <h2>What stays on your machine</h2>
   <p>
-    Everything in your OpenIT vault lives locally — tickets, knowledge base
-    articles, people, agents, skills, scripts, and conversation history.
-    Nothing leaves your Mac unless you explicitly share it or connect a
-    third-party integration (like Slack).
+    Everything in your OpenIT vault lives in files you own — tasks, knowledge
+    articles, reports, commands, files, people, agents, scripts, and
+    conversation history. Nothing leaves your Mac unless you explicitly share
+    it, put the vault in a synced folder, or connect a third-party integration.
   </p>
 
   <h2>What goes to Anthropic</h2>
@@ -21,13 +21,13 @@ import BaseLayout from "../layouts/BaseLayout.astro";
     OpenIT does not add additional telemetry on top of Claude's.
   </p>
 
-  <h2>What goes to Slack</h2>
+  <h2>Sharing a vault with your team</h2>
   <p>
-    If you connect Slack via the <code>/connect-slack</code> skill, OpenIT
-    runs a local bot using Slack's Socket Mode. Messages between employees
-    and the bot flow through Slack's servers per Slack's terms. The bot
-    token and app token are stored in your macOS Keychain — they never
-    leave your machine except to authenticate with Slack.
+    OpenIT is built for small teams to share one vault. If you put the vault
+    in a synced folder — Google Drive, Dropbox, git, or similar — its contents
+    sync through that service per its terms, and everyone you share the folder
+    with can read and edit those files. OpenIT itself adds no server in
+    between; the sync is whatever tool you already use.
   </p>
 
   <h2>CLI tools and MCP servers</h2>

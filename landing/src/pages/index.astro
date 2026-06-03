@@ -9,15 +9,15 @@ const githubUrl = "https://github.com/openit-app/openit-app";
 const release = await getLatestRelease();
 
 const nativeAccess: { k: string; v: string }[] = [
-  { k: "CLI tools", v: "brew install gh, aws, gcloud, kubectl, and anything else" },
-  { k: "MCP servers", v: "One-click install from the Tools station" },
-  { k: "Slash commands", v: "Custom skills and automations you define" },
-  { k: "File access", v: "Direct read/write to your vault on disk" },
-  { k: "Slack", v: "Local bot via Socket Mode — no public endpoint needed" },
+  { k: "Knowledge", v: "How-tos and answers, written once and reused" },
+  { k: "Commands", v: "Reusable workflows anyone on the team can run" },
+  { k: "Tasks", v: "Assign each other work — no ticketing ceremony" },
+  { k: "Files", v: "Direct read/write to your shared vault on disk" },
+  { k: "Reports", v: "Generated from your data, saved as Markdown" },
   { k: "Scripts", v: "TypeScript, Python, Bash — Claude writes and runs them" },
 ];
 ---
-<BaseLayout title="OpenIT — An IT helpdesk that runs on Claude Code" bare={true}>
+<BaseLayout title="OpenIT — A shared workspace that runs on Claude Code" bare={true}>
   <div>
     {/* HERO */}
     <section class="mx-auto max-w-7xl px-6 pb-20 pt-10 md:px-10 md:pb-32 md:pt-16">
@@ -27,7 +27,7 @@ const nativeAccess: { k: string; v: string }[] = [
       </span>
 
       <h1 class="font-display mt-8 text-[9.5vw] leading-[0.95] md:mt-10 md:text-[68px] lg:text-[88px]">
-        An IT helpdesk
+        A shared workspace
         <span class="block text-terracotta">
           that runs on
           <span class="claude-code-lockup">
@@ -47,8 +47,8 @@ const nativeAccess: { k: string; v: string }[] = [
       </h1>
 
       <p class="mt-10 max-w-3xl text-xl leading-snug text-ink/80 md:text-2xl">
-        Claude handles tickets, provisions access, and{" "}
-        <span class="font-serif-italic text-terracotta">learns how you work</span> — so you spend your day on the hard problems, not the queue.
+        Your team shares knowledge, reports, commands, and files — and assigns each other tasks. Claude does the work in plain English, so the answers you figure out once are{" "}
+        <span class="font-serif-italic text-terracotta">there for everyone, forever.</span>
       </p>
 
       <div id="download" class="mt-12 flex flex-wrap items-center gap-4">
@@ -72,41 +72,41 @@ const nativeAccess: { k: string; v: string }[] = [
       <div class="mt-24 grid gap-px overflow-hidden rounded-3xl border border-ink/15 bg-ink/15 md:mt-32 md:grid-cols-2">
         <div class="bg-cream p-8 md:p-10">
           <div class="inline-flex items-center gap-2 rounded-full border border-ink/20 bg-cream-deep px-3 py-1.5 font-mono-tag text-[11px] font-semibold text-ink">
-            <svg class="h-3.5 w-3.5 text-terracotta" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" xmlns="http://www.w3.org/2000/svg"><path d="m4 17 6-6-6-6"/><path d="M12 19h8"/></svg>
-            For IT · Desktop App
+            <svg class="h-3.5 w-3.5 text-terracotta" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" xmlns="http://www.w3.org/2000/svg"><path d="M4 20h16a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.93a2 2 0 0 1-1.66-.9l-.82-1.2A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13c0 1.1.9 2 2 2Z"/></svg>
+            One vault · On disk
           </div>
           <h3 class="font-display mt-6 text-4xl leading-[0.95] tracking-tight md:text-5xl">
-            Run Claude Code <br /> on your desktop.
+            A folder your <br /> whole team shares.
           </h3>
           <p class="mt-5 max-w-md text-base leading-relaxed text-ink/70">
-            Install OpenIT on your Mac. Claude works alongside you in the terminal — reading tickets, shaping workflows, writing connectors.
+            Put the vault in a synced folder — Google Drive, Dropbox, git, whatever you already use. Knowledge, reports, commands, files, and tasks all live there as plain files you own.
           </p>
           <div class="mt-8 rounded-xl bg-ink p-4 font-mono-tag text-[11px] text-cream/80">
-            <div class="text-cream/40">~/OpenIT/acme $</div>
+            <div class="text-cream/40">~/Google Drive/acme-vault $</div>
             <div class="mt-2 text-terracotta">→ claude code · ready</div>
-            <div class="text-cream/60">→ 5 skills loaded</div>
-            <div class="text-cream/60">→ vault: ~/OpenIT/acme</div>
+            <div class="text-cream/60">→ shared with 3 teammates</div>
+            <div class="text-cream/60">→ knowledge · commands · tasks · files</div>
           </div>
         </div>
         <div class="bg-cream-deep p-8 md:p-10">
           <div class="inline-flex items-center gap-2 rounded-full border border-ink/20 bg-cream px-3 py-1.5 font-mono-tag text-[11px] font-semibold text-ink">
             <svg class="h-3.5 w-3.5 text-terracotta" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" xmlns="http://www.w3.org/2000/svg"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
-            For Employees · Slack
+            Plain English · One chat
           </div>
           <h3 class="font-display mt-6 text-4xl leading-[0.95] tracking-tight md:text-5xl">
-            Ask in Slack. <br /> Get answers fast.
+            Tell Claude <br /> what you need.
           </h3>
           <p class="mt-5 max-w-md text-base leading-relaxed text-ink/70">
-            No new app to learn. Employees ask in Slack — Claude answers, or routes it to you. Runs locally via Socket Mode.
+            No new app to learn. Ask in plain English — write it up, run it, assign it — and the result lands in the vault for the rest of the team.
           </p>
           <div class="mt-8 space-y-3">
             <div class="max-w-[85%] rounded-2xl bg-ink/5 p-4">
-              <div class="font-mono-tag text-[10px] text-ink/40">marcus · #it-help</div>
-              <div class="mt-1 text-sm text-ink/80">need access to the analytics dashboard please</div>
+              <div class="font-mono-tag text-[10px] text-ink/40">you</div>
+              <div class="mt-1 text-sm text-ink/80">write up how we cut a release, and assign Priya the vendor audit</div>
             </div>
             <div class="ml-auto max-w-[85%] rounded-2xl bg-terracotta p-4 text-cream">
               <div class="font-mono-tag text-[10px] text-cream/60">openit · just now</div>
-              <div class="mt-1 text-sm">Granted — Looker viewer role added. Try refreshing.</div>
+              <div class="mt-1 text-sm">Saved knowledge/cutting-a-release.md and assigned the vendor audit to Priya.</div>
             </div>
           </div>
         </div>
@@ -129,7 +129,7 @@ const nativeAccess: { k: string; v: string }[] = [
         </div>
         <div class="space-y-8 md:col-span-7 md:pt-20">
           <p class="text-xl leading-relaxed text-ink/75 md:text-2xl">
-            Every other ITSM is configured the same way: clicky admin screens, proprietary workflow builders, vendor agents you have to learn. The configuration is theirs.
+            Every other tool is configured the same way: clicky admin screens, proprietary workflow builders, vendor agents you have to learn. The configuration is theirs — and so is your knowledge, locked in their database.
           </p>
           <blockquote class="border-l-2 border-terracotta pl-6 font-display text-3xl leading-tight tracking-tight md:text-4xl">
             Claude Code is the operating system.
@@ -147,14 +147,14 @@ const nativeAccess: { k: string; v: string }[] = [
         <div class="flex items-center gap-3 font-mono-tag text-[11px] text-ink/50">
           <span class="text-terracotta">§02</span>
           <span class="h-px flex-1 bg-ink/15"></span>
-          <span>Native access</span>
+          <span>One shared vault</span>
         </div>
         <h2 class="font-display mt-6 text-5xl leading-[0.95] tracking-tight md:text-7xl">
-          Your machine. <br />
-          <span class="font-serif-italic text-terracotta">Claude's toolkit.</span>
+          One vault. <br />
+          <span class="font-serif-italic text-terracotta">Your whole team.</span>
         </h2>
         <p class="mt-10 max-w-3xl text-xl leading-snug text-ink/75 md:text-2xl">
-          Claude accesses tools the same way you do — CLI tools on your machine, MCP servers, slash commands, and direct file access. No middleware, no vendor lock-in.
+          Stop scattering what you know across docs, threads, and people's heads. Everything your team shares lives in one vault — plain files in a synced folder you already use.
         </p>
 
         <div class="mt-16 grid gap-px overflow-hidden rounded-3xl border border-ink/15 bg-ink/15 md:grid-cols-3">
@@ -171,14 +171,14 @@ const nativeAccess: { k: string; v: string }[] = [
                 <div class="font-mono-tag text-[10px] text-terracotta">Anything else</div>
               </div>
               <div class="text-base leading-snug text-cream/85 md:text-lg">
-                Claude writes the integration if it's missing.
+                Claude writes the file or integration if it's missing.
               </div>
             </div>
           </div>
         </div>
 
         <p class="mt-12 max-w-3xl text-lg leading-relaxed text-ink/70">
-          No proprietary connectors. No vendor dashboards. If you can run it in a terminal, Claude can use it. The investigation, the fix, and the article that documents it all happen in one conversation.
+          No middleware. No vendor database. The vault is just a folder — sync it, <code>git init</code> it, back it up. It's yours, and your team shares it.
         </p>
       </div>
     </section>
@@ -192,35 +192,35 @@ const nativeAccess: { k: string; v: string }[] = [
           <span>How it learns</span>
         </div>
         <h2 class="font-display mt-6 max-w-5xl text-5xl leading-[0.95] tracking-tight md:text-7xl">
-          Answer once. <br /><span class="font-serif-italic text-terracotta">Claude handles the next one.</span>
+          Answer once. <br /><span class="font-serif-italic text-terracotta">Your team reuses it.</span>
         </h2>
         <p class="mt-10 max-w-2xl text-xl leading-snug text-cream/70 md:text-2xl">
-          The first time someone asks something Claude hasn't seen, it escalates to you. After you answer, Claude captures the answer <span class="font-serif-italic text-terracotta">and</span> the workflow — so the next time, it just handles it.
+          The first time someone works something out, Claude captures the answer <span class="font-serif-italic text-terracotta">and</span> the workflow — as a knowledge article or a runnable command. The next time anyone on the team hits the same thing, the answer's already there.
         </p>
 
         <div class="mx-auto mt-20 max-w-3xl rounded-3xl border border-cream/10 bg-cream/[0.03] p-6 md:p-10">
-          <div class="font-mono-tag text-[10px] text-cream/40">Day 1 · #it-help</div>
+          <div class="font-mono-tag text-[10px] text-cream/40">Day 1 · the team vault</div>
           <div class="mt-5 space-y-4">
             <div class="max-w-[80%] rounded-2xl bg-cream/10 p-4">
               <div class="font-mono-tag text-[10px] text-cream/40">marcus</div>
-              <div class="mt-1 text-base text-cream/90">i can't log in</div>
+              <div class="mt-1 text-base text-cream/90">how do we cut a release again?</div>
             </div>
             <div class="ml-auto max-w-[85%] rounded-2xl border border-terracotta/30 bg-terracotta/10 p-4">
-              <div class="font-mono-tag text-[10px] text-terracotta">openit · escalating to you</div>
-              <div class="mt-1 text-base text-cream/85">Haven't seen this one before.</div>
+              <div class="font-mono-tag text-[10px] text-terracotta">openit · first time</div>
+              <div class="mt-1 text-base text-cream/85">Haven't written this down yet — walk me through it.</div>
             </div>
             <div class="max-w-[85%] rounded-2xl bg-cream/10 p-4">
               <div class="font-mono-tag text-[10px] text-cream/40">you</div>
-              <div class="mt-1 text-base text-cream/90">reset your password at company.okta.com/reset</div>
+              <div class="mt-1 text-base text-cream/90">bump the version, tag it, push — the workflow does the rest</div>
             </div>
           </div>
 
-          {/* Saved automation marker */}
+          {/* Saved-to-vault marker */}
           <div class="my-6 flex items-center gap-4 rounded-2xl border-2 border-dashed border-terracotta/50 bg-terracotta/5 p-5">
             <svg class="h-7 w-7 flex-shrink-0 text-terracotta" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" xmlns="http://www.w3.org/2000/svg"><path d="M20 6 9 17l-5-5"/></svg>
             <div class="min-w-0 flex-1">
-              <div class="font-mono-tag text-[10px] uppercase tracking-wider text-terracotta">Automation saved</div>
-              <div class="mt-1 truncate font-mono-tag text-[12px] text-cream/85">skills/login-reset.md · KB article published</div>
+              <div class="font-mono-tag text-[10px] uppercase tracking-wider text-terracotta">Saved to the vault</div>
+              <div class="mt-1 truncate font-mono-tag text-[12px] text-cream/85">knowledge/cutting-a-release.md · command /release published</div>
             </div>
           </div>
 
@@ -233,17 +233,17 @@ const nativeAccess: { k: string; v: string }[] = [
           <div class="space-y-4">
             <div class="max-w-[80%] rounded-2xl bg-cream/10 p-4">
               <div class="font-mono-tag text-[10px] text-cream/40">priya</div>
-              <div class="mt-1 text-base text-cream/90">can't log in either, what do i do</div>
+              <div class="mt-1 text-base text-cream/90">need to ship a release, what's the process</div>
             </div>
             <div class="ml-auto max-w-[85%] rounded-2xl bg-terracotta p-4 text-cream">
-              <div class="font-mono-tag text-[10px] text-cream/60">openit · auto-resolved</div>
-              <div class="mt-1 text-base">Reset your password at company.okta.com/reset.</div>
+              <div class="font-mono-tag text-[10px] text-cream/60">openit · from the vault</div>
+              <div class="mt-1 text-base">Here's how we cut a release — or run /release and I'll walk you through it.</div>
             </div>
           </div>
         </div>
 
         <p class="mt-16 max-w-3xl text-lg leading-relaxed text-cream/70">
-          Every question Claude can't answer becomes a saved automation. Two weeks in, your queue runs differently.
+          Every answer becomes a file the whole team shares. Two weeks in, you stop repeating yourselves.
         </p>
       </div>
     </section>
@@ -268,17 +268,17 @@ const nativeAccess: { k: string; v: string }[] = [
           <div class="overflow-hidden rounded-3xl border border-ink/15 bg-cream">
             <div class="flex items-center gap-2 border-b border-ink/10 bg-cream-deep px-5 py-3 font-mono-tag text-[11px] text-ink/60">
               <svg class="h-3.5 w-3.5 text-terracotta" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" xmlns="http://www.w3.org/2000/svg"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
-              skills/login-reset.md
+              knowledge/cutting-a-release.md
             </div>
             <div class="p-6 md:p-8 font-mono-tag text-[12.5px] leading-relaxed text-ink/85">
-              <div class="text-terracotta"># Login &amp; password reset</div>
-              <div class="mt-3 text-ink/60">When someone says they can't log in:</div>
-              <div class="mt-3">1. Confirm their email is on file</div>
-              <div>2. Send the reset link from company.okta.com/reset</div>
-              <div>3. If no email arrives in 5 min, escalate</div>
+              <div class="text-terracotta"># Cutting a release</div>
+              <div class="mt-3 text-ink/60">When it's time to ship:</div>
+              <div class="mt-3">1. Bump the version in all three files</div>
+              <div>2. Tag it and push</div>
+              <div>3. The release workflow builds, signs, and publishes</div>
             </div>
             <div class="border-t border-ink/10 bg-cream-deep px-5 py-3 font-mono-tag text-[10px] uppercase tracking-wider text-ink/50">
-              Skill · plain English
+              Knowledge · plain English
             </div>
           </div>
 
@@ -286,14 +286,13 @@ const nativeAccess: { k: string; v: string }[] = [
           <div class="overflow-hidden rounded-3xl bg-ink text-cream">
             <div class="flex items-center gap-2 border-b border-cream/10 bg-cream/[0.04] px-5 py-3 font-mono-tag text-[11px] text-cream/60">
               <svg class="h-3.5 w-3.5 text-terracotta" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" xmlns="http://www.w3.org/2000/svg"><polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/></svg>
-              scripts/offboard.ts
+              scripts/weekly-report.ts
             </div>
             <div class="p-6 md:p-8 font-mono-tag text-[12.5px] leading-relaxed text-cream/85">
-              <div><span class="text-terracotta">async function</span> offboard(email) &#123;</div>
-              <div class="pl-4">await okta.deactivate(email)</div>
-              <div class="pl-4">await jamf.unenroll(email)</div>
-              <div class="pl-4">await drive.transferOwnership(email)</div>
-              <div class="pl-4">await slack.archiveDMs(email)</div>
+              <div><span class="text-terracotta">async function</span> weeklyReport() &#123;</div>
+              <div class="pl-4">const tasks = await vault.tasks.closedThisWeek()</div>
+              <div class="pl-4">const md = render(tasks)</div>
+              <div class="pl-4">await vault.reports.write("weekly", md)</div>
               <div>&#125;</div>
             </div>
             <div class="border-t border-cream/10 bg-cream/[0.04] px-5 py-3 font-mono-tag text-[10px] uppercase tracking-wider text-cream/50">
@@ -303,7 +302,7 @@ const nativeAccess: { k: string; v: string }[] = [
         </div>
 
         <p class="mt-12 max-w-3xl text-lg leading-relaxed text-ink/70">
-          Claude builds them. Then runs them — when you ask, or automatically when a familiar request comes in.
+          Claude builds them. Then runs them — when anyone on the team asks, or on a schedule.
         </p>
       </div>
     </section>
