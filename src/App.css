@@ -113,60 +113,6 @@ body::before {
    the v5 shell layout in src/App.tsx + src/shell/Shell.tsx.
    Removed in the v5-foundation PR. */
 
-/* Localhost ticket-intake URL pill. Click opens the form in the
-   user's default browser. Temporary home in the header until Phase
-   3b's settings panel lands. */
-.intake-url-pill {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  padding: 5px 11px;
-  border: 1px solid var(--border-strong);
-  border-radius: 999px;
-  background: var(--surface);
-  color: var(--text-muted);
-  font-size: 11px;
-  font-family: var(--font-body);
-  cursor: pointer;
-  transition:
-    background var(--t-fast) var(--ease),
-    border-color var(--t-fast) var(--ease),
-    transform var(--t-fast) var(--ease),
-    box-shadow var(--t-fast) var(--ease);
-  box-shadow: var(--shadow-sm);
-}
-
-.intake-url-pill:hover {
-  background: var(--accent-faint);
-  border-color: var(--accent-soft);
-  transform: translateY(-1px);
-  box-shadow: var(--shadow-card);
-}
-
-.intake-url-pill:active {
-  transform: translateY(0);
-}
-
-.intake-url-pill-label {
-  font-weight: 500;
-  color: var(--text);
-}
-
-.intake-url-pill-value {
-  font-family: var(--font-mono);
-  font-size: 11px;
-  color: var(--text-faint);
-  background: transparent;
-  padding: 0;
-}
-
-.intake-url-pill-action {
-  color: var(--text-faint);
-  font-size: 11px;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-}
-
 .app-repo {
   flex: 1;
   font-family: var(--font-mono);
@@ -368,9 +314,9 @@ body::before {
 /* .conflict-banner-resolve / .conflict-banner-dismiss removed —
    migrated to <Button variant="primary"|"ghost"> in the v5 button PR. */
 
-/* Agent activity banner — info palette. Shows live when any ticket
-   has status: "agent-responding" (a chat-intake claude -p subprocess
-   is composing a reply). Auto-clears when the agent finishes; not
+/* Agent activity banner — info palette. Shows live while a
+   `claude -p` subprocess is composing a reply (status:
+   "agent-responding"). Auto-clears when the agent finishes; not
    user-dismissable since it's a transient status indicator. */
 .agent-activity-banner {
   display: flex;
@@ -1984,7 +1930,7 @@ input.viewer-title.viewer-title-rename {
 /* Prominent CTA-style link: anchors whose only child is a `<strong>`
    element render as a button-like pill. Convention: use `[**text**](url)`
    in markdown when you want the link to read as an action, not a
-   reference. The welcome doc's "Open the intake page" link uses this. */
+   reference. */
 .viewer-md a:has(> strong:only-child) {
   display: inline-block;
   background: var(--accent);

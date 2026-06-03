@@ -18,11 +18,10 @@ const SEED_ROOT = join(cwd, ".claude", "seed");
 // seed/<target> → vault destination. Mirror of `seedRoute` in
 // src/lib/seed.ts so the two seeding paths agree on layout.
 const TARGETS = {
-  tickets: "databases/tickets",
+  tasks: "tasks",
   people: "databases/people",
   access: "databases/access",
   assets: "databases/assets",
-  conversations: "databases/conversations",
   knowledge: "knowledge",
   reports: "reports",
   scripts: "filestores/scripts",

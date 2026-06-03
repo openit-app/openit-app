@@ -1,14 +1,14 @@
 #!/usr/bin/env node
-// report-overview.mjs — programmatic helpdesk overview. Reads the
-// local ticket / people / conversation files and writes a markdown
-// report at reports/<YYYY-MM-DD-HHmm>-overview.md. No LLM, no network
-// — pure file I/O so it's instant.
+// report-overview.mjs — programmatic task overview. Reads the local
+// task markdown files (and people, for the headcount line) and writes
+// a markdown report at reports/<YYYY-MM-DD>-overview.md. No LLM, no
+// network — pure file I/O so it's instant.
 //
 // Usage:
 //   node .claude/scripts/report-overview.mjs
 //
 // Output (single JSON line on stdout):
-//   { "ok": true, "path": "reports/2026-04-27-1432-overview.md" }
+//   { "ok": true, "path": "reports/2026-04-27-overview.md" }
 // On failure (single JSON line):
 //   { "ok": false, "error": "<message>" }
 //
@@ -18,9 +18,8 @@ import { readdir, readFile, mkdir, writeFile } from "node:fs/promises";
 import path from "node:path";
 import process from "node:process";
 
-const TICKETS_DIR = "databases/tickets";
+const TASKS_DIR = "tasks";
 const PEOPLE_DIR = "databases/people";
-const CONVERSATIONS_DIR = "databases/conversations";
 const REPORTS_DIR = "reports";
 
 function emit(obj) {
@@ -39,10 +38,67 @@ function dateFilename(d) {
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
 }
 
+/// Parse YAML-ish frontmatter from a task markdown file. Mirrors the
+/// hand-rolled parser in src/lib/tasks.ts: a `key: value` block between
+/// two `---` fences, surrounding quotes stripped. Anything that fails
+/// to parse falls back to safe defaults so one mangled task file never
+/// fails the whole report. Returns { status, title, assignee,
+/// createdAt, completedAt }.
+function parseTask(raw, fallbackTitle) {
+  let status = "todo";
+  let title = fallbackTitle;
+  let assignee = "";
+  let createdAt = "";
+  let completedAt = "";
+
+  const fm = raw.match(/^---\r?\n([\s\S]*?)\r?\n---\r?\n?/);
+  if (fm) {
+    for (const line of fm[1].split(/\r?\n/)) {
+      const m = line.match(/^([a-zA-Z][a-zA-Z0-9_-]*)\s*:\s*(.*)$/);
+      if (!m) continue;
+      const key = m[1];
+      const value = m[2]
+        .replace(/^["'](.*)["']$/, "$1")
+        .replace(/\\"/g, '"')
+        .replace(/\\'/g, "'")
+        .trim();
+      if (key === "status" && value) status = value;
+      else if (key === "title" && value) title = value;
+      else if (key === "assignee") assignee = value;
+      else if (key === "createdAt" && value) createdAt = value;
+      else if (key === "completedAt") completedAt = value;
+    }
+  }
+  return { status, title, assignee, createdAt, completedAt };
+}
+
+/// Read every *.md directly inside `tasks/` (depth 1). Unreadable
+/// files are skipped silently. Missing dir → empty array.
+async function readTasks(dir) {
+  let entries;
+  try {
+    entries = await readdir(dir, { withFileTypes: true });
+  } catch (e) {
+    if (e.code === "ENOENT") return [];
+    throw e;
+  }
+  const tasks = [];
+  for (const ent of entries) {
+    if (!ent.isFile()) continue;
+    if (!ent.name.endsWith(".md")) continue;
+    try {
+      const raw = await readFile(path.join(dir, ent.name), "utf8");
+      tasks.push(parseTask(raw, ent.name.replace(/\.md$/, "")));
+    } catch {
+      /* skip unreadable */
+    }
+  }
+  return tasks;
+}
+
 /// Read every *.json directly inside dir (depth 1, skipping `_schema.json`
-/// and conflict-shadow `.server.*` files). Unreadable / unparseable
-/// files are skipped silently so one malformed row doesn't fail the
-/// whole report. Missing dir → empty array.
+/// and conflict-shadow `.server.*` files). Used only for the people
+/// headcount line. Missing dir → empty array.
 async function readJsonRows(dir) {
   let entries;
   try {
@@ -68,49 +124,6 @@ async function readJsonRows(dir) {
   return rows;
 }
 
-/// Walk databases/conversations/<ticketId>/msg-*.json and return a
-/// map of ticketId → { turnCount, lastTurnAt }. Used so the overview
-/// can show "stale" tickets (escalated but no turn in N days).
-async function readConversationActivity() {
-  let entries;
-  try {
-    entries = await readdir(CONVERSATIONS_DIR, { withFileTypes: true });
-  } catch (e) {
-    if (e.code === "ENOENT") return new Map();
-    throw e;
-  }
-  const out = new Map();
-  for (const ent of entries) {
-    if (!ent.isDirectory()) continue;
-    const ticketId = ent.name;
-    const threadDir = path.join(CONVERSATIONS_DIR, ticketId);
-    let msgs;
-    try {
-      msgs = await readdir(threadDir, { withFileTypes: true });
-    } catch {
-      continue;
-    }
-    let turnCount = 0;
-    let lastTurnAt = "";
-    for (const m of msgs) {
-      if (!m.isFile()) continue;
-      if (!m.name.endsWith(".json")) continue;
-      if (m.name.includes(".server.")) continue;
-      turnCount += 1;
-      try {
-        const raw = await readFile(path.join(threadDir, m.name), "utf8");
-        const parsed = JSON.parse(raw);
-        const ts = parsed && typeof parsed.timestamp === "string" ? parsed.timestamp : "";
-        if (ts > lastTurnAt) lastTurnAt = ts;
-      } catch {
-        /* skip unparseable */
-      }
-    }
-    out.set(ticketId, { turnCount, lastTurnAt });
-  }
-  return out;
-}
-
 /// Days between `iso` and `now`. Returns null on a missing/unparseable
 /// timestamp so callers can render "—" instead of NaN.
 function ageDays(iso, now) {
@@ -121,43 +134,32 @@ function ageDays(iso, now) {
   return Math.max(0, Math.floor(diffMs / (24 * 60 * 60 * 1000)));
 }
 
-/// Lower-case-trim wrapper used as a defensive guard around free-form
-/// asker fields (some rows have email, some have "unknown", some have
-/// names with extra whitespace). Empty string / non-string → "unknown"
-/// so the top-askers grouping doesn't blow up.
-function askerKey(a) {
-  if (typeof a !== "string") return "unknown";
-  const trimmed = a.trim().toLowerCase();
-  return trimmed || "unknown";
+/// Lower-case-trim wrapper used as a defensive guard around the
+/// free-form assignee field. Empty / non-string → "unassigned" so the
+/// by-assignee grouping doesn't blow up.
+function assigneeKey(a) {
+  if (typeof a !== "string") return "unassigned";
+  const trimmed = a.trim();
+  return trimmed || "unassigned";
 }
 
-/// Sum tickets by status. Returns a Map preserving insertion order, so
-/// statuses we expect surface in a stable order even if zero. Any
-/// unknown status gets appended.
-const KNOWN_STATUSES = [
-  "incoming",
-  "agent-responding",
-  "open",
-  "escalated",
-  "answered",
-  "resolved",
-  "closed",
-];
+const COMPLETE = "complete";
 
-function countByStatus(tickets) {
+/// Sum tasks by status (preserving first-seen order). Status is
+/// free-form on disk, so we don't pre-seed a known list.
+function countByStatus(tasks) {
   const counts = new Map();
-  for (const s of KNOWN_STATUSES) counts.set(s, 0);
-  for (const t of tickets) {
-    const s = typeof t.status === "string" ? t.status : "unknown";
+  for (const t of tasks) {
+    const s = (typeof t.status === "string" && t.status.trim()) || "unsorted";
     counts.set(s, (counts.get(s) ?? 0) + 1);
   }
   return counts;
 }
 
-function topAskers(tickets, n) {
+function countByAssignee(tasks, n) {
   const tally = new Map();
-  for (const t of tickets) {
-    const k = askerKey(t.asker);
+  for (const t of tasks) {
+    const k = assigneeKey(t.assignee);
     tally.set(k, (tally.get(k) ?? 0) + 1);
   }
   return Array.from(tally.entries())
@@ -165,37 +167,28 @@ function topAskers(tickets, n) {
     .slice(0, n);
 }
 
-/// Bucket tickets into "created in the last N days" / "resolved in the
-/// last N days" / "escalated in the last N days". `resolved` and
-/// `escalated` use updatedAt as a proxy for the transition time —
-/// imperfect (admin could update for unrelated reasons) but the only
-/// signal available without a status-history log.
-function activityWindow(tickets, days, now) {
+/// Tasks created / completed in the last N days. `completedAt` is
+/// stamped by the app when a task moves into the configured complete
+/// stage, so it's an accurate transition time (unlike the ticket model,
+/// which only had updatedAt as a proxy).
+function activityWindow(tasks, days, now) {
   const cutoff = now.getTime() - days * 24 * 60 * 60 * 1000;
   let created = 0;
-  let resolved = 0;
-  let escalated = 0;
-  for (const t of tickets) {
+  let completed = 0;
+  for (const t of tasks) {
     const c = Date.parse(t.createdAt ?? "");
     if (!Number.isNaN(c) && c >= cutoff) created += 1;
-    const u = Date.parse(t.updatedAt ?? "");
-    if (!Number.isNaN(u) && u >= cutoff) {
-      if (t.status === "resolved" || t.status === "answered") resolved += 1;
-      if (t.status === "escalated") escalated += 1;
-    }
+    const done = Date.parse(t.completedAt ?? "");
+    if (!Number.isNaN(done) && done >= cutoff) completed += 1;
   }
-  return { created, resolved, escalated };
+  return { created, completed };
 }
 
-/// Escape characters that would break a GFM table cell. Pipes are
-/// the structural separator and must be backslash-escaped; raw
-/// newlines split a row. Matters for free-form ticket fields
-/// (subject, asker) that flow straight from user input — a subject
-/// like "Outage | P1: VPN down" otherwise produces a row with the
-/// wrong column count and a visibly broken table. Backslashes are
-/// escaped first so a value already containing a literal `\|` (rare
-/// but possible) doesn't become `\\|`, which GFM reads as
-/// literal-backslash + structural-pipe and reintroduces the bug.
+/// Escape characters that would break a GFM table cell. Pipes are the
+/// structural separator and must be backslash-escaped; raw newlines
+/// split a row. Matters for free-form task fields (title, assignee)
+/// that flow straight from user input. Backslashes are escaped first
+/// so a value already containing a literal `\|` doesn't double up.
 function escapeTableCell(s) {
   return String(s)
     .replace(/\\/g, "\\\\")
@@ -212,22 +205,27 @@ function renderTable(headers, rows) {
   return [head, sep, body].join("\n");
 }
 
-function renderReport({ now, tickets, peopleCount, activity }) {
+function isComplete(t) {
+  return typeof t.status === "string" && t.status.trim().toLowerCase() === COMPLETE;
+}
+
+function renderReport({ now, tasks, peopleCount, activity }) {
   const lines = [];
-  lines.push("# Helpdesk overview");
+  lines.push("# Team overview");
   lines.push("");
-  lines.push(`_Generated ${now.toISOString()} — ${tickets.length} tickets, ${peopleCount} people._`);
+  lines.push(
+    `_Generated ${now.toISOString()} — ${tasks.length} tasks, ${peopleCount} people._`,
+  );
   lines.push("");
 
   // Status breakdown.
-  lines.push("## Tickets by status");
+  lines.push("## Tasks by status");
   lines.push("");
-  const statusCounts = countByStatus(tickets);
-  const statusRows = Array.from(statusCounts.entries())
+  const statusRows = Array.from(countByStatus(tasks).entries())
     .filter(([, n]) => n > 0)
     .map(([s, n]) => [s, String(n)]);
   if (statusRows.length === 0) {
-    lines.push("_No tickets yet._");
+    lines.push("_No tasks yet._");
   } else {
     lines.push(renderTable(["Status", "Count"], statusRows));
   }
@@ -241,49 +239,45 @@ function renderReport({ now, tickets, peopleCount, activity }) {
       ["Metric", "Count"],
       [
         ["Created", String(activity.created)],
-        ["Resolved", String(activity.resolved)],
-        ["Escalated", String(activity.escalated)],
+        ["Completed", String(activity.completed)],
       ],
     ),
   );
   lines.push("");
 
-  // Top askers.
-  lines.push("## Top askers");
+  // By assignee.
+  lines.push("## By assignee");
   lines.push("");
-  const askers = topAskers(tickets, 5);
-  if (askers.length === 0) {
-    lines.push("_No askers yet._");
+  const byAssignee = countByAssignee(tasks, 5);
+  if (byAssignee.length === 0) {
+    lines.push("_No tasks yet._");
   } else {
     lines.push(
       renderTable(
-        ["Asker", "Tickets"],
-        askers.map(([a, n]) => [a, String(n)]),
+        ["Assignee", "Tasks"],
+        byAssignee.map(([a, n]) => [a, String(n)]),
       ),
     );
   }
   lines.push("");
 
-  // Currently escalated.
-  lines.push("## Currently escalated");
+  // Open tasks (anything not in the complete stage).
+  lines.push("## Open tasks");
   lines.push("");
-  const escalated = tickets
-    .filter((t) => t.status === "escalated")
+  const open = tasks
+    .filter((t) => !isComplete(t))
     .map((t) => {
-      const subject = typeof t.subject === "string" ? t.subject : "";
-      const asker = typeof t.asker === "string" ? t.asker : "unknown";
+      const title = typeof t.title === "string" ? t.title : "";
+      const assignee = assigneeKey(t.assignee);
+      const status = (typeof t.status === "string" && t.status.trim()) || "unsorted";
       const age = ageDays(t.createdAt, now);
       const ageStr = age == null ? "—" : `${age}d`;
-      return [
-        subject || "(no subject)",
-        asker,
-        ageStr,
-      ];
+      return [title || "(no title)", status, assignee, ageStr];
     });
-  if (escalated.length === 0) {
-    lines.push("_None — nothing waiting on the admin._");
+  if (open.length === 0) {
+    lines.push("_None — everything is done._");
   } else {
-    lines.push(renderTable(["Subject", "Asker", "Age"], escalated));
+    lines.push(renderTable(["Task", "Status", "Assignee", "Age"], open));
   }
   lines.push("");
 
@@ -293,25 +287,20 @@ function renderReport({ now, tickets, peopleCount, activity }) {
 async function main() {
   const now = new Date();
 
-  let tickets;
+  let tasks;
   let peopleCount;
   try {
-    tickets = await readJsonRows(TICKETS_DIR);
+    tasks = await readTasks(TASKS_DIR);
     const people = await readJsonRows(PEOPLE_DIR);
     peopleCount = people.length;
-    // Conversation activity is currently read for a future "stale
-    // escalations" section; intentionally not surfaced in V1 output
-    // because we lack an admin-acknowledged-at timestamp to anchor
-    // staleness against. Keep the read so the file doesn't drift.
-    await readConversationActivity();
   } catch (e) {
     emit({ ok: false, error: `read failed: ${e.message}` });
     process.exit(1);
     return;
   }
 
-  const activity = activityWindow(tickets, 7, now);
-  const body = renderReport({ now, tickets, peopleCount, activity });
+  const activity = activityWindow(tasks, 7, now);
+  const body = renderReport({ now, tasks, peopleCount, activity });
 
   const fname = `${dateFilename(now)}-overview.md`;
   const fullPath = path.join(REPORTS_DIR, fname);

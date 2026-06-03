@@ -58,6 +58,13 @@ beforeEach(() => {
 });
 
 describe("seedRoute", () => {
+  it("routes seed/tasks/* → tasks", () => {
+    expect(seedRoute("seed/tasks/task-1746057600000-sample1.md")).toEqual({
+      subdir: "tasks",
+      filename: "task-1746057600000-sample1.md",
+    });
+  });
+
   it("routes seed/people/* → databases/people", () => {
     expect(seedRoute("seed/people/p1.json")).toEqual({
       subdir: "databases/people",

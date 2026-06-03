@@ -41,9 +41,9 @@ export function DatastoreTableBody({
     const colName = collection.name;
     const message =
       colName === "tickets"
-        ? "No tickets yet. Tickets land here when someone files one via the Intake form (top-right header) — share that URL on your machine and the new rows show up immediately."
+        ? "No rows yet. Add one by editing the JSON files on disk under databases/tickets/, or ask Claude to populate this collection. (Day-to-day work now lives in Tasks, not here.)"
         : colName === "people"
-          ? "No people records yet. People rows are referenced by tickets (asker, assignee) and access audits. Ask Claude — \"add Alice from Engineering\" — or sync a directory once you connect to cloud."
+          ? "No people records yet. People rows are referenced by tasks (assignee) and access audits. Ask Claude — \"add Alice from Engineering\" — or sync a directory once you connect to cloud."
           : `No rows in "${colName}" yet. Add one by editing the JSON files on disk under databases/${colName}/, or ask Claude to populate this collection.`;
     return (
       <div className="viewer-summary">

@@ -1,6 +1,6 @@
 // Bundled-seed helper, exposed via the "Create sample dataset" CTA in
-// `getting-started.md`. Writes sample people / access / assets / KB
-// articles to disk so a user has something to interact with.
+// `getting-started.md`. Writes sample tasks / people / access / assets
+// / KB articles to disk so a user has something to interact with.
 //
 // **Connected mode never auto-seeds.** Seeding is exclusively user-
 // triggered — once an account is in the loop, we trust whatever's on
@@ -110,6 +110,9 @@ export async function rewriteShebangForSeed(
 export function seedRoute(
   manifestPath: string,
 ): { subdir: string; filename: string } | null {
+  if (manifestPath.startsWith("seed/tasks/")) {
+    return { subdir: "tasks", filename: manifestPath.replace("seed/tasks/", "") };
+  }
   if (manifestPath.startsWith("seed/people/")) {
     return { subdir: "databases/people", filename: manifestPath.replace("seed/people/", "") };
   }

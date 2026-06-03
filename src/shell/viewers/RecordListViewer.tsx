@@ -74,8 +74,8 @@ export function PeopleListBody({
     return (
       <div className="viewer-summary viewer-people">
         <p className="summary-desc">
-          No people yet. Anyone who files a ticket lands here so we can
-          identify askers consistently across tickets and channels.
+          No people yet. People rows let you identify task assignees and
+          teammates consistently across your vault.
         </p>
       </div>
     );

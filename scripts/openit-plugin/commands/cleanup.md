@@ -9,7 +9,7 @@ Remove all the sample data that shipped with OpenIT so the admin starts with a c
 
 ## How to run
 
-Confirm with the admin first: "I'll remove all sample people, access logs, assets, KB articles, and reports — plus any leftover sample tickets/conversations from older versions. Your custom data stays put. Go ahead?"
+Confirm with the admin first: "I'll remove the sample tasks, people, access logs, assets, KB articles, and reports. Your custom data stays put. Go ahead?"
 
 Then run the cleanup script:
 
@@ -19,14 +19,13 @@ node .claude/scripts/cleanup.mjs
 
 The script deletes:
 
-- Files that byte-match the bundled seed for people / access / assets / knowledge / reports / scripts.
-- Any file in `databases/tickets/` or `databases/conversations/` whose filename starts with `sample-` (legacy cleanup for pre-PIN-6605 vaults — the ticket UI was removed but pristine sample files may still be on disk).
+- Files that byte-match the bundled seed for tasks / people / access / assets / knowledge / reports / scripts. Anything you've edited keeps your version.
 
 It prints a JSON result with the count of deleted files.
 
 ## What it does NOT delete
 
-- Anything without the `sample-` prefix — that's user data
+- Any file whose bytes differ from the bundled seed — that's your data
 - `_schema.json` files — those define the database structure
 - Agent files, skills, scripts — those are not sample data
 - The `getting-started.md` file
