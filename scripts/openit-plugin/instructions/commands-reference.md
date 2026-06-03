@@ -1,6 +1,6 @@
 # Commands reference
 
-Admin-facing commands the admin invokes via `/<name>` in the chat.
+Built-in commands anyone on the team invokes via `/<name>` in the chat. Commands are reusable workflows shared across the vault — author one once and the whole team can run it.
 
 | Command | What it does |
 |---|---|

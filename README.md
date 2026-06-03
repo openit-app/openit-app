@@ -5,8 +5,8 @@
 <h1 align="center">OpenIT</h1>
 
 <p align="center">
-  <strong>Your IT helpdesk, powered by Claude Code.</strong><br />
-  Answer once, automate forever. Open source. Runs on your Mac.
+  <strong>A shared, file-based workspace for small teams, powered by Claude Code.</strong><br />
+  Answer once, reuse forever. Open source. Runs on your Mac.
 </p>
 
 <p align="center">
@@ -19,26 +19,26 @@
 
 ## The problem
 
-You're the IT person at a 10–200 person company. Onboarding takes hours of clicking through admin consoles. Offboarding is worse — you're never sure you revoked everything. Password resets, access requests, and "how do I..." questions eat your day. You've answered the same Salesforce question four times this month.
+You're on a small team — two or three people who do a bit of everything. The knowledge that keeps things running is scattered: half in someone's head, half in a doc nobody can find, the rest in a thread you'll never scroll back to. The same questions get answered over and over. Work gets handed off in passing and dropped. Every tool that promises to fix this wants you in *its* UI, on *its* schedule, storing *your* knowledge in *its* database.
 
-Enterprise ITSM tools cost $50k+/year and take months to deploy. You don't need a ticketing system with 200 features. You need something that learns how *your* org works and handles the repetitive stuff.
+You don't need another dashboard to log into. You need a place your team actually shares — that learns how *you* work and hands the repetitive stuff back to you as something you can run again.
 
 ## What OpenIT does
 
-OpenIT is a desktop app that wraps [Claude Code](https://docs.anthropic.com/en/docs/claude-code) in a native shell purpose-built for IT operations. It gives Claude a file explorer, viewer, tools catalog, and a set of IT-specific skills — so it can handle your ticket queue, provision access, write connectors, and learn how your org works.
+OpenIT is a desktop app that wraps [Claude Code](https://docs.anthropic.com/en/docs/claude-code) in a native shell built around a shared, file-based vault. It gives Claude a file explorer, viewer, tools catalog, and a set of skills — so your team can share knowledge, reports, commands, and files, assign each other tasks, and let Claude do the work in plain English.
 
-**The idea:** you configure your IT helpdesk in plain English. Claude authors the workflows, schemas, and integrations as files on your machine. Open them, edit them, take them with you.
+**The idea:** you configure your workspace in plain English. Claude authors the knowledge, workflows, schemas, and integrations as files on your machine. Put the vault in a synced folder — Google Drive, Dropbox, git, whatever you already use — and your whole team shares it. Open the files, edit them, take them with you.
 
 ### How it works
 
-1. **Install and open.** OpenIT creates a local vault — a folder on your Mac where everything lives: tickets, knowledge base articles, scripts, agent configurations.
-2. **Talk to Claude.** Describe what you need. "Set up the onboarding checklist for new engineers." Claude writes the skill file, and you review it.
-3. **Answer once, automate forever.** When a ticket comes in that Claude hasn't seen before, it escalates to you. After you answer, it saves the knowledge and handles it next time.
-4. **Everything is a file.** Skills are Markdown. Schemas are JSON. Scripts are JavaScript. No vendor lock-in, no black boxes. `git init` and you have version control.
+1. **Install and open.** OpenIT creates a vault — a folder where everything lives: knowledge, reports, commands, files, tasks, and people. Drop it in a synced folder and your team shares one vault.
+2. **Talk to Claude.** Describe what you need. "Write up how we cut a release" or "assign Priya the vendor audit." Claude writes the file, and you review it.
+3. **Answer once, reuse forever.** The first time someone works something out, Claude saves it as knowledge or a runnable command. Next time, anyone on the team just reuses it.
+4. **Everything is a file.** Knowledge and commands are Markdown. Schemas are JSON. Scripts are JavaScript. No vendor lock-in, no black boxes. `git init` and you have version control.
 
 ### Built-in commands
 
-OpenIT ships with ready-to-run commands for common IT tasks:
+OpenIT ships with ready-to-run commands for common team tasks:
 
 - `/onboard` — walk through granting access for a new employee across Slack, Google Workspace, Zoom, and more
 - `/offboard` — walk through revoking access for a departing employee
@@ -103,7 +103,6 @@ openit-app/
 │   └── lib/             # Core logic — API bindings, sync, catalog
 ├── src-tauri/           # Tauri backend (Rust)
 │   └── src/
-│       ├── intake/      # Chat intake HTTP server + prompt builder
 │       ├── kb/          # Knowledge base sync (local + cloud)
 │       └── ...          # PTY, file watching, git ops, tools
 ├── scripts/
@@ -116,10 +115,10 @@ openit-app/
 
 | Concept | What it is | Where it lives |
 |---------|-----------|----------------|
-| **Skills** | Plain-English instructions Claude follows (e.g., "how to onboard an engineer") | `skills/*.md` |
-| **Scripts** | Node.js automations Claude can execute (e.g., offboarding, report generation) | `scripts/*.mjs` |
-| **Knowledge base** | Articles Claude references when answering tickets — grows over time | `knowledge-bases/` |
-| **Datastores** | Structured data — tickets, people, assets, access logs | `databases/` |
+| **Skills** | Plain-English instructions Claude follows (e.g., "how we cut a release") | `skills/*.md` |
+| **Scripts** | Node.js automations Claude can execute (e.g., report generation, exports) | `scripts/*.mjs` |
+| **Knowledge base** | Articles Claude references and your team reuses — grows over time | `knowledge-bases/` |
+| **Datastores** | Structured data — tasks, people, assets, access logs | `databases/` |
 | **Tools catalog** | One-click install for CLI tools and MCP servers that extend Claude | In-app Tools panel |
 
 ## Contributing

@@ -1,6 +1,6 @@
 ---
 name: OpenIT
-description: Open-source IT helpdesk desktop app powered by Claude Code. macOS, Apache 2.0.
+description: Open-source, file-based team-knowledge workspace desktop app powered by Claude Code. macOS, Apache 2.0.
 ---
 
 ## Quick reference
@@ -64,9 +64,8 @@ src/                    # React frontend (TypeScript)
   ui/                   # Design system components
   lib/                  # Core logic — API bindings, sync, catalogs, updater
 src-tauri/src/          # Tauri backend (Rust)
-  intake/               # Chat intake HTTP server (mod.rs + prompts.rs + chat_ui.html)
   kb/                   # Knowledge base (local.rs + cloud.rs + types.rs)
-  ...                   # PTY, file watching, git ops, tools, tunnel
+  ...                   # PTY, file watching, git ops, tools
 scripts/openit-plugin/  # Claude plugin — skills, scripts, schemas, seed data
 landing/                # Website (Astro + Tailwind) → GitHub Pages
 ```
@@ -160,13 +159,13 @@ Skills live in `scripts/openit-plugin/skills/`. The manifest (`scripts/openit-pl
 4. Update the commands table in `scripts/openit-plugin/CLAUDE.md`
 5. Bump the manifest version (`YYYY-MM-DD-NNN`)
 
-Skills must be generic — useful for any IT admin. No customer-specific commands.
+Skills must be generic — useful for any small team. No customer-specific commands.
 
 ## Code quality standards
 
 This is an open-source repo. Code should be approachable for contributors.
 
-- **No god files.** If a file exceeds ~500 lines, consider splitting it. Use the existing patterns: `viewers/`, `explorer/`, `routing/`, `intake/`, `kb/` modules.
+- **No god files.** If a file exceeds ~500 lines, consider splitting it. Use the existing patterns: `viewers/`, `explorer/`, `routing/`, `kb/` modules.
 - **cargo fmt + clippy must pass.** CI checks both. Run before pushing.
 - **No debug console.log in production code.** Use `console.warn` for recoverable errors, `console.error` for real failures.
 - **No `as any` casts.** The codebase currently has zero — keep it that way.

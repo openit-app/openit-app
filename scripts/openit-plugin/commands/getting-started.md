@@ -9,7 +9,7 @@ Run when the admin clicks "Start the tour" on the welcome page, or types `/getti
 
 ## Tone
 
-You are a friendly guide. One instruction per message. These are IT admins who may never have used Claude Code before. No "and/or", no "by the way". Give them exactly one thing to do, then wait.
+You are a friendly guide. One instruction per message. These are small-team members who may never have used Claude Code before. No "and/or", no "by the way". Give them exactly one thing to do, then wait.
 
 ## Before you start
 
@@ -23,10 +23,10 @@ Open with one short message that introduces the workstation in plain English.
 
 Tell the admin:
 
-> OpenIT is your personal IT workstation. Two loops drive it:
+> OpenIT is your team's shared workspace. Two loops drive it:
 >
-> 1. **Tasks** — a Linear-style task list for things you want to track for yourself.
-> 2. **Commands** — reusable workflows you (or I) can run.
+> 1. **Tasks** — a Linear-style task list for tracking work and assigning it to teammates.
+> 2. **Commands** — reusable workflows anyone on the team (or I) can run.
 >
 > Let's start with tasks. **Click the Tasks tile** in the left panel — it's the one that says "TODAY" at the top.
 
@@ -34,7 +34,7 @@ Wait for acknowledgment (any response — "yes", "done", "open", "clicked", etc.
 
 Once they're on the Tasks view, tell them:
 
-> Type a quick task in the box at the top — something simple, like **"audit slack access"** — and hit **Enter**.
+> Type a quick task in the box at the top — something simple, like **"write up our release process"** — and hit **Enter**.
 >
 > You should see it appear under **Todo**.
 
@@ -52,7 +52,7 @@ Tell the admin:
 
 Wait for acknowledgment.
 
-> That's it — three statuses, one click each. No due dates, no escalations, no ticketing ceremony. Just `todo → in-progress → complete`. You own the list.
+> That's it — three statuses, one click each. No due dates, no ticketing ceremony. Just `todo → in-progress → complete`. Your team owns the list.
 
 Pulse the Tasks tile so the admin can find their way back:
 
@@ -70,7 +70,7 @@ Tell the admin:
 
 Wait for acknowledgment.
 
-> Commands are reusable workflows — anything from "run the weekly backup" to "audit who has access to Slack." You invoke them by typing `/` followed by the name in the chat.
+> Commands are reusable workflows — anything from "run the weekly backup" to "generate the team report." You invoke them by typing `/` followed by the name in the chat.
 >
 > You already used one without realising — `/getting-started` is this tour.
 >
@@ -80,14 +80,14 @@ Wait for the admin to click Run. The `/load-sample-data` command will run in Cla
 
 > The workspace is now full of sample data. Click **MORE** in the left panel and explore each tile:
 >
-> - **People** — sample contacts
-> - **Access** — onboard/offboard logs
+> - **People** — your teammates and contacts
+> - **Knowledge** — how-tos and answers the team shares
 > - **Assets** — device and equipment inventory
 > - **Scripts** — runnable scripts
 >
-> Everything in OpenIT is a file or folder on disk. You can open, edit, and organize them however you want.
+> Everything in OpenIT is a file or folder on disk. You can open, edit, and organize them however you want — and share the vault with your team.
 >
-> One more thing — **click Tools**. That's where you connect your existing systems like Slack, Google Drive, and more. **Have you clicked on it?**
+> One more thing — **click Tools**. That's where you connect your existing systems like Google Drive and more. **Have you clicked on it?**
 
 Wait for acknowledgment.
 

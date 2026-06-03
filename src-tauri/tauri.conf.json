@@ -57,8 +57,8 @@
       "icons/icon.ico"
     ],
     "category": "DeveloperTool",
-    "shortDescription": "OpenIT \u2014 Claude-powered IT operations for SMBs.",
-    "longDescription": "OpenIT is a desktop app for IT admins that wraps Claude Code in a native shell with a file explorer, viewer, and tools catalog. Answer once, automate forever.",
+    "shortDescription": "OpenIT \u2014 a shared, file-based workspace for small teams, powered by Claude Code.",
+    "longDescription": "OpenIT is a desktop app that wraps Claude Code in a native shell around a shared, file-based vault. Small teams share knowledge, reports, commands, and files \u2014 and assign each other tasks \u2014 all as plain files they own. Answer once, reuse forever.",
     "copyright": "Copyright \u00a9 2025-2026 OpenIT Contributors",
     "macOS": {
       "minimumSystemVersion": "11.0",
