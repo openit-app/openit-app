@@ -57,11 +57,12 @@
   }
 
   .font-display {
-    font-family: "Inter", system-ui, sans-serif;
-    font-weight: 800;
-    letter-spacing: -0.02em;
-    line-height: 0.92;
-    word-spacing: 0.02em;
+    font-family: "Fraunces", "Times New Roman", serif;
+    font-weight: 600;
+    font-optical-sizing: auto;
+    letter-spacing: -0.015em;
+    line-height: 0.94;
+    word-spacing: 0.01em;
   }
 
   .font-mono-tag {
