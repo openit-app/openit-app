@@ -9,12 +9,12 @@ const githubUrl = "https://github.com/openit-app/openit-app";
 const release = await getLatestRelease();
 
 const steps: { k: string; v: string }[] = [
-  { k: "Ask", v: "Tell OpenIT what you need, in plain English." },
-  { k: "It does the work", v: "Claude does it — and writes down how." },
-  { k: "Reuse", v: "Next time, anyone on the team just asks." },
+  { k: "Ask", v: "Tell OpenIT what you need." },
+  { k: "It does the work", v: "Claude does it and writes down how." },
+  { k: "Reuse", v: "Next time, anyone just asks." },
 ];
 ---
-<BaseLayout title="OpenIT — A shared workspace that runs on Claude Code" bare={true}>
+<BaseLayout title="OpenIT · A shared workspace that runs on Claude Code" bare={true}>
   <div>
     {/* HERO */}
     <section class="mx-auto max-w-6xl px-6 pb-16 pt-12 md:px-10 md:pb-24 md:pt-20">
@@ -29,7 +29,7 @@ const steps: { k: string; v: string }[] = [
       </h1>
 
       <p class="hero-rise hero-rise-3 mt-7 max-w-xl text-xl leading-snug text-ink/75 md:text-2xl">
-        A shared workspace you run by chatting in plain English. Ask; it does the work <span class="font-serif-italic text-terracotta">and remembers how.</span>
+        A shared workspace your team runs by chatting in plain English. It does the work <span class="font-serif-italic text-terracotta">and remembers how.</span>
       </p>
 
       <div id="download" class="hero-rise hero-rise-4 mt-9 flex flex-wrap items-center gap-3">
@@ -74,7 +74,7 @@ const steps: { k: string; v: string }[] = [
           ))}
         </div>
         <p class="mt-16 max-w-2xl text-lg leading-relaxed text-ink/70">
-          Everything lives as plain files — knowledge, commands, tasks, files, reports — in a folder you already sync. No vendor database. <span class="font-serif-italic text-terracotta">Yours to keep.</span>
+          Everything lives as plain files: knowledge, commands, tasks, files, and reports, in a folder you already sync. No vendor database. <span class="font-serif-italic text-terracotta">Yours to keep.</span>
         </p>
       </div>
     </section>
