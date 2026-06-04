@@ -7,41 +7,16 @@
 
 @layer base {
   :root {
+    /* Editorial palette — the only tokens the site actually uses.
+       --terracotta is the single accent source of truth. */
     --background: 40 33% 96%;
     --foreground: 30 12% 12%;
-
-    --card: 40 33% 96%;
-    --card-foreground: 30 12% 12%;
-
-    --popover: 40 33% 98%;
-    --popover-foreground: 30 12% 12%;
-
-    --primary: 14 62% 50%;
-    --primary-foreground: 40 33% 97%;
-    --primary-glow: 18 80% 60%;
-
-    --secondary: 40 25% 90%;
-    --secondary-foreground: 30 12% 12%;
-
-    --muted: 40 22% 88%;
-    --muted-foreground: 30 8% 38%;
-
-    --accent: 14 62% 50%;
-    --accent-foreground: 40 33% 97%;
-
-    --destructive: 0 70% 45%;
-    --destructive-foreground: 40 33% 97%;
-
     --border: 30 15% 82%;
-    --input: 30 15% 82%;
-    --ring: 14 62% 50%;
 
     --ink: 30 14% 10%;
     --cream: 40 33% 96%;
     --cream-deep: 38 28% 92%;
     --terracotta: 14 62% 50%;
-
-    --radius: 999px;
   }
 }
 
