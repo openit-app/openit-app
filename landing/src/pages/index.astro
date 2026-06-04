@@ -21,12 +21,12 @@ const nativeAccess: { k: string; v: string }[] = [
   <div>
     {/* HERO */}
     <section class="mx-auto max-w-7xl px-6 pb-20 pt-10 md:px-10 md:pb-32 md:pt-16">
-      <span class="inline-flex items-center gap-2 rounded-full border border-ink/15 bg-cream px-4 py-1.5 font-mono-tag text-[11px] text-ink/70">
+      <span class="hero-rise inline-flex items-center gap-2 rounded-full border border-ink/15 bg-cream px-4 py-1.5 font-mono-tag text-[11px] text-ink/70">
         <span class="h-1.5 w-1.5 rounded-full bg-terracotta"></span>
         Open Source · macOS &amp; Windows
       </span>
 
-      <h1 class="font-display mt-8 text-[9.5vw] leading-[0.95] md:mt-10 md:text-[68px] lg:text-[88px]">
+      <h1 class="hero-rise hero-rise-2 font-display mt-8 text-[9.5vw] leading-[0.95] md:mt-10 md:text-[68px] lg:text-[88px]">
         Your team's shared brain,
         <span class="block text-terracotta">
           powered by
@@ -46,12 +46,12 @@ const nativeAccess: { k: string; v: string }[] = [
         </span>
       </h1>
 
-      <p class="mt-10 max-w-3xl text-xl leading-snug text-ink/80 md:text-2xl">
+      <p class="hero-rise hero-rise-3 mt-10 max-w-3xl text-xl leading-snug text-ink/80 md:text-2xl">
         Your team shares knowledge, reports, commands, and files — and assigns each other tasks. Claude does the work in plain English, so the answers you figure out once are{" "}
         <span class="font-serif-italic text-terracotta">there for everyone, forever.</span>
       </p>
 
-      <div id="download" class="mt-12 flex flex-wrap items-center gap-4">
+      <div id="download" class="hero-rise hero-rise-4 mt-12 flex flex-wrap items-center gap-4">
         <a id="hero-download" href={release.releaseUrl ?? githubUrl} class="group inline-flex items-center gap-3 rounded-full bg-ink px-7 py-4 text-cream transition hover:bg-terracotta no-underline">
           <svg class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" xmlns="http://www.w3.org/2000/svg"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" x2="12" y1="15" y2="3"/></svg>
           <span class="font-medium" id="hero-download-label">Download</span>
