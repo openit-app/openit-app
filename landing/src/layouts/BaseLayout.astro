@@ -47,18 +47,15 @@ const cfBeaconToken = import.meta.env.PUBLIC_CF_BEACON_TOKEN;
       <a href={url("/")} class="text-ink no-underline">
         <span class="wordmark text-[22px]">Open<span class="wm-it">IT</span></span>
       </a>
-      <nav class="hidden items-center gap-8 font-mono-tag text-[11px] text-ink/60 md:flex">
-        <a href={url("/") + "#native-access"} class="hover:text-ink no-underline">One vault</a>
-        <a href={url("/") + "#learns"} class="hover:text-ink no-underline">How it learns</a>
-        <a href={url("/") + "#status"} class="hover:text-ink no-underline">Open source</a>
+      <div class="flex items-center gap-6 font-mono-tag text-[11px] text-ink/60">
         <a href={githubUrl} class="inline-flex items-center gap-1 hover:text-ink no-underline">
           GitHub
           <svg class="h-3 w-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" xmlns="http://www.w3.org/2000/svg"><path d="M7 7h10v10"/><path d="M7 17 17 7"/></svg>
         </a>
-      </nav>
-      <a href={url("/") + "#download"} class="hidden rounded-full bg-ink px-4 py-2 font-mono-tag text-[10px] text-cream hover:bg-terracotta md:inline-flex no-underline">
-        Download
-      </a>
+        <a href={url("/") + "#download"} class="rounded-full bg-ink px-4 py-2 text-[10px] text-cream hover:bg-terracotta no-underline">
+          Download
+        </a>
+      </div>
     </header>
 
     {bare ? (

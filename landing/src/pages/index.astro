@@ -8,56 +8,36 @@ const url = (p: string) => `${base.replace(/\/$/, "")}/${p.replace(/^\//, "")}`;
 const githubUrl = "https://github.com/openit-app/openit-app";
 const release = await getLatestRelease();
 
-const nativeAccess: { k: string; v: string }[] = [
-  { k: "Knowledge", v: "How-tos and answers, written once and reused" },
-  { k: "Commands", v: "Reusable workflows anyone on the team can run" },
-  { k: "Tasks", v: "Assign each other work — no ticketing ceremony" },
-  { k: "Files", v: "Direct read/write to your shared vault on disk" },
-  { k: "Reports", v: "Generated from your data, saved as Markdown" },
-  { k: "Scripts", v: "Claude writes the code and runs it, so you don't have to" },
+const steps: { k: string; v: string }[] = [
+  { k: "Ask", v: "Tell OpenIT what you need, in plain English." },
+  { k: "It does the work", v: "Claude does it — and writes down how." },
+  { k: "Reuse", v: "Next time, anyone on the team just asks." },
 ];
 ---
 <BaseLayout title="OpenIT — A shared workspace that runs on Claude Code" bare={true}>
   <div>
     {/* HERO */}
-    <section class="mx-auto max-w-7xl px-6 pb-20 pt-10 md:px-10 md:pb-32 md:pt-16">
-      <span class="hero-rise inline-flex items-center gap-2 rounded-full border border-ink/15 bg-cream px-4 py-1.5 font-mono-tag text-[11px] text-ink/70">
+    <section class="mx-auto max-w-6xl px-6 pb-16 pt-12 md:px-10 md:pb-24 md:pt-20">
+      <p class="hero-rise flex items-center gap-2 font-mono-tag text-[11px] text-ink/55">
         <span class="h-1.5 w-1.5 rounded-full bg-terracotta"></span>
-        Open Source · macOS &amp; Windows
-      </span>
-
-      <h1 class="hero-rise hero-rise-2 font-display mt-8 text-[9.5vw] leading-[0.95] md:mt-10 md:text-[68px] lg:text-[88px]">
-        Your team's shared brain,
-        <span class="block text-terracotta">
-          powered by
-          <span class="claude-code-lockup">
-            {/* Pixel mascot — matches images/ph/01-hero.html. Grid is 11×7 at 10px. */}
-            <svg class="cc-mascot" viewBox="0 0 110 70" xmlns="http://www.w3.org/2000/svg" shape-rendering="crispEdges" aria-label="Claude Code mascot">
-              <g fill="#D97757" stroke="rgba(30,20,15,.18)" stroke-width="0.6">
-                <rect x="20" y="0" width="10" height="10"/><rect x="30" y="0" width="10" height="10"/><rect x="40" y="0" width="10" height="10"/><rect x="50" y="0" width="10" height="10"/><rect x="60" y="0" width="10" height="10"/><rect x="70" y="0" width="10" height="10"/><rect x="80" y="0" width="10" height="10"/>
-                <rect x="20" y="10" width="10" height="10"/><rect x="30" y="10" width="10" height="10"/><rect x="50" y="10" width="10" height="10"/><rect x="60" y="10" width="10" height="10"/><rect x="80" y="10" width="10" height="10"/>
-                <rect x="10" y="20" width="10" height="10"/><rect x="20" y="20" width="10" height="10"/><rect x="30" y="20" width="10" height="10"/><rect x="40" y="20" width="10" height="10"/><rect x="50" y="20" width="10" height="10"/><rect x="60" y="20" width="10" height="10"/><rect x="70" y="20" width="10" height="10"/><rect x="80" y="20" width="10" height="10"/><rect x="90" y="20" width="10" height="10"/>
-                <rect x="10" y="30" width="10" height="10"/><rect x="20" y="30" width="10" height="10"/><rect x="30" y="30" width="10" height="10"/><rect x="40" y="30" width="10" height="10"/><rect x="50" y="30" width="10" height="10"/><rect x="60" y="30" width="10" height="10"/><rect x="70" y="30" width="10" height="10"/><rect x="80" y="30" width="10" height="10"/><rect x="90" y="30" width="10" height="10"/>
-                <rect x="20" y="40" width="10" height="20"/><rect x="40" y="40" width="10" height="20"/><rect x="60" y="40" width="10" height="20"/><rect x="80" y="40" width="10" height="20"/>
-              </g>
-            </svg>
-            <span class="cc-text"><span>CLAUDE</span><span>CODE</span></span>
-          </span>.
-        </span>
-      </h1>
-
-      <p class="hero-rise hero-rise-3 mt-10 max-w-3xl text-xl leading-snug text-ink/80 md:text-2xl">
-        Your team shares knowledge, reports, commands, and files — and assigns each other tasks. Claude does the work in plain English, so the answers you figure out once are{" "}
-        <span class="font-serif-italic text-terracotta">there for everyone, forever.</span>
+        Open source · Runs on Claude Code · macOS &amp; Windows
       </p>
 
-      <div id="download" class="hero-rise hero-rise-4 mt-12 flex flex-wrap items-center gap-4">
+      <h1 class="hero-rise hero-rise-2 font-display mt-7 max-w-[15ch] text-[12vw] leading-[0.95] md:mt-9 md:text-[68px] lg:text-[88px]">
+        Your team should only
+        <span class="block text-terracotta">figure it out once.</span>
+      </h1>
+
+      <p class="hero-rise hero-rise-3 mt-7 max-w-xl text-xl leading-snug text-ink/75 md:text-2xl">
+        A shared workspace you run by chatting in plain English. Ask; it does the work <span class="font-serif-italic text-terracotta">and remembers how.</span>
+      </p>
+
+      <div id="download" class="hero-rise hero-rise-4 mt-9 flex flex-wrap items-center gap-3">
         <a id="hero-download" href={release.releaseUrl ?? githubUrl} class="group inline-flex items-center gap-3 rounded-full bg-ink px-7 py-4 text-cream transition hover:bg-terracotta no-underline">
           <svg class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" xmlns="http://www.w3.org/2000/svg"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" x2="12" y1="15" y2="3"/></svg>
           <span class="font-medium" id="hero-download-label">Download</span>
         </a>
-        <a href={githubUrl} class="group inline-flex items-center gap-2 rounded-full border border-ink/20 bg-transparent px-7 py-4 text-ink transition hover:border-ink hover:bg-ink hover:text-cream no-underline">
-          <svg class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" xmlns="http://www.w3.org/2000/svg"><path d="M15 22v-4a4.8 4.8 0 0 0-1-3.5c3 0 6-2 6-5.5.08-1.25-.27-2.48-1-3.5.28-1.15.28-2.35 0-3.5 0 0-1 0-3 1.5-2.64-.5-5.36-.5-8 0C6 2 5 2 5 2c-.3 1.15-.3 2.35 0 3.5A5.403 5.403 0 0 0 4 9c0 3.5 3 5.5 6 5.5-.39.49-.68 1.05-.85 1.65-.17.6-.22 1.23-.15 1.85v4"/><path d="M9 18c-4.51 2-5-2-7-2"/></svg>
+        <a href={githubUrl} class="group inline-flex items-center gap-2 rounded-full border border-ink/20 px-7 py-4 text-ink transition hover:border-ink hover:bg-ink hover:text-cream no-underline">
           <span class="font-medium">View on GitHub</span>
           <svg class="h-4 w-4 transition group-hover:translate-x-0.5 group-hover:-translate-y-0.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" xmlns="http://www.w3.org/2000/svg"><path d="M7 7h10v10"/><path d="M7 17 17 7"/></svg>
         </a>
@@ -68,266 +48,52 @@ const nativeAccess: { k: string; v: string }[] = [
         </p>
       )}
 
-      {/* Architecture block */}
-      <div class="mt-24 grid gap-px overflow-hidden rounded-3xl border border-ink/15 bg-ink/15 md:mt-32 md:grid-cols-2">
-        <div class="bg-cream p-8 md:p-10">
-          <div class="inline-flex items-center gap-2 rounded-full border border-ink/20 bg-cream-deep px-3 py-1.5 font-mono-tag text-[11px] font-semibold text-ink">
-            <svg class="h-3.5 w-3.5 text-terracotta" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" xmlns="http://www.w3.org/2000/svg"><path d="M4 20h16a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.93a2 2 0 0 1-1.66-.9l-.82-1.2A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13c0 1.1.9 2 2 2Z"/></svg>
-            One vault · On disk
-          </div>
-          <h2 class="font-display mt-6 text-4xl leading-[0.95] tracking-tight md:text-5xl">
-            A folder your <br /> whole team shares.
-          </h2>
-          <p class="mt-5 max-w-md text-base leading-relaxed text-ink/70">
-            Put the vault in a synced folder — Google Drive, Dropbox, git, whatever you already use. Knowledge, reports, commands, files, and tasks all live there as plain files you own.
-          </p>
-          <div class="mt-8 rounded-xl bg-ink p-4 font-mono-tag text-[11px] text-cream/80">
-            <div class="text-cream/40">~/Google Drive/acme-vault $</div>
-            <div class="mt-2 text-terracotta">→ claude code · ready</div>
-            <div class="text-cream/60">→ shared with 3 teammates</div>
-            <div class="text-cream/60">→ knowledge · commands · tasks · files</div>
-          </div>
-        </div>
-        <div class="bg-cream-deep p-8 md:p-10">
-          <div class="inline-flex items-center gap-2 rounded-full border border-ink/20 bg-cream px-3 py-1.5 font-mono-tag text-[11px] font-semibold text-ink">
-            <svg class="h-3.5 w-3.5 text-terracotta" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" xmlns="http://www.w3.org/2000/svg"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
-            Plain English · One chat
-          </div>
-          <h2 class="font-display mt-6 text-4xl leading-[0.95] tracking-tight md:text-5xl">
-            Tell Claude <br /> what you need.
-          </h2>
-          <p class="mt-5 max-w-md text-base leading-relaxed text-ink/70">
-            No new app to learn. Ask in plain English — write it up, run it, assign it — and the result lands in the vault for the rest of the team.
-          </p>
-          <div class="mt-8 space-y-3">
-            <div class="max-w-[85%] rounded-2xl bg-ink/5 p-4">
-              <div class="font-mono-tag text-[10px] text-ink/40">you</div>
-              <div class="mt-1 text-sm text-ink/80">write up how we cut a release, and assign Priya the vendor audit</div>
-            </div>
-            <div class="ml-auto max-w-[85%] rounded-2xl bg-terracotta p-4 text-cream">
-              <div class="font-mono-tag text-[10px] text-cream/60">openit · just now</div>
-              <div class="mt-1 text-sm">Saved knowledge/cutting-a-release.md and assigned the vendor audit to Priya.</div>
-            </div>
-          </div>
-        </div>
-      </div>
+      <figure class="hero-rise hero-rise-4 mt-14 md:mt-16">
+        <img
+          src={url("/app-hero.png")}
+          width="1432"
+          height="952"
+          alt="The OpenIT desktop app: a shared vault of knowledge, commands and files on the left, a one-click command list in the middle, and Claude Code built in on the right."
+          class="block w-full rounded-2xl border border-ink/15 shadow-[0_40px_90px_-40px_rgba(30,20,15,0.45)]"
+          loading="eager"
+          decoding="async"
+        />
+      </figure>
     </section>
 
-    {/* §01 THESIS */}
-    <section id="thesis" class="border-t border-ink/10">
-      <div class="mx-auto grid max-w-7xl gap-16 px-6 py-24 md:grid-cols-12 md:px-10 md:py-32">
-        <div class="md:col-span-5">
-          <div class="flex items-center gap-3 font-mono-tag text-[11px] text-ink/50">
-            <span class="text-terracotta">§01</span>
-            <span class="h-px flex-1 bg-ink/15"></span>
-            <span>Own your knowledge</span>
-          </div>
-          <h2 class="font-display mt-6 text-5xl leading-[0.95] tracking-tight md:text-6xl">
-            Your knowledge, <br />
-            <span class="text-terracotta">in files you own.</span>
-          </h2>
-        </div>
-        <div class="space-y-8 md:col-span-7 md:pt-20">
-          <p class="text-xl leading-relaxed text-ink/75 md:text-2xl">
-            Every other tool keeps what your team knows locked inside its own database, behind its own screens. The day you leave, your knowledge stays behind.
-          </p>
-          <blockquote class="border-l-2 border-terracotta pl-6 font-display text-3xl leading-tight tracking-tight md:text-4xl">
-            Yours to read, edit, and take with you.
-          </blockquote>
-          <p class="text-lg leading-relaxed text-ink/75">
-            OpenIT is just plain files in a folder you already sync. Ask in plain English; the answer lands as a file on your machine. Open it, edit it, back it up — it's yours.
-          </p>
-        </div>
-      </div>
-    </section>
-
-    {/* §02 NATIVE ACCESS */}
-    <section id="native-access" class="border-t border-ink/10 bg-cream-deep">
-      <div class="mx-auto max-w-7xl px-6 py-24 md:px-10 md:py-32">
-        <div class="flex items-center gap-3 font-mono-tag text-[11px] text-ink/50">
-          <span class="text-terracotta">§02</span>
-          <span class="h-px flex-1 bg-ink/15"></span>
-          <span>One shared vault</span>
-        </div>
-        <h2 class="font-display mt-6 text-5xl leading-[0.95] tracking-tight md:text-7xl">
-          One vault. <br />
-          <span class="font-serif-italic text-terracotta">Your whole team.</span>
-        </h2>
-        <p class="mt-10 max-w-3xl text-xl leading-snug text-ink/75 md:text-2xl">
-          Stop scattering what you know across docs, threads, and people's heads. Everything your team shares lives in one vault — plain files in a synced folder you already use.
-        </p>
-
-        <div class="mt-16 grid gap-px overflow-hidden rounded-3xl border border-ink/15 bg-ink/15 md:grid-cols-3">
-          {nativeAccess.map(({ k, v }) => (
-            <div class="bg-cream p-6 md:p-7">
-              <div class="font-mono-tag text-[10px] text-terracotta">{k}</div>
-              <div class="mt-3 text-base leading-snug text-ink md:text-lg">{v}</div>
+    {/* HOW IT WORKS */}
+    <section class="border-t border-ink/10 bg-cream-deep">
+      <div class="mx-auto max-w-6xl px-6 py-20 md:px-10 md:py-28">
+        <div class="grid gap-10 md:grid-cols-3 md:gap-12">
+          {steps.map(({ k, v }, i) => (
+            <div>
+              <div class="font-display text-3xl leading-none text-terracotta md:text-4xl">0{i + 1}</div>
+              <div class="mt-4 font-mono-tag text-[10px] text-ink/45">{k}</div>
+              <p class="mt-2 text-lg leading-snug text-ink md:text-xl">{v}</p>
             </div>
           ))}
-          <div class="bg-ink p-6 text-cream md:col-span-3 md:p-8">
-            <div class="flex flex-col items-start gap-4 md:flex-row md:items-center md:justify-between">
-              <div class="flex items-center gap-3">
-                <svg class="h-4 w-4 text-terracotta" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" xmlns="http://www.w3.org/2000/svg"><path d="M12 22v-5"/><path d="M9 7V2"/><path d="M15 7V2"/><path d="M6 13V8h12v5a4 4 0 0 1-4 4h-4a4 4 0 0 1-4-4Z"/></svg>
-                <div class="font-mono-tag text-[10px] text-terracotta">Anything else</div>
-              </div>
-              <div class="text-base leading-snug text-cream/85 md:text-lg">
-                Claude writes the file or integration if it's missing.
-              </div>
-            </div>
-          </div>
         </div>
-
-        <p class="mt-12 max-w-3xl text-lg leading-relaxed text-ink/70">
-          No middleware. No vendor database. The vault is just a folder — sync it, back it up, share it. It's yours.
+        <p class="mt-16 max-w-2xl text-lg leading-relaxed text-ink/70">
+          Everything lives as plain files — knowledge, commands, tasks, files, reports — in a folder you already sync. No vendor database. <span class="font-serif-italic text-terracotta">Yours to keep.</span>
         </p>
       </div>
     </section>
 
-    {/* §03 HOW IT LEARNS */}
-    <section id="learns" class="border-t border-ink/10 bg-ink text-cream">
-      <div class="mx-auto max-w-7xl px-6 py-24 md:px-10 md:py-32">
-        <div class="flex items-center gap-3 font-mono-tag text-[11px] text-cream/40">
-          <span class="text-terracotta">§03</span>
-          <span class="h-px flex-1 bg-cream/15"></span>
-          <span>How it learns</span>
-        </div>
-        <h2 class="font-display mt-6 max-w-5xl text-5xl leading-[0.95] tracking-tight md:text-7xl">
-          Answer once. <br /><span class="font-serif-italic text-terracotta">Your team reuses it.</span>
-        </h2>
-        <p class="mt-10 max-w-2xl text-xl leading-snug text-cream/70 md:text-2xl">
-          The first time someone works something out, Claude captures the answer <span class="font-serif-italic text-terracotta">and</span> the workflow — as a knowledge article or a runnable command. The next time anyone on the team hits the same thing, the answer's already there.
-        </p>
-
-        <div class="mx-auto mt-20 max-w-3xl rounded-3xl border border-cream/10 bg-cream/[0.03] p-6 md:p-10">
-          <div class="font-mono-tag text-[10px] text-cream/40">Day 1 · the team vault</div>
-          <div class="mt-5 space-y-4">
-            <div class="max-w-[80%] rounded-2xl bg-cream/10 p-4">
-              <div class="font-mono-tag text-[10px] text-cream/40">marcus</div>
-              <div class="mt-1 text-base text-cream/90">how do we cut a release again?</div>
-            </div>
-            <div class="ml-auto max-w-[85%] rounded-2xl border border-terracotta/30 bg-terracotta/10 p-4">
-              <div class="font-mono-tag text-[10px] text-terracotta">openit · first time</div>
-              <div class="mt-1 text-base text-cream/85">Haven't written this down yet — walk me through it.</div>
-            </div>
-            <div class="max-w-[85%] rounded-2xl bg-cream/10 p-4">
-              <div class="font-mono-tag text-[10px] text-cream/40">you</div>
-              <div class="mt-1 text-base text-cream/90">bump the version, tag it, push — the workflow does the rest</div>
-            </div>
-          </div>
-
-          {/* Saved-to-vault marker */}
-          <div class="my-6 flex items-center gap-4 rounded-2xl border-2 border-dashed border-terracotta/50 bg-terracotta/5 p-5">
-            <svg class="h-7 w-7 flex-shrink-0 text-terracotta" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" xmlns="http://www.w3.org/2000/svg"><path d="M20 6 9 17l-5-5"/></svg>
-            <div class="min-w-0 flex-1">
-              <div class="font-mono-tag text-[10px] uppercase tracking-wider text-terracotta">Saved to the vault</div>
-              <div class="mt-1 truncate font-mono-tag text-[12px] text-cream/85">knowledge/cutting-a-release.md · command /release published</div>
-            </div>
-          </div>
-
-          <div class="my-6 flex items-center gap-3 font-mono-tag text-[10px] text-cream/40">
-            <span class="h-px flex-1 bg-cream/15"></span>
-            <span>three days later</span>
-            <span class="h-px flex-1 bg-cream/15"></span>
-          </div>
-
-          <div class="space-y-4">
-            <div class="max-w-[80%] rounded-2xl bg-cream/10 p-4">
-              <div class="font-mono-tag text-[10px] text-cream/40">priya</div>
-              <div class="mt-1 text-base text-cream/90">need to ship a release, what's the process</div>
-            </div>
-            <div class="ml-auto max-w-[85%] rounded-2xl bg-terracotta p-4 text-cream">
-              <div class="font-mono-tag text-[10px] text-cream/60">openit · from the vault</div>
-              <div class="mt-1 text-base">Here's how we cut a release — or run /release and I'll walk you through it.</div>
-            </div>
-          </div>
-        </div>
-
-        <p class="mt-16 max-w-3xl text-lg leading-relaxed text-cream/70">
-          Every answer becomes a file the whole team shares. Two weeks in, you stop repeating yourselves.
-        </p>
-      </div>
-    </section>
-
-    {/* §04 SKILLS AND SCRIPTS */}
-    <section class="border-t border-ink/10">
-      <div class="mx-auto max-w-7xl px-6 py-24 md:px-10 md:py-32">
-        <div class="flex items-center gap-3 font-mono-tag text-[11px] text-ink/50">
-          <span class="text-terracotta">§04</span>
-          <span class="h-px flex-1 bg-ink/15"></span>
-          <span>What gets saved</span>
-        </div>
-        <h2 class="font-display mt-6 max-w-5xl text-5xl leading-[0.95] tracking-tight md:text-7xl">
-          Plain English, <br /><span class="font-serif-italic text-terracotta">or code.</span>
-        </h2>
-        <p class="mt-10 max-w-3xl text-xl leading-snug text-ink/75 md:text-2xl">
-          Each fix becomes a file you can read, edit, and reuse — plain instructions when that's enough, code when it's not.
-        </p>
-
-        <div class="mt-16 grid gap-8 md:grid-cols-2">
-          {/* Skill — markdown */}
-          <div class="overflow-hidden rounded-3xl border border-ink/15 bg-cream">
-            <div class="flex items-center gap-2 border-b border-ink/10 bg-cream-deep px-5 py-3 font-mono-tag text-[11px] text-ink/60">
-              <svg class="h-3.5 w-3.5 text-terracotta" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" xmlns="http://www.w3.org/2000/svg"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
-              knowledge/onboarding-a-client.md
-            </div>
-            <div class="p-6 md:p-8 font-mono-tag text-[12.5px] leading-relaxed text-ink/85">
-              <div class="text-terracotta"># Onboarding a new client</div>
-              <div class="mt-3 text-ink/60">First week, every time:</div>
-              <div class="mt-3">1. Send the welcome packet and intake form</div>
-              <div>2. Set up their shared folder and access</div>
-              <div>3. Book the kickoff call</div>
-            </div>
-            <div class="border-t border-ink/10 bg-cream-deep px-5 py-3 font-mono-tag text-[10px] uppercase tracking-wider text-ink/50">
-              Knowledge · plain English
-            </div>
-          </div>
-
-          {/* Script — code */}
-          <div class="overflow-hidden rounded-3xl bg-ink text-cream">
-            <div class="flex items-center gap-2 border-b border-cream/10 bg-cream/[0.04] px-5 py-3 font-mono-tag text-[11px] text-cream/60">
-              <svg class="h-3.5 w-3.5 text-terracotta" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" xmlns="http://www.w3.org/2000/svg"><polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/></svg>
-              scripts/weekly-report.ts
-            </div>
-            <div class="p-6 md:p-8 font-mono-tag text-[12.5px] leading-relaxed text-cream/85">
-              <div><span class="text-terracotta">async function</span> weeklyReport() &#123;</div>
-              <div class="pl-4">const tasks = await vault.tasks.closedThisWeek()</div>
-              <div class="pl-4">const md = render(tasks)</div>
-              <div class="pl-4">await vault.reports.write("weekly", md)</div>
-              <div>&#125;</div>
-            </div>
-            <div class="border-t border-cream/10 bg-cream/[0.04] px-5 py-3 font-mono-tag text-[10px] uppercase tracking-wider text-cream/50">
-              Script · for code
-            </div>
-          </div>
-        </div>
-
-        <p class="mt-12 max-w-3xl text-lg leading-relaxed text-ink/70">
-          Claude builds them. Then runs them — when anyone on the team asks, or on a schedule.
-        </p>
-      </div>
-    </section>
-
-    {/* §05 OPEN SOURCE */}
+    {/* CLOSE */}
     <section id="status" class="border-t border-ink/10 bg-terracotta text-cream">
-      <div class="mx-auto max-w-7xl px-6 py-24 md:px-10 md:py-40">
-        <div class="flex items-center gap-3 font-mono-tag text-[11px] text-cream/60">
-          <span>§05</span>
-          <span class="h-px flex-1 bg-cream/30"></span>
-          <span>Open source</span>
-        </div>
-        <h2 class="font-display mt-6 text-7xl leading-[0.92] tracking-tight md:text-[112px]">
+      <div class="mx-auto max-w-6xl px-6 py-20 md:px-10 md:py-32">
+        <h2 class="font-display text-6xl leading-[0.95] md:text-8xl">
           Open <span class="font-serif-italic">source.</span>
         </h2>
-        <p class="mt-10 max-w-2xl text-xl leading-snug text-cream/85 md:text-2xl">
-          Apache 2.0. Fork it, ship it, make it yours. macOS and Windows today, Linux coming — contributions welcome.
+        <p class="mt-7 max-w-xl text-lg leading-snug text-cream/85 md:text-xl">
+          Apache 2.0. macOS and Windows today, Linux next. Free to download, fork, and make your own.
         </p>
-        <div class="mt-12 flex flex-wrap items-center gap-4">
+        <div class="mt-9 flex flex-wrap items-center gap-3">
           <a id="bottom-download" href={release.releaseUrl ?? githubUrl} class="group inline-flex items-center gap-3 rounded-full bg-ink px-7 py-4 text-cream transition hover:bg-cream hover:text-ink no-underline">
             <svg class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" xmlns="http://www.w3.org/2000/svg"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" x2="12" y1="15" y2="3"/></svg>
             <span class="font-medium" id="bottom-download-label">Download</span>
           </a>
-          <a href={githubUrl} class="group inline-flex items-center gap-3 rounded-full border border-cream/30 bg-transparent px-7 py-4 text-cream transition hover:bg-cream hover:text-ink no-underline">
-            <svg class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" xmlns="http://www.w3.org/2000/svg"><path d="M15 22v-4a4.8 4.8 0 0 0-1-3.5c3 0 6-2 6-5.5.08-1.25-.27-2.48-1-3.5.28-1.15.28-2.35 0-3.5 0 0-1 0-3 1.5-2.64-.5-5.36-.5-8 0C6 2 5 2 5 2c-.3 1.15-.3 2.35 0 3.5A5.403 5.403 0 0 0 4 9c0 3.5 3 5.5 6 5.5-.39.49-.68 1.05-.85 1.65-.17.6-.22 1.23-.15 1.85v4"/><path d="M9 18c-4.51 2-5-2-7-2"/></svg>
+          <a href={githubUrl} class="inline-flex items-center gap-2 rounded-full border border-cream/30 px-7 py-4 text-cream transition hover:bg-cream hover:text-ink no-underline">
             <span class="font-medium">View on GitHub</span>
           </a>
         </div>
@@ -338,7 +104,6 @@ const nativeAccess: { k: string; v: string }[] = [
         )}
       </div>
     </section>
-
   </div>
 </BaseLayout>
 
@@ -349,7 +114,6 @@ const nativeAccess: { k: string; v: string }[] = [
     url = winExeUrl;
     label = "Download for Windows";
   } else if (ua.includes("mac")) {
-    // Default to Apple Silicon since most modern Macs are AS
     url = arm64DmgUrl;
     label = "Download for macOS";
   } else {
