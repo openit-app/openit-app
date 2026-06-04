@@ -45,7 +45,7 @@ const steps: { k: string; v: string }[] = [
       </div>
       {release.available && (
         <p class="mt-4 font-mono-tag text-[11px] text-ink/40">
-          {release.totalDownloads > 0 && <>{release.totalDownloads.toLocaleString()} downloads · </>}v{release.version}
+          v{release.version}
         </p>
       )}
 
@@ -100,7 +100,7 @@ const steps: { k: string; v: string }[] = [
         </div>
         {release.available && (
           <p class="mt-4 font-mono-tag text-[11px] text-cream/60">
-            {release.totalDownloads > 0 && <>{release.totalDownloads.toLocaleString()} downloads · </>}v{release.version}
+            v{release.version}
           </p>
         )}
       </div>
