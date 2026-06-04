@@ -7,41 +7,16 @@
 
 @layer base {
   :root {
+    /* Editorial palette — the only tokens the site actually uses.
+       --terracotta is the single accent source of truth. */
     --background: 40 33% 96%;
     --foreground: 30 12% 12%;
-
-    --card: 40 33% 96%;
-    --card-foreground: 30 12% 12%;
-
-    --popover: 40 33% 98%;
-    --popover-foreground: 30 12% 12%;
-
-    --primary: 14 62% 50%;
-    --primary-foreground: 40 33% 97%;
-    --primary-glow: 18 80% 60%;
-
-    --secondary: 40 25% 90%;
-    --secondary-foreground: 30 12% 12%;
-
-    --muted: 40 22% 88%;
-    --muted-foreground: 30 8% 38%;
-
-    --accent: 14 62% 50%;
-    --accent-foreground: 40 33% 97%;
-
-    --destructive: 0 70% 45%;
-    --destructive-foreground: 40 33% 97%;
-
     --border: 30 15% 82%;
-    --input: 30 15% 82%;
-    --ring: 14 62% 50%;
 
     --ink: 30 14% 10%;
     --cream: 40 33% 96%;
     --cream-deep: 38 28% 92%;
     --terracotta: 14 62% 50%;
-
-    --radius: 999px;
   }
 }
 
@@ -57,11 +32,12 @@
   }
 
   .font-display {
-    font-family: "Inter", system-ui, sans-serif;
-    font-weight: 800;
-    letter-spacing: -0.02em;
-    line-height: 0.92;
-    word-spacing: 0.02em;
+    font-family: "Fraunces", "Times New Roman", serif;
+    font-weight: 600;
+    font-optical-sizing: auto;
+    letter-spacing: -0.015em;
+    line-height: 0.94;
+    word-spacing: 0.01em;
   }
 
   .font-mono-tag {
@@ -141,6 +117,32 @@
   .bg-ink { background-color: hsl(var(--ink)); }
   .text-ink { color: hsl(var(--ink)); }
   .border-ink { border-color: hsl(var(--ink)); }
+}
+
+/* ─────────────────────────────────────────────────────────────────
+   Motion — CSS-only, no client JS. The hero rises in on load (staggered);
+   section headings rise in as they scroll into view. Both honour
+   prefers-reduced-motion, and the scroll-driven reveal is wrapped in
+   @supports so browsers without view-timelines just show static content.
+   ───────────────────────────────────────────────────────────────── */
+@media (prefers-reduced-motion: no-preference) {
+  .hero-rise { animation: reveal-up 700ms cubic-bezier(0.22, 1, 0.36, 1) both; }
+  .hero-rise-2 { animation-delay: 90ms; }
+  .hero-rise-3 { animation-delay: 180ms; }
+  .hero-rise-4 { animation-delay: 270ms; }
+
+  @supports (animation-timeline: view()) {
+    section h2.font-display {
+      animation: reveal-up linear both;
+      animation-timeline: view();
+      animation-range: entry 5% cover 22%;
+    }
+  }
+}
+
+@keyframes reveal-up {
+  from { opacity: 0; transform: translateY(24px); }
+  to   { opacity: 1; transform: none; }
 }
 
 /* ─────────────────────────────────────────────────────────────────
