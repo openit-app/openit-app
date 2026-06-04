@@ -39,6 +39,10 @@ jobs:
       - run: npm run build
         env:
           PUBLIC_CF_BEACON_TOKEN: ${{ secrets.CF_BEACON_TOKEN }}
+          # Authenticate the build-time GitHub API call in release.ts so the
+          # download count and installer links don't vanish on a rate-limited
+          # unauthenticated build (60/hour per shared runner IP).
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       - uses: actions/upload-pages-artifact@v5
         with:
           path: landing/dist

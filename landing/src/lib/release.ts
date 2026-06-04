@@ -17,15 +17,21 @@ export interface ReleaseInfo {
 
 export async function getLatestRelease(): Promise<ReleaseInfo> {
   try {
+    // Authenticate when a token is available (GITHUB_TOKEN is auto-provided in
+    // GitHub Actions). Unauthenticated requests are capped at 60/hour per IP —
+    // which silently empties the download count and the installer links on any
+    // rate-limited build. A token raises the cap to 5000/hour.
+    const token = process.env.GITHUB_TOKEN || process.env.GH_TOKEN;
+    const headers: Record<string, string> = {
+      Accept: "application/vnd.github+json",
+    };
+    if (token) headers.Authorization = `Bearer ${token}`;
+
     // Sum download_count across the latest release AND any prior releases so the
     // tally doesn't reset when we cut a new version.
     const [latestRes, allRes] = await Promise.all([
-      fetch(`https://api.github.com/repos/${REPO}/releases/latest`, {
-        headers: { Accept: "application/vnd.github+json" },
-      }),
-      fetch(`https://api.github.com/repos/${REPO}/releases?per_page=100`, {
-        headers: { Accept: "application/vnd.github+json" },
-      }),
+      fetch(`https://api.github.com/repos/${REPO}/releases/latest`, { headers }),
+      fetch(`https://api.github.com/repos/${REPO}/releases?per_page=100`, { headers }),
     ]);
     if (!latestRes.ok) {
       return pending();

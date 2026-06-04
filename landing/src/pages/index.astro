@@ -6,6 +6,7 @@ const base = import.meta.env.BASE_URL;
 const url = (p: string) => `${base.replace(/\/$/, "")}/${p.replace(/^\//, "")}`;
 
 const githubUrl = "https://github.com/openit-app/openit-app";
+const releasesUrl = `${githubUrl}/releases`;
 const release = await getLatestRelease();
 
 const steps: { k: string; v: string }[] = [
@@ -33,7 +34,7 @@ const steps: { k: string; v: string }[] = [
       </p>
 
       <div id="download" class="hero-rise hero-rise-4 mt-9 flex flex-wrap items-center gap-3">
-        <a id="hero-download" href={release.releaseUrl ?? githubUrl} class="group inline-flex items-center gap-3 rounded-full bg-ink px-7 py-4 text-cream transition hover:bg-terracotta no-underline">
+        <a id="hero-download" href={release.releaseUrl ?? releasesUrl} class="group inline-flex items-center gap-3 rounded-full bg-ink px-7 py-4 text-cream transition hover:bg-terracotta no-underline">
           <svg class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" xmlns="http://www.w3.org/2000/svg"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" x2="12" y1="15" y2="3"/></svg>
           <span class="font-medium" id="hero-download-label">Download</span>
         </a>
@@ -89,7 +90,7 @@ const steps: { k: string; v: string }[] = [
           Apache 2.0. macOS and Windows today, Linux next. Free to download, fork, and make your own.
         </p>
         <div class="mt-9 flex flex-wrap items-center gap-3">
-          <a id="bottom-download" href={release.releaseUrl ?? githubUrl} class="group inline-flex items-center gap-3 rounded-full bg-ink px-7 py-4 text-cream transition hover:bg-cream hover:text-ink no-underline">
+          <a id="bottom-download" href={release.releaseUrl ?? releasesUrl} class="group inline-flex items-center gap-3 rounded-full bg-ink px-7 py-4 text-cream transition hover:bg-cream hover:text-ink no-underline">
             <svg class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" xmlns="http://www.w3.org/2000/svg"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" x2="12" y1="15" y2="3"/></svg>
             <span class="font-medium" id="bottom-download-label">Download</span>
           </a>
