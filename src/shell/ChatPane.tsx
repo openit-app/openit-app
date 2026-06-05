@@ -9,6 +9,77 @@ import { onPtyData, onPtyExit, ptyKill, ptyResize, ptySpawn, ptyWrite } from "..
 import { setActiveSession, clearActiveSession } from "./activeSession";
 import "@xterm/xterm/css/xterm.css";
 
+// ── Terminal readability constants (PIN-6608) ───────────────────────
+// Pulled out of the inline `new Terminal({...})` so the values that
+// drive how readable Claude's output is are explicit, reviewable, and
+// unit-testable (see ChatPane.test.tsx). The previous regression was
+// that these lived inline at fontSize 13 with no stable lineHeight,
+// and were tuned by guesswork; surfacing them as named constants makes
+// every readability decision a deliberate, diff-able choice.
+
+/** Monospace stack. MesloLGS NF (Claude Code's recommended font) and
+ *  the JetBrains/Hack/Symbols Nerd Fonts first so Claude's powerline
+ *  glyphs, box-drawing, and icons render correctly; then the OS mono
+ *  fallbacks. Order matters cross-platform: macOS resolves Menlo/SF
+ *  Mono, Windows/WebView2 falls through to whichever Nerd Font is
+ *  installed (or Consolas via the generic `monospace` keyword). */
+export const TERMINAL_FONT_FAMILY =
+  "'MesloLGS NF', 'JetBrainsMono Nerd Font Mono', 'JetBrainsMono Nerd Font', 'Hack Nerd Font Mono', 'Hack Nerd Font', 'Symbols Nerd Font Mono', Menlo, Monaco, 'SF Mono', monospace";
+
+/** Body font size in px. Bumped 13 → 14 for legibility — the #1 user
+ *  complaint was "i can't read the output". 14px keeps a comfortable
+ *  column count even at the right pane's minimum width (≈281px ÷ ~8.4px
+ *  advance ≈ 33 cols, enough for Claude's wrapped output) while being
+ *  materially easier to read than 13px. */
+export const TERMINAL_FONT_SIZE = 14;
+
+/** Line height as a multiple of font size. Previously unset, so xterm
+ *  used its default of 1.0 — lines packed edge-to-edge, which is the
+ *  dense, hard-to-scan look users compared unfavourably to Zed. 1.3
+ *  opens vertical rhythm without wasting rows. Explicit + stable so it
+ *  doesn't drift between renders or platforms. */
+export const TERMINAL_LINE_HEIGHT = 1.3;
+
+/** Letter spacing in px. Kept at 0: monospace advance is already fixed,
+ *  and any non-zero value risks sub-pixel cursor/glyph misalignment in
+ *  WebView2. Named so it's an explicit decision, not an omission. */
+export const TERMINAL_LETTER_SPACING = 0;
+
+/** Scrollback lines retained off-screen. Unchanged from the prior
+ *  implementation — large enough to scroll back through a long Claude
+ *  session without unbounded memory growth. */
+export const TERMINAL_SCROLLBACK = 10000;
+
+/** xterm color theme — the "dark theatre" the right pane renders in.
+ *  Warm near-black background with warm-cream foreground so Claude's
+ *  output reads as a distinct surface from the cream workbench while
+ *  staying high-contrast. ANSI slots keep semantically-meaningful hues
+ *  (red = errors/removed, green = success/added) separable by both hue
+ *  and lightness. Each value targets a high contrast ratio on the dark
+ *  background so text stays crisp on every display. */
+export const TERMINAL_THEME = {
+  background: "#1a140e",
+  foreground: "#f0e7d3",
+  cursor: "#e8804a",
+  selectionBackground: "rgba(199, 90, 44, 0.32)",
+  black: "#1a140e",
+  red: "#e07a6a",
+  green: "#a8c89e",
+  yellow: "#d4b878",
+  blue: "#9aa8e0",
+  magenta: "#c89ac0",
+  cyan: "#9ac8c0",
+  white: "#d8cdb5",
+  brightBlack: "#544a3a",
+  brightRed: "#f0907e",
+  brightGreen: "#b8d8ae",
+  brightYellow: "#e0c888",
+  brightBlue: "#aab8f0",
+  brightMagenta: "#d8aad0",
+  brightCyan: "#aad8d0",
+  brightWhite: "#fff8ec",
+} as const;
+
 // macOS Terminal.app behavior: dragging a file in writes its shell-escaped path.
 function shellEscape(p: string): string {
   return `'${p.replace(/'/g, "'\\''")}'`;
@@ -179,11 +250,12 @@ export function ChatPane({
     stableSessionIdRef.current = SESSION_ID;
 
     const term = new Terminal({
-      fontFamily:
-        "'MesloLGS NF', 'JetBrainsMono Nerd Font Mono', 'JetBrainsMono Nerd Font', 'Hack Nerd Font Mono', 'Hack Nerd Font', 'Symbols Nerd Font Mono', Menlo, Monaco, 'SF Mono', monospace",
-      fontSize: 13,
+      fontFamily: TERMINAL_FONT_FAMILY,
+      fontSize: TERMINAL_FONT_SIZE,
+      lineHeight: TERMINAL_LINE_HEIGHT,
+      letterSpacing: TERMINAL_LETTER_SPACING,
       cursorBlink: true,
-      scrollback: 10000,
+      scrollback: TERMINAL_SCROLLBACK,
       // OSC 8 hyperlink handler. Claude Code emits OSC 8 escape
       // sequences for URLs in its output (the "rich" terminal
       // hyperlink protocol — separate from the regex-based plain
@@ -202,41 +274,9 @@ export function ChatPane({
         hover() {},
         leave() {},
       },
-      // Colorblind-friendly palette on cream `#faf9f6`. The earlier
-      // attempt kept yellows for Claude's tool-block headers, but
-      // they wash out for colorblind users (deuteranopia/protanopia
-      // confuses gold with neutral on a warm background). Strategy:
-      // collapse most ANSI slots to near-foreground darks so the
-      // chat reads as "dark text on tan" by default, with only
-      // semantically-meaningful hues (red for removed/errors, green
-      // for added/success) carrying real color — and even those use
-      // distinct lightness too, so they're separable without hue
-      // alone. Each value targets ≥7:1 contrast on cream.
-      theme: {
-        // Dark theatre — the right pane lives in a warm-black room
-        // so Claude reads as a different surface from the cream
-        // workbench. Foreground is warm cream so text stays familiar.
-        background: "#1a140e",
-        foreground: "#f0e7d3",
-        cursor: "#e8804a",
-        selectionBackground: "rgba(199, 90, 44, 0.32)",
-        black: "#1a140e",
-        red: "#e07a6a",
-        green: "#a8c89e",
-        yellow: "#d4b878",
-        blue: "#9aa8e0",
-        magenta: "#c89ac0",
-        cyan: "#9ac8c0",
-        white: "#d8cdb5",
-        brightBlack: "#544a3a",
-        brightRed: "#f0907e",
-        brightGreen: "#b8d8ae",
-        brightYellow: "#e0c888",
-        brightBlue: "#aab8f0",
-        brightMagenta: "#d8aad0",
-        brightCyan: "#aad8d0",
-        brightWhite: "#fff8ec",
-      },
+      // Theme lives in TERMINAL_THEME (top of file) so the palette is
+      // one explicit, reviewable block rather than inline noise.
+      theme: TERMINAL_THEME,
       allowProposedApi: true,
     });
     const fit = new FitAddon();
