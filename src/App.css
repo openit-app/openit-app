@@ -2934,6 +2934,7 @@ input.viewer-title.viewer-title-rename {
   margin-top: 24px;
   display: flex;
   justify-content: flex-end;
+  gap: 10px;
 }
 
 /* ── Claude Code status bar ── */
