@@ -56,3 +56,45 @@ jobs:
       - run: rustup run stable cargo fmt -- --check
       - run: rustup run stable cargo clippy -- -D warnings
       - run: rustup run stable cargo test
+
+  # Windows parity. The app ships a Windows build at release time
+  # (release.yml -> build-windows), but until now nothing compiled or
+  # tested for Windows on every PR, so cross-platform regressions only
+  # surfaced at release. These jobs catch Windows breakage on each PR.
+  frontend-windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
+        with:
+          node-version: "22"
+          cache: npm
+      - run: npm ci
+      - run: npx tsc --noEmit
+      - run: npm test
+      - run: npm run build
+
+  rust-windows:
+    runs-on: windows-latest
+    defaults:
+      run:
+        working-directory: src-tauri
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
+        with:
+          node-version: "22"
+          cache: npm
+      - name: Install Rust toolchain
+        run: |
+          rustup toolchain install stable --component rustfmt --component clippy --profile minimal --no-self-update
+          rustup default stable
+        working-directory: .
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
+      - run: npm ci
+        working-directory: .
+      - run: cargo fmt -- --check
+      - run: cargo clippy -- -D warnings
+      - run: cargo test
