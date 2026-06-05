@@ -1,5 +1,5 @@
 {
-  "version": "2026-06-03-002",
+  "version": "2026-06-05-001",
   "files": [
     { "path": "CLAUDE.md" },
     { "path": "instructions/vault-layout.md" },

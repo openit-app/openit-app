@@ -1,4 +1,5 @@
 // ── Core infrastructure ──
+mod credentials;
 mod filestore;
 mod fs_tree;
 mod keychain;
@@ -92,6 +93,9 @@ pub fn run() {
             keychain::keychain_get,
             keychain::keychain_delete,
             keychain::keychain_probe,
+            credentials::credentials_list,
+            credentials::credentials_set,
+            credentials::credentials_delete,
             mcp::list_installed_mcps,
             project::project_bootstrap,
             workspaces::list_workspaces,

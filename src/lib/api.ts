@@ -346,6 +346,46 @@ export async function scriptResolveInterpreter(
   return invoke("script_resolve_interpreter", { interpreter });
 }
 
+// ---------------------------------------------------------------------------
+// Secure local credentials (PIN-7009)
+//
+// Vault-safe secret store: values live in the OS secure store (macOS
+// Keychain / Windows Credential Manager / libsecret on Linux) via the
+// Rust `keyring` crate; only the non-secret *names* are listed here.
+// Scripts and Claude commands reference a credential by its env-var name
+// (`process.env.MY_SECRET`) and the Rust runtime injects the value into
+// the child process — secrets never touch the vault or sync to the cloud.
+// ---------------------------------------------------------------------------
+
+/// Env-var-style credential name pattern, mirrored from the Rust
+/// validator (`^[A-Z_][A-Z0-9_]*$`). Exported so the UI can validate
+/// before round-tripping to the backend and give immediate feedback.
+export const CREDENTIAL_NAME_PATTERN = /^[A-Z_][A-Z0-9_]*$/;
+
+/// Whether `name` is a valid credential / env-var name. Conservative on
+/// purpose: uppercase + digits + underscore, not starting with a digit.
+export function isValidCredentialName(name: string): boolean {
+  return CREDENTIAL_NAME_PATTERN.test(name);
+}
+
+/// List saved credential names. Never returns values.
+export async function credentialsList(): Promise<string[]> {
+  return invoke("credentials_list");
+}
+
+/// Save (create or overwrite) a credential. The value is written to the
+/// OS secure store; only the name is indexed locally. Rejects invalid
+/// names and empty values (Rust enforces both).
+export async function credentialsSet(name: string, value: string): Promise<void> {
+  return invoke("credentials_set", { name, value });
+}
+
+/// Delete a credential from the OS secure store and the local index.
+/// Idempotent — deleting a missing credential resolves cleanly.
+export async function credentialsDelete(name: string): Promise<void> {
+  return invoke("credentials_delete", { name });
+}
+
 import type { TraceDoc } from "../shell/viewerTypes";
 
 /// Latest persisted agent-trace doc for a ticket, or null if none yet.
