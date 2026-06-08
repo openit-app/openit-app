@@ -1,13 +1,14 @@
-# Sample — Resetting your Slack password
+# Sample — Requesting VPN / SSO access
 
 > Sample KB article — safe to delete. Replace with your own runbooks as you capture answers.
 
-If you can't sign in to Slack and the password-reset email isn't arriving:
+When a teammate needs VPN or SSO access to an internal tool:
 
-1. **Check spam first.** The reset email comes from `no-reply@slack.com` and sometimes lands in Gmail's Promotions tab or a corporate quarantine.
-2. **Use the SSO portal if your org uses SSO.** Slack passwords don't apply when SSO is enabled — sign in via your identity provider (Okta, Google, etc.) instead.
-3. **If still stuck, ask the admin to invalidate your session.** They can force-revoke active sessions from the Slack admin console; you'll get a fresh sign-in flow on next visit.
+1. **Confirm what they're actually trying to reach.** "VPN access" usually means one specific app behind the network — get the URL or service name so you grant the narrowest access that unblocks them.
+2. **Check whether SSO already covers it.** Most internal tools are behind the identity provider (Okta, Google, Entra). If the app is in the SSO catalog, assign it there instead of provisioning a separate VPN profile.
+3. **Provision via the access portal, not by hand.** Identity provider → Applications → assign the user (or their group). Group-based assignment is preferred so the access follows their role and gets revoked automatically at offboarding.
+4. **Confirm in the ticket.** Reply with "Assigned you to <app> via SSO — sign out and back in, then it'll appear on your dashboard. Ping me if MFA prompts loop."
 
-## What to capture from a real ticket
+## When to escalate
 
-When you actually answer this kind of question, write a fresh KB article that captures **the org-specific answer** (which SSO provider, who to contact, link to the internal portal). The "answer once" loop turns one ticket into one article so the next person gets an immediate response.
+If the request needs **full network VPN** rather than a single SSO app, escalate to whoever owns the network policy. Don't hand out broad VPN profiles by default — most "I need VPN access" requests are satisfied by assigning the one SSO app the person was trying to reach.

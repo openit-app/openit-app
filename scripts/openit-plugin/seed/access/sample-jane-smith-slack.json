@@ -1,9 +1,0 @@
-{
-  "employee": "Jane Smith",
-  "email": "jane.smith@acme.org",
-  "system": "Slack",
-  "accessLevel": "member",
-  "status": "active",
-  "grantedAt": "2026-04-15",
-  "notes": "Channels: #general, #programs, #all-hands"
-}

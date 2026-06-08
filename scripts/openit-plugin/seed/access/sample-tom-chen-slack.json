@@ -1,9 +1,0 @@
-{
-  "employee": "Tom Chen",
-  "email": "tom.chen@acme.org",
-  "system": "Slack",
-  "accessLevel": "member",
-  "status": "revoked",
-  "grantedAt": "2025-06-01",
-  "notes": "Offboarded 2026-03-28"
-}
