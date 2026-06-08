@@ -5,6 +5,7 @@ import { CATALOG, type CatalogEntry } from "../lib/toolsCatalog";
 import { listInstalled } from "../lib/toolsInstall";
 import { Button } from "../ui";
 import { writeToActiveSession } from "./activeSession";
+import { CredentialsManager } from "./CredentialsManager";
 import styles from "./ToolsPanel.module.css";
 
 type UnifiedTool = {
@@ -168,6 +169,7 @@ export function ToolsPanel({ projectRoot }: { projectRoot: string | null }) {
       <p className={styles.tagline}>
         Install tools so Claude can act on your IT systems.
       </p>
+      <CredentialsManager />
       <input
         type="text"
         className={styles.search}
