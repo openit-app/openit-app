@@ -17,6 +17,7 @@ import { useUpdateChecker } from "./lib/updater";
 import { syncSkillsToDisk, readSyncedPluginVersion } from "./lib/skillsSync";
 import { seedIfEmpty } from "./lib/seed";
 import { basename, fsNorm } from "./lib/paths";
+import { resolveVaultPath } from "./lib/vaultPath";
 import { invoke } from "@tauri-apps/api/core";
 import "./App.css";
 
@@ -132,6 +133,11 @@ function App() {
   const [repo, setRepo] = useState<string | null>(null);
   const [loaded, setLoaded] = useState(false);
   const [bypassOnboarding, setBypassOnboarding] = useState(false);
+  // True while the vault picker is open to *change* an already-loaded
+  // vault (vs. first-run setup). Drives whether onboarding shows the
+  // current vault path and a Cancel/back action. `repo` is preserved
+  // throughout so Cancel can return to the active vault.
+  const [changingVault, setChangingVault] = useState(false);
 
   /// Open a vault: bootstrap its layout, run migrations, sync plugin,
   /// set as active repo. Shared by boot (registry has an active path)
@@ -273,11 +279,14 @@ function App() {
     return () => window.removeEventListener("openit:create-samples", onCreateSamples);
   }, [repo]);
 
-  // "Change vault" from command palette — reset to onboarding
+  // "Change vault" from command palette — show the vault picker WITHOUT
+  // discarding the active vault. We keep `repo` so the picker can display
+  // the current path and Cancel can return to it; only confirming a new
+  // selection (in the picker's onOpenVault) actually switches vaults.
   useEffect(() => {
     const onChangeVault = () => {
+      setChangingVault(true);
       setBypassOnboarding(false);
-      setRepo(null);
     };
     window.addEventListener("openit:change-vault", onChangeVault);
     return () => window.removeEventListener("openit:change-vault", onChangeVault);
@@ -332,23 +341,30 @@ function App() {
   if (showOnboarding) {
     return (
       <Onboarding
+        // In change-vault mode, seed the picker with the current vault so
+        // it shows the active path (not `~/OpenIT`) and confirming without
+        // browsing re-opens the same vault.
+        initialVaultPath={changingVault ? repo : null}
+        // Only offer Cancel when there's an active vault to return to.
+        onCancel={
+          changingVault && repo
+            ? () => {
+                setChangingVault(false);
+                setBypassOnboarding(true);
+              }
+            : undefined
+        }
         onOpenVault={async (path: string) => {
-          // Always create OpenIT/Personal inside the chosen directory,
-          // unless the user picked a path that already IS an OpenIT vault.
-          let vaultPath = path;
-          if (vaultPath) {
-            const norm = vaultPath.replace(/\\/g, "/").replace(/\/+$/, "").toLowerCase();
-            const endsWithVault = norm.endsWith("/openit");
-            if (!endsWithVault) {
-              const sep = vaultPath.includes("\\") ? "\\" : "/";
-              vaultPath = vaultPath.replace(/[\\/]+$/, "") + sep + "OpenIT";
-            }
-          }
-          const result = await projectBootstrap(vaultPath || undefined);
+          // Resolve the picked folder into the vault path to open:
+          // append `OpenIT` to a parent folder, leave an existing OpenIT
+          // vault as-is, or fall back to the Rust default for a blank
+          // selection. Cross-platform-safe (see lib/vaultPath.ts).
+          const vaultPath = resolveVaultPath(path);
+          const result = await projectBootstrap(vaultPath);
           const resolved = result.path;
-          const sep = resolved.includes("\\") ? "\\" : "/";
-          const name = resolved.split(sep).filter(Boolean).pop() ?? "Personal";
+          const name = basename(resolved) || "Personal";
           await createWorkspace(resolved, name);
+          setChangingVault(false);
           await openVault(resolved);
         }}
       />
