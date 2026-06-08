@@ -514,7 +514,7 @@ fn resolve_command(override_cmd: Option<&str>) -> Result<String> {
                 return Ok(comspec);
             }
         }
-        return Ok("cmd.exe".to_string());
+        Ok("cmd.exe".to_string())
     }
     #[cfg(not(target_os = "windows"))]
     {
