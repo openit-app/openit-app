@@ -300,7 +300,18 @@ export function Workbench({
       if (!cfg || !repo) return;
       // The tile may be in config.more (previously persisted) or only in
       // the resolved moreTiles (auto-discovered, not yet in config).
-      const tile = cfg.more.find((t) => t.rel === rel) ?? { rel };
+      //
+      // Stamp `userPinned: true` on promotion (PIN-7012). Promoting an
+      // auto-discovered sub-store that wasn't yet in config.more hit the
+      // `{ rel }` fallback, which lacked the flag — so the next config
+      // reload's `mainHasNonPrimitive` migration treated it as a legacy
+      // auto-derived tile and wiped it from MAIN ("flips on then
+      // disappears"). The flag is inert for primitives (they're exempt
+      // from the wipe regardless) and required for sub-stores.
+      const tile: TileConfig = {
+        ...(cfg.more.find((t) => t.rel === rel) ?? { rel }),
+        userPinned: true,
+      };
       const newConfig: WorkstationConfig = {
         main: [...cfg.main, tile],
         more: cfg.more.filter((t) => t.rel !== rel),

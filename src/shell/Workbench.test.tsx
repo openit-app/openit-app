@@ -12,6 +12,7 @@ vi.mock("../lib/api", () => ({
     throw new Error("no highlight.json");
   }),
   entityRemoveDir: vi.fn(),
+  entityWriteFile: vi.fn(async () => undefined),
   listInstalledMcps: vi.fn(async () => []),
 }));
 
@@ -32,8 +33,23 @@ vi.mock("../lib/workstationConfig", () => ({
 
 // Stable seed for mergeConfigWithDiscovery — individual tests can
 // override before render.
-import { mergeConfigWithDiscovery } from "../lib/workstationConfig";
+import {
+  loadWorkstationConfig,
+  saveWorkstationConfig,
+  mergeConfigWithDiscovery,
+} from "../lib/workstationConfig";
 const mockedMerge = vi.mocked(mergeConfigWithDiscovery);
+const mockedLoadCfg = vi.mocked(loadWorkstationConfig);
+const mockedSaveCfg = vi.mocked(saveWorkstationConfig);
+
+// The REAL load/migration logic (un-mocked) — used by the PIN-7012
+// promote-path regression test to verify what `promote` persists
+// survives an actual config reload.
+import { fsRead as mockedFsReadFn } from "../lib/api";
+const realLoadWorkstationConfig =
+  await vi.importActual<typeof import("../lib/workstationConfig")>(
+    "../lib/workstationConfig",
+  ).then((m) => m.loadWorkstationConfig);
 
 vi.mock("../Toast", () => ({
   useToast: () => ({ show: vi.fn() }),
@@ -77,6 +93,14 @@ beforeEach(() => {
   mockedStages.mockReset();
   mockedListTasks.mockResolvedValue([]);
   mockedStages.mockResolvedValue(["Todo", "In Progress", "Complete"]);
+  // Restore the workstation-config mock defaults so per-test overrides
+  // (e.g. the PIN-7012 promote test) don't leak into other tests.
+  mockedLoadCfg.mockReset();
+  mockedSaveCfg.mockReset();
+  mockedMerge.mockReset();
+  mockedLoadCfg.mockResolvedValue({ main: [], more: [] });
+  mockedSaveCfg.mockResolvedValue(undefined);
+  mockedMerge.mockReturnValue({ main: [], more: [] });
 });
 
 afterEach(() => {
@@ -181,5 +205,78 @@ describe("Workbench TODAY hero (PIN-6691)", () => {
     expect(screen.getByText("Knowledge")).toBeTruthy();
     // …but the Tasks tile is filtered out.
     expect(screen.queryByText("Tasks")).toBeNull();
+  });
+});
+
+describe("Workbench promote → reload (PIN-7012)", () => {
+  it("an auto-discovered sub-store promoted straight to MAIN survives a real config reload", async () => {
+    // The other half of PIN-7012 "flips on then disappears". A sub-store
+    // can be rendered in the MORE grid (resolved moreTiles) WITHOUT yet
+    // existing in config.more — e.g. discovered from disk. Clicking its
+    // "+" calls promote(rel) directly. Before the fix, promote's
+    // `{ rel }` fallback produced a MAIN tile with no `userPinned`, so the
+    // next real `loadWorkstationConfig` migration (`mainHasNonPrimitive`)
+    // treated it as a legacy auto-derived tile and wiped it from MAIN.
+    mockedTally.mockReturnValue({ todos: 0, inProgress: 0, completeToday: 0 });
+
+    const REL = "filestores/library";
+    // Config the component loads on mount: three MAIN primitives, and the
+    // sub-store is NOT in config.more (it's only auto-discovered).
+    const initialConfig = {
+      main: [
+        { rel: "tasks" },
+        { rel: "knowledge" },
+        { rel: "filestores/commands" },
+      ],
+      more: [],
+    };
+    mockedLoadCfg.mockResolvedValue(structuredClone(initialConfig) as never);
+    // But the resolved MORE grid surfaces the discovered sub-store so its
+    // "+" button renders.
+    mockedMerge.mockReturnValue({
+      main: [
+        { rel: "knowledge", label: "Knowledge", tone: "ochre", icon: "kb" } as never,
+        { rel: "filestores/commands", label: "Commands", tone: "accent", icon: "commands" } as never,
+      ],
+      more: [
+        { rel: REL, label: "Library", tone: "neutral", icon: "folder", countMode: "files" } as never,
+      ],
+    });
+
+    let savedConfig: unknown = null;
+    mockedSaveCfg.mockImplementation(async (_repo, cfg) => {
+      savedConfig = cfg;
+    });
+
+    await renderAndWait({
+      repo: "/r",
+      fsTick: 0,
+      onOpen: vi.fn(),
+      onShowFiles: vi.fn(),
+    });
+
+    // Open the "More" section so the picker grid (and the "+" button)
+    // mounts.
+    fireEvent.click(screen.getByText("More"));
+    const addHint = screen.getByTitle("Pin Library to workstation");
+    await act(async () => {
+      fireEvent.click(addHint);
+    });
+
+    // promote() persisted a new config. Capture what it wrote.
+    expect(savedConfig).not.toBeNull();
+    const persisted = savedConfig as { main: { rel: string; userPinned?: boolean }[] };
+    const promotedTile = persisted.main.find((t) => t.rel === REL);
+    expect(promotedTile).toBeTruthy();
+    // The crux: promote must stamp userPinned so the tile survives the
+    // migration on the next load.
+    expect(promotedTile?.userPinned).toBe(true);
+
+    // Now simulate the next reload through the REAL load/migration logic.
+    vi.mocked(mockedFsReadFn).mockResolvedValueOnce(JSON.stringify(persisted));
+    const reloaded = await realLoadWorkstationConfig("/r");
+
+    // The promoted sub-store must still be in MAIN — not wiped.
+    expect(reloaded.main.map((t) => t.rel)).toContain(REL);
   });
 });
