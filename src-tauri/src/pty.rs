@@ -671,11 +671,21 @@ mod tests {
         let mut reader = pair.master.try_clone_reader().unwrap();
         let mut buf = Vec::new();
         let mut chunk = [0u8; 256];
-        // Read until EOF; PTY closes when child exits.
+        // Read until we observe the expected marker, then stop. We deliberately
+        // do NOT loop until EOF: on Windows, ConPTY does not deliver EOF when the
+        // child exits (the pseudoconsole stays open), so a read-until-EOF loop
+        // blocks forever. Breaking as soon as the marker arrives is correct on
+        // both platforms — macOS would also send EOF, but we don't need to wait
+        // for it. The job-level timeout in CI is a backstop against any hang.
         loop {
             match reader.read(&mut chunk) {
                 Ok(0) => break,
-                Ok(n) => buf.extend_from_slice(&chunk[..n]),
+                Ok(n) => {
+                    buf.extend_from_slice(&chunk[..n]);
+                    if String::from_utf8_lossy(&buf).contains("hello-from-pty") {
+                        break;
+                    }
+                }
                 Err(_) => break,
             }
         }
