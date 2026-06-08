@@ -35,19 +35,88 @@ const SERVICE: &str = "ai.pinkfish.openit";
 /// and any future namespaced secrets.
 const CRED_SLOT_PREFIX: &str = "cred.";
 
+/// Reserved environment-variable names a credential may NOT use. Credential
+/// values are injected into child-process environments *after* PATH (and
+/// other vars) are deliberately set up — using `Command::env`, which
+/// OVERRIDES the inherited value. A credential literally named `PATH`,
+/// `NODE_OPTIONS`, `DYLD_INSERT_LIBRARIES`, etc. would therefore hijack the
+/// spawned environment, breaking Claude Code / script spawning or enabling
+/// injection. We reject these outright.
+///
+/// Names are stored upper-case (the charset check forces uppercase), so an
+/// exact match against this upper-case list is a case-insensitive check in
+/// practice. Covers POSIX, Windows, and a few injection-sensitive vars.
+/// Mirror of `RESERVED_CREDENTIAL_NAMES` in `src/lib/api.ts` — keep in sync.
+const RESERVED_CREDENTIAL_NAMES: &[&str] = &[
+    // POSIX / shell
+    "PATH",
+    "HOME",
+    "PWD",
+    "OLDPWD",
+    "SHELL",
+    "USER",
+    "LOGNAME",
+    "TMPDIR",
+    "TEMP",
+    "TMP",
+    "HOSTNAME",
+    "LANG",
+    "LC_ALL",
+    "TERM",
+    "DISPLAY",
+    "IFS",
+    "ENV",
+    "BASH_ENV",
+    "PROMPT_COMMAND",
+    "PS1",
+    "PS2",
+    // dynamic-loader / runtime injection
+    "LD_PRELOAD",
+    "LD_LIBRARY_PATH",
+    "DYLD_INSERT_LIBRARIES",
+    "DYLD_LIBRARY_PATH",
+    "NODE_OPTIONS",
+    "PYTHONPATH",
+    // Windows
+    "SYSTEMROOT",
+    "WINDIR",
+    "COMSPEC",
+    "USERPROFILE",
+    "APPDATA",
+    "LOCALAPPDATA",
+    "PATHEXT",
+    "HOMEDRIVE",
+    "HOMEPATH",
+];
+
+/// Whether `name` is a reserved environment-variable name (see
+/// `RESERVED_CREDENTIAL_NAMES`). Compared against the upper-case canonical
+/// form; since valid names are already all-uppercase this is exact match.
+fn is_reserved_credential_name(name: &str) -> bool {
+    let upper = name.to_ascii_uppercase();
+    RESERVED_CREDENTIAL_NAMES.contains(&upper.as_str())
+}
+
 /// A credential name is treated as an environment-variable name. The
 /// conservative regex `^[A-Z_][A-Z0-9_]*$` is the safe intersection of
 /// what POSIX shells and the Windows `cmd`/PowerShell environments accept
 /// without quoting surprises. Rejecting lowercase keeps the contract
 /// unambiguous and matches the `process.env.MY_SECRET` convention the
 /// authoring docs teach.
+///
+/// Beyond the charset, reserved names that would hijack the spawned child
+/// environment (`PATH`, `HOME`, `NODE_OPTIONS`, ...) are rejected — see
+/// `is_reserved_credential_name`.
 pub fn is_valid_credential_name(name: &str) -> bool {
     let mut chars = name.chars();
     match chars.next() {
         Some(c) if c == '_' || c.is_ascii_uppercase() => {}
         _ => return false,
     }
-    chars.all(|c| c == '_' || c.is_ascii_uppercase() || c.is_ascii_digit())
+    if !chars.all(|c| c == '_' || c.is_ascii_uppercase() || c.is_ascii_digit()) {
+        return false;
+    }
+    !is_reserved_credential_name(name)
 }
 
 /// Non-secret index of saved credential names. Persisted as JSON in the
@@ -126,6 +195,14 @@ pub fn credentials_set<R: Runtime>(
     name: String,
     value: String,
 ) -> Result<(), String> {
+    if is_reserved_credential_name(&name) {
+        return Err(format!(
+            "credential name '{}' is a reserved environment variable and cannot be used; \
+             it would override the spawned process environment (PATH, HOME, NODE_OPTIONS, \
+             etc.). Choose a distinct name like SALESFORCE_TOKEN",
+            name
+        ));
+    }
     if !is_valid_credential_name(&name) {
         return Err(format!(
             "invalid credential name '{}': must match ^[A-Z_][A-Z0-9_]*$ (e.g. SALESFORCE_TOKEN)",
@@ -212,6 +289,61 @@ mod tests {
         assert!(!is_valid_credential_name("HAS SPACE"));
         assert!(!is_valid_credential_name("HAS.DOT"));
         assert!(!is_valid_credential_name("lowerThenUpper"));
+    }
+
+    #[test]
+    fn reserved_env_names_are_rejected() {
+        // A credential whose name collides with a critical env var would
+        // hijack the spawned child environment — must be rejected even
+        // though it passes the charset check.
+        for reserved in [
+            "PATH",
+            "HOME",
+            "PWD",
+            "TMPDIR",
+            "SHELL",
+            "USER",
+            "NODE_OPTIONS",
+            "PYTHONPATH",
+            "LD_PRELOAD",
+            "LD_LIBRARY_PATH",
+            "DYLD_INSERT_LIBRARIES",
+            "DYLD_LIBRARY_PATH",
+            "SYSTEMROOT",
+            "WINDIR",
+            "COMSPEC",
+            "USERPROFILE",
+            "APPDATA",
+            "PATHEXT",
+            "IFS",
+            "BASH_ENV",
+        ] {
+            assert!(
+                !is_valid_credential_name(reserved),
+                "reserved name {reserved} must be rejected"
+            );
+            assert!(
+                is_reserved_credential_name(reserved),
+                "{reserved} should be flagged reserved"
+            );
+        }
+    }
+
+    #[test]
+    fn reserved_check_is_case_insensitive() {
+        // Lower/mixed case fails the charset check anyway, but the reserved
+        // helper itself must match case-insensitively as a defense in depth.
+        assert!(is_reserved_credential_name("path"));
+        assert!(is_reserved_credential_name("Node_Options"));
+    }
+
+    #[test]
+    fn normal_names_pass_despite_reserved_list() {
+        // Plausible real credential names must still be accepted.
+        for ok in ["SALESFORCE_TOKEN", "MY_API_KEY", "GITHUB_PAT", "PATH_TOKEN"] {
+            assert!(is_valid_credential_name(ok), "{ok} should be valid");
+            assert!(!is_reserved_credential_name(ok), "{ok} is not reserved");
+        }
     }
 
     #[test]

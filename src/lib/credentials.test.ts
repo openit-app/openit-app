@@ -4,7 +4,12 @@
 // versa). Pure function, no Tauri mocking needed.
 
 import { describe, expect, it } from "vitest";
-import { CREDENTIAL_NAME_PATTERN, isValidCredentialName } from "./api";
+import {
+  CREDENTIAL_NAME_PATTERN,
+  isReservedCredentialName,
+  isValidCredentialName,
+  RESERVED_CREDENTIAL_NAMES,
+} from "./api";
 
 describe("isValidCredentialName", () => {
   it("accepts env-var-style identifiers", () => {
@@ -26,6 +31,43 @@ describe("isValidCredentialName", () => {
     ]) {
       expect(isValidCredentialName(bad), JSON.stringify(bad)).toBe(false);
     }
+  });
+
+  it("rejects reserved env-var names that would hijack the spawned env", () => {
+    for (const reserved of [
+      "PATH",
+      "HOME",
+      "PWD",
+      "TMPDIR",
+      "SHELL",
+      "USER",
+      "NODE_OPTIONS",
+      "PYTHONPATH",
+      "LD_PRELOAD",
+      "DYLD_INSERT_LIBRARIES",
+      "SYSTEMROOT",
+      "WINDIR",
+      "COMSPEC",
+      "USERPROFILE",
+      "PATHEXT",
+      "IFS",
+    ]) {
+      expect(isValidCredentialName(reserved), reserved).toBe(false);
+      expect(isReservedCredentialName(reserved), reserved).toBe(true);
+    }
+  });
+
+  it("still accepts normal names that merely resemble reserved ones", () => {
+    for (const ok of ["SALESFORCE_TOKEN", "MY_API_KEY", "GITHUB_PAT", "PATH_TOKEN"]) {
+      expect(isValidCredentialName(ok), ok).toBe(true);
+      expect(isReservedCredentialName(ok), ok).toBe(false);
+    }
+  });
+
+  it("treats the reserved check as case-insensitive", () => {
+    expect(isReservedCredentialName("path")).toBe(true);
+    expect(isReservedCredentialName("Node_Options")).toBe(true);
+    expect(RESERVED_CREDENTIAL_NAMES).toContain("PATH");
   });
 
   it("exposes the same pattern it validates against", () => {

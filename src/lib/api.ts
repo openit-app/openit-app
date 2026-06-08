@@ -362,10 +362,66 @@ export async function scriptResolveInterpreter(
 /// before round-tripping to the backend and give immediate feedback.
 export const CREDENTIAL_NAME_PATTERN = /^[A-Z_][A-Z0-9_]*$/;
 
+/// Reserved environment-variable names a credential may NOT use. Values are
+/// injected into spawned child processes *after* PATH (and friends) are set
+/// up, using an env override — so a credential named PATH / HOME /
+/// NODE_OPTIONS / etc. would hijack the spawned environment and break Claude
+/// Code or script spawning. Mirror of `RESERVED_CREDENTIAL_NAMES` in
+/// `src-tauri/src/credentials.rs` — keep the two lists in lockstep.
+export const RESERVED_CREDENTIAL_NAMES: readonly string[] = [
+  // POSIX / shell
+  "PATH",
+  "HOME",
+  "PWD",
+  "OLDPWD",
+  "SHELL",
+  "USER",
+  "LOGNAME",
+  "TMPDIR",
+  "TEMP",
+  "TMP",
+  "HOSTNAME",
+  "LANG",
+  "LC_ALL",
+  "TERM",
+  "DISPLAY",
+  "IFS",
+  "ENV",
+  "BASH_ENV",
+  "PROMPT_COMMAND",
+  "PS1",
+  "PS2",
+  // dynamic-loader / runtime injection
+  "LD_PRELOAD",
+  "LD_LIBRARY_PATH",
+  "DYLD_INSERT_LIBRARIES",
+  "DYLD_LIBRARY_PATH",
+  "NODE_OPTIONS",
+  "PYTHONPATH",
+  // Windows
+  "SYSTEMROOT",
+  "WINDIR",
+  "COMSPEC",
+  "USERPROFILE",
+  "APPDATA",
+  "LOCALAPPDATA",
+  "PATHEXT",
+  "HOMEDRIVE",
+  "HOMEPATH",
+];
+
+/// Whether `name` collides with a reserved environment variable (see
+/// `RESERVED_CREDENTIAL_NAMES`). Case-insensitive; valid names are already
+/// uppercase so this is an exact match in practice.
+export function isReservedCredentialName(name: string): boolean {
+  return RESERVED_CREDENTIAL_NAMES.includes(name.toUpperCase());
+}
+
 /// Whether `name` is a valid credential / env-var name. Conservative on
-/// purpose: uppercase + digits + underscore, not starting with a digit.
+/// purpose: uppercase + digits + underscore, not starting with a digit, and
+/// not a reserved environment variable that would hijack the spawned env.
 export function isValidCredentialName(name: string): boolean {
-  return CREDENTIAL_NAME_PATTERN.test(name);
+  return CREDENTIAL_NAME_PATTERN.test(name) && !isReservedCredentialName(name);
 }
 
 /// List saved credential names. Never returns values.

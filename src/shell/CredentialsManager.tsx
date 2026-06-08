@@ -13,6 +13,7 @@ import {
   credentialsDelete,
   credentialsList,
   credentialsSet,
+  isReservedCredentialName,
   isValidCredentialName,
 } from "../lib/api";
 import { Button } from "../ui";
@@ -43,6 +44,12 @@ export function CredentialsManager() {
 
   const onSave = async () => {
     setError(null);
+    if (isReservedCredentialName(trimmedName)) {
+      setError(
+        `"${trimmedName.toUpperCase()}" is a reserved environment variable (PATH, HOME, NODE_OPTIONS, …) and can't be used — it would override the spawned process environment. Pick a distinct name like SALESFORCE_TOKEN.`,
+      );
+      return;
+    }
     if (!isValidCredentialName(trimmedName)) {
       setError("Name must be UPPER_SNAKE_CASE (letters, digits, underscore; no leading digit).");
       return;
