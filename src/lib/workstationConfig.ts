@@ -103,14 +103,23 @@ export const DEFAULT_WORKSTATION_CONFIG: WorkstationConfig = {
 
 // ── Load / Save ──────────────────────────────────────────────────────
 
-/// Returns true when `main` contains any tile that is NOT one of the
-/// eight primitives — a strong signal the saved config predates the
-/// 2026-05-24 primitives-only layout. We reset such configs so users
-/// stuck on the legacy layouts (Tasks/Knowledge/Commands,
-/// six-primitives-plus-People, etc.) get the new defaults without
-/// having to delete `.openit/workstation.json` by hand.
+/// Returns true when `main` contains a tile that is NOT one of the eight
+/// primitives AND was NOT explicitly user-pinned — a strong signal the
+/// saved config predates the 2026-05-24 primitives-only layout. We reset
+/// such configs so users stuck on the legacy layouts
+/// (Tasks/Knowledge/Commands, six-primitives-plus-People, etc.) get the
+/// new defaults without having to delete `.openit/workstation.json` by
+/// hand.
+///
+/// `userPinned` sub-stores in MAIN are exempt (PIN-7012): once a user
+/// pins a sub-store (right-click → "Add to workstation") and promotes it
+/// to MAIN (right-click → "move to main"), the tile carries
+/// `userPinned: true`. Treating that as a legacy auto-derived shape and
+/// wiping MAIN made the tile "flip on then disappear" on the next reload.
+/// Mirrors `stripAutoDiscoveredMore`, which already uses `userPinned` to
+/// tell deliberate pins from legacy auto-discovered entries in MORE.
 function mainHasNonPrimitive(main: TileConfig[]): boolean {
-  return main.some((t) => !PRIMITIVE_SET.has(t.rel));
+  return main.some((t) => !PRIMITIVE_SET.has(t.rel) && t.userPinned !== true);
 }
 
 /// Returns true when `main` is missing one or more primitives. We
