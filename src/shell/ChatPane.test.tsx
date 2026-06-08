@@ -49,12 +49,19 @@ const xtermCapture = vi.hoisted(() => ({
   onDataHandler: null as DataHandler | null,
   inputCalls: [] as string[],
   focusCalls: 0,
+  // Last options object the Terminal was constructed with. Lets the
+  // readability tests assert the font size / line height / scrollback /
+  // theme that PIN-6608 made explicit, without rendering to a canvas.
+  ctorOptions: null as Record<string, unknown> | null,
 }));
 
 vi.mock("@xterm/xterm", () => {
   class FakeTerminal {
     cols = 80;
     rows = 24;
+    constructor(opts?: Record<string, unknown>) {
+      xtermCapture.ctorOptions = opts ?? null;
+    }
     loadAddon(addon: { activate?: (term: unknown) => void }) {
       addon.activate?.(this);
     }
@@ -104,7 +111,15 @@ function makeKeyEvent(init: Partial<KeyboardEventInit> & { type?: string }): Key
   return new KeyboardEvent(type, { key: "Enter", ...rest });
 }
 
-import { ChatPane } from "./ChatPane";
+import {
+  ChatPane,
+  TERMINAL_FONT_FAMILY,
+  TERMINAL_FONT_SIZE,
+  TERMINAL_LINE_HEIGHT,
+  TERMINAL_LETTER_SPACING,
+  TERMINAL_SCROLLBACK,
+  TERMINAL_THEME,
+} from "./ChatPane";
 
 const sessionIdMatcher = expect.stringMatching(/^main-/);
 
@@ -118,6 +133,7 @@ describe("ChatPane", () => {
     xtermCapture.onDataHandler = null;
     xtermCapture.inputCalls = [];
     xtermCapture.focusCalls = 0;
+    xtermCapture.ctorOptions = null;
   });
 
   afterEach(() => {
@@ -278,6 +294,50 @@ describe("ChatPane", () => {
     unmount();
   });
 
+
+  // PIN-6608 — terminal readability. These guard the visual constants
+  // that drive how legible Claude's output is. The #1 user complaint
+  // was "i can't read the output"; if any of these regress (e.g. font
+  // size dropping back to 13 or lineHeight being removed), this fails.
+  describe("readability terminal options", () => {
+    it("constructs xterm with the readability constants", async () => {
+      render(<ChatPane cwd="/tmp/test-repo" />);
+      await new Promise((r) => setTimeout(r, 0));
+      const opts = xtermCapture.ctorOptions;
+      expect(opts).not.toBeNull();
+      expect(opts?.fontFamily).toBe(TERMINAL_FONT_FAMILY);
+      expect(opts?.fontSize).toBe(TERMINAL_FONT_SIZE);
+      expect(opts?.lineHeight).toBe(TERMINAL_LINE_HEIGHT);
+      expect(opts?.letterSpacing).toBe(TERMINAL_LETTER_SPACING);
+      expect(opts?.scrollback).toBe(TERMINAL_SCROLLBACK);
+      expect(opts?.theme).toEqual(TERMINAL_THEME);
+    });
+
+    it("uses a font size of at least 14px (the readability bump)", async () => {
+      // Hard floor: the regression we fixed was 13px feeling cramped.
+      // Pin the minimum so a future tweak can't silently shrink it back.
+      expect(TERMINAL_FONT_SIZE).toBeGreaterThanOrEqual(14);
+      render(<ChatPane cwd="/tmp/test-repo" />);
+      await new Promise((r) => setTimeout(r, 0));
+      expect(xtermCapture.ctorOptions?.fontSize as number).toBeGreaterThanOrEqual(14);
+    });
+
+    it("sets an explicit line height above the default 1.0", async () => {
+      // xterm defaults lineHeight to 1.0 (lines packed edge-to-edge).
+      // The readability pass opens vertical rhythm; assert it's > 1.
+      expect(TERMINAL_LINE_HEIGHT).toBeGreaterThan(1);
+      render(<ChatPane cwd="/tmp/test-repo" />);
+      await new Promise((r) => setTimeout(r, 0));
+      expect(xtermCapture.ctorOptions?.lineHeight as number).toBeGreaterThan(1);
+    });
+
+    it("includes a Nerd Font first in the family stack for glyph coverage", () => {
+      // Claude Code emits powerline/box-drawing glyphs; a Nerd Font must
+      // lead the stack on both macOS and Windows/WebView2.
+      expect(TERMINAL_FONT_FAMILY.startsWith("'MesloLGS NF'")).toBe(true);
+      expect(TERMINAL_FONT_FAMILY).toMatch(/monospace$/);
+    });
+  });
 
   describe("Click-to-focus", () => {
     it("focuses the terminal when the container is clicked", async () => {

@@ -2152,22 +2152,15 @@ input.viewer-title.viewer-title-rename {
   color: var(--text);
 }
 
-.right-pane::before {
-  content: '';
-  position: absolute;
-  inset: 0;
-  background:
-    radial-gradient(ellipse at top, rgba(199, 90, 44, 0.1) 0%, transparent 60%),
-    radial-gradient(rgba(255, 220, 180, 0.04) 1px, transparent 1px);
-  background-size:
-    100% 100%,
-    18px 18px;
-  pointer-events: none;
-}
-.right-pane > * {
-  position: relative;
-  z-index: 1;
-}
+/* PIN-6608: the decorative right-pane ::before overlay (a radial warm
+   wash + an 18px dotted texture) was removed. It sat behind the xterm
+   content and put a faint gradient + dot grid under Claude's output,
+   which reduced text contrast and made screenshots noisy. Terminal
+   readability was the #1 reported issue, so the Claude pane now renders
+   on the flat var(--bg) surface defined on .right-pane above. The
+   companion `.right-pane > * { z-index: 1 }` rule only existed to lift
+   children above that overlay; with no overlay it served no purpose and
+   was removed too, so children keep their natural stacking. */
 
 /* .icon-btn / .icon-btn.key-set — first of three legacy
    definitions for the header buttons. Migrated to <Button> in
