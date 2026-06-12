@@ -14,12 +14,20 @@ import { ChatPane } from "./ChatPane";
 export interface ChatSessionMeta {
   id: string;
   /** User-visible tab label. Initialized to "Session N" and overwritten
-   *  whenever CC emits a terminal title (auto-name + after `/rename`). */
+   *  whenever CC emits a terminal title (auto-name + after `/rename`) —
+   *  UNLESS the user has manually renamed this tab (`userRenamed`), in
+   *  which case the user's name is sticky and CC titles are ignored. */
   label: string;
   /** Whether this session should spawn with `--resume`. New sessions are
    *  fresh; restored-from-restart sessions stay fresh too — `--resume`
    *  is currently only set via the explicit Resume button. */
   resume: boolean;
+  /** True once the user has explicitly renamed this tab (double-click →
+   *  edit). When set, Claude Code's OSC terminal titles no longer
+   *  overwrite the label (PIN-6604: manual renames were reverting to
+   *  defaults whenever CC emitted its idle/status title). Persisted
+   *  per-vault so the stickiness survives reloads. */
+  userRenamed: boolean;
 }
 
 /// localStorage key. Scoped per-repo so two vaults don't share tab lists.
@@ -44,7 +52,23 @@ export function loadTabs(cwd: string | null): ChatSessionMeta[] {
           typeof (t as ChatSessionMeta).id === "string" &&
           typeof (t as ChatSessionMeta).label === "string",
       )
-      .map((t) => ({ id: t.id, label: t.label, resume: false }));
+      .map((t) => ({
+        id: t.id,
+        label: t.label,
+        resume: false,
+        // `userRenamed` was added in PIN-6604. For tabs persisted before
+        // it existed the field is absent: honor an explicit boolean if
+        // present, otherwise INFER from the label — a stored label that
+        // isn't the default "Session N" pattern can only have come from a
+        // prior manual rename (CC titles never persisted across reloads in
+        // the buggy version anyway), so treat it as user-named and keep it
+        // sticky. Default "Session N" tabs stay auto and still pick up CC
+        // titles.
+        userRenamed:
+          typeof (t as Partial<ChatSessionMeta>).userRenamed === "boolean"
+            ? (t as ChatSessionMeta).userRenamed
+            : !/^Session \d+$/.test(t.label),
+      }));
   } catch (err) {
     console.warn("[ChatSessionTabs] failed to load persisted tabs:", err);
     return [];
@@ -57,8 +81,13 @@ export function persistTabs(cwd: string | null, tabs: ChatSessionMeta[]): void {
   try {
     // Drop `resume` from persistence: it's a one-shot spawn arg that
     // only applies on the next mount; persisting it would cause every
-    // restart of a resumed tab to re-resume forever.
-    const serializable = tabs.map((t) => ({ id: t.id, label: t.label }));
+    // restart of a resumed tab to re-resume forever. Keep `userRenamed`
+    // (PIN-6604) so a manually-named tab stays sticky across reloads.
+    const serializable = tabs.map((t) => ({
+      id: t.id,
+      label: t.label,
+      userRenamed: t.userRenamed,
+    }));
     localStorage.setItem(key, JSON.stringify(serializable));
   } catch (err) {
     console.warn("[ChatSessionTabs] failed to persist tabs:", err);
@@ -192,6 +221,7 @@ export function ChatSessionTabs({ cwd, registerHandle }: ChatSessionTabsProps) {
         id: newSessionId(),
         label: "Session 1",
         resume: false,
+        userRenamed: false,
       };
       return { cwd, tabs: [seed], activeId: seed.id };
     });
@@ -216,6 +246,7 @@ export function ChatSessionTabs({ cwd, registerHandle }: ChatSessionTabsProps) {
         id: newSessionId(),
         label: nextDefaultLabel(prev.tabs),
         resume: !!opts.resume,
+        userRenamed: false,
       };
       return { ...prev, tabs: [...prev.tabs, next], activeId: next.id };
     });
@@ -233,6 +264,7 @@ export function ChatSessionTabs({ cwd, registerHandle }: ChatSessionTabsProps) {
           id: newSessionId(),
           label: "Session 1",
           resume: false,
+          userRenamed: false,
         };
         return { ...prev, tabs: [fresh], activeId: fresh.id };
       }
@@ -242,32 +274,46 @@ export function ChatSessionTabs({ cwd, registerHandle }: ChatSessionTabsProps) {
     });
   }, []);
 
-  const setLabel = useCallback((id: string, label: string) => {
-    setTabs((prev) => {
-      // Sanitize: trim, collapse whitespace, cap at 60 chars so the tab
-      // strip can't be blown out by a stray multi-line title.
-      //
-      // Also strip Claude Code's OSC-title status glyph prefix. CC sets
-      // its terminal title to things like "* Claude Code" or "✱ hi" to
-      // indicate thinking/working state — that glyph belongs in the
-      // terminal pane, not in our tab chrome. The character class below
-      // covers the spinner glyphs CC cycles through.
-      const cleaned = label
-        .replace(/^[\*✱●◐◑◒◓]+\s*/u, "")
-        .replace(/\s+/g, " ")
-        .trim()
-        .slice(0, 60);
-      if (!cleaned) return prev;
-      let changed = false;
-      const next = prev.map((t) => {
-        if (t.id !== id) return t;
-        if (t.label === cleaned) return t;
-        changed = true;
-        return { ...t, label: cleaned };
+  const setLabel = useCallback(
+    (id: string, label: string, opts: { fromUser?: boolean } = {}) => {
+      const fromUser = !!opts.fromUser;
+      setTabs((prev) => {
+        // Sanitize: trim, collapse whitespace, cap at 60 chars so the tab
+        // strip can't be blown out by a stray multi-line title.
+        //
+        // Also strip Claude Code's OSC-title status glyph prefix. CC sets
+        // its terminal title to things like "* Claude Code" or "✱ hi" to
+        // indicate thinking/working state — that glyph belongs in the
+        // terminal pane, not in our tab chrome. The character class below
+        // covers the spinner glyphs CC cycles through.
+        const cleaned = label
+          .replace(/^[\*✱●◐◑◒◓]+\s*/u, "")
+          .replace(/\s+/g, " ")
+          .trim()
+          .slice(0, 60);
+        if (!cleaned) return prev;
+        let changed = false;
+        const next = prev.map((t) => {
+          if (t.id !== id) return t;
+          // PIN-6604: a Claude Code OSC title (fromUser=false) must NEVER
+          // overwrite a tab the user explicitly named. Without this guard,
+          // CC's idle title (the cwd basename, e.g. "openit") or its
+          // status-glyph title would clobber the manual rename, making the
+          // user's name appear to "revert to default" on its own.
+          if (!fromUser && t.userRenamed) return t;
+          // A manual rename pins the tab so future CC titles leave it
+          // alone. Update label and/or the sticky flag as needed.
+          const nextLabel = t.label === cleaned ? t.label : cleaned;
+          const nextRenamed = fromUser ? true : t.userRenamed;
+          if (nextLabel === t.label && nextRenamed === t.userRenamed) return t;
+          changed = true;
+          return { ...t, label: nextLabel, userRenamed: nextRenamed };
+        });
+        return changed ? next : prev;
       });
-      return changed ? next : prev;
-    });
-  }, []);
+    },
+    [],
+  );
 
   // Imperative API for the legacy ChatShellHeader "+" / "↺" buttons.
   // Kept as a registered handle (instead of lifting full state up) so
@@ -343,8 +389,10 @@ export function ChatSessionTabs({ cwd, registerHandle }: ChatSessionTabsProps) {
     setRenamingId((id) => {
       if (id) {
         // Reuse setLabel so the same sanitization (glyph strip, whitespace
-        // collapse, length cap) applies to user-typed labels too.
-        setLabel(id, renameDraft);
+        // collapse, length cap) applies to user-typed labels too. Mark it
+        // as a user action so the tab becomes sticky and CC's OSC titles
+        // no longer overwrite it (PIN-6604).
+        setLabel(id, renameDraft, { fromUser: true });
       }
       return null;
     });

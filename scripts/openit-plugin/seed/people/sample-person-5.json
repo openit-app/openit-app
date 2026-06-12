@@ -4,7 +4,7 @@
   "email": "eric.sample@example.com",
   "role": "Customer Support Lead",
   "department": "Support",
-  "channels": ["email:eric.sample@example.com", "slack:U01SAMPLE5"],
+  "channels": ["email:eric.sample@example.com"],
   "notes": "Sample seed record — safe to delete.",
   "createdAt": "2026-04-20T11:30:00Z",
   "updatedAt": "2026-04-26T12:05:00Z"

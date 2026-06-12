@@ -107,6 +107,13 @@ pub fn pty_spawn<R: Runtime>(
     if let Some(path) = augmented_path() {
         cmd.env("PATH", path);
     }
+    // Expose saved local credentials to the Claude session so slash
+    // commands and Claude-invoked scripts can read `process.env.MY_SECRET`
+    // — the same store the Scripts "Run" button injects from. Values stay
+    // in the OS secure store and are never written to the vault.
+    for (name, value) in crate::credentials::load_credential_env(&app) {
+        cmd.env(name, value);
+    }
 
     let mut child = pair.slave.spawn_command(cmd).map_err(|e| e.to_string())?;
     drop(pair.slave);

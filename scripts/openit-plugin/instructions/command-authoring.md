@@ -62,6 +62,35 @@ Not:
 
 The second version re-derives the SOQL, the diff logic, and the report format every run. The first version captures all of that in a script and runs deterministically.
 
+## Secrets and credentials (MANDATORY)
+
+**Never write a secret value into a file.** API tokens, passwords, client
+secrets, and connection strings must never appear in `filestores/commands/`,
+`filestores/scripts/`, `.claude/`, knowledge articles, reports, or any other
+file. Those files live in the vault, which syncs to Dropbox / Google Drive and
+the cloud dashboard — a secret pasted there leaks to every synced device.
+
+Instead, the admin saves secrets in OpenIT's **Local credentials** store (Tools
+panel → Local credentials). Values are kept in the OS secure store (macOS
+Keychain, Windows Credential Manager) and are injected into your environment —
+and into app-run scripts — as environment variables. **Reference them by name
+through `process.env`; never inline the value.**
+
+```js
+// filestores/scripts/sync-salesforce.mjs
+const token = process.env.SALESFORCE_TOKEN;
+if (!token) {
+  console.error("Missing SALESFORCE_TOKEN. Save it in Tools → Local credentials.");
+  process.exit(1);
+}
+// …use `token` to authenticate; never log or print it.
+```
+
+If a script needs a credential the admin hasn't saved, tell them the exact
+env-var name to add in Tools → Local credentials — do **not** ask them to paste
+the value into the chat or a file. Credential names are UPPER_SNAKE_CASE
+(`^[A-Z_][A-Z0-9_]*$`), e.g. `SALESFORCE_TOKEN`, `WORDPRESS_APP_PASSWORD`.
+
 ### When inline logic is OK
 
 - The admin is mid-conversation and explicitly says "just do it this once, don't bother capturing."

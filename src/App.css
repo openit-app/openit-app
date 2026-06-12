@@ -2152,22 +2152,15 @@ input.viewer-title.viewer-title-rename {
   color: var(--text);
 }
 
-.right-pane::before {
-  content: '';
-  position: absolute;
-  inset: 0;
-  background:
-    radial-gradient(ellipse at top, rgba(199, 90, 44, 0.1) 0%, transparent 60%),
-    radial-gradient(rgba(255, 220, 180, 0.04) 1px, transparent 1px);
-  background-size:
-    100% 100%,
-    18px 18px;
-  pointer-events: none;
-}
-.right-pane > * {
-  position: relative;
-  z-index: 1;
-}
+/* PIN-6608: the decorative right-pane ::before overlay (a radial warm
+   wash + an 18px dotted texture) was removed. It sat behind the xterm
+   content and put a faint gradient + dot grid under Claude's output,
+   which reduced text contrast and made screenshots noisy. Terminal
+   readability was the #1 reported issue, so the Claude pane now renders
+   on the flat var(--bg) surface defined on .right-pane above. The
+   companion `.right-pane > * { z-index: 1 }` rule only existed to lift
+   children above that overlay; with no overlay it served no purpose and
+   was removed too, so children keep their natural stacking. */
 
 /* .icon-btn / .icon-btn.key-set — first of three legacy
    definitions for the header buttons. Migrated to <Button> in
@@ -2934,6 +2927,7 @@ input.viewer-title.viewer-title-rename {
   margin-top: 24px;
   display: flex;
   justify-content: flex-end;
+  gap: 10px;
 }
 
 /* ── Claude Code status bar ── */
@@ -4697,7 +4691,11 @@ input.viewer-title.viewer-title-rename {
 
 .workbench-picker-grid {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  /* Responsive: 2 columns at the normal pane width, but collapse to 1 when
+     the pane is narrowed so tile labels never clip to a single character.
+     auto-fill + minmax keeps a readable minimum tile width on both
+     WebView2 (Windows) and WKWebView (macOS). */
+  grid-template-columns: repeat(auto-fill, minmax(108px, 1fr));
   gap: 6px;
   padding: 0 2px;
 }
@@ -4725,8 +4723,13 @@ input.viewer-title.viewer-title-rename {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 22px;
+  /* Hidden by default and, importantly, reserves NO horizontal space when
+     hidden (width:0 + min-width:0 + overflow:hidden) so it doesn't squeeze
+     the label on narrow tiles. It expands on hover. */
+  width: 0;
+  min-width: 0;
   height: 22px;
+  overflow: hidden;
   border-radius: 6px;
   font-size: 14px;
   font-weight: 600;
@@ -4735,12 +4738,14 @@ input.viewer-title.viewer-title-rename {
   cursor: pointer;
   opacity: 0;
   transition:
+    width var(--t-fast) var(--ease),
     opacity var(--t-fast) var(--ease),
     background var(--t-fast) var(--ease),
     color var(--t-fast) var(--ease);
 }
 
 .station.station-picker:hover .station-add-hint {
+  width: 22px;
   opacity: 1;
 }
 

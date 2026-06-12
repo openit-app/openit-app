@@ -174,6 +174,33 @@ describe("loadWorkstationConfig — reset triggers", () => {
     expect(mockedEntityWriteFile).not.toHaveBeenCalled();
   });
 
+  it("preserves a user-pinned filestore sub-store promoted to MAIN across reload (PIN-7012)", async () => {
+    // Repro for PIN-7012 "tile flips on then disappears": the user pins
+    // a filestore sub-store via right-click → "Add to workstation" (lands
+    // in MORE with userPinned:true), then uses "move to main" to promote
+    // it. That leaves a non-primitive tile in MAIN. On the next config
+    // reload the migration must NOT wipe it.
+    const promoted: WorkstationConfig = {
+      main: [
+        ...PRIMITIVE_MAIN_RELS.map((r) => ({ rel: r })),
+        { rel: "filestores/library", userPinned: true }, // ← user-pinned sub-store promoted to MAIN
+      ],
+      more: PRIMITIVE_MORE_RELS.map((r) => ({ rel: r, userPinned: true })),
+    };
+    mockedFsRead.mockResolvedValue(JSON.stringify(promoted));
+
+    const cfg = await loadWorkstationConfig("/repo");
+
+    // The promoted filestore must survive the reload — not vanish.
+    expect(cfg.main.map((t) => t.rel)).toContain("filestores/library");
+    // The other primitives must still be present (main must not be wiped).
+    for (const rel of PRIMITIVE_MAIN_RELS) {
+      expect(cfg.main.map((t) => t.rel)).toContain(rel);
+    }
+    // userPinned flag preserved on the promoted tile.
+    expect(cfg.main.find((t) => t.rel === "filestores/library")?.userPinned).toBe(true);
+  });
+
   it("promotes MORE-default primitives to MAIN and persists across reload", async () => {
     // Parametrized test over all five PRIMITIVE_MORE_RELS to ensure
     // the fix works for all affected primitives and prevent future

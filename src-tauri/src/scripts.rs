@@ -12,6 +12,9 @@ use std::process::Command;
 use std::time::Instant;
 
 use serde::Serialize;
+use tauri::{AppHandle, Runtime};
+
+use crate::credentials::load_credential_env;
 
 #[derive(Serialize)]
 pub struct ScriptRunOutput {
@@ -28,8 +31,16 @@ pub struct ScriptRunOutput {
 /// long-running `node …` would freeze the UI. Wrapping the spawn keeps
 /// the renderer responsive while the script runs.
 #[tauri::command]
-pub async fn script_run(repo: String, script_path: String) -> Result<ScriptRunOutput, String> {
-    tauri::async_runtime::spawn_blocking(move || run_blocking(&repo, &script_path))
+pub async fn script_run<R: Runtime>(
+    app: AppHandle<R>,
+    repo: String,
+    script_path: String,
+) -> Result<ScriptRunOutput, String> {
+    // Resolve saved credentials on the command thread (cheap; reads the
+    // local index + OS store) and hand the plain pairs to the blocking
+    // task so the spawned script sees them as environment variables.
+    let credentials = load_credential_env(&app);
+    tauri::async_runtime::spawn_blocking(move || run_blocking(&repo, &script_path, &credentials))
         .await
         .map_err(|e| format!("background task failed: {}", e))?
 }
@@ -95,7 +106,11 @@ pub fn script_resolve_interpreter(interpreter: String) -> Option<String> {
     resolve_interpreter_path(&interpreter).map(|p| p.to_string_lossy().to_string())
 }
 
-fn run_blocking(repo: &str, script_path: &str) -> Result<ScriptRunOutput, String> {
+fn run_blocking(
+    repo: &str,
+    script_path: &str,
+    credentials: &[(String, String)],
+) -> Result<ScriptRunOutput, String> {
     let repo_path = Path::new(repo);
     let script = resolve_script(repo_path, script_path)?;
 
@@ -138,20 +153,22 @@ fn run_blocking(repo: &str, script_path: &str) -> Result<ScriptRunOutput, String
     // API we care about so we don't need the extended form.
     let script_for_cmd = strip_unc_prefix(&canon_script);
     let cwd_for_cmd = strip_unc_prefix(&canon_repo);
-    let output = Command::new(&interpreter_path)
-        .arg(&script_for_cmd)
-        .current_dir(&cwd_for_cmd)
-        .output()
-        .map_err(|e| {
-            // `os error 2` (NotFound) here is unrecoverable — the
-            // resolved path raced or got revoked between resolve and
-            // spawn. Fall back to the friendly message either way.
-            if e.kind() == std::io::ErrorKind::NotFound {
-                missing_interpreter_message(interpreter)
-            } else {
-                format!("failed to spawn {}: {}", interpreter, e)
-            }
-        })?;
+    let mut command = Command::new(&interpreter_path);
+    command.arg(&script_for_cmd).current_dir(&cwd_for_cmd);
+    // Inject saved credentials as env vars. `.env` adds to (and overrides
+    // within) the inherited environment, so PATH and everything else the
+    // interpreter needs is preserved.
+    apply_credential_env(&mut command, credentials);
+    let output = command.output().map_err(|e| {
+        // `os error 2` (NotFound) here is unrecoverable — the
+        // resolved path raced or got revoked between resolve and
+        // spawn. Fall back to the friendly message either way.
+        if e.kind() == std::io::ErrorKind::NotFound {
+            missing_interpreter_message(interpreter)
+        } else {
+            format!("failed to spawn {}: {}", interpreter, e)
+        }
+    })?;
     let duration_ms = started.elapsed().as_millis();
 
     Ok(ScriptRunOutput {
@@ -220,6 +237,15 @@ fn resolve_script(repo: &Path, script_path: &str) -> Result<PathBuf, String> {
     Ok(abs)
 }
 
+/// Add each saved credential to the command's environment. Kept as a
+/// standalone helper so the injection contract (additive, never clearing
+/// the inherited env) is unit-testable without spawning a real process.
+fn apply_credential_env(command: &mut Command, credentials: &[(String, String)]) {
+    for (name, value) in credentials {
+        command.env(name, value);
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -253,5 +279,65 @@ mod tests {
     #[test]
     fn resolve_interpreter_path_none_for_missing() {
         assert!(resolve_interpreter_path("definitely-not-a-real-bin-xyz123").is_none());
+    }
+
+    /// Collect the explicitly-set (key, value) env overrides on a
+    /// `Command` for assertions. We introspect via `get_envs()` rather
+    /// than spawning a real subprocess so the test is deterministic and
+    /// doesn't add process-spawn pressure to the parallel test run (the
+    /// macOS ad-hoc-signed test binary can flake when many children spawn
+    /// at once).
+    fn collected_envs(command: &Command) -> Vec<(String, String)> {
+        command
+            .get_envs()
+            .filter_map(|(k, v)| {
+                v.map(|v| {
+                    (
+                        k.to_string_lossy().to_string(),
+                        v.to_string_lossy().to_string(),
+                    )
+                })
+            })
+            .collect()
+    }
+
+    #[test]
+    fn apply_credential_env_injects_all_pairs() {
+        let mut command = Command::new("node");
+        apply_credential_env(
+            &mut command,
+            &[
+                ("SALESFORCE_TOKEN".to_string(), "tok".to_string()),
+                ("API_KEY".to_string(), "k3y".to_string()),
+            ],
+        );
+        let envs = collected_envs(&command);
+        assert!(envs.contains(&("SALESFORCE_TOKEN".to_string(), "tok".to_string())));
+        assert!(envs.contains(&("API_KEY".to_string(), "k3y".to_string())));
+    }
+
+    #[test]
+    fn apply_credential_env_does_not_clear_inherited_env() {
+        // The helper must only *add* overrides. `Command` inherits the
+        // parent environment unless `env_clear` is called; we assert that
+        // injecting one var leaves exactly one explicit override and never
+        // wipes the inherited set.
+        let mut command = Command::new("node");
+        apply_credential_env(
+            &mut command,
+            &[("OPENIT_TEST_SECRET".to_string(), "v".to_string())],
+        );
+        let envs = collected_envs(&command);
+        assert_eq!(
+            envs,
+            vec![("OPENIT_TEST_SECRET".to_string(), "v".to_string())]
+        );
+    }
+
+    #[test]
+    fn apply_credential_env_with_no_credentials_is_noop() {
+        let mut command = Command::new("node");
+        apply_credential_env(&mut command, &[]);
+        assert!(collected_envs(&command).is_empty());
     }
 }

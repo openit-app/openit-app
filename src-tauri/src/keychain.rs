@@ -10,7 +10,8 @@ fn entry(slot: &str) -> Result<Entry, String> {
 pub fn keychain_set(slot: String, value: String) -> Result<(), String> {
     let e = entry(&slot)?;
     e.set_password(&value).map_err(|e| e.to_string())?;
-    eprintln!("[keychain] set ok: slot={} len={}", slot, value.len());
+    // Deliberately no logging of the slot or value length — keep secret
+    // metadata out of stdout/stderr and any captured app logs.
     Ok(())
 }
 

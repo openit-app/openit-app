@@ -26,6 +26,69 @@ vi.mock("@xterm/addon-fit", () => ({
   },
 }));
 
+vi.mock("@xterm/addon-web-links", () => ({
+  WebLinksAddon: class {
+    activate() {}
+    dispose() {}
+  },
+}));
+
+vi.mock("@tauri-apps/plugin-opener", () => ({
+  openUrl: vi.fn().mockResolvedValue(undefined),
+}));
+
+vi.mock("@tauri-apps/plugin-clipboard-manager", () => ({
+  readText: vi.fn().mockResolvedValue(""),
+}));
+
+vi.mock("@tauri-apps/api/core", () => ({
+  invoke: vi.fn().mockResolvedValue(""),
+}));
+
+// Capture each ChatPane's xterm title handler so tests can fire a real
+// OSC 0/2 title event (the exact path Claude Code uses) and assert how the
+// tab strip reacts. Keyed by the constructed terminal so multi-tab tests
+// can target a specific pane if needed; we expose the most-recent handler
+// for the common single-tab case (PIN-6604).
+const xtermCapture = vi.hoisted(() => ({
+  titleHandlers: [] as Array<(title: string) => void>,
+  emitTitle(title: string) {
+    // Mirror real xterm: fan the OSC title out to every registered handler
+    // (in these tests each ChatPane registers exactly one).
+    for (const h of this.titleHandlers) h(title);
+  },
+}));
+
+vi.mock("@xterm/xterm", () => {
+  class FakeTerminal {
+    cols = 80;
+    rows = 24;
+    loadAddon(addon: { activate?: (term: unknown) => void }) {
+      addon.activate?.(this);
+    }
+    open() {}
+    focus() {}
+    dispose() {}
+    refresh() {}
+    write() {}
+    writeln() {}
+    hasSelection() {
+      return false;
+    }
+    getSelection() {
+      return "";
+    }
+    clearSelection() {}
+    attachCustomKeyEventHandler() {}
+    onData() {}
+    onTitleChange(h: (title: string) => void) {
+      xtermCapture.titleHandlers.push(h);
+      return { dispose() {} };
+    }
+  }
+  return { Terminal: FakeTerminal };
+});
+
 import {
   ChatSessionTabs,
   loadTabs,
@@ -44,28 +107,46 @@ describe("ChatSessionTabs persistence helpers", () => {
     expect(nextDefaultLabel([])).toBe("Session 1");
     expect(
       nextDefaultLabel([
-        { id: "a", label: "Session 1", resume: false },
-        { id: "b", label: "Session 3", resume: false },
+        { id: "a", label: "Session 1", resume: false, userRenamed: false },
+        { id: "b", label: "Session 3", resume: false, userRenamed: false },
       ]),
     ).toBe("Session 2");
     expect(
       nextDefaultLabel([
-        { id: "a", label: "Session 1", resume: false },
-        { id: "b", label: "Session 2", resume: false },
-        { id: "c", label: "custom name", resume: false },
+        { id: "a", label: "Session 1", resume: false, userRenamed: false },
+        { id: "b", label: "Session 2", resume: false, userRenamed: false },
+        { id: "c", label: "custom name", resume: false, userRenamed: true },
       ]),
     ).toBe("Session 3");
   });
 
-  it("persistTabs + loadTabs round-trips id and label, drops resume", () => {
+  it("persistTabs + loadTabs round-trips id, label, and userRenamed, drops resume", () => {
     persistTabs(REPO, [
-      { id: "a", label: "Investigate", resume: true },
-      { id: "b", label: "Session 2", resume: false },
+      { id: "a", label: "Investigate", resume: true, userRenamed: true },
+      { id: "b", label: "Session 2", resume: false, userRenamed: false },
     ]);
     const loaded = loadTabs(REPO);
     expect(loaded).toEqual([
-      { id: "a", label: "Investigate", resume: false },
-      { id: "b", label: "Session 2", resume: false },
+      { id: "a", label: "Investigate", resume: false, userRenamed: true },
+      { id: "b", label: "Session 2", resume: false, userRenamed: false },
+    ]);
+  });
+
+  it("loadTabs infers userRenamed for pre-existing tabs without the flag", () => {
+    // Simulate tabs persisted before PIN-6604 added the field: only
+    // {id,label}. A non-default label must be treated as user-named
+    // (sticky), a "Session N" label as auto.
+    localStorage.setItem(
+      `openit:chat-tabs:${REPO}`,
+      JSON.stringify([
+        { id: "a", label: "My renamed tab" },
+        { id: "b", label: "Session 2" },
+      ]),
+    );
+    const loaded = loadTabs(REPO);
+    expect(loaded).toEqual([
+      { id: "a", label: "My renamed tab", resume: false, userRenamed: true },
+      { id: "b", label: "Session 2", resume: false, userRenamed: false },
     ]);
   });
 
@@ -96,6 +177,7 @@ describe("ChatSessionTabs component", () => {
   beforeEach(() => {
     localStorage.clear();
     Object.values(ptyMock).forEach((fn) => fn.mockClear());
+    xtermCapture.titleHandlers.length = 0;
   });
   afterEach(() => {
     cleanup();
@@ -181,8 +263,8 @@ describe("ChatSessionTabs component", () => {
 
   it("restores tabs from localStorage on remount", async () => {
     persistTabs(REPO, [
-      { id: "main-a", label: "Investigate auth", resume: false },
-      { id: "main-b", label: "Refactor viewer", resume: false },
+      { id: "main-a", label: "Investigate auth", resume: false, userRenamed: false },
+      { id: "main-b", label: "Refactor viewer", resume: false, userRenamed: false },
     ]);
     render(<ChatSessionTabs cwd={REPO} />);
     await act(async () => {
@@ -252,7 +334,9 @@ describe("ChatSessionTabs component", () => {
   it("strips a leading status glyph (CC's spinner '*'/'✱') from labels", async () => {
     // Seed a tab and mount, then drive a title-change through the
     // restored tab to verify the glyph strip happens in setLabel.
-    persistTabs(REPO, [{ id: "main-glyph", label: "Session 1", resume: false }]);
+    persistTabs(REPO, [
+      { id: "main-glyph", label: "Session 1", resume: false, userRenamed: false },
+    ]);
     render(<ChatSessionTabs cwd={REPO} />);
     await act(async () => {
       await new Promise((r) => setTimeout(r, 0));
@@ -308,5 +392,79 @@ describe("ChatSessionTabs component", () => {
     expect(screen.getByRole("tab", { selected: true })).toHaveTextContent(
       "Session 1",
     );
+  });
+
+  // ── PIN-6604: manual renames must not be clobbered by CC OSC titles ──
+
+  it("a CC OSC title does NOT overwrite a manually-renamed tab", async () => {
+    // Repro of the reported bug: user renames a tab, then Claude Code
+    // later emits its idle/status terminal title (e.g. the cwd basename
+    // "openit"). Before the fix, setLabel had no source guard and the
+    // OSC title overwrote the manual name → "reverted to default".
+    render(<ChatSessionTabs cwd={REPO} />);
+    await act(async () => {
+      await new Promise((r) => setTimeout(r, 0));
+    });
+    // Manually rename the seeded tab.
+    fireEvent.doubleClick(screen.getByRole("tab", { selected: true }));
+    const input = screen.getByLabelText(/rename session/i) as HTMLInputElement;
+    fireEvent.change(input, { target: { value: "My deploy session" } });
+    fireEvent.keyDown(input, { key: "Enter" });
+    await act(async () => {
+      await new Promise((r) => setTimeout(r, 0));
+    });
+    expect(screen.getByRole("tab", { selected: true })).toHaveTextContent(
+      "My deploy session",
+    );
+    // Now CC emits an OSC title. The tab must keep the user's name.
+    await act(async () => {
+      xtermCapture.emitTitle("openit");
+      await new Promise((r) => setTimeout(r, 0));
+    });
+    expect(screen.getByRole("tab", { selected: true })).toHaveTextContent(
+      "My deploy session",
+    );
+    expect(screen.getByRole("tab", { selected: true })).not.toHaveTextContent(
+      "openit",
+    );
+  });
+
+  it("a CC OSC title DOES update a tab the user has not renamed", async () => {
+    // Preserve the existing auto-naming behavior: tabs the user never
+    // touched still mirror Claude Code's terminal title.
+    render(<ChatSessionTabs cwd={REPO} />);
+    await act(async () => {
+      await new Promise((r) => setTimeout(r, 0));
+    });
+    expect(screen.getByRole("tab", { selected: true })).toHaveTextContent(
+      "Session 1",
+    );
+    await act(async () => {
+      xtermCapture.emitTitle("Investigate auth bug");
+      await new Promise((r) => setTimeout(r, 0));
+    });
+    expect(screen.getByRole("tab", { selected: true })).toHaveTextContent(
+      "Investigate auth bug",
+    );
+  });
+
+  it("manual rename pins userRenamed in persisted per-vault state", async () => {
+    render(<ChatSessionTabs cwd={REPO} />);
+    await act(async () => {
+      await new Promise((r) => setTimeout(r, 0));
+    });
+    fireEvent.doubleClick(screen.getByRole("tab", { selected: true }));
+    const input = screen.getByLabelText(/rename session/i) as HTMLInputElement;
+    fireEvent.change(input, { target: { value: "Pinned name" } });
+    fireEvent.keyDown(input, { key: "Enter" });
+    await act(async () => {
+      await new Promise((r) => setTimeout(r, 0));
+    });
+    // The persisted tab carries userRenamed:true so the stickiness
+    // survives a reload (loadTabs round-trips the flag).
+    const stored = loadTabs(REPO);
+    expect(stored).toHaveLength(1);
+    expect(stored[0].label).toBe("Pinned name");
+    expect(stored[0].userRenamed).toBe(true);
   });
 });

@@ -16,11 +16,22 @@ type ClaudeState =
 
 export function Onboarding({
   onOpenVault,
+  initialVaultPath = null,
+  onCancel,
 }: {
   onOpenVault: (path: string) => Promise<void>;
+  /// When opening the picker to *change* an existing vault, pass the
+  /// current active vault path so it's shown instead of the `~/OpenIT`
+  /// first-run placeholder. Pre-seeds the selection so confirming
+  /// without browsing re-opens the same vault.
+  initialVaultPath?: string | null;
+  /// Present only when there's an active vault to return to (i.e. the
+  /// change-vault flow, not first-run). Renders a Cancel action that
+  /// dismisses the picker without bootstrapping or registering a vault.
+  onCancel?: () => void;
 }) {
   const [claude, setClaude] = useState<ClaudeState>({ kind: "checking" });
-  const [vaultPath, setVaultPath] = useState<string | null>(null);
+  const [vaultPath, setVaultPath] = useState<string | null>(initialVaultPath);
   const [opening, setOpening] = useState(false);
   const isWindows = navigator.userAgent.toLowerCase().includes("win");
 
@@ -136,6 +147,16 @@ export function Onboarding({
 
         {/* ── CTA ── */}
         <div className="onboard-actions">
+          {onCancel && (
+            <Button
+              variant="secondary"
+              size="lg"
+              onClick={onCancel}
+              disabled={opening}
+            >
+              Cancel
+            </Button>
+          )}
           <Button
             variant="primary"
             size="lg"
