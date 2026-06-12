@@ -521,7 +521,7 @@ fn resolve_command(override_cmd: Option<&str>) -> Result<String> {
                 return Ok(comspec);
             }
         }
-        return Ok("cmd.exe".to_string());
+        Ok("cmd.exe".to_string())
     }
     #[cfg(not(target_os = "windows"))]
     {
@@ -650,6 +650,15 @@ mod tests {
     /// Drive the real PTY backend (without the Tauri event layer) to prove the
     /// spawn → read → exit pipeline works end-to-end. The `pty_spawn` Tauri
     /// command wraps these same primitives.
+    ///
+    /// Unix-only. This asserts read-to-EOF pipe semantics: the PTY master
+    /// returns EOF once the child exits. On Windows the backend is ConPTY,
+    /// which keeps the pseudoconsole open and never delivers EOF on child
+    /// exit, so any read loop blocks forever (portable-pty exposes no
+    /// timeout-based read to bound it). Rather than ship a flaky/hanging
+    /// Windows variant, we skip this end-to-end test on Windows; the Windows
+    /// CI job still compiles this module and runs every other test.
+    #[cfg(not(target_os = "windows"))]
     #[test]
     fn pty_pipeline_spawns_reads_and_exits() {
         let pty_system = native_pty_system();
@@ -662,14 +671,6 @@ mod tests {
             })
             .unwrap();
 
-        #[cfg(target_os = "windows")]
-        let mut cmd = {
-            let mut c = CommandBuilder::new("cmd.exe");
-            c.arg("/C");
-            c.arg("echo");
-            c
-        };
-        #[cfg(not(target_os = "windows"))]
         let mut cmd = CommandBuilder::new("/bin/echo");
         cmd.arg("hello-from-pty");
         let mut child = pair.slave.spawn_command(cmd).unwrap();
@@ -678,7 +679,7 @@ mod tests {
         let mut reader = pair.master.try_clone_reader().unwrap();
         let mut buf = Vec::new();
         let mut chunk = [0u8; 256];
-        // Read until EOF; PTY closes when child exits.
+        // Read until EOF; the PTY closes when the child exits (Unix semantics).
         loop {
             match reader.read(&mut chunk) {
                 Ok(0) => break,
